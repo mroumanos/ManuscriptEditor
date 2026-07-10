@@ -159,21 +159,22 @@ enum SigningService {
     /// gpg is missing or the keyring is unreachable — callers fall back to
     /// the key-file picker.
     static func localGPGKeys() -> [GPGKey]? {
-        // 1. Direct (works when unsandboxed or the grant carries through).
-        if let home = gnupgHome, let keys = parseSecretKeys(runGPG(home: home)) {
-            effectiveGPGHome = home
+        // With a grant, go straight to the container mirror — the direct
+        // attempts are the flaky path under the sandbox (child can't read
+        // ~/.gnupg, and the live keyring's lock/daemons interfere) and each
+        // costs seconds of lock-wait before failing.
+        if hasGnupgGrant {
+            guard let mirror = mirrorGrantedKeyring() else { return nil }
+            let keys = parseSecretKeys(runGPG(home: mirror))
+            if keys != nil { effectiveGPGHome = mirror }
             return keys
         }
+        // No grant: a plain run works when the app is unsandboxed.
         if let keys = parseSecretKeys(runGPG(home: nil)) {
             effectiveGPGHome = nil
             return keys
         }
-        // 2. Container mirror: the parent copies the granted keyring into the
-        //    sandbox container, where the child can always read it.
-        guard let mirror = mirrorGrantedKeyring(),
-              let keys = parseSecretKeys(runGPG(home: mirror)) else { return nil }
-        effectiveGPGHome = mirror
-        return keys
+        return nil
     }
 
     /// The armored public key for a local gpg fingerprint.
@@ -235,7 +236,10 @@ enum SigningService {
     /// and locks) so the sandboxed gpg child can read it.  Refreshed on every
     /// call; lives only inside this app's private container.
     private static func mirrorGrantedKeyring() -> URL? {
-        guard let source = gnupgHome else { return nil }
+        guard let source = gnupgHome else {
+            lastGPGError = "The keyring grant didn't resolve — click Allow Access to GPG Keyring… again."
+            return nil
+        }
         let fm = FileManager.default
         let mirror = fm.temporaryDirectory.appendingPathComponent("gnupg-mirror", isDirectory: true)
         try? fm.removeItem(at: mirror)
@@ -243,7 +247,10 @@ enum SigningService {
             try fm.createDirectory(at: mirror, withIntermediateDirectories: true,
                                    attributes: [.posixPermissions: 0o700])
             guard let items = try? fm.contentsOfDirectory(at: source, includingPropertiesForKeys: nil)
-            else { return nil }
+            else {
+                lastGPGError = "Couldn't read the granted folder (\(source.path)) — re-grant access."
+                return nil
+            }
             for item in items {
                 let name = item.lastPathComponent
                 // Sockets (S.gpg-agent…) and locks can't/shouldn't be copied.
@@ -263,6 +270,7 @@ enum SigningService {
             }
             return mirror
         } catch {
+            lastGPGError = "Couldn't mirror the keyring: \(error.localizedDescription)"
             return nil
         }
     }

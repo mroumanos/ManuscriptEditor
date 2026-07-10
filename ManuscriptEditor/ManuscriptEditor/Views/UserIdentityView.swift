@@ -241,8 +241,9 @@ struct UserIdentityView: View {
         SigningService.grantGnupgAccess(url)
         localKeys = SigningService.localGPGKeys()
         if localKeys == nil {
+            let detail = SigningService.lastGPGError.map { "\n\ngpg said: \($0)" } ?? ""
             testResult = .failure(AccountTestError.failed(
-                "Still couldn't read the keyring — gpg may be storing keys elsewhere. The file picker (gpg --armor --export > key.asc) always works."))
+                "Couldn't read the keyring.\(detail)\n\nThe file picker (gpg --armor --export > key.asc) always works."))
         }
     }
 
