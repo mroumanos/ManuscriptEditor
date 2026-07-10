@@ -100,6 +100,30 @@ enum SigningService {
 
     // MARK: - Local GPG keyring (best effort)
 
+    /// The App Sandbox blocks ~/.gnupg by default; the user can grant access
+    /// once via an open panel (Preferences → User) and we keep a
+    /// security-scoped bookmark, passing the folder to gpg as --homedir.
+    static func grantGnupgAccess(_ url: URL) {
+        if let bookmark = try? url.bookmarkData(
+            options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil) {
+            UserDefaults.standard.set(bookmark, forKey: "gnupgHomeBookmark")
+        }
+    }
+
+    /// The granted GPG home (access started), or nil when never granted.
+    private static var gnupgHome: URL? {
+        guard let data = UserDefaults.standard.data(forKey: "gnupgHomeBookmark") else { return nil }
+        var stale = false
+        guard let url = try? URL(resolvingBookmarkData: data, options: .withSecurityScope,
+                                 relativeTo: nil, bookmarkDataIsStale: &stale) else { return nil }
+        _ = url.startAccessingSecurityScopedResource()
+        return url
+    }
+
+    static var hasGnupgGrant: Bool {
+        UserDefaults.standard.data(forKey: "gnupgHomeBookmark") != nil
+    }
+
     /// Secret keys from the user's local gpg, for the identity dropdown.
     /// Returns nil when gpg is missing or the sandbox blocks ~/.gnupg —
     /// callers fall back to the key-file picker.
@@ -140,7 +164,13 @@ enum SigningService {
         else { return nil }
         let process = Process()
         process.executableURL = URL(fileURLWithPath: path)
-        process.arguments = arguments
+        // The sandbox grant (if any) must be active in THIS process before
+        // spawning — the child inherits the sandbox state.
+        if let home = gnupgHome {
+            process.arguments = ["--homedir", home.path] + arguments
+        } else {
+            process.arguments = arguments
+        }
         let pipe = Pipe()
         process.standardOutput = pipe
         process.standardError = Pipe()

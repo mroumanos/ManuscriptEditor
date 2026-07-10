@@ -29,6 +29,8 @@ struct UserIdentityView: View {
     @State private var showKeyImporter = false
     @State private var isTesting = false
     @State private var testResult: Result<String, Error>?
+    /// Local gpg keyring contents (nil = gpg unavailable/blocked).
+    @State private var localKeys: [(fingerprint: String, uid: String)]?
 
     var body: some View {
         Form {
@@ -68,10 +70,10 @@ struct UserIdentityView: View {
             if type != .local {
                 Section("GPG Key") {
                     HStack(spacing: 10) {
-                        // Best effort: the user's local gpg keyring as a menu
-                        // (sandboxing can block ~/.gnupg — the file picker
-                        // below always works).
-                        if let localKeys = SigningService.localGPGKeys() {
+                        // The user's local gpg keyring as a menu.  The App
+                        // Sandbox blocks ~/.gnupg until the user grants it
+                        // once; the file picker below always works.
+                        if let localKeys {
                             Menu {
                                 ForEach(localKeys, id: \.fingerprint) { key in
                                     Button(key.uid) {
@@ -86,6 +88,13 @@ struct UserIdentityView: View {
                                 Label("Choose from local GPG…", systemImage: "key.viewfinder")
                             }
                             .fixedSize()
+                        } else {
+                            Button {
+                                grantKeyringAccess()
+                            } label: {
+                                Label("Allow Access to GPG Keyring…", systemImage: "lock.open")
+                            }
+                            .help("The sandbox blocks ~/.gnupg until you grant it once; gpg is then queried with --homedir")
                         }
                         Button {
                             showKeyImporter = true
@@ -166,6 +175,7 @@ struct UserIdentityView: View {
         }
         .formStyle(.grouped)
         .padding()
+        .onAppear { localKeys = SigningService.localGPGKeys() }
         .fileImporter(isPresented: $showKeyImporter,
                       allowedContentTypes: [.plainText, .data, .item]) { result in
             guard case .success(let url) = result else { return }
@@ -188,6 +198,28 @@ struct UserIdentityView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("Past signatures keep verifying against the old public key; new activity signs with the new key.")
+        }
+    }
+
+    /// One-time sandbox grant: the user points an open panel at ~/.gnupg;
+    /// the bookmark persists and gpg runs against it via --homedir.
+    private func grantKeyringAccess() {
+        let panel = NSOpenPanel()
+        panel.title = "Allow Access to GPG Keyring"
+        panel.message = "Select your GPG home folder (usually ~/.gnupg) so the app can list your keys."
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.showsHiddenFiles = true
+        panel.directoryURL = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".gnupg", isDirectory: true)
+        panel.prompt = "Allow"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        SigningService.grantGnupgAccess(url)
+        localKeys = SigningService.localGPGKeys()
+        if localKeys == nil {
+            testResult = .failure(AccountTestError.failed(
+                "Still couldn't read the keyring — gpg may be storing keys elsewhere. The file picker (gpg --armor --export > key.asc) always works."))
         }
     }
 
