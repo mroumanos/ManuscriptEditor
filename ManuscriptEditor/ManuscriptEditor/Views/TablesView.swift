@@ -23,9 +23,15 @@ struct TablesView: View {
     /// UUID of the selected table.
     @State private var selectedID: UUID?
 
-    /// Tables sorted by number (Table 1, Table 2, …).
+    /// Display numbers follow reference order (first-referenced = Table 1).
+    private var numbers: [UUID: Int] {
+        store.manuscript(for: versionRef).map(RefEngine.effectiveTableNumbers) ?? [:]
+    }
+
+    /// Tables sorted by their effective (reference-order) number.
     private var tables: [ManuscriptTable] {
-        (store.manuscript(for: versionRef)?.tables ?? []).sorted { $0.number < $1.number }
+        (store.manuscript(for: versionRef)?.tables ?? [])
+            .sorted { (numbers[$0.id] ?? $0.number) < (numbers[$1.id] ?? $1.number) }
     }
 
     var body: some View {
@@ -54,7 +60,7 @@ struct TablesView: View {
                     ForEach(tables) { table in
                         HStack(spacing: 6) {
                             VStack(alignment: .leading, spacing: 2) {
-                                Text("Table \(table.number)").font(.callout.weight(.medium))
+                                Text("Table \(numbers[table.id] ?? table.number)").font(.callout.weight(.medium))
                                 Text(table.title)
                                     .font(.caption)
                                     .foregroundStyle(.secondary)

@@ -42,6 +42,12 @@ struct Note: Codable, Identifiable, Sendable, Equatable {
     /// Whether the note has been marked resolved.
     var resolved: Bool
 
+    /// The writer's public signing key (base64) and signature over this note
+    /// (see `SigningService.noteMessage`).  Optional: older notes and notes
+    /// from users without an identity remain unsigned.
+    var authorKey: String? = nil
+    var signature: String? = nil
+
     // MARK: - Factory
 
     static func new(versionKey: String, itemKey: String, author: String, body: String = "") -> Note {

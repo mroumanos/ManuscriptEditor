@@ -39,6 +39,10 @@ struct Journal: Codable, Identifiable, Sendable {
     /// When this journal profile was added to the manuscript.
     var createdAt: Date
 
+    /// Country of the journal/publisher — registry detail shown in the app
+    /// settings Journals library.  Optional for backward compatibility.
+    var country: String? = nil
+
     /// This journal's export outline (documents, ordering, page breaks,
     /// format, file types).  `nil` means "not customized yet" — the Export
     /// pane shows `ExportConfig.standard` until the user edits it.

@@ -33,6 +33,8 @@ struct ExportView: View {
 
     @State private var lastPackage: URL?
     @State private var errorMessage: String?
+    /// The journal being saved into the global library (drives the sheet).
+    @State private var savingToLibrary: Journal?
 
     /// Which journal's outline is being edited/exported (nil = Source),
     /// derived from the pane's tab.
@@ -128,6 +130,12 @@ struct ExportView: View {
         .onAppear { reloadConfig() }
         .onChange(of: journalID) { _, _ in reloadConfig() }
         .onChange(of: store.manuscript?.id) { _, _ in reloadConfig() }
+        .sheet(item: $savingToLibrary) { journal in
+            SaveToJournalLibrarySheet(journal: journal, isPresented: Binding(
+                get: { savingToLibrary != nil },
+                set: { if !$0 { savingToLibrary = nil } }
+            ))
+        }
     }
 
     // MARK: - Header
@@ -144,6 +152,16 @@ struct ExportView: View {
                 // The pane IS its tab's journal — no picker to re-litigate it.
                 Label(journalName, systemImage: journalID == nil ? "doc.text" : "building.columns")
                     .font(.headline)
+
+                if let journal = journals.first(where: { $0.id == journalID }) {
+                    Button {
+                        savingToLibrary = journal
+                    } label: {
+                        Label("Save to Journal Library…", systemImage: "books.vertical")
+                    }
+                    .controlSize(.small)
+                    .help("Store this journal's export outline (and checks) as a reusable library profile")
+                }
 
                 if let content = exportContent, journalID != nil,
                    let head = store.latestVersion(forJournal: journalID) {

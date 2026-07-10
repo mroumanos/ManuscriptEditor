@@ -13,18 +13,24 @@ Two sections, plus a bottom utility bar:
 **Manuscript** (manuscript-level, single-pane)
 - Overview
 - Data (N)
-- Settings
+- Sync     ← the flow-of-content hub: Save (Local/Remote), sync between
+             journals ("Stamp & Sync" when the upstream has unstamped
+             changes), and Add Journal (from = Source/journal; to = a profile
+             from the app-settings journal library)
+- Backend  ← THIS manuscript's storage: local folder, active account, remote
+             repository (create one here for local-first projects, with a link
+             to it once created)
+- AI       ← THIS manuscript's AI service selection (Phase II)
 
 **Journal** (the per-journal hub — sits above Content)
-- Sync     ← lineage management as a **nested tree** (each journal indented
-             under its upstream) with a per-edge fast-forward + overwrite warning
-- Checks   ← **comparable**: one live pane per open tab, each checking its own
-             tab's journal (Source shows an explanatory state — no picker)
-- Export   ← **comparable**: one pane per open tab — that journal's export
-             outline editor + submission package build (no picker)
-- Versions (N)   ← **comparable**: one pane per open tab — that journal's linear
-             history + the full lineage diagram with the journal highlighted
-             (no picker)
+- Checks   ← **comparable**: one live pane per tab, each checking its own
+             tab's journal; hosts Edit Requirements… and Save to Journal
+             Library… (Source shows an explanatory state)
+- Export   ← **comparable**: one pane per tab — that journal's export outline
+             editor + package build + Save to Journal Library…
+- Versions (N)   ← **comparable**: one pane per tab — that journal's
+             **horizontal version table** (Version · Stamped · From→To · By)
+             with Stamp Version and Roll Back…
 
 The Checks/Export/Versions panes **represent the journal of their tab**
 (starting with Source): open a NEJM tab and you see NEJM's side of the
@@ -42,33 +48,31 @@ panes.
 - Bibliography (N)
 - Letter to Editor
 
-**The Content section is shown only when at least one version tab is open.** With
-no tabs open it disappears, and selecting it is impossible; selection falls back
-to Overview.
+**The Content section is always available** — tabs load automatically, so at
+least the Source tab always exists.
 
 **Bottom utility bar** (pinned, does not scroll with the list)
-- A **gear** icon → opens the app **Preferences** window (⌘,). Global settings
-  (Backend / Views / AI / Editor) live there, NOT inline in the sidebar.
+- A **gear** icon → opens the app **Preferences** window (⌘,). App-wide
+  settings (Editor / Accounts / Journals library / User identity) live there;
+  manuscript-scoped Backend/AI live in the sidebar's Manuscript section.
 - An **appearance** toggle (System / Light / Dark).
 - "Add Section" (＋) lives in the sidebar toolbar at top.
 
-## The journal comparison tabs (top of the detail area)
+## The journal tab bar (top of the detail area)
 
-A horizontal **tab bar** lists the **active journals** to compare (each shown at
-its current working version unless a history version is explicitly selected).
+Tabs **load automatically** — Source plus every journal, in manuscript order —
+and are never opened/closed by hand (adding a journal in Sync adds its tab).
+Tab identity is the **journal**, always resolving to its current working head.
 
-- Each tab is a journal: **Source** or a target. Tabs are **color-coded** by
-  position (Source blue, then orange, green, …); the tab chip and its pane share
-  the color.
-- **Source is a normal tab** — it has an ✕ and can be closed like any other.
-- **Tabs are titled by journal + per-journal ordinal** ("Nature v2"), with older
-  (non-head) versions marked "(older)". The free-text version label (e.g.
-  "Synced from NEJM v2") appears only as secondary context in the picker — it
-  names the upstream, not the journal, so it cannot be the tab identity.
-- A **＋** opens a picker of journals not currently open, offering **working
-  heads only** — opening "Nature" always means its current head; older versions
-  are history, browsed in Versions, never tab candidates. Journals are created
-  in the **Journals** panel, not here.
+- **Browser-style chips**: icon + journal name; the shown tab(s) sit on a
+  lighter raised surface with an accent underline. No color coding — active
+  state is the only signal.
+- A segmented **Active | Compare** toggle replaces the old ＋ button:
+  - **Active**: exactly one journal renders; click a tab to switch, or cycle
+    with **⌘⇧← / ⌘⇧→** (View menu).
+  - **Compare**: each chip gains **＋** (include) / **✕** (remove); included
+    tabs render side-by-side, split evenly by default. The last included tab
+    can't be removed (falls back to Source).
 - **Side-by-side for comparable items.** Comparable = the **Content** items
   **plus Checks, Versions, and Export**. When a comparable item is selected AND
   ≥1 tab is open, the detail splits into one pane per open journal. For the
@@ -87,61 +91,36 @@ its current working version unless a history version is explicitly selected).
   chips above, in the same left-to-right order. Body sections are renamed via
   the sidebar's **context menu → Rename Section…** (shared structure — applies
   to every journal).
-- A per-pane **version control** (e.g. a `v3 ▾` menu with Save / Save new version
-  / roll back-forward) lets the user move through that journal's history without
-  affecting other journals.
+
 
 ## Where each capability lives (so it's never re-litigated)
 
 | Capability | Location |
 |---|---|
 | App-wide theme | Sidebar bottom toggle **and** Preferences → Editor |
-| Backends / AI services / global Views | **Preferences (⌘,)** tabs |
+| External accounts (GitHub/GitLab/Claude/OpenAI…) + Test Connection | **Preferences → Accounts** (tokens/keys in Keychain) |
+| Journal library (search, details, requirements) | **Preferences → Journals** |
+| User identity (name + signing key) | **Preferences → User** |
 | Editor font / size / line spacing | Preferences → Editor |
-| Per-manuscript active backend / source view / AI | **Settings** sidebar item |
-| Create journals (cuts); lineage tree; sync/rollback; per-journal version history | **Journals** sidebar item |
-| Journal requirements & checklist (per journal) | inside a journal's detail in **Journals** |
-| Save / save new version / roll back-forward | per-pane version control + **Journals** detail |
-| Notes & feedback on content | inline on content items / highlight-to-comment in prose |
+| This manuscript's backend account / local folder / remote repo (create + link) | **Manuscript → Backend** sidebar item |
+| This manuscript's AI service | **Manuscript → AI** sidebar item |
+| Save (Local) ⌘S / Save (Remote) ⇧⌘S / Load from Remote | **File menu** + the **Sync** pane |
+| Add journals (from → to); sync between journals; lineage tree | **Manuscript → Sync** pane |
+| Stamp Version / Roll Back; per-journal version table | **Journal → Versions** pane (per tab) |
+| Journal requirements editing; save profile to library | **Journal → Checks** pane (per tab) |
+| Notes & feedback on content | notes button in pane headers (signed) |
 | Import CSV/images; SQL; charts | **Data** sidebar item |
-| Requirement pass/fail for active view | **Checks** sidebar item |
-| Save to Remote / Load from Remote (GitHub backend) | **Manuscript menu** (⇧⌘S / Load from Remote…); repo+token in Preferences → Backend; active backend in **Settings** |
-| New manuscript (folder picker) | ＋ in window toolbar / ⌘N |
+| New Manuscript (File ⌘N / Remote…) with unsaved-work warning | **File menu** |
 
-## Journal hub (implemented) & profiles (planned)
+## Lineage (Sync pane)
 
-The per-journal concerns are grouped in a **Journal** sidebar section (above
-Content): **Sync**, **Checks**, **Export**, **Versions**. This consolidates "what this
-journal needs, tracks, and outputs" in one place.
+The lineage renders as a **contiguous nested tree**: Source at the root, each
+journal's card attached directly beneath its upstream — tabbed on the left,
+right edges aligned. Each card carries the edge badge it hangs from (upstream
+version), its "vN / latest" position, a drift status that never overstates
+freshness, and its per-edge **Sync** button (relabeled **Stamp & Sync** when
+the upstream's latest has unstamped changes — lineage always hangs from frozen
+versions). Source maintains its own version chain exactly like the journals
+(stamp it in its Versions pane).
 
-Planned extension: make each of these **profile-aware** (per article type — D2 in
-[`05-features.md`](05-features.md)) so Checks and Export follow the selected
-submission profile, and add a per-profile export-outline editor under Export.
 
-## Journals panel (journals + lineage + version history)
-
-- Left: the **lineage tree** — **Source** root, then journals indented by depth
-  with box-drawing connectors. "Add Journal" lives in the section. Each journal
-  row exposes its version history and **Sync** / **Rollback** affordances along
-  the relevant edge.
-- Right: selecting **Source** shows the full lineage visualization; selecting a
-  journal shows its detail — **Requirements** and **Checklist** tabs, the chosen
-  **View**, version history (Save / Save new version / roll back-forward), the
-  `Source@vX → … → this@vY` lineage breadcrumb, and (targets only) submission
-  config/status.
-- **Add Journal** sheet: name + **cut-from parent journal** (Source or any
-  journal, at its current version) + **requirements & view** (from a preset, which
-  supplies both, or custom). Creates the journal at `v1` with a lineage edge from
-  the parent version.
-- **Sync** (per edge): re-derive a child from its parent's newer version — stamps
-  a new child version and a new edge. Individual, never recursive. A **sync icon**
-  on an edge signals a fast-forward is available.
-- **Rollback** (per edge): restore the prior edge and **soft-archive** the newer
-  versions it produced (recoverable, not deleted).
-
-The lineage has a **compressed** default view (journal nodes labeled with their
-current version, edges labeled with the parent version) and a **detailed**
-drill-down (click an edge to see the history between two journals). See the
-diagrams in [`02-domain-model.md`](02-domain-model.md#lineage-visualization-how-the-tree-reads).
-
-![Compressed lineage](examples/lineage-management.png)

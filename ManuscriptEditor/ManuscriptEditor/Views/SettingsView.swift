@@ -1,13 +1,15 @@
 // SettingsView.swift
 //
-// The ⌘-comma Preferences window.
+// The ⌘-comma Preferences window — **app-wide** settings only (the
+// manuscript-scoped Backend/AI selections live in the sidebar's Manuscript
+// section):
 //
-// Tabs:
-//   Editor  — auto-save, font, line spacing
-//   Backend — global backend accounts (formerly Global → Backend)
-//   Views   — view template management (formerly Global → Views)
-//   AI      — AI service accounts (formerly Global → AI)
-//   Export  — Phase 2 export settings
+//   Editor   — appearance, font, line spacing
+//   Accounts — every external account in one place: storage backends
+//              (GitHub, GitLab, …) and AI services (Claude, OpenAI, …),
+//              each with credentials in the Keychain and Test Connection
+//   Journals — the global journal library (search, details, requirements)
+//   User     — the local identity: name + signing key for stamps/comments
 
 import SwiftUI
 
@@ -25,19 +27,16 @@ struct SettingsView: View {
             editorTab
                 .tabItem { Label("Editor", systemImage: "textformat") }
 
-            BackendView()
-                .tabItem { Label("Backend", systemImage: "externaldrive.connected.to.line.below") }
+            AccountsView()
+                .tabItem { Label("Accounts", systemImage: "person.crop.circle.badge.plus") }
 
-            GlobalViewsView()
-                .tabItem { Label("Views", systemImage: "rectangle.split.3x1") }
+            JournalLibraryView()
+                .tabItem { Label("Journals", systemImage: "building.columns") }
 
-            AIServicesView()
-                .tabItem { Label("AI", systemImage: "sparkles") }
-
-            exportTab
-                .tabItem { Label("Export", systemImage: "square.and.arrow.up") }
+            UserIdentityView()
+                .tabItem { Label("User", systemImage: "signature") }
         }
-        .frame(width: 680, height: 480)
+        .frame(width: 720, height: 520)
     }
 
     // MARK: - Editor tab
@@ -94,27 +93,5 @@ struct SettingsView: View {
             .lineSpacing(typography.lineSpacingPoints)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.vertical, 4)
-    }
-
-    // MARK: - Export tab (Phase 2)
-
-    private var exportTab: some View {
-        Form {
-            Section("Export (Phase 2)") {
-                Picker("Default format", selection: .constant("docx")) {
-                    ForEach(ExportFormat.allCases, id: \.self) { fmt in
-                        Text(fmt.rawValue).tag(fmt.rawValue)
-                    }
-                }
-                .disabled(true)
-            }
-            Section {
-                Text("Export configuration will be enabled in Phase 2.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .formStyle(.grouped)
-        .padding()
     }
 }

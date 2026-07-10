@@ -9,6 +9,7 @@
 
 import AppKit
 import CoreGraphics
+import CoreText
 import ImageIO
 import UniformTypeIdentifiers
 
@@ -61,71 +62,31 @@ func drawMaster() -> CGImage {
                            end: CGPoint(x: 512, y: 620),
                            options: [])
 
-    // ── The manuscript page (left of center) ────────────────────────────────
-    let page = CGRect(x: 236, y: 268, width: 340, height: 470)
-    let pagePath = CGPath(roundedRect: page, cornerWidth: 28, cornerHeight: 28, transform: nil)
+    // ── "ME" monogram — academic-serif, white, centered ─────────────────────
+    let font = CTFontCreateWithName("Georgia-Bold" as CFString, 430, nil)
+    let attrs: [NSAttributedString.Key: Any] = [
+        .font: font,
+        .foregroundColor: NSColor.white,
+        .kern: -14,
+    ]
+    let text = NSAttributedString(string: "ME", attributes: attrs)
+    let line = CTLineCreateWithAttributedString(text)
+    let bounds = CTLineGetImageBounds(line, ctx)
     ctx.saveGState()
-    ctx.setShadow(offset: CGSize(width: 0, height: -10), blur: 28,
-                  color: CGColor(red: 0, green: 0, blue: 0, alpha: 0.30))
-    ctx.addPath(pagePath)
-    ctx.setFillColor(CGColor(gray: 1, alpha: 1))
-    ctx.fillPath()
+    ctx.setShadow(offset: CGSize(width: 0, height: -8), blur: 22,
+                  color: CGColor(red: 0, green: 0, blue: 0, alpha: 0.35))
+    ctx.textPosition = CGPoint(x: 512 - bounds.midX, y: 512 - bounds.midY)
+    CTLineDraw(line, ctx)
     ctx.restoreGState()
 
-    // Text lines on the page (blue-gray, rounded caps).
-    ctx.setFillColor(CGColor(red: 0.42, green: 0.52, blue: 0.72, alpha: 1))
-    let lineX = page.minX + 44
-    let lineW = page.width - 88
-    var lineY = page.maxY - 78
-    // Title line: thicker, darker, shorter.
-    ctx.setFillColor(CGColor(red: 0.16, green: 0.25, blue: 0.5, alpha: 1))
-    ctx.addPath(CGPath(roundedRect: CGRect(x: lineX, y: lineY, width: lineW * 0.62, height: 30),
-                       cornerWidth: 15, cornerHeight: 15, transform: nil))
-    ctx.fillPath()
-    lineY -= 64
-    ctx.setFillColor(CGColor(red: 0.55, green: 0.64, blue: 0.8, alpha: 1))
-    for i in 0..<5 {
-        let w = i == 4 ? lineW * 0.45 : lineW
-        ctx.addPath(CGPath(roundedRect: CGRect(x: lineX, y: lineY, width: w, height: 22),
-                           cornerWidth: 11, cornerHeight: 11, transform: nil))
-        ctx.fillPath()
-        lineY -= 56
-    }
-
-    // ── The lineage fork (right side): page → source node → two cuts ────────
-    let stroke = CGColor(gray: 1, alpha: 0.95)
-    ctx.setStrokeColor(stroke)
-    ctx.setLineWidth(26)
+    // A quiet baseline rule beneath the monogram — the "manuscript line".
+    ctx.setStrokeColor(CGColor(gray: 1, alpha: 0.55))
+    ctx.setLineWidth(14)
     ctx.setLineCap(.round)
-
-    let start = CGPoint(x: page.maxX + 8, y: 503)     // off the page edge
-    let hub = CGPoint(x: 692, y: 503)
-    let top = CGPoint(x: 800, y: 640)
-    let bottom = CGPoint(x: 800, y: 366)
-
     ctx.beginPath()
-    ctx.move(to: start)
-    ctx.addLine(to: hub)
+    ctx.move(to: CGPoint(x: 300, y: 268))
+    ctx.addLine(to: CGPoint(x: 724, y: 268))
     ctx.strokePath()
-
-    for end in [top, bottom] {
-        ctx.beginPath()
-        ctx.move(to: hub)
-        ctx.addCurve(to: end,
-                     control1: CGPoint(x: hub.x + 60, y: hub.y),
-                     control2: CGPoint(x: end.x - 60, y: end.y))
-        ctx.strokePath()
-    }
-
-    // Nodes: hub filled, cuts as rings (they're derived, not the source).
-    ctx.setFillColor(stroke)
-    ctx.fillEllipse(in: CGRect(x: hub.x - 34, y: hub.y - 34, width: 68, height: 68))
-    for end in [top, bottom] {
-        ctx.setFillColor(CGColor(red: 0.13, green: 0.22, blue: 0.55, alpha: 1))
-        ctx.fillEllipse(in: CGRect(x: end.x - 34, y: end.y - 34, width: 68, height: 68))
-        ctx.setLineWidth(22)
-        ctx.strokeEllipse(in: CGRect(x: end.x - 30, y: end.y - 30, width: 60, height: 60))
-    }
 
     ctx.restoreGState()
     return ctx.makeImage()!

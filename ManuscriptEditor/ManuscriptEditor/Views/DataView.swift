@@ -240,6 +240,7 @@ struct CSVAssetDetail: View {
     @State private var chartType: ChartType = .bar
     @State private var xColumn: String = ""
     @State private var yColumn: String = ""
+    @State private var palette: ChartPalette = .standard
 
     init(asset: DataAsset) {
         self.asset = asset
@@ -320,12 +321,12 @@ struct CSVAssetDetail: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 16) {
                 Picker("Chart", selection: $chartType) {
-                    ForEach(ChartType.allCases, id: \.self) { ct in
+                    ForEach(ChartType.selectable, id: \.self) { ct in
                         Label(ct.label, systemImage: ct.systemImage).tag(ct)
                     }
                 }
                 .pickerStyle(.segmented)
-                .frame(maxWidth: 280)
+                .frame(maxWidth: 200)
 
                 if !queryResult.columns.isEmpty {
                     Picker("X", selection: $xColumn) {
@@ -338,6 +339,11 @@ struct CSVAssetDetail: View {
                     }
                     .frame(maxWidth: 140)
                 }
+
+                Picker("Colors", selection: $palette) {
+                    ForEach(ChartPalette.allCases) { p in Text(p.rawValue).tag(p) }
+                }
+                .frame(maxWidth: 160)
             }
             .padding(.horizontal, 16)
             .padding(.top, 12)
@@ -348,7 +354,8 @@ struct CSVAssetDetail: View {
                 result: queryResult,
                 chartType: chartType,
                 xColumn: xColumn,
-                yColumn: yColumn
+                yColumn: yColumn,
+                palette: palette
             )
             .padding(16)
         }
@@ -382,23 +389,59 @@ struct CSVAssetDetail: View {
 
 // MARK: - DataChartView
 
+// MARK: - Chart palettes
+
+/// Category color palettes for multi-series charts.  Chosen per figure
+/// (persisted on `Figure.chartPalette`) or per Data-pane session.
+enum ChartPalette: String, CaseIterable, Identifiable {
+    case standard   = "Default"
+    case vivid      = "Vivid"
+    case pastel     = "Pastel"
+    case monochrome = "Monochrome"
+
+    var id: String { rawValue }
+
+    var colors: [Color] {
+        switch self {
+        case .standard:
+            return [.blue, .orange, .green, .purple, .pink, .teal, .yellow, .red]
+        case .vivid:
+            return [Color(red: 0.0, green: 0.45, blue: 1.0), Color(red: 1.0, green: 0.3, blue: 0.2),
+                    Color(red: 0.1, green: 0.75, blue: 0.35), Color(red: 0.7, green: 0.2, blue: 0.9),
+                    Color(red: 1.0, green: 0.7, blue: 0.0), Color(red: 0.0, green: 0.7, blue: 0.8)]
+        case .pastel:
+            return [Color(red: 0.55, green: 0.7, blue: 0.95), Color(red: 0.98, green: 0.7, blue: 0.6),
+                    Color(red: 0.65, green: 0.85, blue: 0.65), Color(red: 0.8, green: 0.7, blue: 0.9),
+                    Color(red: 0.95, green: 0.85, blue: 0.55), Color(red: 0.6, green: 0.85, blue: 0.85)]
+        case .monochrome:
+            return [Color(white: 0.15), Color(white: 0.35), Color(white: 0.5),
+                    Color(white: 0.65), Color(white: 0.78)]
+        }
+    }
+}
+
+// MARK: - DataChartView
+
 /// Renders QueryResult as a Swift Charts chart (shared by the Data pane and
 /// data-linked figures).
 ///
-/// Column mapping: explicit X/Y when the caller provides them (the Data pane's
-/// pickers); otherwise the SQL SELECT decides — the first column is X and the
-/// second (or first, for single-column results) is Y.  So a figure's
-/// `SELECT month, revenue FROM data` charts exactly what it reads as.
+/// Column mapping comes from the SQL SELECT — **aliases name the axes**
+/// (`SELECT month AS Month, revenue AS "Revenue ($)" …`):
+///   1st column → X, 2nd column → Y, optional 3rd column → series/category
+///   (colored by the palette; one line/bar group per category).
+/// Explicit x/y override the defaults (the Data pane's pickers).
 struct DataChartView: View {
     let result: QueryResult
     let chartType: ChartType
     var xColumn: String? = nil
     var yColumn: String? = nil
+    var palette: ChartPalette = .standard
 
     private struct ChartPoint: Identifiable {
         let id: Int
         let x: String
         let y: Double
+        let series: String?
     }
 
     private var resolvedX: String { xColumn ?? result.columns.first ?? "" }
@@ -406,52 +449,43 @@ struct DataChartView: View {
         yColumn ?? result.columns.dropFirst().first ?? result.columns.first ?? ""
     }
 
+    /// A third SELECT column (when x/y are the defaults) becomes the series.
+    private var seriesColumn: String? {
+        guard xColumn == nil, yColumn == nil, result.columns.count >= 3 else { return nil }
+        return result.columns[2]
+    }
+
     private var points: [ChartPoint] {
         let xIdx = result.columns.firstIndex(of: resolvedX) ?? 0
         let yIdx = result.columns.firstIndex(of: resolvedY) ?? 0
+        let sIdx = seriesColumn.flatMap { result.columns.firstIndex(of: $0) }
         return result.rows.enumerated().compactMap { idx, row in
             let xVal = row.indices.contains(xIdx) ? row[xIdx] : ""
             let yRaw = row.indices.contains(yIdx) ? row[yIdx] : ""
             guard let y = Double(yRaw) else { return nil }
-            return ChartPoint(id: idx, x: xVal, y: y)
-        }
-    }
-
-    /// Histogram bins over the Y column's numeric values: ~12 equal-width
-    /// buckets, each bar = how many values fall in the bucket.  (A histogram
-    /// is a distribution, not a bar-per-row — the pre-binned look of the old
-    /// implementation was just a recolored bar chart.)
-    private var bins: [(label: String, count: Int)] {
-        let values = points.map(\.y)
-        guard let lo = values.min(), let hi = values.max(), values.count > 1 else {
-            return values.map { (String($0), 1) }
-        }
-        let binCount = min(12, max(4, Int(Double(values.count).squareRoot())))
-        let width = (hi - lo) / Double(binCount)
-        guard width > 0 else { return [(String(lo), values.count)] }
-        var counts = Array(repeating: 0, count: binCount)
-        for v in values {
-            let idx = min(binCount - 1, Int((v - lo) / width))
-            counts[idx] += 1
-        }
-        return counts.enumerated().map { i, c in
-            let start = lo + Double(i) * width
-            return (String(format: "%.3g–%.3g", start, start + width), c)
+            let series = sIdx.flatMap { row.indices.contains($0) ? row[$0] : nil }
+            return ChartPoint(id: idx, x: xVal, y: y, series: series)
         }
     }
 
     var body: some View {
         if points.isEmpty {
+            // Full-bleed empty state — never a shrunken strip in the module.
             ContentUnavailableView(
                 "No numeric data",
                 systemImage: "chart.bar",
-                description: Text("The Y column (second column of the SELECT) must contain numeric values.")
+                description: Text("The Y column (second column of the SELECT) must contain numeric values. Alias columns to name the axes: SELECT month AS Month, total AS \"Total\" …")
             )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             chart
                 .chartXAxis { AxisMarks(values: .automatic) }
                 .chartYAxis { AxisMarks(position: .leading) }
+                .chartXAxisLabel(resolvedX)
+                .chartYAxisLabel(resolvedY)
+                .chartForegroundStyleScale(range: palette.colors)
                 .frame(minHeight: 220)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 
@@ -460,16 +494,18 @@ struct DataChartView: View {
         switch chartType {
         case .line:
             Chart(points) { pt in
-                LineMark(x: .value(resolvedX, pt.x), y: .value(resolvedY, pt.y))
+                LineMark(x: .value(resolvedX, pt.x), y: .value(resolvedY, pt.y),
+                         series: .value(seriesColumn ?? "Series", pt.series ?? resolvedY))
                     .interpolationMethod(.catmullRom)
+                    .foregroundStyle(by: .value(seriesColumn ?? "Series", pt.series ?? resolvedY))
             }
-        case .bar:
+        case .bar, .histogram:
+            // .histogram is retired (GROUP BY in SQL bins directly); legacy
+            // figures that still carry it render as a bar chart.
             Chart(points) { pt in
                 BarMark(x: .value(resolvedX, pt.x), y: .value(resolvedY, pt.y))
-            }
-        case .histogram:
-            Chart(Array(bins.enumerated()), id: \.offset) { _, bin in
-                BarMark(x: .value(resolvedY, bin.label), y: .value("Count", bin.count))
+                    .foregroundStyle(by: .value(seriesColumn ?? "Series", pt.series ?? resolvedY))
+                    .position(by: .value(seriesColumn ?? "Series", pt.series ?? resolvedY))
             }
         }
     }

@@ -179,8 +179,61 @@ struct AuthorEditor: View {
                 }
 
                 Section("Contact") {
-                    TextField("Email address",                 text: $draft.email)
-                    TextField("ORCID iD (0000-0000-0000-0000)", text: $draft.orcid)
+                    TextField("Email address", text: $draft.email)
+                    HStack(spacing: 8) {
+                        TextField("ORCID", text: $draft.orcid)
+                        // Once an iD is entered, link straight to the ORCID record.
+                        if !draft.orcid.trimmingCharacters(in: .whitespaces).isEmpty,
+                           let url = URL(string: "https://orcid.org/\(draft.orcid.trimmingCharacters(in: .whitespaces))") {
+                            Link(destination: url) {
+                                Image(systemName: "arrow.up.right.square")
+                            }
+                            .help("Open on orcid.org")
+                        }
+                    }
+                }
+
+                Section("Signatures") {
+                    // Public signing keys tied to this author (0 to many).
+                    // Activity signed by a tied key displays this author's
+                    // name with a verified ✓ (see SignatureBadge).
+                    let keys = draft.publicKeys ?? []
+                    if keys.isEmpty {
+                        Text("No signing keys tied — this author's edits show under the signer's system name with a ?")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    ForEach(keys, id: \.self) { key in
+                        HStack {
+                            Image(systemName: "signature")
+                                .foregroundStyle(.secondary)
+                            Text(key)
+                                .font(.system(.caption, design: .monospaced))
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                            if key == SigningService.publicKeyBase64 {
+                                Text("this Mac")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Button {
+                                draft.publicKeys = keys.filter { $0 != key }
+                                if draft.publicKeys?.isEmpty == true { draft.publicKeys = nil }
+                            } label: {
+                                Image(systemName: "xmark.circle.fill").foregroundStyle(.tertiary)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    if let myKey = SigningService.publicKeyBase64, !keys.contains(myKey) {
+                        Button {
+                            draft.publicKeys = keys + [myKey]
+                        } label: {
+                            Label("Tie My Signing Key to This Author", systemImage: "signature")
+                        }
+                        .help("Your stamps and comments will show as \(draft.fullName.isEmpty ? "this author" : draft.fullName) ✓")
+                    }
                 }
 
                 Section("Affiliations") {
@@ -221,6 +274,7 @@ struct AuthorEditor: View {
         .onChange(of: draft.orcid)           { _, _ in onChange(draft) }
         .onChange(of: draft.affiliations)    { _, _ in onChange(draft) }
         .onChange(of: draft.isCorresponding) { _, _ in onChange(draft) }
+        .onChange(of: draft.publicKeys)      { _, _ in onChange(draft) }
         // If the user clicks a different author row, reload from the new author.
         .onChange(of: author.id) { _, _ in draft = author }
     }

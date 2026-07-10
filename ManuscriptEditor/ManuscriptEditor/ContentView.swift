@@ -35,7 +35,8 @@ enum SidebarItem: Hashable {
     case export
     case data
     case versions
-    case manuscriptSettings
+    case manuscriptBackend
+    case manuscriptAI
 
     // ── Content ─────────────────────────────────────────────────────────────
     case authors
@@ -47,14 +48,14 @@ enum SidebarItem: Hashable {
     case bibliography
     case letterToEditor
 
-    /// Content items are editable prose/component views.  Used to gate the
-    /// sidebar's Content section (shown only when a version tab is open).
+    /// Content items are editable prose/component views.
     var isContent: Bool {
         switch self {
         case .authors, .abstract, .keywords, .section,
              .figures, .tables, .bibliography, .letterToEditor:
             return true
-        case .overview, .sync, .checks, .export, .data, .versions, .manuscriptSettings:
+        case .overview, .sync, .checks, .export, .data, .versions,
+             .manuscriptBackend, .manuscriptAI:
             return false
         }
     }
@@ -76,7 +77,8 @@ enum SidebarItem: Hashable {
         case .export:             return "export"
         case .data:               return "data"
         case .versions:           return "versions"
-        case .manuscriptSettings: return "settings"
+        case .manuscriptBackend:  return "settings"      // keeps old note anchors
+        case .manuscriptAI:       return "settings-ai"
         case .authors:            return "authors"
         case .abstract:           return "abstract"
         case .keywords:           return "keywords"
@@ -89,14 +91,27 @@ enum SidebarItem: Hashable {
     }
 }
 
-// MARK: - Version colours
+// MARK: - JournalTab
 
-/// Stable per-tab colour palette.  A version's pane capsule and its tab chip
-/// both derive their colour from the version's index in `openTabs`, so the two
-/// always match.  Source is normally index 0 → blue.
-func versionColor(at index: Int) -> Color {
-    let palette: [Color] = [.blue, .orange, .green, .purple, .pink, .teal]
-    return palette[index % palette.count]
+/// One tab in the journal tab bar.  Tabs are journal-identity based (not
+/// version ids), so a stamp/sync/rollback that moves a journal's head never
+/// invalidates a tab — it just resolves to the new head.
+enum JournalTab: Hashable, Identifiable {
+    case source
+    case journal(UUID)
+
+    var id: String {
+        switch self {
+        case .source:           return "source"
+        case .journal(let id):  return id.uuidString
+        }
+    }
+}
+
+/// How the tab bar presents journals: one active pane, or side-by-side.
+enum TabViewMode: String, CaseIterable {
+    case active  = "Active"
+    case compare = "Compare"
 }
 
 // MARK: - ContentView
@@ -107,9 +122,12 @@ struct ContentView: View {
 
     @State private var selection: SidebarItem? = .overview
 
-    /// Versions currently open for side-by-side comparison.  Source is a normal,
-    /// closable tab.  When empty, the sidebar hides its Content section.
-    @State private var openTabs: [VersionRef] = [.source]
+    /// Tab presentation: one active journal, or a side-by-side comparison of
+    /// an explicit subset.  Tabs themselves load automatically (Source +
+    /// every journal) — they are never added or removed by hand.
+    @State private var tabMode: TabViewMode = .active
+    @State private var activeTab: JournalTab = .source
+    @State private var compareTabs: [JournalTab] = [.source]
 
     /// Drives the NSOpenPanel shown before a new manuscript is created.
     @State private var showingFolderPicker = false
@@ -120,16 +138,54 @@ struct ContentView: View {
     /// Confirmation before Load from Remote overwrites local content.
     @State private var confirmLoadFromRemote = false
 
+    /// A requested "new manuscript" awaiting the unsaved-work confirmation.
+    enum PendingNew: String, Identifiable {
+        case file, remote
+        var id: String { rawValue }
+    }
+    @State private var pendingNew: PendingNew?
+    /// Drives the New Manuscript (Remote) sheet.
+    @State private var showingNewRemote = false
+
+    /// Every tab, in stable order: Source first, then journals in manuscript
+    /// order.  Loaded automatically — adding a journal (Sync pane) adds its
+    /// tab; there is no manual tab management.
+    private var allTabs: [JournalTab] {
+        [.source] + (store.manuscript?.journals ?? []).map { .journal($0.id) }
+    }
+
+    /// The tabs whose panes are currently rendered.
+    private var displayedTabs: [JournalTab] {
+        switch tabMode {
+        case .active:  return [activeTab]
+        case .compare: return allTabs.filter { compareTabs.contains($0) }
+        }
+    }
+
+    /// A tab's content reference: Source is the live manuscript; a journal
+    /// resolves to its current working head (nil = the journal has no
+    /// versions yet).
+    private func ref(for tab: JournalTab) -> VersionRef? {
+        switch tab {
+        case .source:
+            return .source
+        case .journal(let id):
+            return store.latestVersion(forJournal: id).map { .version($0.id) }
+        }
+    }
+
     var body: some View {
         NavigationSplitView {
-            SidebarView(selection: $selection, hasOpenTabs: !openTabs.isEmpty)
+            SidebarView(selection: $selection)
                 .navigationSplitViewColumnWidth(min: 200, ideal: 230, max: 290)
         } detail: {
             if store.manuscript != nil {
                 VStack(spacing: 0) {
-                    CutTabBar(
-                        openTabs: $openTabs,
-                        versions: store.manuscript?.versions ?? []
+                    JournalTabBar(
+                        allTabs: allTabs,
+                        mode: $tabMode,
+                        activeTab: $activeTab,
+                        compareTabs: $compareTabs
                     )
                     Divider()
                     detailPaneContent
@@ -147,15 +203,17 @@ struct ContentView: View {
             store.loadMostRecent()
             appStore.load()
         }
-        // If every comparison tab is closed, the Content section disappears —
-        // redirect any content selection back to the manuscript overview.
-        .onChange(of: openTabs.isEmpty) { _, isEmpty in
-            if isEmpty, selection?.isContent == true {
-                selection = .overview
-            }
+        // A removed journal must not leave a dangling tab selection.
+        .onChange(of: allTabs) { _, tabs in
+            if !tabs.contains(activeTab) { activeTab = .source }
+            compareTabs = compareTabs.filter(tabs.contains)
+            if compareTabs.isEmpty { compareTabs = [.source] }
         }
         .onReceive(NotificationCenter.default.publisher(for: .newManuscript)) { _ in
-            pickFolderThenCreate()
+            if store.manuscript == nil { pickFolderThenCreate() } else { pendingNew = .file }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .newManuscriptRemote)) { _ in
+            if store.manuscript == nil { showingNewRemote = true } else { pendingNew = .remote }
         }
         .onReceive(NotificationCenter.default.publisher(for: .saveManuscript)) { _ in
             store.trySave()
@@ -168,6 +226,13 @@ struct ContentView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .loadFromRemote)) { _ in
             if store.manuscript != nil { confirmLoadFromRemote = true }
+        }
+        // ⌘⇧←/→ cycles the active journal tab.
+        .onReceive(NotificationCenter.default.publisher(for: .previousJournalTab)) { _ in
+            cycleActiveTab(by: -1)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .nextJournalTab)) { _ in
+            cycleActiveTab(by: 1)
         }
         // Pull replaces local content — always confirmed, never silent.
         .confirmationDialog(
@@ -190,16 +255,50 @@ struct ContentView: View {
         } message: {
             Text(store.remoteError ?? "")
         }
-        // After a sync, retarget any open tab from the journal's old head to
-        // its new one so the synced content is what the user sees.
-        .onReceive(NotificationCenter.default.publisher(for: .journalHeadChanged)) { note in
-            guard let old = note.userInfo?["old"] as? UUID,
-                  let new = note.userInfo?["new"] as? UUID else { return }
-            openTabs = openTabs.map { $0 == .version(old) ? .version(new) : $0 }
-        }
         .sheet(isPresented: $showingExport) {
             ExportSheet()
         }
+        // Warn before leaving the current manuscript for a new one.
+        .confirmationDialog(
+            "Start a New Manuscript?",
+            isPresented: Binding(get: { pendingNew != nil },
+                                 set: { if !$0 { pendingNew = nil } })
+        ) {
+            Button("Proceed") {
+                let kind = pendingNew
+                pendingNew = nil
+                switch kind {
+                case .file:   pickFolderThenCreate()
+                case .remote: showingNewRemote = true
+                case .none:   break
+                }
+            }
+            Button("Cancel", role: .cancel) { pendingNew = nil }
+        } message: {
+            Text(newManuscriptWarning)
+        }
+        .sheet(isPresented: $showingNewRemote) {
+            NewRemoteManuscriptSheet(isPresented: $showingNewRemote) {
+                selection = .overview
+                tabMode = .active
+                activeTab = .source
+                compareTabs = [.source]
+            }
+        }
+    }
+
+    /// Plain-language state of the manuscript being left behind.
+    private var newManuscriptWarning: String {
+        guard let m = store.manuscript else { return "" }
+        var text = "\"\(m.title)\" is saved locally."
+        if m.settings.activeBackendID != nil {
+            if let synced = m.lastSyncedAt, m.updatedAt <= synced {
+                text += " Its remote copy is up to date."
+            } else {
+                text += " It has changes NOT yet saved to its remote — use File → Save (Remote) first if you want them there."
+            }
+        }
+        return text + " You can reopen it any time from the Welcome screen."
     }
 
     /// The manuscript's title, falling back to the app name when unnamed.
@@ -208,19 +307,41 @@ struct ContentView: View {
         return title.isEmpty ? "Manuscript Editor" : title
     }
 
+    /// Moves the active tab left/right, wrapping (⌘⇧←/→).  Also snaps the
+    /// bar back to Active mode — the shortcut is about driving one pane.
+    private func cycleActiveTab(by delta: Int) {
+        let tabs = allTabs
+        guard !tabs.isEmpty else { return }
+        tabMode = .active
+        let current = tabs.firstIndex(of: activeTab) ?? 0
+        activeTab = tabs[(current + delta + tabs.count) % tabs.count]
+    }
+
     // MARK: - Detail pane
 
-    /// For a Content selection with open tabs, render one pane per open version
-    /// side-by-side; navigating the sidebar moves every pane together.  For
-    /// manuscript-level items (Overview, Checks, …) render a single pane against
-    /// the live Source.
+    /// For a comparable selection, render one pane per displayed tab (a
+    /// single pane in Active mode; side-by-side, split evenly, in Compare
+    /// mode); navigating the sidebar moves every pane together.  For
+    /// manuscript-level items (Overview, Data, Sync, …) a single pane renders
+    /// against the live Source.
     @ViewBuilder
     private var detailPaneContent: some View {
-        if let sel = selection, sel.isComparable, !openTabs.isEmpty {
+        if let sel = selection, sel.isComparable {
             HSplitView {
-                ForEach(Array(openTabs.enumerated()), id: \.element) { index, ref in
-                    versionPane(ref, item: sel, index: index)
-                        .frame(minWidth: 360)
+                ForEach(displayedTabs) { tab in
+                    Group {
+                        if let ref = ref(for: tab) {
+                            versionPane(ref, item: sel)
+                        } else {
+                            ContentUnavailableView(
+                                "No Versions Yet",
+                                systemImage: "arrow.triangle.branch",
+                                description: Text("This journal has no versions — add it a cut in Sync.")
+                            )
+                        }
+                    }
+                    .frame(minWidth: 320)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
         } else {
@@ -235,7 +356,7 @@ struct ContentView: View {
     /// the tab chip above it (panes render in tab order).  Both Source and
     /// versions are fully editable.
     @ViewBuilder
-    private func versionPane(_ ref: VersionRef, item: SidebarItem, index: Int) -> some View {
+    private func versionPane(_ ref: VersionRef, item: SidebarItem) -> some View {
         VStack(spacing: 0) {
             HStack(spacing: 8) {
                 deactivatedBadge(item: item, ref: ref)
@@ -347,7 +468,9 @@ struct ContentView: View {
 
         store.createNew(in: url)
         selection = .overview
-        openTabs  = [.source]
+        tabMode   = .active
+        activeTab = .source
+        compareTabs = [.source]
     }
 }
 
@@ -365,7 +488,8 @@ struct DetailRouter: View {
         case .export:               ExportView()
         case .data:                 DataView()
         case .versions:             VersionsView()
-        case .manuscriptSettings:   ManuscriptSettingsView()
+        case .manuscriptBackend:    ManuscriptBackendView()
+        case .manuscriptAI:         ManuscriptAIView()
         case .authors:              AuthorsView()
         case .abstract:             AbstractView()
         case .keywords:             KeywordsView()
@@ -380,178 +504,132 @@ struct DetailRouter: View {
 
 // MARK: - CutTabBar
 
-struct CutTabBar: View {
+/// Browser-style journal tab bar.  Tabs load automatically (Source + every
+/// journal) and are never opened/closed by hand.  A mode toggle switches
+/// between **Active** (one highlighted tab drives a single pane; ⌘⇧←/→
+/// cycles) and **Compare** (each tab gains a +/x affordance to include or
+/// remove it from the side-by-side split).
+struct JournalTabBar: View {
     @Environment(ManuscriptStore.self) private var store
 
-    @Binding var openTabs: [VersionRef]
-    let versions: [ManuscriptVersion]
-
-    @State private var showAddPicker = false
-
-    /// References that can still be opened: Source (if closed) + each journal's
-    /// **working head only**.  Opening "Nature" always means its latest
-    /// version — older versions are history, browsed in the Versions pane, and
-    /// never offered as tabs.
-    private var availableRefs: [VersionRef] {
-        var refs: [VersionRef] = []
-        if !openTabs.contains(.source) { refs.append(.source) }
-        let heads = versions
-            .filter { isHead($0) }
-            .sorted { $0.number < $1.number }
-        for v in heads where !openTabs.contains(.version(v.id)) {
-            refs.append(.version(v.id))
-        }
-        return refs
-    }
-
-    /// Whether a version is the current working head of its journal chain.
-    private func isHead(_ version: ManuscriptVersion) -> Bool {
-        store.latestVersion(forJournal: version.journalID)?.id == version.id
-    }
+    let allTabs: [JournalTab]
+    @Binding var mode: TabViewMode
+    @Binding var activeTab: JournalTab
+    @Binding var compareTabs: [JournalTab]
 
     var body: some View {
         HStack(spacing: 0) {
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 4) {
-                    ForEach(Array(openTabs.enumerated()), id: \.element) { index, tab in
-                        tabButton(for: tab, index: index)
+                HStack(spacing: 2) {
+                    ForEach(allTabs) { tab in
+                        tabButton(for: tab)
                     }
                 }
                 .padding(.horizontal, 8)
-                .padding(.vertical, 5)
+                .padding(.vertical, 4)
             }
 
             Divider().frame(height: 20)
 
-            Button {
-                showAddPicker = true
-            } label: {
-                Image(systemName: "plus")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 28, height: 28)
+            Picker("", selection: $mode) {
+                ForEach(TabViewMode.allCases, id: \.self) { m in
+                    Text(m.rawValue).tag(m)
+                }
             }
-            .buttonStyle(.plain)
-            .disabled(availableRefs.isEmpty)
-            .padding(.horizontal, 6)
-            .popover(isPresented: $showAddPicker, arrowEdge: .bottom) {
-                addTabPicker
-            }
+            .pickerStyle(.segmented)
+            .frame(width: 150)
+            .padding(.horizontal, 8)
+            .help("Active: one journal at a time (⌘⇧←/→ to switch). Compare: pick tabs with + to view side-by-side.")
         }
         .frame(height: 36)
         .background(.bar)
     }
 
-    /// Every open tab is shown side-by-side, each coloured to match its pane.
-    private func tabButton(for tab: VersionRef, index: Int) -> some View {
-        let color = versionColor(at: index)
-        return HStack(spacing: 5) {
-            Image(systemName: tab == .source ? "doc.text" : "arrow.triangle.branch")
-                .font(.caption2)
-                .foregroundStyle(color)
-            Text(tabLabel(for: tab))
-                .font(.callout)
-                .lineLimit(1)
-                .foregroundStyle(color)
-
-            Button {
-                closeTab(tab)
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-            }
-            .buttonStyle(.plain)
-            .help("Close tab")
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 5)
-        .background(color.opacity(0.15), in: RoundedRectangle(cornerRadius: 6))
-        .overlay(
-            RoundedRectangle(cornerRadius: 6)
-                .strokeBorder(color.opacity(0.45), lineWidth: 1)
-        )
-    }
-
-    private var addTabPicker: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text("Open a version")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 12)
-                .padding(.top, 10)
-                .padding(.bottom, 6)
-
-            if availableRefs.isEmpty {
-                Text("All versions are already open")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-                    .padding(.horizontal, 12)
-                    .padding(.bottom, 10)
-            } else {
-                ForEach(availableRefs) { ref in
-                    Button {
-                        openTabs.append(ref)
-                        showAddPicker = false
-                    } label: {
-                        HStack {
-                            Image(systemName: ref == .source ? "doc.text" : "arrow.triangle.branch")
-                                .foregroundStyle(.secondary)
-                            VStack(alignment: .leading, spacing: 1) {
-                                Text(tabLabel(for: ref))
-                                    .font(.callout)
-                                if let subtitle = subtitle(for: ref) {
-                                    Text(subtitle)
-                                        .font(.caption2)
-                                        .foregroundStyle(.tertiary)
-                                        .lineLimit(1)
-                                }
-                            }
-                            Spacer()
-                        }
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                }
-                .padding(.bottom, 4)
-            }
-        }
-        .frame(minWidth: 200)
-    }
-
-    /// Journal versions are labelled "\(journal) v\(ordinal)": the free-text
-    /// version label alone hides which journal a tab shows — after a sync the
-    /// head is called "Synced from …", which names the *upstream*, not the
-    /// journal the user is looking for.
-    private func tabLabel(for tab: VersionRef) -> String {
+    private func label(for tab: JournalTab) -> String {
         switch tab {
         case .source:
             return "Source"
-        case .version(let id):
-            guard let version = versions.first(where: { $0.id == id }) else { return "Version" }
-            guard let jid = version.journalID,
-                  let journal = store.manuscript?.journals.first(where: { $0.id == jid })
-            else {
-                return version.label.isEmpty ? "v\(version.number)" : version.label
-            }
-            let name = "\(journal.name) v\(store.journalOrdinal(of: version))"
-            return isHead(version) ? name : "\(name) (older)"
+        case .journal(let id):
+            return store.manuscript?.journals.first { $0.id == id }?.name ?? "Journal"
         }
     }
 
-    /// The version's own label, shown in the picker as secondary context
-    /// (e.g. "Synced from Source") under the journal-based title.
-    private func subtitle(for tab: VersionRef) -> String? {
-        guard case .version(let id) = tab,
-              let version = versions.first(where: { $0.id == id }),
-              version.journalID != nil, !version.label.isEmpty
-        else { return nil }
-        return version.label
+    private func icon(for tab: JournalTab) -> String {
+        tab == .source ? "doc.text" : "building.columns"
     }
 
-    private func closeTab(_ tab: VersionRef) {
-        openTabs.removeAll { $0 == tab }
+    /// Whether the tab currently contributes a pane.
+    private func isShown(_ tab: JournalTab) -> Bool {
+        switch mode {
+        case .active:  return tab == activeTab
+        case .compare: return compareTabs.contains(tab)
+        }
+    }
+
+    @ViewBuilder
+    private func tabButton(for tab: JournalTab) -> some View {
+        let shown = isShown(tab)
+        HStack(spacing: 5) {
+            Image(systemName: icon(for: tab))
+                .font(.caption2)
+                .foregroundStyle(shown ? .primary : .secondary)
+            Text(label(for: tab))
+                .font(.callout)
+                .lineLimit(1)
+                .foregroundStyle(shown ? .primary : .secondary)
+
+            // Compare mode: + to include, x to remove (last pane can't go).
+            if mode == .compare {
+                if shown {
+                    Button {
+                        compareTabs.removeAll { $0 == tab }
+                        if compareTabs.isEmpty { compareTabs = [.source] }
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                            .frame(width: 14, height: 14)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .help("Remove from comparison")
+                } else {
+                    Button {
+                        compareTabs.append(tab)
+                    } label: {
+                        Image(systemName: "plus")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                            .frame(width: 14, height: 14)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .help("Add to comparison")
+                }
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        // Browser-tab look: the shown tab(s) sit on a lighter raised surface.
+        .background(
+            shown ? AnyShapeStyle(Color(nsColor: .textBackgroundColor)) : AnyShapeStyle(.clear),
+            in: UnevenRoundedRectangle(topLeadingRadius: 7, bottomLeadingRadius: 0,
+                                       bottomTrailingRadius: 0, topTrailingRadius: 7)
+        )
+        .overlay(alignment: .bottom) {
+            if shown {
+                Rectangle().fill(Color.accentColor).frame(height: 2)
+            }
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            switch mode {
+            case .active:
+                activeTab = tab
+            case .compare:
+                if !compareTabs.contains(tab) { compareTabs.append(tab) }
+            }
+        }
+        .help(label(for: tab))
     }
 }

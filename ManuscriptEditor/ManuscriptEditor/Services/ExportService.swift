@@ -117,7 +117,7 @@ struct ExportService {
         config: ExportConfig,
         content: Manuscript,
         packageName: String,
-        figureURL: (Figure) -> URL?,
+        figureURL: @escaping (Figure) -> URL?,
         into destination: URL
     ) throws -> URL {
         let folder = destination.appendingPathComponent("\(sanitize(packageName)) Submission", isDirectory: true)
@@ -129,11 +129,11 @@ struct ExportService {
             let url = folder.appendingPathComponent("\(name).\(document.fileType.ext)")
             switch document.fileType {
             case .pdf:
-                let segments = pageSegments(for: document, content: content, refContext: refContext)
+                let segments = pageSegments(for: document, content: content, refContext: refContext, figureURL: figureURL)
                 let data = PDFPaginator(format: document.format).render(segments: segments)
                 try data.write(to: url, options: .atomic)
             case .docx, .rtf:
-                let segments = pageSegments(for: document, content: content, refContext: refContext)
+                let segments = pageSegments(for: document, content: content, refContext: refContext, figureURL: figureURL)
                 // Form feed is the closest page-break the attributed writers offer.
                 let joined = NSMutableAttributedString()
                 for (i, seg) in segments.enumerated() {
@@ -171,8 +171,9 @@ struct ExportService {
     /// Renders a document's items into attributed segments; a new segment
     /// starts at every page break.
     private func pageSegments(for document: ExportDocument, content: Manuscript,
-                              refContext: RefEngine.Context) -> [NSAttributedString] {
-        let builder = OutlineBuilder(format: document.format, refContext: refContext)
+                              refContext: RefEngine.Context,
+                              figureURL: ((Figure) -> URL?)? = nil) -> [NSAttributedString] {
+        let builder = OutlineBuilder(format: document.format, refContext: refContext, figureURL: figureURL)
         var segments: [NSAttributedString] = []
         var current = NSMutableAttributedString()
         for item in document.items {
@@ -375,11 +376,12 @@ struct ExportService {
     private func assetsBlock(_ m: Manuscript) -> NSAttributedString {
         let doc = NSMutableAttributedString()
 
-        let figures = m.figures.sorted { $0.number < $1.number }
+        let figureNumbers = RefEngine.effectiveFigureNumbers(in: m)
+        let figures = m.figures.sorted { (figureNumbers[$0.id] ?? $0.number) < (figureNumbers[$1.id] ?? $1.number) }
         if !figures.isEmpty {
             doc.append(heading("Figures"))
             for f in figures {
-                doc.append(line("Figure \(f.number). \(f.title)", font: bodyFont.bold(), spacingAfter: 2))
+                doc.append(line("Figure \(figureNumbers[f.id] ?? f.number). \(f.title)", font: bodyFont.bold(), spacingAfter: 2))
                 if !f.caption.isEmpty {
                     doc.append(line(f.caption, font: metaFont, color: .secondaryLabelColor, spacingAfter: 8))
                 }
@@ -387,11 +389,12 @@ struct ExportService {
             doc.append(spacer())
         }
 
-        let tables = m.tables.sorted { $0.number < $1.number }
+        let tableNumbers = RefEngine.effectiveTableNumbers(in: m)
+        let tables = m.tables.sorted { (tableNumbers[$0.id] ?? $0.number) < (tableNumbers[$1.id] ?? $1.number) }
         if !tables.isEmpty {
             doc.append(heading("Tables"))
             for t in tables {
-                doc.append(line("Table \(t.number). \(t.title)", font: bodyFont.bold(), spacingAfter: 2))
+                doc.append(line("Table \(tableNumbers[t.id] ?? t.number). \(t.title)", font: bodyFont.bold(), spacingAfter: 2))
                 if !t.content.isEmpty {
                     doc.append(line(t.content, font: NSFont.monospacedSystemFont(ofSize: 11, weight: .regular),
                                     spacingAfter: 4))
@@ -421,7 +424,9 @@ struct ExportService {
         let fm = FileManager.default
         let figuresDir = folder.appendingPathComponent("figures", isDirectory: true)
         var created = false
-        for figure in m.figures.sorted(by: { $0.number < $1.number }) {
+        // File names follow reference-order numbering, matching in-text tokens.
+        let numbers = RefEngine.effectiveFigureNumbers(in: m)
+        for figure in m.figures.sorted(by: { (numbers[$0.id] ?? $0.number) < (numbers[$1.id] ?? $1.number) }) {
             guard let src = figureURL(figure), fm.fileExists(atPath: src.path) else { continue }
             if !created {
                 try fm.createDirectory(at: figuresDir, withIntermediateDirectories: true)
@@ -434,11 +439,11 @@ struct ExportService {
                let data = FigureImaging.pngData(
                    FigureImaging.processed(image, crop: figure.crop, scalePercent: figure.scalePercent,
                                            monochrome: figure.monochrome)) {
-                let dest = figuresDir.appendingPathComponent("Figure \(figure.number).png")
+                let dest = figuresDir.appendingPathComponent("Figure \(numbers[figure.id] ?? figure.number).png")
                 try? fm.removeItem(at: dest)
                 try? data.write(to: dest)
             } else {
-                let dest = figuresDir.appendingPathComponent("Figure \(figure.number).\(src.pathExtension)")
+                let dest = figuresDir.appendingPathComponent("Figure \(numbers[figure.id] ?? figure.number).\(src.pathExtension)")
                 try? fm.removeItem(at: dest)
                 try? fm.copyItem(at: src, to: dest)
             }
@@ -505,12 +510,14 @@ private enum ExportAttr {
 private struct OutlineBuilder {
     let format: ExportDocumentFormat
     let refContext: RefEngine.Context
+    /// Resolves a figure's image file for inline placement rendering.
+    var figureURL: ((Figure) -> URL?)? = nil
 
     /// Renders `item`, honoring its format override and custom title, and
     /// stamps the line-number attribute when its effective format asks for it.
     func block(for item: ExportItem, content m: Manuscript) -> NSAttributedString? {
         let effective = effectiveFormat(for: item)
-        let builder = OutlineBuilder(format: effective, refContext: refContext)
+        let builder = OutlineBuilder(format: effective, refContext: refContext, figureURL: figureURL)
         guard let rendered = builder.renderBlock(item, content: m) else { return nil }
         guard effective.lineNumbers else { return rendered }
         let out = NSMutableAttributedString(attributedString: rendered)
@@ -564,7 +571,7 @@ private struct OutlineBuilder {
         case .abstract:
             guard !m.abstract.isEmpty else { return nil }
             let doc = NSMutableAttributedString(attributedString: headingBlock(item.customTitle ?? "Abstract"))
-            doc.append(rich(m.abstract))
+            doc.append(rich(m.abstract, in: m))
             return doc
         case .keywords:
             guard !m.keywords.isEmpty else { return nil }
@@ -574,24 +581,29 @@ private struct OutlineBuilder {
                   let section = m.sections.first(where: { $0.id == id }),
                   section.active, !section.content.isEmpty else { return nil }
             let doc = NSMutableAttributedString(attributedString: headingBlock(item.customTitle ?? section.title))
-            doc.append(rich(section.content))
+            doc.append(rich(section.content, in: m))
             return doc
         case .figures:
-            let figures = m.figures.sorted { $0.number < $1.number }
+            // Reference-order numbering, matching in-text tokens.
+            let figures = m.figures.sorted {
+                (refContext.figures[$0.id]?.number ?? $0.number) < (refContext.figures[$1.id]?.number ?? $1.number)
+            }
             guard !figures.isEmpty else { return nil }
             let doc = NSMutableAttributedString(attributedString: headingBlock(item.customTitle ?? "Figures"))
             for f in figures {
-                doc.append(line("Figure \(f.number). \(f.title)",
+                doc.append(line("Figure \(refContext.figures[f.id]?.number ?? f.number). \(f.title)",
                                 font: NSFontManager.shared.convert(base, toHaveTrait: .boldFontMask), after: 2))
                 if !f.caption.isEmpty { doc.append(line(f.caption, font: meta, color: .darkGray, after: 8)) }
             }
             return doc
         case .tables:
-            let tables = m.tables.sorted { $0.number < $1.number }
+            let tables = m.tables.sorted {
+                (refContext.tables[$0.id]?.number ?? $0.number) < (refContext.tables[$1.id]?.number ?? $1.number)
+            }
             guard !tables.isEmpty else { return nil }
             let doc = NSMutableAttributedString(attributedString: headingBlock(item.customTitle ?? "Tables"))
             for t in tables {
-                doc.append(line("Table \(t.number). \(t.title)",
+                doc.append(line("Table \(refContext.tables[t.id]?.number ?? t.number). \(t.title)",
                                 font: NSFontManager.shared.convert(base, toHaveTrait: .boldFontMask), after: 2))
                 if !t.content.isEmpty {
                     doc.append(line(t.content, font: .monospacedSystemFont(ofSize: format.fontSize - 1, weight: .regular), after: 4))
@@ -609,7 +621,7 @@ private struct OutlineBuilder {
         case .coverLetter:
             guard !m.letterToEditor.body.isEmpty else { return nil }
             let doc = NSMutableAttributedString(attributedString: headingBlock(item.customTitle ?? "Cover Letter"))
-            doc.append(rich(m.letterToEditor.body))
+            doc.append(rich(m.letterToEditor.body, in: m))
             if !m.letterToEditor.signature.isEmpty {
                 doc.append(line(m.letterToEditor.signature, font: base, color: .darkGray, after: 2))
             }
@@ -660,10 +672,12 @@ private struct OutlineBuilder {
     /// Rich prose re-set in the document font: token refresh + chrome strip,
     /// then every run mapped onto the base font keeping bold/italic traits,
     /// and paragraph styles forced to the document's line spacing.
-    private func rich(_ richText: RichText) -> NSAttributedString {
+    private func rich(_ richText: RichText, in m: Manuscript) -> NSAttributedString {
         let source: NSAttributedString
         if let rtf = richText.rtf, let s = NSAttributedString(rtf: rtf, documentAttributes: nil) {
-            source = RefEngine.exportReady(s, context: refContext)
+            // Placement tokens expand into the full figure/table FIRST —
+            // exportReady strips token links, which would hide them.
+            source = RefEngine.exportReady(expandPlacements(s, content: m), context: refContext)
         } else {
             source = NSAttributedString(string: richText.plain)
         }
@@ -687,7 +701,74 @@ private struct OutlineBuilder {
         out.append(NSAttributedString(string: "\n", attributes: [.font: base]))
         return out
     }
+    // MARK: Placement tokens (⟦Figure 2 here⟧ → the rendered figure/table)
+
+    /// Replaces figure/table placement tokens with their rendered blocks —
+    /// the figure image (crop/scale/B&W applied) or the table content, each
+    /// with its numbered caption — exactly where the author placed them.
+    private func expandPlacements(_ attributed: NSAttributedString, content m: Manuscript) -> NSAttributedString {
+        var targets: [(NSRange, RefEngine.Token)] = []
+        let full = NSRange(location: 0, length: attributed.length)
+        attributed.enumerateAttribute(.link, in: full) { value, range, _ in
+            guard let url = value as? URL, let token = RefEngine.Token.parse(url),
+                  token.kind == .figurePlacement || token.kind == .tablePlacement
+            else { return }
+            targets.append((range, token))
+        }
+        guard !targets.isEmpty else { return attributed }
+        let out = NSMutableAttributedString(attributedString: attributed)
+        for (range, token) in targets.sorted(by: { $0.0.location > $1.0.location }) {
+            out.replaceCharacters(in: range, with: placementBlock(for: token, content: m))
+        }
+        return out
+    }
+
+    private func placementBlock(for token: RefEngine.Token, content m: Manuscript) -> NSAttributedString {
+        let out = NSMutableAttributedString(string: "\n", attributes: [.font: base])
+        switch token.kind {
+        case .figurePlacement:
+            guard let figure = m.figures.first(where: { $0.id == token.targetID }) else {
+                return NSAttributedString(string: "")
+            }
+            let number = refContext.figures[figure.id]?.number ?? figure.number
+            if let url = figureURL?(figure), let image = NSImage(contentsOf: url) {
+                let processed = FigureImaging.processed(
+                    image, crop: figure.crop, scalePercent: figure.scalePercent,
+                    monochrome: figure.monochrome)
+                let attachment = NSTextAttachment()
+                attachment.image = processed
+                // Fit within typical margins (~5.5in of text width).
+                let maxWidth: CGFloat = 396
+                let size = processed.size
+                let scale = size.width > maxWidth ? maxWidth / size.width : 1
+                attachment.bounds = CGRect(x: 0, y: 0,
+                                           width: size.width * scale, height: size.height * scale)
+                out.append(NSAttributedString(attachment: attachment))
+                out.append(NSAttributedString(string: "\n", attributes: [.font: base]))
+            }
+            out.append(line("Figure \(number). \(figure.title)", font: meta, color: .darkGray, after: 2))
+            if !figure.caption.isEmpty {
+                out.append(line(figure.caption, font: meta, color: .darkGray, after: 6))
+            }
+        case .tablePlacement:
+            guard let table = m.tables.first(where: { $0.id == token.targetID }) else {
+                return NSAttributedString(string: "")
+            }
+            let number = refContext.tables[table.id]?.number ?? table.number
+            out.append(line("Table \(number). \(table.title)", font: meta, color: .darkGray, after: 2))
+            if !table.content.isEmpty {
+                out.append(line(table.content, font: base, after: 2))
+            }
+            if !table.caption.isEmpty {
+                out.append(line(table.caption, font: meta, color: .darkGray, after: 6))
+            }
+        default:
+            break
+        }
+        return out
+    }
 }
+
 
 // MARK: - PDFPaginator
 

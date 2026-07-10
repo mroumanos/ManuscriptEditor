@@ -23,10 +23,6 @@ struct SidebarView: View {
 
     @Binding var selection: SidebarItem?
 
-    /// Whether any comparison version tab is open.  The Content section is only
-    /// shown when at least one version is active to compare/edit.
-    var hasOpenTabs: Bool = true
-
     /// App-wide appearance, also editable from Preferences.
     @AppStorage(EditorPrefs.appearanceKey) private var appearance = AppearanceMode.system.rawValue
 
@@ -42,9 +38,7 @@ struct SidebarView: View {
             if manuscript != nil {
                 manuscriptSection
                 journalSection
-                if hasOpenTabs {
-                    contentSection
-                }
+                contentSection
             }
         }
         // Show manuscript title in the sidebar header; it stays there always.
@@ -115,8 +109,16 @@ struct SidebarView: View {
                 .tag(SidebarItem.overview)
             Label("Data (\(manuscript?.dataAssets.count ?? 0))", systemImage: "externaldrive")
                 .tag(SidebarItem.data)
-            Label("Settings", systemImage: "gearshape")
-                .tag(SidebarItem.manuscriptSettings)
+            // Sync is manuscript-level: saving (local/remote), syncing
+            // between journals, and adding journals.
+            Label("Sync", systemImage: "arrow.triangle.2.circlepath")
+                .tag(SidebarItem.sync)
+            // Manuscript-scoped settings, split by concern; app-wide settings
+            // stay in Preferences (gear below).
+            Label("Backend", systemImage: "externaldrive.connected.to.line.below")
+                .tag(SidebarItem.manuscriptBackend)
+            Label("AI", systemImage: "sparkles")
+                .tag(SidebarItem.manuscriptAI)
         }
     }
 
@@ -125,9 +127,6 @@ struct SidebarView: View {
     @ViewBuilder
     private var journalSection: some View {
         Section("Journal") {
-            // Sync sits between (Manuscript) Settings and Checks.
-            Label("Sync", systemImage: "arrow.triangle.2.circlepath")
-                .tag(SidebarItem.sync)
             Label("Checks", systemImage: "checklist")
                 .tag(SidebarItem.checks)
             Label("Export", systemImage: "square.and.arrow.up")

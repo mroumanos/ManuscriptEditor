@@ -1,182 +1,190 @@
 // ManuscriptSettingsView.swift
 //
-// Per-manuscript settings panel.
+// Manuscript-scoped settings, split by concern into two sidebar items under
+// the Manuscript section:
 //
-// LEFT PANE (sidebar list)
-//   • Backend     — pick the active sync backend
-//   • Editor      — how text is DISPLAYED in every prose editor (font, size,
-//                   spacing; global — identical across all journals/versions;
-//                   output typography is set per journal in Export)
-//   • AI Service  — pick the active AI account
+//   ManuscriptBackendView — where THIS manuscript lives: its local folder,
+//                           its active backend account, its remote repository
+//                           (create one right here for local-first projects).
+//   ManuscriptAIView      — which AI service THIS manuscript uses (Phase II).
 //
-// RIGHT PANE
-//   Switches with the selection.  Defaults to Backend so it is never empty.
-//
-// Versions (cuts and their lineage) live in the dedicated "Versions" sidebar
-// item — see VersionsView.  Global accounts are configured in Settings (⌘,).
+// App-wide settings (accounts, journal library, user identity, editor) live
+// in Preferences (⌘,) — the two layers deliberately don't overlap.
 
 import SwiftUI
+import AppKit
 
-// MARK: - ManuscriptSettingsView
+// MARK: - ManuscriptBackendView
 
-struct ManuscriptSettingsView: View {
+struct ManuscriptBackendView: View {
     @Environment(ManuscriptStore.self) private var store
     @Environment(AppStore.self)        private var appStore
 
-    enum Sel: Hashable {
-        case backend, editor, aiService
-    }
-
-    @State private var selection: Sel? = .backend
-
-    /// Editor display typography — read live by every RichEditor.
-    @AppStorage(EditorPrefs.fontKey)        private var editorFamily = EditorPrefs.defaultFont
-    @AppStorage(EditorPrefs.fontSizeKey)    private var editorSize = EditorPrefs.defaultFontSize
-    @AppStorage(EditorPrefs.lineSpacingKey) private var editorSpacing = EditorPrefs.defaultLineSpacing
+    @State private var newRepoName = ""
+    @State private var createdRepoURL: URL?
+    @State private var isCreating = false
 
     private var manuscript: Manuscript? { store.manuscript }
 
+    /// Git-hosting accounts (LLM accounts can't store a manuscript).
+    private var backendAccounts: [BackendAccount] {
+        appStore.backends.filter { $0.provider == .github || $0.provider == .gitlab }
+    }
+
+    private var settingsBinding: Binding<ManuscriptSettings> {
+        Binding(
+            get: { store.manuscript?.settings ?? .empty() },
+            set: { store.updateManuscriptSettings($0) }
+        )
+    }
+
     var body: some View {
-        HSplitView {
-            leftList
-                .frame(minWidth: 220, idealWidth: 260, maxWidth: 340)
-                .frame(maxHeight: .infinity)
-            rightPanel
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
-    }
-
-    // MARK: - Left: sidebar list
-
-    private var leftList: some View {
-        List(selection: $selection) {
-            Label("Backend",     systemImage: "externaldrive.connected.to.line.below")
-                .tag(Sel.backend)
-            Label("Editor",      systemImage: "textformat")
-                .tag(Sel.editor)
-            Label("AI Service",  systemImage: "sparkles")
-                .tag(Sel.aiService)
-        }
-        .listStyle(.sidebar)
-        .scrollContentBackground(.hidden)
-        .background(Color(NSColor.windowBackgroundColor))
-    }
-
-    // MARK: - Right: context panel
-
-    @ViewBuilder
-    private var rightPanel: some View {
-        switch selection {
-        case .backend, nil:
-            settingDetail(
-                title: "Active Backend",
-                footer: "Files are always saved locally. A backend enables sync and collaboration."
-            ) {
-                if appStore.backends.isEmpty {
-                    Text("No backends configured.")
-                        .foregroundStyle(.secondary)
-                    Text("Add one in Settings → Backend (⌘,).")
-                        .font(.caption).foregroundStyle(.tertiary)
-                } else {
-                    Picker("Active backend", selection: activeBackendBinding) {
-                        Text("None (local only)").tag(Optional<UUID>.none)
-                        ForEach(appStore.backends) { account in
-                            Label(account.displayName, systemImage: account.provider.systemImage)
-                                .tag(Optional(account.id))
+        Form {
+            Section("Local Copy") {
+                LabeledContent("Folder") {
+                    let dir = manuscript.map { store.persistence.manuscriptDirectory(for: $0.id) }
+                    HStack(spacing: 8) {
+                        Text(dir?.path(percentEncoded: false) ?? "—")
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                        if let dir {
+                            Button("Reveal") {
+                                NSWorkspace.shared.activateFileViewerSelecting([dir])
+                            }
+                            .controlSize(.small)
                         }
                     }
                 }
+                LabeledContent("Last saved") {
+                    Text(manuscript?.updatedAt.formatted(date: .abbreviated, time: .shortened) ?? "—")
+                        .foregroundStyle(.secondary)
+                }
             }
 
-        case .editor:
-            settingDetail(
-                title: "Editor Typography",
-                footer: "How text is displayed while writing — the same in every editor, across all journals and versions. The typography of the output is set per journal in Export."
-            ) {
-                Picker("Font", selection: $editorFamily) {
-                    Text("Sans (System)").tag("Sans")
-                    Text("Serif").tag("Serif")
-                    Text("Mono").tag("Mono")
-                }
-                Picker("Size", selection: $editorSize) {
-                    ForEach([14.0, 15, 16, 17, 18, 20], id: \.self) { size in
-                        Text("\(Int(size)) pt").tag(size)
+            Section("Backend Account") {
+                Picker("Account", selection: settingsBinding.activeBackendID) {
+                    Text("None (local only)").tag(Optional<UUID>.none)
+                    ForEach(backendAccounts) { account in
+                        Label("\(account.displayName) (\(account.provider.rawValue))",
+                              systemImage: account.provider.systemImage)
+                            .tag(Optional(account.id))
                     }
                 }
-                Picker("Line spacing", selection: $editorSpacing) {
-                    Text("Single").tag(1.0)
-                    Text("1.15").tag(1.15)
-                    Text("1.5").tag(1.5)
-                    Text("Double").tag(2.0)
+                if backendAccounts.isEmpty {
+                    Text("Add accounts in Preferences → Accounts (⌘,).")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
 
-        case .aiService:
-            settingDetail(
-                title: "Active AI Service",
-                footer: "Required for adapting version content to journal requirements in Phase 2."
-            ) {
+            Section("Remote Repository") {
+                if let repo = manuscript?.settings.remoteRepository {
+                    LabeledContent("Repository") {
+                        HStack(spacing: 8) {
+                            Text(repo).foregroundStyle(.secondary)
+                            if let url = URL(string: "https://github.com/\(repo)") {
+                                Link("Open on GitHub", destination: url)
+                                    .font(.caption)
+                            }
+                        }
+                    }
+                    TextField("Branch", text: Binding(
+                        get: { manuscript?.settings.remoteBranch ?? "" },
+                        set: { newValue in
+                            var s = settingsBinding.wrappedValue
+                            s.remoteBranch = newValue.isEmpty ? nil : newValue
+                            settingsBinding.wrappedValue = s
+                        }
+                    ), prompt: Text("main"))
+                    LabeledContent("Last synced") {
+                        Text(manuscript?.lastSyncedAt?.formatted(date: .abbreviated, time: .shortened)
+                             ?? "never")
+                            .foregroundStyle(.secondary)
+                    }
+                    Text("Save/Load live in Sync, or File → Save (Remote) ⇧⌘S.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    // Local-first manuscript: create its repository from here.
+                    TextField("Repository name", text: $newRepoName, prompt: Text("my-manuscript"))
+                        .autocorrectionDisabled()
+                    HStack(spacing: 10) {
+                        Button {
+                            isCreating = true
+                            store.createRemoteRepository(named: newRepoName, appStore: appStore) { url in
+                                isCreating = false
+                                createdRepoURL = url
+                            }
+                        } label: {
+                            if isCreating {
+                                ProgressView().controlSize(.small)
+                            } else {
+                                Label("Create Repository & Push", systemImage: "plus.square.on.square")
+                            }
+                        }
+                        .disabled(newRepoName.trimmingCharacters(in: .whitespaces).isEmpty
+                                  || manuscript?.settings.activeBackendID == nil
+                                  || isCreating)
+                        if manuscript?.settings.activeBackendID == nil {
+                            Text("Pick a backend account above first.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    Text("Creates a private repository on the account, binds it to this manuscript, and pushes the current content.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                if let url = createdRepoURL {
+                    Link(destination: url) {
+                        Label("Repository created — open \(url.absoluteString)", systemImage: "checkmark.circle")
+                    }
+                    .font(.callout)
+                }
+            }
+        }
+        .formStyle(.grouped)
+    }
+}
+
+// MARK: - ManuscriptAIView
+
+struct ManuscriptAIView: View {
+    @Environment(ManuscriptStore.self) private var store
+    @Environment(AppStore.self)        private var appStore
+
+    private var settingsBinding: Binding<ManuscriptSettings> {
+        Binding(
+            get: { store.manuscript?.settings ?? .empty() },
+            set: { store.updateManuscriptSettings($0) }
+        )
+    }
+
+    var body: some View {
+        Form {
+            Section("AI Service") {
+                Picker("Service", selection: settingsBinding.activeAIServiceID) {
+                    Text("None").tag(Optional<UUID>.none)
+                    ForEach(appStore.aiServices) { service in
+                        Label("\(service.displayName) (\(service.provider.rawValue))",
+                              systemImage: service.provider.systemImage)
+                            .tag(Optional(service.id))
+                    }
+                }
                 if appStore.aiServices.isEmpty {
-                    Text("No AI services configured.")
+                    Text("Add AI accounts in Preferences → Accounts (⌘,).")
+                        .font(.caption)
                         .foregroundStyle(.secondary)
-                    Text("Add one in Settings → AI (⌘,).")
-                        .font(.caption).foregroundStyle(.tertiary)
-                } else {
-                    Picker("Active AI service", selection: activeAIBinding) {
-                        Text("None").tag(Optional<UUID>.none)
-                        ForEach(appStore.aiServices) { service in
-                            Label(service.displayName, systemImage: service.provider.systemImage)
-                                .tag(Optional(service.id))
-                        }
-                    }
                 }
             }
+            Section {
+                Text("AI adaptation of journal cuts is a Phase II feature: the configured service will derive cut content toward each journal's requirements. Cuts are created and edited manually until then.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
-    }
-
-    // Shared wrapper for the three picker panels.
-    @ViewBuilder
-    private func settingDetail<Content: View>(
-        title: String,
-        footer: String,
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        ScrollView {
-            Form {
-                Section {
-                    content()
-                } header: {
-                    Text(title)
-                } footer: {
-                    Text(footer).font(.caption).foregroundStyle(.secondary)
-                }
-            }
-            .formStyle(.grouped)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    }
-
-    // MARK: - Bindings
-
-    private var activeBackendBinding: Binding<UUID?> {
-        Binding(
-            get: { manuscript?.settings.activeBackendID },
-            set: { id in
-                guard var s = manuscript?.settings else { return }
-                s.activeBackendID = id
-                store.updateManuscriptSettings(s)
-            }
-        )
-    }
-
-    private var activeAIBinding: Binding<UUID?> {
-        Binding(
-            get: { manuscript?.settings.activeAIServiceID },
-            set: { id in
-                guard var s = manuscript?.settings else { return }
-                s.activeAIServiceID = id
-                store.updateManuscriptSettings(s)
-            }
-        )
+        .formStyle(.grouped)
     }
 }

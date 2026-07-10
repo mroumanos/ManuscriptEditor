@@ -111,6 +111,8 @@ enum RefEngine {
             case .bib:    return URL(string: "cite://\(targetID.uuidString)?f=\(style.rawValue)")
             case .figure: return URL(string: "figref://\(targetID.uuidString)")
             case .table:  return URL(string: "tabref://\(targetID.uuidString)")
+            case .figurePlacement: return URL(string: "figplace://\(targetID.uuidString)")
+            case .tablePlacement:  return URL(string: "tabplace://\(targetID.uuidString)")
             }
         }
 
@@ -119,10 +121,12 @@ enum RefEngine {
         static func parse(_ url: URL) -> Token? {
             let kind: RefOccurrence.Kind
             switch url.scheme {
-            case "cite":   kind = .bib
-            case "figref": kind = .figure
-            case "tabref": kind = .table
-            default:       return nil
+            case "cite":     kind = .bib
+            case "figref":   kind = .figure
+            case "tabref":   kind = .table
+            case "figplace": kind = .figurePlacement
+            case "tabplace": kind = .tablePlacement
+            default:         return nil
             }
             // The UUID sits in the host position; fall back to string surgery
             // in case URL normalization moved it.
@@ -179,18 +183,53 @@ enum RefEngine {
             ctx.bib[e.id] = BibInfo(key: e.key, authors: e.authors, year: e.year, tooltip: tooltip)
             hasher.combine(e.id); hasher.combine(tooltip)
         }
+        // Figure/table numbers follow reference order, like citations: the
+        // first-referenced figure is "Figure 1", unreferenced figures follow.
+        let figureNumbers = effectiveFigureNumbers(in: m)
         for f in m.figures {
-            let tip = "Figure \(f.number) — \(f.title)" + (f.caption.isEmpty ? "" : "\n\(f.caption)")
-            ctx.figures[f.id] = (f.number, tip)
+            let number = figureNumbers[f.id] ?? f.number
+            let tip = "Figure \(number) — \(f.title)" + (f.caption.isEmpty ? "" : "\n\(f.caption)")
+            ctx.figures[f.id] = (number, tip)
             hasher.combine(f.id); hasher.combine(tip)
         }
+        let tableNumbers = effectiveTableNumbers(in: m)
         for t in m.tables {
-            let tip = "Table \(t.number) — \(t.title)" + (t.caption.isEmpty ? "" : "\n\(t.caption)")
-            ctx.tables[t.id] = (t.number, tip)
+            let number = tableNumbers[t.id] ?? t.number
+            let tip = "Table \(number) — \(t.title)" + (t.caption.isEmpty ? "" : "\n\(t.caption)")
+            ctx.tables[t.id] = (number, tip)
             hasher.combine(t.id); hasher.combine(tip)
         }
         ctx.signature = hasher.finalize()
         return ctx
+    }
+
+    // MARK: - Reference-order numbering (figures & tables)
+
+    /// Figure display numbers assigned like citation numbers: first-referenced
+    /// = Figure 1, and so on; unreferenced figures follow in their manual
+    /// order.  Placement markers don't count as references.
+    static func effectiveFigureNumbers(in m: Manuscript) -> [UUID: Int] {
+        effectiveNumbers(ids: m.figures.sorted { $0.number < $1.number }.map(\.id),
+                         in: m, kind: .figure)
+    }
+
+    /// Table display numbers, same rule as figures.
+    static func effectiveTableNumbers(in m: Manuscript) -> [UUID: Int] {
+        effectiveNumbers(ids: m.tables.sorted { $0.number < $1.number }.map(\.id),
+                         in: m, kind: .table)
+    }
+
+    private static func effectiveNumbers(ids: [UUID], in m: Manuscript,
+                                         kind: RefOccurrence.Kind) -> [UUID: Int] {
+        let valid = Set(ids)
+        var seen = Set<UUID>()
+        var order: [UUID] = []
+        for (occ, _) in orderedRefs(in: m)
+        where occ.kind == kind && valid.contains(occ.targetID) && seen.insert(occ.targetID).inserted {
+            order.append(occ.targetID)
+        }
+        for id in ids where !seen.contains(id) { order.append(id) }
+        return Dictionary(uniqueKeysWithValues: order.enumerated().map { ($1, $0 + 1) })
     }
 
     /// "Authors (Year). Title. Journal Vol, Pages. doi:…" — the hover tooltip
@@ -224,6 +263,12 @@ enum RefEngine {
         case .table:
             guard let (number, _) = context.tables[token.targetID] else { return "[?]" }
             return "Table \(number)"
+        case .figurePlacement:
+            guard let (number, _) = context.figures[token.targetID] else { return "⟦?⟧" }
+            return "⟦Figure \(number) here⟧"
+        case .tablePlacement:
+            guard let (number, _) = context.tables[token.targetID] else { return "⟦?⟧" }
+            return "⟦Table \(number) here⟧"
         }
     }
 
@@ -231,8 +276,8 @@ enum RefEngine {
     static func tooltip(for token: Token, context: Context) -> String? {
         switch token.kind {
         case .bib:    return context.bib[token.targetID]?.tooltip
-        case .figure: return context.figures[token.targetID]?.tooltip
-        case .table:  return context.tables[token.targetID]?.tooltip
+        case .figure, .figurePlacement: return context.figures[token.targetID]?.tooltip
+        case .table, .tablePlacement:   return context.tables[token.targetID]?.tooltip
         }
     }
 

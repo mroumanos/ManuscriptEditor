@@ -236,3 +236,29 @@ Notes are a first-class way to leave feedback for oneself or collaborators,
 - **AIServiceAccount** — an LLM provider (Claude, ChatGPT, Gemini, Ollama) used to
   **adapt/revise** content (**Phase II**). **Distinct from a backend.** Not needed
   in Phase I — cuts are created and edited manually then.
+
+
+## Stamping, Source versions & identity (July 2026 revision)
+
+- **Stamping** is the version verb: the working state is always **"latest"**;
+  *Stamp Version* freezes it as `vN` and opens a fresh working head.
+  `ManuscriptVersion.sourceStamp == true` marks a **Source stamp** — Source
+  maintains its own chain exactly like the journals (its "latest" is the live
+  manuscript). Legacy custom cuts remain `journalID == nil` without the flag.
+- **Lineage hangs from frozen versions**: sync and add-journal stamp the
+  upstream first when its latest has unstamped changes ("Stamp & Sync").
+  Rollback restores a prior version and drops the versions after it (refused
+  when a dropped version has cross-journal children).
+- **Identity**: the app keeps a local P-256 keypair (private key in the
+  Keychain — never in manuscript files; `SigningService`). Version stamps and
+  notes carry the signer's public key + signature. `Author.publicKeys` ties
+  keys to authors (0..many): tied+verified activity shows the author's name
+  with ✓; verified-but-untied shows the signer name with ?; failed
+  verification shows ✗ (`SignatureBadge`, used wherever names appear).
+- **Journal library**: `AppStore.journalLibrary: [Journal]` — global, reusable
+  journal profiles (name, country, requirements, export outline), seeded from
+  presets, grown via "Save to Journal Library". Adding a journal to a
+  manuscript instantiates a copy with fresh identity.
+- **Remote binding is per-manuscript**: `ManuscriptSettings.remoteRepository`
+  / `remoteBranch` + `Manuscript.lastSyncedAt`; accounts (Preferences →
+  Accounts) hold only credentials.

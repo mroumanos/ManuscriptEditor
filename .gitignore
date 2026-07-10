@@ -22,3 +22,6 @@ dist/
 
 # Local scratch (not part of the published project)
 prompt.txt
+
+# User feedback notes (working file, not published)
+feedback-log.txt

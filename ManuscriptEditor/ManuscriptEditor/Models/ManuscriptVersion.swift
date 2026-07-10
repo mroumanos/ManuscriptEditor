@@ -97,24 +97,40 @@ struct ManuscriptVersion: Codable, Identifiable, Sendable {
     /// Results of the requirements checklist last run against this version.
     var checklistResults: [ChecklistResult]
 
+    /// True when this is a stamped **Source** version — Source maintains its
+    /// own version chain just like the journals.  nil/false + `journalID ==
+    /// nil` = a legacy custom cut.
+    var sourceStamp: Bool?
+
+    /// Public signing key (base64) of whoever stamped this version, and the
+    /// signature over `SigningService.stampMessage(for:)` — identity
+    /// attribution for the Versions table.  Optional: older versions unsigned.
+    var stampedByKey: String?
+    var stampSignature: String?
+
     // MARK: - Init
 
     init(id: UUID, label: String, parentID: UUID?, journalID: UUID?, viewConfigID: UUID?,
          number: Int, author: String, createdAt: Date, sourceSnapshotDate: Date,
-         notes: String, content: Manuscript, checklistResults: [ChecklistResult]) {
+         notes: String, content: Manuscript, checklistResults: [ChecklistResult],
+         sourceStamp: Bool? = nil, stampedByKey: String? = nil, stampSignature: String? = nil) {
         self.id = id; self.label = label; self.parentID = parentID
         self.journalID = journalID; self.viewConfigID = viewConfigID
         self.number = number; self.author = author
         self.createdAt = createdAt; self.sourceSnapshotDate = sourceSnapshotDate
         self.notes = notes; self.content = content; self.checklistResults = checklistResults
+        self.sourceStamp = sourceStamp
+        self.stampedByKey = stampedByKey; self.stampSignature = stampSignature
     }
 
     // MARK: - Backward-compatible Codable
-    // `number` and `author` were added later; decode as defaults for older files.
+    // `number`/`author` (and later the stamp fields) were added over time;
+    // decode as defaults for older files.
 
     private enum CodingKeys: String, CodingKey {
         case id, label, parentID, journalID, viewConfigID, number, author,
-             createdAt, sourceSnapshotDate, notes, content, checklistResults
+             createdAt, sourceSnapshotDate, notes, content, checklistResults,
+             sourceStamp, stampedByKey, stampSignature
     }
 
     init(from decoder: Decoder) throws {
@@ -131,6 +147,9 @@ struct ManuscriptVersion: Codable, Identifiable, Sendable {
         notes              = try c.decode(String.self, forKey: .notes)
         content            = try c.decode(Manuscript.self, forKey: .content)
         checklistResults   = try c.decode([ChecklistResult].self, forKey: .checklistResults)
+        sourceStamp        = try c.decodeIfPresent(Bool.self, forKey: .sourceStamp)
+        stampedByKey       = try c.decodeIfPresent(String.self, forKey: .stampedByKey)
+        stampSignature     = try c.decodeIfPresent(String.self, forKey: .stampSignature)
     }
 
     // MARK: - Factory

@@ -28,6 +28,15 @@ struct ManuscriptSettings: Codable, Sendable {
     /// `nil` means no AI configured; cut creation will be disabled.
     var activeAIServiceID: UUID?
 
+    /// The remote repository this manuscript syncs to, in "owner/name" form.
+    /// Per-manuscript (two manuscripts can use one account with different
+    /// repos).  nil = no remote configured yet.  Optional fields keep older
+    /// files decoding.
+    var remoteRepository: String?
+
+    /// Remote branch.  nil = "main".
+    var remoteBranch: String?
+
     // MARK: - Factory
 
     /// Default settings: nothing selected (local-only, no view, no AI).

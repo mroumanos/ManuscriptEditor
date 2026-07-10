@@ -477,12 +477,27 @@ final class ManuscriptStore {
 
     @discardableResult
     func addNote(versionKey: String, itemKey: String, author: String, body: String) -> Note {
-        let note = Note.new(versionKey: versionKey, itemKey: itemKey, author: author, body: body)
+        var note = Note.new(versionKey: versionKey, itemKey: itemKey, author: author, body: body)
+        // Sign with the user's identity so collaborators can verify who
+        // commented (see SignatureBadge).
+        if let key = SigningService.publicKeyBase64 {
+            note.authorKey = key
+            note.signature = SigningService.sign(
+                SigningService.noteMessage(id: note.id, createdAt: note.createdAt, body: note.body))
+        }
         touch { $0.notes.append(note) }
         return note
     }
 
     func updateNote(_ note: Note) {
+        var note = note
+        // Body edits by the original signer re-sign; anyone else's edit
+        // leaves the old signature, which then fails verification — exactly
+        // the "red x" the badge is for.
+        if let key = SigningService.publicKeyBase64, note.authorKey == key {
+            note.signature = SigningService.sign(
+                SigningService.noteMessage(id: note.id, createdAt: note.createdAt, body: note.body))
+        }
         touch { m in
             if let idx = m.notes.firstIndex(where: { $0.id == note.id }) { m.notes[idx] = note }
         }
@@ -546,13 +561,22 @@ final class ManuscriptStore {
     /// All versions, in creation order.
     var versions: [ManuscriptVersion] { manuscript?.versions ?? [] }
 
-    /// One journal's version chain (nil = versions not tied to a journal),
-    /// oldest first — the "linear lineage" of that journal.
+    /// One journal's version chain (nil = legacy custom cuts), oldest first —
+    /// the "linear lineage" of that journal.  Source stamps are their own
+    /// chain (see `sourceStamps`), never mixed in here.
     func versions(forJournal journalID: UUID?) -> [ManuscriptVersion] {
         versions
-            .filter { $0.journalID == journalID }
+            .filter { $0.journalID == journalID && $0.sourceStamp != true }
             .sorted { $0.number < $1.number }
     }
+
+    /// Source's own version chain, oldest first — Source maintains versions
+    /// just like the journals; the live manuscript is its working "latest".
+    var sourceStamps: [ManuscriptVersion] {
+        versions.filter { $0.sourceStamp == true }.sorted { $0.number < $1.number }
+    }
+
+    var latestSourceStamp: ManuscriptVersion? { sourceStamps.last }
 
     /// The working head of a journal: its most recent version.
     func latestVersion(forJournal journalID: UUID?) -> ManuscriptVersion? {
@@ -563,6 +587,158 @@ final class ManuscriptStore {
     /// per-journal views; distinct from the manuscript-global `number`).
     func journalOrdinal(of version: ManuscriptVersion) -> Int {
         (versions(forJournal: version.journalID).firstIndex { $0.id == version.id } ?? 0) + 1
+    }
+
+    // MARK: - Stamping (freeze the working head as a version)
+
+    /// Signs a freshly-cut version with the user's identity key.
+    private func signed(_ version: ManuscriptVersion) -> ManuscriptVersion {
+        var v = version
+        if let key = SigningService.publicKeyBase64,
+           let sig = SigningService.sign(SigningService.stampMessage(
+               id: v.id, createdAt: v.createdAt, author: v.author)) {
+            v.stampedByKey = key
+            v.stampSignature = sig
+        }
+        return v
+    }
+
+    /// True when the journal's working head has edits since it was created —
+    /// i.e. stamping now would actually freeze something new.
+    func headHasUnstampedChanges(journalID: UUID) -> Bool {
+        guard let head = latestVersion(forJournal: journalID) else { return false }
+        return head.content.updatedAt > head.createdAt.addingTimeInterval(1)
+    }
+
+    /// True when the live Source has edits since its latest stamp (or has
+    /// never been stamped).
+    var sourceHasUnstampedChanges: Bool {
+        guard let m = manuscript else { return false }
+        guard let stamp = latestSourceStamp else { return true }
+        return m.updatedAt > stamp.createdAt.addingTimeInterval(1)
+    }
+
+    /// Stamps a journal: freezes the current head as-is and opens a new
+    /// working head with identical content.  Returns the **frozen** version
+    /// (the lineage-stable thing children can hang from).
+    @discardableResult
+    func stampVersion(journalID: UUID) -> ManuscriptVersion? {
+        guard let m = manuscript,
+              let head = latestVersion(forJournal: journalID) else { return nil }
+        let next = signed(ManuscriptVersion.cut(
+            label: "",
+            from: head.content,
+            parentID: head.id,
+            journalID: journalID,
+            viewConfigID: head.viewConfigID,
+            number: (m.versions.map(\.number).max() ?? 0) + 1,
+            author: SigningService.userName
+        ))
+        touch { $0.versions.append(next) }
+        NotificationCenter.default.post(
+            name: .journalHeadChanged, object: nil,
+            userInfo: ["old": head.id, "new": next.id])
+        return head
+    }
+
+    /// Stamps the live Source as a new Source version.  Returns the stamp.
+    @discardableResult
+    func stampSource() -> ManuscriptVersion? {
+        guard let m = manuscript else { return nil }
+        var stamp = signed(ManuscriptVersion.cut(
+            label: "",
+            from: m,
+            parentID: latestSourceStamp?.id,
+            journalID: nil,
+            viewConfigID: nil,
+            number: (m.versions.map(\.number).max() ?? 0) + 1,
+            author: SigningService.userName
+        ))
+        stamp.sourceStamp = true
+        touch { $0.versions.append(stamp) }
+        return stamp
+    }
+
+    /// The frozen version a sync/cut should base on for an upstream —
+    /// stamping the upstream first when it has unstamped changes ("stamp &
+    /// sync").  nil upstream = Source.
+    func syncBase(forUpstream journalID: UUID?) -> ManuscriptVersion? {
+        if let journalID {
+            if headHasUnstampedChanges(journalID: journalID) {
+                return stampVersion(journalID: journalID)          // freezes old head
+            }
+            guard let head = latestVersion(forJournal: journalID) else { return nil }
+            // The head is an unedited copy of its predecessor stamp; prefer
+            // the frozen predecessor, falling back to the head for a
+            // never-stamped journal.
+            if let pid = head.parentID,
+               let parent = versions.first(where: { $0.id == pid }),
+               parent.journalID == journalID {
+                return parent
+            }
+            return head
+        } else {
+            if sourceHasUnstampedChanges { return stampSource() }
+            return latestSourceStamp
+        }
+    }
+
+    // MARK: - Rollback
+
+    /// Rolls a journal back to `version`: later versions in the same journal
+    /// are deleted (changes in between are dropped).  Refused with a message
+    /// when a dropped version has cuts hanging from it in another journal.
+    /// For a Source stamp, restores the live content from the stamp and
+    /// drops later stamps.
+    @discardableResult
+    func rollback(to version: ManuscriptVersion) -> String? {
+        if version.sourceStamp == true {
+            let dropped = sourceStamps.filter { $0.number > version.number }
+            if let blocked = crossJournalChild(of: dropped.map(\.id)) { return blocked }
+            touch { m in
+                let content = version.content
+                m.title = content.title
+                m.runningTitle = content.runningTitle
+                m.keywords = content.keywords
+                m.authors = content.authors
+                m.abstract = content.abstract
+                m.sections = content.sections
+                m.figures = content.figures
+                m.tables = content.tables
+                m.bibliography = content.bibliography
+                m.letterToEditor = content.letterToEditor
+                m.versions.removeAll { v in dropped.contains { $0.id == v.id } }
+            }
+            return nil
+        }
+        guard let journalID = version.journalID else { return "Only journal versions can be rolled back." }
+        let chain = versions(forJournal: journalID)
+        let dropped = chain.filter { $0.number > version.number }
+        guard !dropped.isEmpty else { return nil }
+        if let blocked = crossJournalChild(of: dropped.map(\.id)) { return blocked }
+        let oldHead = chain.last
+        touch { m in
+            m.versions.removeAll { v in dropped.contains { $0.id == v.id } }
+        }
+        if let oldHead {
+            NotificationCenter.default.post(
+                name: .journalHeadChanged, object: nil,
+                userInfo: ["old": oldHead.id, "new": version.id])
+        }
+        return nil
+    }
+
+    /// A human-readable blocker when any of `ids` has a child in another
+    /// journal (rolling those away would orphan that journal's lineage).
+    private func crossJournalChild(of ids: [UUID]) -> String? {
+        let idSet = Set(ids)
+        for v in versions where v.parentID.map(idSet.contains) == true {
+            let name = v.journalID.flatMap { jid in
+                manuscript?.journals.first { $0.id == jid }?.name
+            } ?? "another journal"
+            return "Can't roll back past a version that \(name) was cut from — roll back or remove that journal's versions first."
+        }
+        return nil
     }
 
     // MARK: - Sync (fast-forward one lineage edge)
@@ -579,6 +755,10 @@ final class ManuscriptStore {
         var cursor: ManuscriptVersion? = head
         while let current = cursor, let pid = current.parentID {
             guard let parent = versions.first(where: { $0.id == pid }) else { break }
+            if parent.sourceStamp == true {
+                // Hangs from a stamped Source version.
+                return (nil, "Source", latestSourceStamp)
+            }
             if parent.journalID != journalID {
                 // First cross-journal edge: this is the upstream.
                 let upstreamName: String
@@ -596,35 +776,49 @@ final class ManuscriptStore {
             }
             cursor = parent
         }
-        // Chain roots at (or broke off toward) the live Source manuscript.
-        return (nil, "Source", nil)
+        // Chain roots at the Source (legacy edges have no stamp to point at).
+        return (nil, "Source", latestSourceStamp)
     }
 
-    /// Fast-forwards one journal from its upstream: snapshots the upstream's
-    /// latest content as a **new version** of this journal (never recursive).
-    /// The journal's previous versions remain in its history.
+    /// A Source stamp's ordinal within the Source chain ("Source v2").
+    func sourceOrdinal(of stamp: ManuscriptVersion) -> Int {
+        (sourceStamps.firstIndex { $0.id == stamp.id } ?? 0) + 1
+    }
+
+    /// Fast-forwards one journal from its upstream: **stamps the upstream
+    /// first when it has unstamped changes** (keeping lineage anchored to
+    /// frozen versions), then snapshots that stamp as a new version of this
+    /// journal.  Never recursive.
     @discardableResult
     func syncJournal(_ journalID: UUID) -> ManuscriptVersion? {
-        guard let m = manuscript,
-              let head = latestVersion(forJournal: journalID),
+        guard let head = latestVersion(forJournal: journalID),
               let source = syncSource(forJournal: journalID) else { return nil }
 
-        let baseContent = source.targetVersion?.content ?? m
-        let fromLabel = source.targetVersion.map {
-            "\(source.upstreamName) v\(journalOrdinal(of: $0))"
-        } ?? "Source"
+        // May stamp the upstream (mutating the manuscript) — resolve before
+        // snapshotting content.
+        let base = syncBase(forUpstream: source.upstreamJournalID)
+        guard let m = manuscript else { return nil }
+
+        let baseContent = base?.content ?? m
+        let fromLabel: String
+        if let base {
+            fromLabel = base.sourceStamp == true
+                ? "Source v\(sourceOrdinal(of: base))"
+                : "\(source.upstreamName) v\(journalOrdinal(of: base))"
+        } else {
+            fromLabel = "Source"
+        }
 
         let number = (m.versions.map(\.number).max() ?? 0) + 1
-        let author = UserDefaults.standard.string(forKey: "noteAuthorName") ?? "Me"
-        let version = ManuscriptVersion.cut(
+        let version = signed(ManuscriptVersion.cut(
             label: "Synced from \(fromLabel)",
             from: baseContent,
-            parentID: source.targetVersion?.id,
+            parentID: base?.id,
             journalID: journalID,
             viewConfigID: head.viewConfigID,
             number: number,
-            author: author
-        )
+            author: SigningService.userName
+        ))
         touch { $0.versions.append(version) }
         // The synced version is the journal's new working head — open tabs
         // showing the old head must follow it or the sync looks like a no-op.
@@ -632,6 +826,36 @@ final class ManuscriptStore {
             name: .journalHeadChanged, object: nil,
             userInfo: ["old": head.id, "new": version.id])
         return version
+    }
+
+    /// Adds a journal to the manuscript from a library/template entry, cut
+    /// from `fromJournalID` (nil = Source) — stamping the upstream first when
+    /// needed so the new lineage edge hangs from a frozen version.  Creates
+    /// the journal's v1 ("Created") and returns the new journal.
+    @discardableResult
+    func addJournalCut(template: Journal, fromJournalID: UUID?, viewConfigID: UUID?) -> Journal? {
+        guard manuscript != nil else { return nil }
+        var journal = template
+        journal.id = UUID()
+        journal.createdAt = Date()
+        journal.viewConfigID = viewConfigID
+        journal.submissionURL = template.submissionURL
+        touch { $0.journals.append(journal) }
+
+        let base = syncBase(forUpstream: fromJournalID)
+        guard let m = manuscript else { return journal }
+        let content = base?.content ?? m
+        let v = signed(ManuscriptVersion.cut(
+            label: "Created",
+            from: content,
+            parentID: base?.id,
+            journalID: journal.id,
+            viewConfigID: viewConfigID,
+            number: (m.versions.map(\.number).max() ?? 0) + 1,
+            author: SigningService.userName
+        ))
+        touch { $0.versions.append(v) }
+        return journal
     }
 
     /// The manuscript content backing a comparison reference: the live Source,
@@ -674,16 +898,15 @@ final class ManuscriptStore {
         }
 
         let number = (m.versions.map(\.number).max() ?? 0) + 1
-        let author = UserDefaults.standard.string(forKey: "noteAuthorName") ?? "Me"
-        let version = ManuscriptVersion.cut(
+        let version = signed(ManuscriptVersion.cut(
             label: label,
             from: baseContent,
             parentID: parentID,
             journalID: journalID,
             viewConfigID: viewConfigID,
             number: number,
-            author: author
-        )
+            author: SigningService.userName
+        ))
         touch { $0.versions.append(version) }
         return version
     }
@@ -783,6 +1006,25 @@ final class ManuscriptStore {
         return files
     }
 
+    /// The GitHub config for this manuscript: active account credentials +
+    /// the manuscript's own repository/branch.
+    private func remoteConfig(_ appStore: AppStore) throws -> (BackendAccount, GitHubBackendService.Config) {
+        let account = try activeBackend(appStore)
+        let config = try GitHubBackendService.Config.from(
+            account: account,
+            repository: manuscript?.settings.remoteRepository,
+            branch: manuscript?.settings.remoteBranch)
+        return (account, config)
+    }
+
+    /// Marks a successful remote round-trip on the manuscript (shown in
+    /// Overview and the sidebar), without bumping `updatedAt` — syncing isn't
+    /// an edit.
+    private func markSynced() {
+        manuscript?.lastSyncedAt = Date()
+        trySave()
+    }
+
     /// Pushes the saved manuscript folder to the active backend.
     func saveToRemote(appStore: AppStore) {
         guard !isRemoteBusy else { return }
@@ -790,8 +1032,7 @@ final class ManuscriptStore {
         remoteStatus = nil
         remoteError = nil
         do {
-            var account = try activeBackend(appStore)
-            let config = try GitHubBackendService.Config.from(account: account)
+            var (account, config) = try remoteConfig(appStore)
             let files = try gatherRemoteFiles()
             let title = manuscript?.title ?? "manuscript"
             isRemoteBusy = true
@@ -805,6 +1046,7 @@ final class ManuscriptStore {
                         message: "Save \(title) from Manuscript Editor",
                         config: config)
                     remoteStatus = "Pushed to \(config.owner)/\(config.repo)@\(config.branch) (\(sha))"
+                    markSynced()
                     account.isConnected = true
                     account.syncStatus = .available
                     account.lastErrorMessage = nil
@@ -821,6 +1063,122 @@ final class ManuscriptStore {
         }
     }
 
+    /// Creates a private GitHub repository for this manuscript (Manuscript →
+    /// Backend), binds it to the manuscript, pushes the current content, and
+    /// reports the repository's web URL via `onDone`.
+    func createRemoteRepository(named name: String, appStore: AppStore,
+                                onDone: @escaping (URL?) -> Void) {
+        guard !isRemoteBusy else { return }
+        trySave()
+        remoteStatus = nil
+        remoteError = nil
+        do {
+            var account = try activeBackend(appStore)
+            guard account.provider == .github else {
+                throw GitHubBackendError.notConfigured("The active account is \(account.provider.rawValue) — repository creation currently supports GitHub.")
+            }
+            guard let token = KeychainService.secret(for: account.id), !token.isEmpty else {
+                throw GitHubBackendError.notConfigured("No personal access token stored for \"\(account.displayName)\". Add one in Preferences → Accounts.")
+            }
+            let files = try gatherRemoteFiles()
+            let title = manuscript?.title ?? "manuscript"
+            isRemoteBusy = true
+            account.syncStatus = .syncing
+            appStore.updateBackend(account)
+
+            Task {
+                do {
+                    let repo = try await gitHubService.createRepository(named: name, token: token)
+                    manuscript?.settings.remoteRepository = repo.fullName
+                    trySave()
+                    let config = try GitHubBackendService.Config.from(
+                        account: account, repository: repo.fullName,
+                        branch: manuscript?.settings.remoteBranch)
+                    _ = try await gitHubService.push(
+                        files: files,
+                        message: "Save \(title) from Manuscript Editor",
+                        config: config)
+                    remoteStatus = "Created \(repo.fullName) and pushed"
+                    markSynced()
+                    account.isConnected = true
+                    account.syncStatus = .available
+                    account.lastErrorMessage = nil
+                    appStore.updateBackend(account)
+                    isRemoteBusy = false
+                    onDone(repo.htmlURL)
+                } catch {
+                    remoteError = error.localizedDescription
+                    account.syncStatus = .error
+                    account.lastErrorMessage = error.localizedDescription
+                    appStore.updateBackend(account)
+                    isRemoteBusy = false
+                    onDone(nil)
+                }
+            }
+        } catch {
+            remoteError = error.localizedDescription
+            onDone(nil)
+        }
+    }
+
+    /// Creates a manuscript bound to a remote repository (File → New
+    /// Manuscript (Remote)…).  A local copy always exists (default App
+    /// Support location, shown in Manuscript → Backend): if the repository
+    /// already holds a manuscript it is pulled; an empty repository gets this
+    /// fresh manuscript pushed as its first commit.
+    func createNewRemote(repository: String, branch: String?, accountID: UUID, appStore: AppStore) {
+        var m = Manuscript.new()
+        m.settings.activeBackendID = accountID
+        m.settings.remoteRepository = repository
+        m.settings.remoteBranch = branch?.isEmpty == false ? branch : nil
+        manuscript = m
+        trySave()
+        remoteStatus = nil
+        remoteError = nil
+        do {
+            var (account, config) = try remoteConfig(appStore)
+            isRemoteBusy = true
+            account.syncStatus = .syncing
+            appStore.updateBackend(account)
+            Task {
+                do {
+                    let files = try await gitHubService.pull(config: config)
+                    let dir = persistence.manuscriptDirectory(for: m.id)
+                    for file in files where file.path != "manuscript.json" {
+                        let dest = dir.appendingPathComponent(file.path)
+                        try FileManager.default.createDirectory(
+                            at: dest.deletingLastPathComponent(), withIntermediateDirectories: true)
+                        try file.data.write(to: dest, options: .atomic)
+                    }
+                    if let json = files.first(where: { $0.path == "manuscript.json" }) {
+                        let decoder = JSONDecoder()
+                        decoder.dateDecodingStrategy = .iso8601
+                        var decoded = try decoder.decode(Manuscript.self, from: json.data)
+                        decoded.id = m.id
+                        decoded.settings.activeBackendID = accountID
+                        decoded.settings.remoteRepository = repository
+                        decoded.settings.remoteBranch = m.settings.remoteBranch
+                        manuscript = normalized(decoded)
+                        markSynced()
+                    }
+                    remoteStatus = "Loaded from \(config.owner)/\(config.repo)@\(config.branch)"
+                    account.isConnected = true
+                    account.syncStatus = .available
+                    account.lastErrorMessage = nil
+                    appStore.updateBackend(account)
+                    isRemoteBusy = false
+                } catch {
+                    // Empty/uninitialized repository: push the fresh manuscript.
+                    isRemoteBusy = false
+                    appStore.updateBackend(account)
+                    self.saveToRemote(appStore: appStore)
+                }
+            }
+        } catch {
+            remoteError = error.localizedDescription
+        }
+    }
+
     /// Pulls the manuscript files from the active backend, **replacing** the
     /// local content (the caller confirms with the user first).  The local
     /// manuscript id is kept so the folder mapping and lineage of trust stay
@@ -831,8 +1189,7 @@ final class ManuscriptStore {
         remoteStatus = nil
         remoteError = nil
         do {
-            var account = try activeBackend(appStore)
-            let config = try GitHubBackendService.Config.from(account: account)
+            var (account, config) = try remoteConfig(appStore)
             isRemoteBusy = true
             account.syncStatus = .syncing
             appStore.updateBackend(account)
@@ -853,8 +1210,11 @@ final class ManuscriptStore {
                         var decoded = try decoder.decode(Manuscript.self, from: json.data)
                         decoded.id = current.id                     // keep the local folder mapping
                         decoded.folderBookmark = current.folderBookmark
+                        // The remote copy shouldn't retarget where THIS copy syncs.
+                        decoded.settings.remoteRepository = current.settings.remoteRepository
+                            ?? decoded.settings.remoteRepository
                         manuscript = normalized(decoded)
-                        trySave()
+                        markSynced()
                     }
                     remoteStatus = "Loaded from \(config.owner)/\(config.repo)@\(config.branch)"
                     account.isConnected = true

@@ -15,9 +15,20 @@ UI, and docs. (Updated for the Journal/Version/Lineage model — see
   comparison tab.
 - **Cut** — the act of creating a new target journal from a parent journal version
   (user-facing verb: "add a cut" / "add journal").
-- **Version** — a *save point within one journal* (`v1, v2, …`). **Save** updates
-  the journal's working content; **Save new version** snapshots it. You can
-  **roll back/forward** through a journal's versions.
+- **Version** — a *save point within one journal or Source* (`v1, v2, …`).
+  The working state is always **"latest"** (annotated, never numbered);
+  **Stamp Version** freezes it as `vN`. **Roll back** restores a prior version
+  and drops the ones after it.
+- **Stamp** — the act of freezing "latest" as a numbered version. Syncs/cuts
+  always base on stamps ("Stamp & Sync" stamps a drifted upstream first).
+- **Source stamp** — a Source version (`sourceStamp == true`); Source
+  maintains its own chain like any journal.
+- **Journal library** — the global, reusable journal profiles (name, country,
+  requirements, export outline) in Preferences → Journals; the "to" choices
+  when adding a journal.
+- **User identity / signature** — the local name + P-256 keypair (Preferences
+  → User). Stamps and notes are signed; keys tied to an author
+  (`Author.publicKeys`) display as that author with a verified ✓.
 - **Lineage** — directed **edges between journal versions** (`Source@v2 →
   NEJM@v1`) recording derivation. Unlimited depth; editing a journal forward
   doesn't alter existing edges.

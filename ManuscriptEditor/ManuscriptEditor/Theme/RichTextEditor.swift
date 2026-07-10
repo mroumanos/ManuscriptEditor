@@ -108,13 +108,25 @@ struct RichEditor: View {
                 display: "Ref • \(e.key) — \(e.title.isEmpty ? "(no title)" : e.title)"
             ))
         }
-        for f in m.figures.sorted(by: { $0.number < $1.number }) {
-            guard matches(["figure \(f.number)", f.title, f.caption]) else { continue }
-            out.append(RefCandidate(kind: .figure, id: f.id, display: "Figure \(f.number) — \(f.title)"))
+        // Figures/tables offer two insertions each: a cross-REFERENCE
+        // ("Figure 2", numbered by first-reference order like citations) and
+        // a PLACEMENT marker (the figure/table itself renders there on
+        // export; the editor shows a faint ⟦Figure 2 here⟧).
+        let figureNumbers = RefEngine.effectiveFigureNumbers(in: m)
+        for f in m.figures.sorted(by: { (figureNumbers[$0.id] ?? 0) < (figureNumbers[$1.id] ?? 0) }) {
+            let n = figureNumbers[f.id] ?? f.number
+            guard matches(["figure \(n)", f.title, f.caption, "place"]) else { continue }
+            out.append(RefCandidate(kind: .figure, id: f.id, display: "Figure \(n) — \(f.title)"))
+            out.append(RefCandidate(kind: .figurePlacement, id: f.id,
+                                    display: "Place Figure \(n) here (renders on export)"))
         }
-        for t in m.tables.sorted(by: { $0.number < $1.number }) {
-            guard matches(["table \(t.number)", t.title, t.caption]) else { continue }
-            out.append(RefCandidate(kind: .table, id: t.id, display: "Table \(t.number) — \(t.title)"))
+        let tableNumbers = RefEngine.effectiveTableNumbers(in: m)
+        for t in m.tables.sorted(by: { (tableNumbers[$0.id] ?? 0) < (tableNumbers[$1.id] ?? 0) }) {
+            let n = tableNumbers[t.id] ?? t.number
+            guard matches(["table \(n)", t.title, t.caption, "place"]) else { continue }
+            out.append(RefCandidate(kind: .table, id: t.id, display: "Table \(n) — \(t.title)"))
+            out.append(RefCandidate(kind: .tablePlacement, id: t.id,
+                                    display: "Place Table \(n) here (renders on export)"))
         }
         return out
     }
@@ -797,9 +809,10 @@ final class CitationTextView: NSTextView {
                 title = "Reference not found"
                 body = "This entry was removed from the bibliography."
             }
-        case .figure, .table:
-            let noun = token.kind == .figure ? "Figure" : "Table"
-            let tip = token.kind == .figure
+        case .figure, .table, .figurePlacement, .tablePlacement:
+            let isFigure = token.kind == .figure || token.kind == .figurePlacement
+            let noun = isFigure ? "Figure" : "Table"
+            let tip = isFigure
                 ? refContext.figures[token.targetID]?.tooltip
                 : refContext.tables[token.targetID]?.tooltip
             if let tip {

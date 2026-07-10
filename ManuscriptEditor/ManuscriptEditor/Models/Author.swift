@@ -38,6 +38,12 @@ struct Author: Codable, Identifiable, Sendable {
     /// Zero-based position in the author list.  First author = 0.
     var order: Int
 
+    /// Public signing keys (base64 P-256) tied to this author — 0 to many.
+    /// When an edit/comment's signature matches one of these keys, the UI
+    /// shows this author's name (with a verified badge) instead of the raw
+    /// signer name.  Private keys never enter manuscript files.
+    var publicKeys: [String]? = nil
+
     // MARK: - Computed
 
     /// "First Last" — used in export and overview display.

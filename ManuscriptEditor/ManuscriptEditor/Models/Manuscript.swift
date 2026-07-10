@@ -114,6 +114,10 @@ struct Manuscript: Codable, Identifiable, Sendable {
     /// When this manuscript was last modified.  Updated automatically by `ManuscriptStore.touch`.
     var updatedAt: Date
 
+    /// When this manuscript was last synced (pushed to or pulled from) its
+    /// backend.  nil = never synced.  Optional so older files keep decoding.
+    var lastSyncedAt: Date? = nil
+
     // MARK: - Factory
 
     /// Creates a brand-new, empty manuscript with the standard set of body sections

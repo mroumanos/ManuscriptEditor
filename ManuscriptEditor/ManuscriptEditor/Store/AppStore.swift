@@ -35,6 +35,8 @@ private struct AppData: Codable {
     var backends:   [BackendAccount]
     var aiServices: [AIServiceAccount]
     var views:      [ViewConfig]
+    /// Global journal library (added later — optional keeps old files decoding).
+    var journalLibrary: [Journal]?
 }
 
 // MARK: - AppStore
@@ -58,6 +60,13 @@ final class AppStore {
     /// All user-created view templates.
     var views:      [ViewConfig]       = []
 
+    /// The global **journal library**: reusable journal profiles (name,
+    /// country, requirements, export outline) available when adding a journal
+    /// to any manuscript.  Seeded once from the built-in presets; grows via
+    /// "Save to Journal Library" in Export/Checks and the Preferences →
+    /// Journals tab.
+    var journalLibrary: [Journal]      = []
+
     // MARK: - Persistence path
 
     private var saveURL: URL {
@@ -69,19 +78,32 @@ final class AppStore {
 
     // MARK: - Lifecycle
 
-    /// Called once at app launch.  Loads the saved app data if it exists.
+    /// Called once at app launch.  Loads the saved app data if it exists and
+    /// seeds the journal library from the built-in presets on first run.
     func load() {
-        guard let data = try? Data(contentsOf: saveURL),
-              let decoded = try? JSONDecoder().decode(AppData.self, from: data)
-        else { return }
-        backends   = decoded.backends
-        aiServices = decoded.aiServices
-        views      = decoded.views
+        if let data = try? Data(contentsOf: saveURL),
+           let decoded = try? JSONDecoder().decode(AppData.self, from: data) {
+            backends   = decoded.backends
+            aiServices = decoded.aiServices
+            views      = decoded.views
+            journalLibrary = decoded.journalLibrary ?? []
+        }
+        if journalLibrary.isEmpty {
+            journalLibrary = JournalPresets.all.map { preset in
+                Journal(
+                    id: UUID(), name: preset.name, publisher: preset.publisher,
+                    submissionURL: "", requirements: preset.requirements,
+                    viewConfigID: nil, createdAt: Date()
+                )
+            }
+            save()
+        }
     }
 
     /// Encodes and writes app data atomically.  Safe to call after any mutation.
     func save() {
-        let snapshot = AppData(backends: backends, aiServices: aiServices, views: views)
+        let snapshot = AppData(backends: backends, aiServices: aiServices,
+                               views: views, journalLibrary: journalLibrary)
         guard let data = try? JSONEncoder().encode(snapshot) else { return }
         try? data.write(to: saveURL, options: .atomic)
     }
@@ -129,6 +151,23 @@ final class AppStore {
     /// Deletes AI service accounts at the given offsets.
     func deleteAIServices(at offsets: IndexSet) {
         aiServices.remove(atOffsets: offsets)
+        save()
+    }
+
+    // MARK: - Journal library
+
+    /// Adds (or replaces, matching by id) a library entry.
+    func upsertLibraryJournal(_ journal: Journal) {
+        if let idx = journalLibrary.firstIndex(where: { $0.id == journal.id }) {
+            journalLibrary[idx] = journal
+        } else {
+            journalLibrary.append(journal)
+        }
+        save()
+    }
+
+    func deleteLibraryJournals(at offsets: IndexSet) {
+        journalLibrary.remove(atOffsets: offsets)
         save()
     }
 

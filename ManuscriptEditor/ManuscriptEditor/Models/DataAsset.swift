@@ -20,10 +20,17 @@ enum DataAssetType: String, Codable, Sendable {
 }
 
 /// Chart styles available for figures that are derived from tabular data.
+///
+/// `histogram` is retired from the UI (a histogram is a bar chart over
+/// SQL-binned buckets — `GROUP BY` expresses it directly) but stays decodable
+/// so older files keep opening; it renders as a bar chart.
 enum ChartType: String, Codable, CaseIterable, Sendable {
     case line
     case bar
     case histogram
+
+    /// The chart styles offered in pickers (excludes retired cases).
+    static var selectable: [ChartType] { [.line, .bar] }
 
     var label: String { rawValue.capitalized }
 

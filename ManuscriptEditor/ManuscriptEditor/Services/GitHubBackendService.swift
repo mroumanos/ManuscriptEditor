@@ -55,22 +55,56 @@ struct GitHubBackendService {
         let token: String
 
         /// Builds a config from a backend account + its Keychain token.
+        /// The repository/branch are **per-manuscript** (ManuscriptSettings),
+        /// falling back to legacy account-level fields.
         /// Throws a user-actionable message when anything is missing.
-        static func from(account: BackendAccount) throws -> Config {
+        static func from(account: BackendAccount,
+                         repository: String? = nil,
+                         branch: String? = nil) throws -> Config {
             guard account.provider == .github else {
-                throw GitHubBackendError.notConfigured("The active backend is \(account.provider.rawValue) — only GitHub is supported so far. Pick a GitHub backend in Manuscript → Settings.")
+                throw GitHubBackendError.notConfigured("The active account is \(account.provider.rawValue) — only GitHub is supported so far. Pick a GitHub account in Manuscript → Backend.")
             }
-            let parts = (account.repository ?? "").split(separator: "/").map(String.init)
+            let repoString = repository ?? account.repository ?? ""
+            let parts = repoString.split(separator: "/").map(String.init)
             guard parts.count == 2, !parts[0].isEmpty, !parts[1].isEmpty else {
-                throw GitHubBackendError.notConfigured("Set the GitHub repository as \"owner/name\" in Preferences → Backend.")
+                throw GitHubBackendError.notConfigured("Set the repository as \"owner/name\" in Manuscript → Backend (or create one there).")
             }
             guard let token = KeychainService.secret(for: account.id), !token.isEmpty else {
-                throw GitHubBackendError.notConfigured("No personal access token stored for \"\(account.displayName)\". Add one in Preferences → Backend.")
+                throw GitHubBackendError.notConfigured("No personal access token stored for \"\(account.displayName)\". Add one in Preferences → Accounts.")
             }
+            let effectiveBranch = branch ?? account.branch
             return Config(owner: parts[0], repo: parts[1],
-                          branch: account.branch?.isEmpty == false ? account.branch! : "main",
+                          branch: effectiveBranch?.isEmpty == false ? effectiveBranch! : "main",
                           token: token)
         }
+    }
+
+    // MARK: - Account-level operations (no repository required)
+
+    /// Verifies a token by fetching the authenticated user; returns the login.
+    func authenticatedLogin(token: String) async throws -> String {
+        let user = try await rawRequest("GET", url: "https://api.github.com/user", token: token, body: nil)
+        guard let login = user["login"] as? String else {
+            throw GitHubBackendError.badResponse("no login in /user response")
+        }
+        return login
+    }
+
+    /// Creates a private repository for the authenticated user; returns
+    /// ("owner/name", web URL).
+    func createRepository(named name: String, token: String) async throws -> (fullName: String, htmlURL: URL) {
+        let repo = try await rawRequest("POST", url: "https://api.github.com/user/repos", token: token, body: [
+            "name": name,
+            "private": true,
+            "description": "Manuscript Editor project",
+            "auto_init": false,
+        ])
+        guard let fullName = repo["full_name"] as? String,
+              let html = repo["html_url"] as? String,
+              let url = URL(string: html) else {
+            throw GitHubBackendError.badResponse("repository creation returned no name/url")
+        }
+        return (fullName, url)
     }
 
     /// One file to push / pulled from the remote, path relative to the
@@ -194,10 +228,19 @@ struct GitHubBackendService {
     @discardableResult
     private func request(_ method: String, _ path: String, config: Config,
                          body: [String: Any]?) async throws -> [String: Any] {
-        let url = URL(string: "https://api.github.com/repos/\(config.owner)/\(config.repo)/\(path)")!
-        var req = URLRequest(url: url)
+        try await rawRequest(
+            method,
+            url: "https://api.github.com/repos/\(config.owner)/\(config.repo)/\(path)",
+            token: config.token,
+            body: body)
+    }
+
+    @discardableResult
+    private func rawRequest(_ method: String, url: String, token: String,
+                            body: [String: Any]?) async throws -> [String: Any] {
+        var req = URLRequest(url: URL(string: url)!)
         req.httpMethod = method
-        req.setValue("Bearer \(config.token)", forHTTPHeaderField: "Authorization")
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         req.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         req.setValue("2022-11-28", forHTTPHeaderField: "X-GitHub-Api-Version")
         if let body {

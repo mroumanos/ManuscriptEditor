@@ -65,6 +65,11 @@ struct Figure: Codable, Identifiable, Sendable, Equatable {
     /// The SQL query used to fetch data for this chart.
     var chartQuery: String?
 
+    /// Category color palette for the chart ("Default", "Vivid", "Pastel",
+    /// "Monochrome").  nil = Default.  Colors series when the SELECT has a
+    /// third (category) column.
+    var chartPalette: String?
+
     // MARK: - Factory
 
     /// A blank figure ready for the user to fill in, with a placeholder title.

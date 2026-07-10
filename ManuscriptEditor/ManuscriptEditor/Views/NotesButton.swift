@@ -18,7 +18,6 @@ struct NotesButton: View {
     /// `SidebarItem.notesKey` of the pane's content item.
     let itemKey: String
 
-    @AppStorage("noteAuthorName") private var author = "Me"
     @State private var showPopover = false
     @State private var draft = ""
 
@@ -86,7 +85,17 @@ struct NotesButton: View {
     private func noteRow(_ note: Note) -> some View {
         VStack(alignment: .leading, spacing: 3) {
             HStack(spacing: 6) {
-                Text(note.author).font(.caption.weight(.semibold))
+                // Signed identity: an author-tied key shows the author's name
+                // with ✓; untied shows the signer name with ?; broken shows ✗.
+                SignatureBadge(
+                    signerName: note.author,
+                    signerKey: note.authorKey,
+                    message: SigningService.noteMessage(
+                        id: note.id, createdAt: note.createdAt, body: note.body),
+                    signature: note.signature,
+                    authors: store.manuscript?.authors ?? []
+                )
+                .font(.caption.weight(.semibold))
                 Text(note.createdAt, format: .dateTime.month().day().hour().minute())
                     .font(.caption2).foregroundStyle(.secondary)
                 Spacer()
@@ -117,7 +126,10 @@ struct NotesButton: View {
     private func addNote() {
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
-        store.addNote(versionKey: versionKey, itemKey: itemKey, author: author, body: text)
+        // Author = the app-wide user identity (Preferences → User); the store
+        // signs the note with the identity key.
+        store.addNote(versionKey: versionKey, itemKey: itemKey,
+                      author: SigningService.userName, body: text)
         draft = ""
     }
 }

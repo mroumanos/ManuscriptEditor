@@ -95,20 +95,25 @@ Case Report, …), each with its own rules and layout.
   migration (see [`09-roadmap.md`](09-roadmap.md)). The Source journal has one
   default profile with empty requirements + a default outline.
 
-## E. Versioning (within a journal)
+## E. Versioning (stamping — Source and journals alike)
 
-Intent: every journal (incl. Source) has its own save-point history.
-- AC: **Save** persists the journal's working content; **Save new version** stamps
-  a new `vN` snapshot.
-- AC: The user can **roll back / forward** through a journal's versions, changing
-  only that journal.
-- AC: A per-pane version control surfaces the current version and these actions.
-- AC: An unnamed first version (`v1`) displays as **"Created"** — it is the
-  journal's creation point, never "(unnamed version)".
+Intent: every journal **and the Source** has its own save-point history; the
+working state is always "latest", and **stamping** freezes it as a numbered
+version.
+- AC: The Versions pane is per-tab and renders a **horizontal table**, newest
+  first: Version ("latest" for the working row — never a number) · Stamped
+  (date/time) · From → To · By (signer, with the signature badge).
+- AC: **Stamp Version** freezes the current content as `vN` and moves "latest"
+  to a new row; disabled when nothing changed since the last stamp. Stamps are
+  signed with the user's identity key (`stampedByKey`/`stampSignature`).
+- AC: **Roll Back…** on a selected prior version restores it and **drops the
+  versions after it** (confirmed with the concrete count; refused with an
+  explanation when another journal's cut hangs from a dropped version).
+- AC: **Source stamps** (`sourceStamp == true`) chain the live manuscript:
+  rolling Source back restores content fields from the stamp and keeps
+  journals/notes/data intact.
 - AC: When a journal has unsaved edits, show a prominent **unsaved-changes
   banner** that triggers Save when clicked.
-
-  ![Unsaved changes banner](examples/banner-for-unsaved-content.png)
 
 ## F. Lineage, cuts, sync & rollback
 
@@ -119,8 +124,10 @@ propagate by explicit, individual fast-forwards.
 - AC: Creating a journal from a parent journal's current version makes the child
   at `v1` and an edge `parent@vX → child@v1`.
 - AC: Editing a parent forward (new versions) does **not** alter existing edges.
-- AC: **Sync** re-derives one child from its parent's newer version: stamps a new
-  child version and a new edge `parent@vNow → child@vNew`. **Never recursive.**
+- AC: **Sync** re-derives one child from its parent's newest **stamped**
+  version: when the upstream's latest has unstamped changes the action becomes
+  **Stamp & Sync** (the upstream is stamped first), so lineage edges always
+  hang from frozen versions. **Never recursive.**
   Example: `Source@v2 → NEJM@v1`; Source edited to `v3`; Sync NEJM ⇒ `NEJM@v2` and
   edge `Source@v3 → NEJM@v2`.
 - AC: **Rollback** restores the prior edge and **soft-archives** the newer
@@ -131,13 +138,14 @@ propagate by explicit, individual fast-forwards.
   **seeds the child from the parent snapshot**; the user reconciles content
   **manually**. **Phase II** — the configured **AI service** auto-derives the
   child content toward the child's requirements.
-- AC (implemented): **Sync pane** — a dedicated sidebar item (between Settings
-  and Checks), laid out as a **nested lineage tree**: Source at the root, each
-  journal indented under the journal it syncs from (↳ connector per level).
-  Each card shows the lineage edge it hangs from (upstream name + the
-  parent-version badge), the journal node with its current head badge, a drift
-  status ("up to date" / "upstream has moved — fast-forward available"), and a
-  blue **Sync** button on the edge. Syncing shows a
+- AC (implemented): **Sync pane** — under the Manuscript section — carries the
+  three flow functions: **Saving** (Save Local / Save Remote / Load from
+  Remote with last-saved/last-synced timestamps), **Syncing** (per-edge
+  Sync/Stamp & Sync buttons on a **contiguous** nested lineage tree — child
+  cards attached beneath their upstream, tabbed left, right edges aligned),
+  and **Add Journal** (from = Source or any journal; to = a profile from the
+  global journal library or a custom name; creates v1 "Created" + the edge,
+  and the journal's tab appears automatically). Syncing shows a
   **warning dialog** ("overwrites what currently exists in the journal's
   working head; previous versions remain in history") before creating the new
   version + edge via `ManuscriptStore.syncJournal`.
@@ -187,13 +195,17 @@ legible.
 ## G. Side-by-side comparison & editing
 
 Intent: compare/edit journals together.
-- AC: Comparison tabs at top list active **journals**, color-coded; Source is a
-  closable tab. The **＋ picker offers each journal's working head only** —
-  older versions are history (browsed in Versions), never tab candidates.
-- AC: Selecting a **Content** item with ≥1 tab open renders one **editable** pane
-  per tab; sidebar navigation moves all panes together. **Checks, Versions, and
-  Export are comparable the same way** — one pane per tab, each representing
-  its tab's journal with no journal dropdown of its own.
+- AC: Tabs **load automatically** (Source + every journal; identity = the
+  journal, resolving to its working head) and are never opened/closed by hand.
+  Chips are **browser-style** (icon + name, shown tabs highlighted lighter
+  with an accent underline; no color coding).
+- AC: An **Active | Compare** toggle governs the panes. Active = one journal,
+  switched by clicking chips or **⌘⇧←/→**; Compare = chips gain ＋/✕ to
+  include/remove panes, side-by-side split evenly by default.
+- AC: Selecting a comparable item renders one **editable** pane per displayed
+  tab; sidebar navigation moves all panes together. **Checks, Versions, and
+  Export are comparable the same way** — one pane per tab, no journal
+  dropdowns.
 - AC: **Pane headers are slim**: word count, per-journal section activation
   (eye), and notes only. The selected item's name is NOT repeated in the pane —
   the sidebar selection already names it (body sections rename via the
@@ -245,12 +257,12 @@ Intent: clean, modern, capable prose editing.
 
 ## J. Checks (live, per-journal, comparable)
 
-> **Implemented shape:** the Checks pane is the live submission **checklist
-> only** (ChecklistService results — word/asset limits, required sections,
-> custom rules — green ✓ / red ✗ with a summary banner). A journal pane checks
-> its own journal; the Source pane (Source has empty default requirements)
-> shows an explanatory state pointing at the journal tabs — no journal picker.
-> Requirements *editing* lives in the Journals settings, not here.
+> **Implemented shape:** the Checks pane is the live submission checklist
+> (green ✓ / red ✗ with a summary banner) **plus** the journal's requirement
+> editing (Edit Requirements… sheet: limits + custom rules) and **Save to
+> Journal Library…** (store the profile — requirements + export outline — as
+> a reusable global entry, new or overwriting). A journal pane checks its own
+> journal; the Source pane shows an explanatory state — no journal picker.
 
 Intent: deterministic requirement verification that is **always current** and
 viewable **side-by-side per journal**, like any Content item.
@@ -275,11 +287,24 @@ viewable **side-by-side per journal**, like any Content item.
 
 Intent: a **backend** (cloud storage) and an **AI service** (LLM) are different
 things; neither is needed for Phase I (manual, local) editing.
-- AC: Preferences → Backend: add/remove GitHub/Office365/Dropbox/Google Docs/
-  GitLab accounts that say **where the project is stored in the cloud** (persist
-  across manuscripts). One is the manuscript's "active" backend (Settings).
-  **Phase II** = save-and-share. **Active collaboration/concurrency is Phase III
-  (stub only).**
+- AC: **Preferences → Accounts** manages every external account in one panel —
+  storage (GitHub, GitLab, Office 365, …) and AI (Claude, OpenAI, Gemini,
+  Ollama). Credentials live in the **Keychain**; every account offers **Test
+  Connection** (GitHub/GitLab `/user`, Anthropic/OpenAI `/models`, local
+  Ollama). One storage account is the manuscript's "active" backend
+  (Manuscript → Backend). **Phase II** = save-and-share. **Active
+  collaboration/concurrency is Phase III (stub only).**
+- AC: The remote repository binding is **per-manuscript**
+  (`ManuscriptSettings.remoteRepository`/`remoteBranch`): Manuscript → Backend
+  shows the local folder, lets a local-first manuscript **create** its (private)
+  repository on the active account — linking to it once created — and shows
+  last-synced.
+- AC: **File → New Manuscript (File)… / (Remote)…** — both warn about the
+  current manuscript's unsynced work first. Remote asks for account + repository
+  link; a repository that already holds a manuscript is pulled, an empty one
+  receives the fresh manuscript; a local copy always exists.
+- AC: Saving lives under **File**: Save (Local) ⌘S, Save (Remote) ⇧⌘S, Load
+  from Remote… (mirrored in the Sync pane).
 - AC (implemented — GitHub first): **Save to Remote / Load from Remote**
   (Manuscript menu; ⇧⌘S for save). A GitHub backend account carries a
   repository ("owner/name") + branch (default `main`); its **personal access
@@ -434,6 +459,15 @@ link URL)
   invariant, enforced on every store mutation.
 - AC: Figure/table tokens re-render when the target's number changes; deleted
   targets render as **`[?]`** so a stale number never poses as live.
+- AC: **Figure/table numbering follows reference order**, exactly like
+  citations: the first-referenced figure is "Figure 1"; unreferenced figures
+  follow after in manual order. Lists, exports, and package file names all use
+  these effective numbers.
+- AC: **Placement tokens** — the `/` dropdown also offers "Place Figure N here"
+  / "Place Table N here". They render as a faint `⟦Figure 2 here⟧` marker in
+  the editor (invisible would be undeletable) and expand to the full rendered
+  figure (crop/scale/B&W applied) or table + numbered caption at that exact
+  spot in exported documents. Placements do not affect reference numbering.
 - Mechanism: each `RichText` persists `refs` (ordered token list, extracted by
   the editor on change; back-filled from RTF once for older files), so
   numbering/ordering never decode RTF on the keystroke path. Editors skip the

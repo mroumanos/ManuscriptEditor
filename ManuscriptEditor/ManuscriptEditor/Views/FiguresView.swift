@@ -29,9 +29,16 @@ struct FiguresView: View {
     /// UUID of the selected figure.
     @State private var selectedID: UUID?
 
-    /// Figures sorted by number (Figure 1, Figure 2, …).
+    /// Display numbers follow reference order (first-referenced = Figure 1),
+    /// like bibliography citations; unreferenced figures follow after.
+    private var numbers: [UUID: Int] {
+        store.manuscript(for: versionRef).map(RefEngine.effectiveFigureNumbers) ?? [:]
+    }
+
+    /// Figures sorted by their effective (reference-order) number.
     private var figures: [Figure] {
-        (store.manuscript(for: versionRef)?.figures ?? []).sorted { $0.number < $1.number }
+        (store.manuscript(for: versionRef)?.figures ?? [])
+            .sorted { (numbers[$0.id] ?? $0.number) < (numbers[$1.id] ?? $1.number) }
     }
 
     var body: some View {
@@ -61,6 +68,7 @@ struct FiguresView: View {
                             ForEach(figures) { figure in
                                 FigureThumbnail(
                                     figure: figure,
+                                    displayNumber: numbers[figure.id] ?? figure.number,
                                     isSelected: selectedID == figure.id,
                                     onTap: { selectedID = figure.id },
                                     onDelete: { deleteFigure(figure) }
@@ -128,6 +136,8 @@ struct FiguresView: View {
 struct FigureThumbnail: View {
     @Environment(ManuscriptStore.self) private var store
     let figure: Figure
+    /// Reference-order display number (may differ from `figure.number`).
+    let displayNumber: Int
     let isSelected: Bool
     let onTap: () -> Void
     let onDelete: () -> Void
@@ -150,7 +160,7 @@ struct FigureThumbnail: View {
                         Image(systemName: "photo").font(.largeTitle).foregroundStyle(.tertiary)
                     }
                 }
-                Text("Fig. \(figure.number)").font(.caption.weight(.medium))
+                Text("Fig. \(displayNumber)").font(.caption.weight(.medium))
                 Text(figure.title)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
@@ -339,12 +349,18 @@ struct FigureEditor: View {
             }
             if draft.dataAssetID != nil {
                 Picker("Chart Type", selection: Binding(
-                    get: { draft.chartType ?? .bar },
+                    get: { draft.chartType == .histogram ? .bar : (draft.chartType ?? .bar) },
                     set: { draft.chartType = $0 }
                 )) {
-                    ForEach(ChartType.allCases, id: \.self) { ct in
+                    ForEach(ChartType.selectable, id: \.self) { ct in
                         Label(ct.label, systemImage: ct.systemImage).tag(ct)
                     }
+                }
+                Picker("Colors", selection: Binding(
+                    get: { ChartPalette(rawValue: draft.chartPalette ?? "") ?? .standard },
+                    set: { draft.chartPalette = $0 == .standard ? nil : $0.rawValue }
+                )) {
+                    ForEach(ChartPalette.allCases) { p in Text(p.rawValue).tag(p) }
                 }
                 TextField("SQL Query", text: Binding(
                     get: { draft.chartQuery ?? "SELECT * FROM data" },
@@ -352,6 +368,9 @@ struct FigureEditor: View {
                 ), axis: .vertical)
                 .font(.system(.callout, design: .monospaced))
                 .lineLimit(2...5)
+                Text("Column aliases name the axes (1st = X, 2nd = Y); an optional 3rd column colors multiple lines/bars by category.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
     }
@@ -370,8 +389,12 @@ struct FigureEditor: View {
                         .foregroundStyle(.red)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
-                    DataChartView(result: chartResult, chartType: draft.chartType ?? .bar)
-                        .padding(10)
+                    DataChartView(
+                        result: chartResult,
+                        chartType: draft.chartType ?? .bar,
+                        palette: ChartPalette(rawValue: draft.chartPalette ?? "") ?? .standard
+                    )
+                    .padding(10)
                 }
             }
         } else if let url = store.figureURL(for: draft),

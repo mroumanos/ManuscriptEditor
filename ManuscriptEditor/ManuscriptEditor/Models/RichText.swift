@@ -28,6 +28,12 @@ import Foundation
 struct RefOccurrence: Codable, Sendable, Equatable {
     enum Kind: String, Codable, Sendable {
         case bib, figure, table
+        /// Placement markers: where the figure/table itself goes on export.
+        /// Rendered as a faint ⟦Figure 2⟧ marker in the editor (an invisible
+        /// token would be undeletable) and expanded to the full figure/table
+        /// in exported documents.  Placements do NOT affect reference-order
+        /// numbering — only `.figure`/`.table` references do.
+        case figurePlacement, tablePlacement
     }
     var kind: Kind
     var targetID: UUID

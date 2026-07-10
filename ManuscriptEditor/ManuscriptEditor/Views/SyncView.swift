@@ -1,92 +1,121 @@
 // SyncView.swift
 //
-// The "Sync" pane (sidebar, between Settings and Checks) — lineage management,
-// modeled on MasterContext/examples/lineage-management.png.
+// The "Sync" pane (Manuscript section) — the manuscript's flow-of-content hub.
+// Three jobs live here:
 //
-// Each target journal is shown as a node with the lineage edge it hangs from:
-// the badge on the edge is the upstream version it was last cut/synced from,
-// the badge on the journal is its current working head.  The blue sync button
-// fast-forwards ONE edge (never recursive): it snapshots the upstream's latest
-// content as a new version of the journal — after a confirmation warning,
-// because it replaces the journal's current working content (previous versions
-// stay in its history).
+//   1. SAVING   — Save (Local) writes to the manuscript folder on disk;
+//                 Save (Remote) pushes to the active backend account.
+//   2. SYNCING  — fast-forward any journal from its upstream.  When the
+//                 upstream's latest has unstamped changes, the action becomes
+//                 **Stamp & Sync**: the upstream is stamped first so lineage
+//                 always hangs from frozen versions.
+//   3. ADDING   — cut a new journal: FROM any journal (or Source), TO a
+//                 journal profile from the app-settings library (or custom).
+//                 The new journal appears in the lineage and gets a tab
+//                 automatically.
+//
+// Lineage visual: children render contiguous with their parent — attached
+// directly beneath it, tabbed on the left, right edges aligned.
 
 import SwiftUI
 
 struct SyncView: View {
     @Environment(ManuscriptStore.self) private var store
+    @Environment(AppStore.self)        private var appStore
 
     /// Journal awaiting sync confirmation (drives the warning alert).
     @State private var pendingSync: Journal?
+    @State private var showAddJournal = false
 
     private var journals: [Journal] { store.manuscript?.journals ?? [] }
+    private let cardWidth: CGFloat = 640
+    private let indent: CGFloat = 28
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 Text("Sync").font(.title2.weight(.semibold))
-                Text("Fast-forward a journal from the lineage it was cut from. Each sync updates exactly one edge — it snapshots the upstream's latest content as a new version of that journal.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: 620, alignment: .leading)
 
-                sourceRow
+                savingCard
 
-                if journals.isEmpty {
-                    Text("No target journals yet. Cut a version for a journal in Versions to create a lineage.")
-                        .font(.callout)
-                        .foregroundStyle(.tertiary)
-                        .padding(.top, 8)
-                } else {
-                    // Nested lineage: each journal sits indented under the
-                    // journal (or Source) it syncs from, so the tree reads
-                    // top-down and each edge carries its own Sync button.
-                    ForEach(flattenedTree, id: \.journal.id) { entry in
-                        HStack(alignment: .center, spacing: 6) {
-                            if entry.depth > 0 {
-                                Color.clear.frame(width: CGFloat(entry.depth - 1) * 32)
-                                Image(systemName: "arrow.turn.down.right")
-                                    .foregroundStyle(.tertiary)
-                            }
-                            journalRow(entry.journal)
-                        }
+                HStack {
+                    Text("Journals & Lineage").font(.headline)
+                    Spacer()
+                    Button {
+                        showAddJournal = true
+                    } label: {
+                        Label("Add Journal", systemImage: "plus")
                     }
                 }
+                .frame(maxWidth: cardWidth)
+
+                lineageTree
 
                 Spacer(minLength: 0)
             }
             .padding(24)
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
+        .sheet(isPresented: $showAddJournal) {
+            AddJournalSheet(isPresented: $showAddJournal)
+        }
         .alert(item: $pendingSync) { journal in
-            let source = store.syncSource(forJournal: journal.id)
-            let upstream = source?.upstreamName ?? "its upstream"
-            var message = "This creates a new \(journal.name) version from \(upstream)’s latest content — overwriting what currently exists in \(journal.name)’s working head. Previous versions remain in its history."
-            // When the upstream is a journal (not the live Source), spell out
-            // exactly which snapshot will be copied — users routinely expect
-            // "sync" to pull the current Source, but only a direct child of
-            // Source does that (syncs are one edge, never recursive).
-            if let target = source?.targetVersion {
-                let when = target.sourceSnapshotDate.formatted(date: .abbreviated, time: .omitted)
-                message += "\n\nContent copied: \(upstream) v\(store.journalOrdinal(of: target)), which carries content from \(when). \(journal.name) does not pull from Source directly — to bring current Source content here, sync \(upstream) first, then \(journal.name)."
-            }
-            return Alert(
-                title: Text("Sync \(journal.name) from \(upstream)?"),
-                message: Text(message),
-                primaryButton: .destructive(Text("Sync")) {
-                    store.syncJournal(journal.id)
-                },
-                secondaryButton: .cancel()
-            )
+            syncAlert(journal)
         }
     }
 
-    // MARK: - Lineage tree shape
+    // MARK: - 1. Saving
 
-    /// Journals depth-first under their upstream journal (Source = depth 0),
-    /// so the cards render as a nested tree.  Journals without versions (no
-    /// lineage yet) list under Source.  `visited` guards a malformed cycle.
+    private var savingCard: some View {
+        let m = store.manuscript
+        return HStack(spacing: 16) {
+            VStack(alignment: .leading, spacing: 3) {
+                Button {
+                    store.trySave()
+                } label: {
+                    Label("Save (Local)", systemImage: "internaldrive")
+                }
+                Text(m.map { "Edited \($0.updatedAt.formatted(date: .abbreviated, time: .shortened))" } ?? "—")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+
+            Divider().frame(height: 40)
+
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 8) {
+                    Button {
+                        store.saveToRemote(appStore: appStore)
+                    } label: {
+                        Label("Save (Remote)", systemImage: "icloud.and.arrow.up")
+                    }
+                    .disabled(store.isRemoteBusy)
+                    Button {
+                        NotificationCenter.default.post(name: .loadFromRemote, object: nil)
+                    } label: {
+                        Label("Load from Remote…", systemImage: "icloud.and.arrow.down")
+                    }
+                    .disabled(store.isRemoteBusy)
+                }
+                Text(m?.lastSyncedAt.map { "Synced \($0.formatted(date: .abbreviated, time: .shortened))" }
+                     ?? "Never synced — configure a backend in Manuscript → Backend")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            if store.isRemoteBusy { ProgressView().controlSize(.small) }
+        }
+        .padding(14)
+        .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
+        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.separator, lineWidth: 1))
+        .frame(maxWidth: cardWidth)
+    }
+
+    // MARK: - 2/3. Lineage tree
+
+    /// Journals depth-first under their upstream journal (Source = depth 0).
     private var flattenedTree: [(journal: Journal, depth: Int)] {
         var childrenByUpstream: [UUID?: [Journal]] = [:]
         for journal in journals {
@@ -102,26 +131,30 @@ struct SyncView: View {
             }
         }
         walk(nil, depth: 0)
-        // Anything unreachable (shouldn't happen) still gets listed flat.
         for journal in journals where !visited.contains(journal.id) {
             out.append((journal, 0))
         }
         return out
     }
 
-    /// True when `journalID`'s own upstream has a newer version than the one its
-    /// head was derived from — content synced *through* it would still be stale.
-    private func upstreamHasDrifted(_ journalID: UUID) -> Bool {
-        guard let head = store.latestVersion(forJournal: journalID),
-              let source = store.syncSource(forJournal: journalID),
-              let target = source.targetVersion else { return false }
-        return target.id != head.parentID
+    /// Parent/child blocks contiguous: no vertical gap, children tabbed on
+    /// the left with right edges aligned to the parent's.
+    private var lineageTree: some View {
+        VStack(alignment: .trailing, spacing: 1) {
+            sourceRow
+            ForEach(flattenedTree, id: \.journal.id) { entry in
+                journalRow(entry.journal)
+                    .frame(width: cardWidth - CGFloat(entry.depth + 1) * indent)
+            }
+        }
+        .frame(width: cardWidth, alignment: .trailing)
     }
 
-    // MARK: - Source (root) row
+    // MARK: Source (root) row
 
     private var sourceRow: some View {
-        HStack(spacing: 14) {
+        let stamps = store.sourceStamps.count
+        return HStack(spacing: 14) {
             Image(systemName: "doc.text")
                 .font(.title3)
                 .foregroundStyle(Color.accentColor)
@@ -129,8 +162,14 @@ struct SyncView: View {
                 .background(Circle().fill(Color.accentColor.opacity(0.1)))
                 .overlay(Circle().strokeBorder(Color.accentColor.opacity(0.8), lineWidth: 1.5))
             VStack(alignment: .leading, spacing: 2) {
-                Text("Source").font(.headline)
-                Text("The root of every lineage — always the live working manuscript.")
+                HStack(spacing: 8) {
+                    Text("Source").font(.headline)
+                    Text(stamps > 0 ? "v\(stamps) / latest" : "latest")
+                        .font(.caption.weight(.semibold).monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
+                Text("Original source of manuscript content."
+                     + (store.sourceHasUnstampedChanges ? " Has changes since its last stamp." : ""))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -139,36 +178,40 @@ struct SyncView: View {
         .padding(14)
         .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
         .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.separator, lineWidth: 1))
-        .frame(maxWidth: 620)
+        .frame(width: cardWidth)
     }
 
-    // MARK: - Journal rows
+    // MARK: Journal rows
+
+    /// Whether syncing this journal requires stamping its upstream first.
+    private func upstreamNeedsStamp(_ journal: Journal) -> Bool {
+        guard let source = store.syncSource(forJournal: journal.id) else { return false }
+        if let upstreamID = source.upstreamJournalID {
+            return store.headHasUnstampedChanges(journalID: upstreamID)
+        }
+        return store.sourceHasUnstampedChanges
+    }
 
     @ViewBuilder
     private func journalRow(_ journal: Journal) -> some View {
         let head = store.latestVersion(forJournal: journal.id)
         let source = store.syncSource(forJournal: journal.id)
 
-        HStack(spacing: 14) {
-            // Edge: upstream name + the version badge the journal hangs from.
-            VStack(spacing: 4) {
-                Text(source?.upstreamName ?? "—")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                edgeBadge(for: head, source: source)
-            }
-            .frame(width: 90)
-
-            Image(systemName: "arrow.right")
-                .foregroundStyle(.secondary)
-
-            // The journal node: a version bubble (v1, v2, …) for the current
-            // head — the journal's name lives only in the text beside it.
-            versionBubble(head)
+        HStack(spacing: 12) {
+            // Edge badge: which upstream version the head hangs from.
+            edgeBadge(for: head)
 
             VStack(alignment: .leading, spacing: 3) {
-                Text(journal.name).font(.headline)
+                HStack(spacing: 8) {
+                    Text(journal.name).font(.headline)
+                    if let head {
+                        let count = store.versions(forJournal: journal.id).count
+                        Text(count > 1 ? "v\(count - 1) / latest" : "latest")
+                            .font(.caption.weight(.semibold).monospacedDigit())
+                            .foregroundStyle(.secondary)
+                        let _ = head   // silence unused in release analysis
+                    }
+                }
                 statusLine(journal, head: head, source: source)
             }
 
@@ -178,33 +221,37 @@ struct SyncView: View {
                 Button {
                     pendingSync = journal
                 } label: {
-                    Label("Sync", systemImage: "arrow.triangle.2.circlepath")
+                    Label(upstreamNeedsStamp(journal) ? "Stamp & Sync" : "Sync",
+                          systemImage: "arrow.triangle.2.circlepath")
                         .foregroundStyle(.blue)
                 }
                 .buttonStyle(.bordered)
                 .help("Fast-forward \(journal.name) from \(source?.upstreamName ?? "upstream")")
             }
         }
-        .padding(14)
-        .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
-        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.separator, lineWidth: 1))
-        .frame(maxWidth: 620)
+        .padding(12)
+        .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
+        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(.separator, lineWidth: 1))
     }
 
-    /// The small circle on the edge: which upstream version the head hangs from.
+    /// The small circle showing which upstream version the head hangs from.
     @ViewBuilder
-    private func edgeBadge(for head: ManuscriptVersion?, source: (upstreamJournalID: UUID?, upstreamName: String, targetVersion: ManuscriptVersion?)?) -> some View {
+    private func edgeBadge(for head: ManuscriptVersion?) -> some View {
         if let head, let pid = head.parentID,
            let parent = store.versions.first(where: { $0.id == pid }) {
-            Text("v\(store.journalOrdinal(of: parent))")
+            let label = parent.sourceStamp == true
+                ? "S\(store.sourceOrdinal(of: parent))"
+                : "v\(store.journalOrdinal(of: parent))"
+            Text(label)
                 .font(.caption.weight(.bold).monospacedDigit())
                 .frame(width: 36, height: 36)
-                .background(Circle().fill(Color(NSColor.controlBackgroundColor)))
+                .background(Circle().fill(Color(NSColor.windowBackgroundColor)))
                 .overlay(Circle().strokeBorder(.primary.opacity(0.45), lineWidth: 1.25))
+                .help("Derived from \(parent.sourceStamp == true ? "Source stamp" : "upstream version") \(label)")
         } else if head != nil {
             Image(systemName: "doc.text")
                 .frame(width: 36, height: 36)
-                .background(Circle().fill(Color(NSColor.controlBackgroundColor)))
+                .background(Circle().fill(Color(NSColor.windowBackgroundColor)))
                 .overlay(Circle().strokeBorder(.primary.opacity(0.45), lineWidth: 1.25))
                 .help("Cut from the live Source")
         } else {
@@ -214,66 +261,155 @@ struct SyncView: View {
         }
     }
 
-    /// "Upstream has moved — fast-forward available" vs "Up to date".
+    /// Drift status: current / upstream moved / upstream itself stale.
     @ViewBuilder
     private func statusLine(_ journal: Journal, head: ManuscriptVersion?,
                             source: (upstreamJournalID: UUID?, upstreamName: String, targetVersion: ManuscriptVersion?)?) -> some View {
         if head == nil {
-            Text("No versions yet — cut one in Versions to create the lineage.")
+            Text("No versions yet — Add Journal creates one automatically; older journals can sync to start.")
                 .font(.caption)
                 .foregroundStyle(.tertiary)
         } else if let source {
-            if let target = source.targetVersion, target.id != head?.parentID {
-                Label("\(source.upstreamName) has moved to v\(store.journalOrdinal(of: target)) — fast-forward available",
+            if upstreamNeedsStamp(journal) {
+                Label("\(source.upstreamName)'s latest has unstamped changes — syncing stamps it first",
+                      systemImage: "seal")
+                    .font(.caption)
+                    .foregroundStyle(.blue)
+            } else if let target = source.targetVersion, target.id != head?.parentID {
+                Label("\(source.upstreamName) has moved — fast-forward available",
                       systemImage: "arrow.triangle.2.circlepath")
                     .font(.caption)
                     .foregroundStyle(.blue)
-            } else if source.targetVersion == nil {
-                Label("Cut from the live Source — sync pulls its current content",
-                      systemImage: "doc.text")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            } else if let upstreamID = source.upstreamJournalID, upstreamHasDrifted(upstreamID) {
-                // "Up to date" would be a lie here: the edge into this journal is
-                // current, but the upstream journal is itself behind, so its
-                // content — and anything synced from it — is stale.
-                Label("Up to date with \(source.upstreamName), but \(source.upstreamName) is behind its own upstream — sync it first, then \(journal.name)",
+            } else if let upstreamID = source.upstreamJournalID,
+                      store.syncSource(forJournal: upstreamID)?.targetVersion?.id
+                        != store.latestVersion(forJournal: upstreamID)?.parentID {
+                Label("Up to date with \(source.upstreamName), but \(source.upstreamName) is behind its own upstream — sync it first",
                       systemImage: "exclamationmark.arrow.triangle.2.circlepath")
                     .font(.caption)
                     .foregroundStyle(.orange)
             } else {
-                VStack(alignment: .leading, spacing: 2) {
-                    Label("Up to date with \(source.upstreamName)", systemImage: "checkmark.circle")
-                        .font(.caption)
-                        .foregroundStyle(.green)
-                    // A chain through another journal never sees Source edits on
-                    // its own — date the content so staleness is visible.
-                    if let upstreamID = source.upstreamJournalID,
-                       let upstreamHead = store.latestVersion(forJournal: upstreamID) {
-                        Text("\(source.upstreamName) carries content from \(upstreamHead.sourceSnapshotDate.formatted(date: .abbreviated, time: .omitted)) — sync it first to flow newer edits down to \(journal.name).")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-                }
+                Label("Up to date with \(source.upstreamName)", systemImage: "checkmark.circle")
+                    .font(.caption)
+                    .foregroundStyle(.green)
             }
         }
     }
 
-    /// The journal's node: a thematic bubble holding just its current version
-    /// number ("v2"), or a dash when the journal has no versions yet.
-    private func versionBubble(_ head: ManuscriptVersion?) -> some View {
-        let label = head.map { "v\(store.journalOrdinal(of: $0))" }
-        return Text(label ?? "—")
-            .font(.callout.weight(.bold).monospacedDigit())
-            .foregroundStyle(label == nil ? Color.secondary : Color.accentColor)
-            .frame(width: 52, height: 52)
-            .background(Circle().fill(label == nil
-                                      ? Color(NSColor.windowBackgroundColor)
-                                      : Color.accentColor.opacity(0.12)))
-            .overlay(Circle().strokeBorder(
-                label == nil ? Color.secondary.opacity(0.4) : Color.accentColor.opacity(0.6),
-                lineWidth: 1.5))
+    // MARK: Sync confirmation
+
+    private func syncAlert(_ journal: Journal) -> Alert {
+        let source = store.syncSource(forJournal: journal.id)
+        let upstream = source?.upstreamName ?? "its upstream"
+        let stamps = upstreamNeedsStamp(journal)
+        var message = "This creates a new \(journal.name) version from \(upstream)'s latest content — overwriting what currently exists in \(journal.name)'s working head. Previous versions remain in its history."
+        if stamps {
+            message += "\n\n\(upstream)'s latest has unstamped changes, so it is stamped first — lineage always hangs from frozen versions."
+        }
+        if let target = source?.targetVersion, !stamps {
+            let when = target.sourceSnapshotDate.formatted(date: .abbreviated, time: .omitted)
+            let label = target.sourceStamp == true
+                ? "Source v\(store.sourceOrdinal(of: target))"
+                : "\(upstream) v\(store.journalOrdinal(of: target))"
+            message += "\n\nContent copied: \(label), which carries content from \(when)."
+        }
+        return Alert(
+            title: Text("\(stamps ? "Stamp & Sync" : "Sync") \(journal.name) from \(upstream)?"),
+            message: Text(message),
+            primaryButton: .destructive(Text(stamps ? "Stamp & Sync" : "Sync")) {
+                store.syncJournal(journal.id)
+            },
+            secondaryButton: .cancel()
+        )
     }
 }
 
-// Journal already conforms to Identifiable — required by .alert(item:).
+// MARK: - AddJournalSheet
+
+/// Cut a new journal: FROM Source or any journal, TO a profile from the
+/// global journal library (Preferences → Journals) or a custom name.
+struct AddJournalSheet: View {
+    @Environment(ManuscriptStore.self) private var store
+    @Environment(AppStore.self)        private var appStore
+
+    @Binding var isPresented: Bool
+
+    @State private var fromJournalID: UUID?          // nil = Source
+    @State private var libraryChoice: UUID?          // journalLibrary entry id
+    @State private var customName = ""
+
+    private var journals: [Journal] { store.manuscript?.journals ?? [] }
+
+    /// Library entries not already added to this manuscript (by name).
+    private var availableLibrary: [Journal] {
+        appStore.journalLibrary.filter { entry in
+            !journals.contains { $0.name == entry.name }
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Text("Add Journal").font(.headline)
+
+            Picker("From", selection: $fromJournalID) {
+                Label("Source", systemImage: "doc.text").tag(Optional<UUID>.none)
+                ForEach(journals) { journal in
+                    Label(journal.name, systemImage: "building.columns").tag(Optional(journal.id))
+                }
+            }
+
+            Picker("To", selection: $libraryChoice) {
+                ForEach(availableLibrary) { entry in
+                    Text(entry.name + (entry.country.map { " (\($0))" } ?? ""))
+                        .tag(Optional(entry.id))
+                }
+                Text("Custom journal…").tag(Optional<UUID>.none)
+            }
+
+            if libraryChoice == nil {
+                TextField("Custom journal name", text: $customName)
+                    .textFieldStyle(.roundedBorder)
+            }
+
+            Text("The new journal is cut from the FROM journal's latest stamped version (stamping it first if needed), appears in the lineage, and gets its own tab. Manage reusable journal profiles in Preferences → Journals.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            HStack {
+                Spacer()
+                Button("Cancel") { isPresented = false }
+                    .keyboardShortcut(.cancelAction)
+                Button("Add") {
+                    add()
+                    isPresented = false
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(libraryChoice == nil && customName.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
+        }
+        .padding(24)
+        .frame(width: 440)
+        .onAppear { libraryChoice = availableLibrary.first?.id }
+    }
+
+    private func add() {
+        let template: Journal
+        if let choice = libraryChoice,
+           let entry = appStore.journalLibrary.first(where: { $0.id == choice }) {
+            template = entry
+        } else {
+            var custom = Journal.empty()
+            custom.name = customName.trimmingCharacters(in: .whitespaces)
+            template = custom
+        }
+        // Every journal gets its 1-1 auto-generated view (export/checks basis).
+        let view = ViewConfig.from(journal: template)
+        appStore.addViewConfig(view)
+        if var added = store.addJournalCut(template: template,
+                                           fromJournalID: fromJournalID,
+                                           viewConfigID: view.id) {
+            added.viewConfigID = view.id
+            store.updateJournal(added)
+        }
+    }
+}
