@@ -68,10 +68,29 @@ struct UserIdentityView: View {
             if type != .local {
                 Section("GPG Key") {
                     HStack(spacing: 10) {
+                        // Best effort: the user's local gpg keyring as a menu
+                        // (sandboxing can block ~/.gnupg — the file picker
+                        // below always works).
+                        if let localKeys = SigningService.localGPGKeys() {
+                            Menu {
+                                ForEach(localKeys, id: \.fingerprint) { key in
+                                    Button(key.uid) {
+                                        if let armored = SigningService.exportLocalGPGKey(fingerprint: key.fingerprint) {
+                                            gpgKey = armored
+                                            SigningService.identityGPGKey = armored
+                                            testResult = nil
+                                        }
+                                    }
+                                }
+                            } label: {
+                                Label("Choose from local GPG…", systemImage: "key.viewfinder")
+                            }
+                            .fixedSize()
+                        }
                         Button {
                             showKeyImporter = true
                         } label: {
-                            Label(gpgKey.isEmpty ? "Select GPG Public Key File…" : "GPG key selected",
+                            Label(gpgKey.isEmpty ? "Select Key File…" : "GPG key selected",
                                   systemImage: gpgKey.isEmpty ? "key" : "key.fill")
                         }
                         if !gpgKey.isEmpty {
@@ -119,6 +138,7 @@ struct UserIdentityView: View {
                 }
             }
 
+            if type == .local {
             Section("Signing Key (this Mac)") {
                 LabeledContent("Public key") {
                     HStack(spacing: 8) {
@@ -138,9 +158,10 @@ struct UserIdentityView: View {
                 Button("Regenerate Key…", role: .destructive) {
                     confirmRegenerate = true
                 }
-                Text("Signs every stamp/comment; the private half stays in your Keychain. Tie it to an author (Authors pane) so your activity shows the author's name.")
+                Text("Signs every stamp/comment; the private half stays in your Keychain. Editors are independent of manuscript authors — your name and this key travel with your activity.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+            }
             }
         }
         .formStyle(.grouped)
@@ -166,7 +187,7 @@ struct UserIdentityView: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Past signatures keep verifying against the old public key (if it was tied to an author), but new activity signs with the new key — you'll need to tie the new key to your author entry again.")
+            Text("Past signatures keep verifying against the old public key; new activity signs with the new key.")
         }
     }
 

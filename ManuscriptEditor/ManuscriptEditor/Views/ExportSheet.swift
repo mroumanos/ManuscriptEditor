@@ -83,6 +83,7 @@ struct ExportSheet: View {
                 requiresSeparateFigures: requiresSeparateFigures(for: selection),
                 format: format,
                 figureURL: { store.figureURL(for: $0) },
+                chartImage: { ExportRendering.chartImage(for: $0, store: store) },
                 into: destination
             )
             NSWorkspace.shared.activateFileViewerSelecting([folder])

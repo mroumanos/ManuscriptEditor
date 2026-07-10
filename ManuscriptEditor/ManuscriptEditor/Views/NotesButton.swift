@@ -90,10 +90,10 @@ struct NotesButton: View {
                 SignatureBadge(
                     signerName: note.author,
                     signerKey: note.authorKey,
+                    signerType: note.authorType,
                     message: SigningService.noteMessage(
                         id: note.id, createdAt: note.createdAt, body: note.body),
-                    signature: note.signature,
-                    authors: store.signatureAuthors
+                    signature: note.signature
                 )
                 .font(.caption.weight(.semibold))
                 Text(note.createdAt, format: .dateTime.month().day().hour().minute())

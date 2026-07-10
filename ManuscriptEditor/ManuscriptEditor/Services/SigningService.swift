@@ -89,15 +89,70 @@ enum SigningService {
         set { UserDefaults.standard.set(newValue, forKey: "identityRemoteVerified") }
     }
 
-    /// The tie descriptor stamped onto authors when the user ties their key.
-    static var currentSignatureInfo: AuthorSignature? {
-        guard let key = publicKeyBase64 else { return nil }
-        return AuthorSignature(
-            publicKey: key,
-            type: identityType.rawValue,
-            handle: identityType == .local ? nil : identityHandle,
-            verified: identityType == .local ? nil : identityRemoteVerified
-        )
+    /// The identity type recorded on artifacts at signing time: a remote type
+    /// only counts once its GPG registration check passed; otherwise the
+    /// artifact is honestly marked local (badge shows "?").
+    static var effectiveIdentityType: String {
+        (identityType != .local && identityRemoteVerified)
+            ? identityType.rawValue
+            : IdentityType.local.rawValue
+    }
+
+    // MARK: - Local GPG keyring (best effort)
+
+    /// Secret keys from the user's local gpg, for the identity dropdown.
+    /// Returns nil when gpg is missing or the sandbox blocks ~/.gnupg —
+    /// callers fall back to the key-file picker.
+    static func localGPGKeys() -> [(fingerprint: String, uid: String)]? {
+        guard let output = runGPG(["--list-secret-keys", "--with-colons"]) else { return nil }
+        var keys: [(String, String)] = []
+        var fingerprint: String?
+        for line in output.components(separatedBy: .newlines) {
+            let fields = line.components(separatedBy: ":")
+            switch fields.first {
+            case "fpr" where fingerprint == nil && fields.count > 9:
+                fingerprint = fields[9]
+            case "uid" where fields.count > 9:
+                if let fpr = fingerprint {
+                    keys.append((fpr, fields[9]))
+                    fingerprint = nil
+                }
+            case "sec":
+                fingerprint = nil
+            default:
+                break
+            }
+        }
+        return keys.isEmpty ? nil : keys
+    }
+
+    /// The armored public key for a local gpg fingerprint.
+    static func exportLocalGPGKey(fingerprint: String) -> String? {
+        guard let armored = runGPG(["--armor", "--export", fingerprint]),
+              armored.contains("PGP PUBLIC KEY") else { return nil }
+        return armored
+    }
+
+    private static func runGPG(_ arguments: [String]) -> String? {
+        let candidates = ["/opt/homebrew/bin/gpg", "/usr/local/bin/gpg",
+                          "/usr/local/MacGPG2/bin/gpg", "/usr/bin/gpg"]
+        guard let path = candidates.first(where: { FileManager.default.isExecutableFile(atPath: $0) })
+        else { return nil }
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: path)
+        process.arguments = arguments
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = Pipe()
+        do {
+            try process.run()
+            process.waitUntilExit()
+            guard process.terminationStatus == 0 else { return nil }
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            return String(data: data, encoding: .utf8)
+        } catch {
+            return nil
+        }
     }
 
     // MARK: - Remote GPG key verification

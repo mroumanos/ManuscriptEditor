@@ -485,6 +485,7 @@ final class ManuscriptStore {
             note.authorKey = key
             note.signature = SigningService.sign(
                 SigningService.noteMessage(id: note.id, createdAt: note.createdAt, body: note.body))
+            note.authorType = SigningService.effectiveIdentityType
         }
         touch { $0.notes.append(note) }
         return note
@@ -590,15 +591,6 @@ final class ManuscriptStore {
         (versions(forJournal: version.journalID).firstIndex { $0.id == version.id } ?? 0) + 1
     }
 
-    /// Authors from the Source **plus every version snapshot** — a key tied
-    /// while a journal tab was active lives in that snapshot's authors, and
-    /// badges must honor it everywhere ("check against available public keys").
-    var signatureAuthors: [Author] {
-        var out = manuscript?.authors ?? []
-        for version in versions { out += version.content.authors }
-        return out
-    }
-
     // MARK: - Stamping (freeze the working head as a version)
 
     /// Signs a freshly-cut version with the user's identity key.
@@ -609,6 +601,7 @@ final class ManuscriptStore {
                id: v.id, createdAt: v.createdAt, author: v.author)) {
             v.stampedByKey = key
             v.stampSignature = sig
+            v.stampedByType = SigningService.effectiveIdentityType
         }
         return v
     }
@@ -1035,7 +1028,74 @@ final class ManuscriptStore {
         trySave()
     }
 
-    /// Pushes the saved manuscript folder to the active backend.
+    // MARK: Git branch layout
+    //
+    // The repository is app-managed with a fixed shape:
+    //   main      — README.md only (name, description, how-to, and the
+    //               "don't edit by hand" warning)
+    //   source    — the authoritative content (full manuscript.json +
+    //               figures/ + data/)
+    //   journal-* — one branch per journal, holding that journal's head
+    //               content snapshot, so `git diff source..journal-x` works.
+    //
+    // DESIGN NOTE (flagged): in-app Sync is content-taking, not a git
+    // fast-forward — once a journal branch has its own commits, git can only
+    // fast-forward when histories are strict ancestors.  Sync here lands as a
+    // plain commit on the child branch carrying the upstream's content;
+    // recording true merge parents is a documented refinement.
+
+    /// Branch name for a journal ("journal-nejm").
+    private func branchName(for journal: Journal) -> String {
+        let slug = journal.name.lowercased()
+            .map { $0.isLetter || $0.isNumber ? $0 : "-" }
+            .reduce(into: "") { out, ch in
+                if ch == "-" && out.hasSuffix("-") { return }
+                out.append(ch)
+            }
+            .trimmingCharacters(in: CharacterSet(charactersIn: "-"))
+        return "journal-" + (slug.isEmpty ? journal.id.uuidString.lowercased() : slug)
+    }
+
+    /// The main branch's README: identity + the do-not-touch warning.
+    private func readmeFile() -> GitHubBackendService.File {
+        let m = manuscript
+        let text = """
+        # \(m?.title ?? "Manuscript")
+
+        \(m?.about ?? "A manuscript managed by Manuscript Editor.")
+
+        ## ⚠️ Managed repository — do not edit by hand
+
+        This repository is created and maintained by the **Manuscript Editor**
+        macOS app. It is not meant to be manipulated outside the app; manual
+        commits can be overwritten on the next save.
+
+        ## Layout
+
+        - `main` — this README only
+        - `source` — the authoritative manuscript content
+        - `journal-*` — one branch per journal cut (diff against `source` to
+          see how a cut departs from the source)
+
+        ## Opening this manuscript
+
+        In Manuscript Editor: **File → New Manuscript (Remote)…**, pick your
+        account, and enter this repository.
+        """
+        return .init(path: "README.md", data: Data(text.utf8))
+    }
+
+    /// A journal branch's snapshot: its head content as readable JSON.
+    private func journalSnapshot(_ journal: Journal) throws -> GitHubBackendService.File? {
+        guard let head = latestVersion(forJournal: journal.id) else { return nil }
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]   // diff-friendly
+        encoder.dateEncodingStrategy = .iso8601
+        let data = try encoder.encode(head.content)
+        return .init(path: "manuscript.json", data: data)
+    }
+
+    /// Pushes the manuscript to the active backend in the branch layout above.
     func saveToRemote(appStore: AppStore) {
         guard !isRemoteBusy else { return }
         trySave()   // flush current edits so the push carries what's on screen
@@ -1044,6 +1104,11 @@ final class ManuscriptStore {
         do {
             var (account, config) = try remoteConfig(appStore)
             let files = try gatherRemoteFiles()
+            let readme = readmeFile()
+            let snapshots: [(String, GitHubBackendService.File)] =
+                try (manuscript?.journals ?? []).compactMap { journal in
+                    try journalSnapshot(journal).map { (branchName(for: journal), $0) }
+                }
             let title = manuscript?.title ?? "manuscript"
             isRemoteBusy = true
             account.syncStatus = .syncing
@@ -1051,11 +1116,24 @@ final class ManuscriptStore {
 
             Task {
                 do {
+                    // main: README only (bootstraps an empty repository too).
+                    _ = try await gitHubService.push(
+                        files: [readme],
+                        message: "Update manuscript README",
+                        config: config.with(branch: "main"))
+                    // source: the authoritative content.
                     let sha = try await gitHubService.push(
                         files: files,
                         message: "Save \(title) from Manuscript Editor",
-                        config: config)
-                    remoteStatus = "Pushed to \(config.owner)/\(config.repo)@\(config.branch) (\(sha))"
+                        config: config.with(branch: "source"))
+                    // journal-*: per-journal head snapshots for git diffs.
+                    for (branch, snapshot) in snapshots {
+                        _ = try await gitHubService.push(
+                            files: [snapshot],
+                            message: "Update \(branch) snapshot",
+                            config: config.with(branch: branch))
+                    }
+                    remoteStatus = "Pushed to \(config.owner)/\(config.repo) — source@\(sha), \(snapshots.count) journal branch\(snapshots.count == 1 ? "" : "es")"
                     markSynced()
                     account.isConnected = true
                     account.syncStatus = .available

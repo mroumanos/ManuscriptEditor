@@ -47,6 +47,8 @@ struct Note: Codable, Identifiable, Sendable, Equatable {
     /// from users without an identity remain unsigned.
     var authorKey: String? = nil
     var signature: String? = nil
+    /// Signer identity type ("github"/"gitlab"/"openpgp" = remote, else local).
+    var authorType: String? = nil
 
     // MARK: - Factory
 

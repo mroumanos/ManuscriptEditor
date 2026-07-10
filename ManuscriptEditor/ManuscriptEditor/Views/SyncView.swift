@@ -70,7 +70,12 @@ struct SyncView: View {
                 title: Text("Stamp \(upstream) First?"),
                 message: Text("\(upstream)'s latest has changes that aren't stamped. To keep proper lineage, syncing stamps \(upstream) first. Cancel to leave everything untouched."),
                 primaryButton: .default(Text("Stamp & Continue")) {
-                    pendingSync = journal   // stamping happens inside syncJournal
+                    // Presenting a second alert from the first one's dismiss
+                    // handler gets silently dropped by SwiftUI — defer a beat
+                    // so the sync confirmation actually appears.
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                        pendingSync = journal   // stamping happens inside syncJournal
+                    }
                 },
                 secondaryButton: .cancel()
             )

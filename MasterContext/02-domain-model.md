@@ -267,3 +267,21 @@ Notes are a first-class way to leave feedback for oneself or collaborators,
 - **Remote binding is per-manuscript**: `ManuscriptSettings.remoteRepository`
   / `remoteBranch` + `Manuscript.lastSyncedAt`; accounts (Preferences →
   Accounts) hold only credentials.
+
+### Round-5 revisions (Jul 2026)
+
+- **Editors are decoupled from authors**: no key ties on `Author`. Stamps and
+  notes carry `stampedByKey/stampSignature/stampedByType` (and note
+  equivalents); the badge judges each artifact alone — ✓ when signed under a
+  remote-verified identity (GitHub/GitLab/OpenPGP GPG check), ? for local,
+  ! on signature mismatch.
+- **Remote repository layout is git-branch shaped** (app-managed, REST Git
+  Data API): `main` = README only (identity + do-not-edit-by-hand warning),
+  `source` = authoritative content, `journal-*` = per-journal head snapshots
+  (diffable against source). FLAGGED DESIGN NOTE: in-app sync is
+  content-taking, not a git fast-forward (impossible once a journal branch
+  has its own commits); true merge-parent recording is a refinement.
+- **Export**: data-linked figures render their chart (ImageRenderer over the
+  same DataChartView the editor shows); data-linked tables render their SQL
+  rows as a centered, tab-aligned grid (doc font, min column widths); blank
+  lines count in margin line numbering.

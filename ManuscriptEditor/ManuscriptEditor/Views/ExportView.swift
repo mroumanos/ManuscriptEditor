@@ -218,6 +218,8 @@ struct ExportView: View {
                 content: content,
                 packageName: name,
                 figureURL: { store.figureURL(for: $0) },
+                chartImage: { ExportRendering.chartImage(for: $0, store: store) },
+                tableData: { ExportRendering.tableData(for: $0, store: store) },
                 into: destination
             )
             lastPackage = folder
@@ -226,6 +228,44 @@ struct ExportView: View {
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+}
+
+// MARK: - ExportRendering
+
+/// Bridges data-linked figures/tables into exportable form: charts rendered
+/// to images (SwiftUI ImageRenderer over the same DataChartView the editor
+/// shows — the editor is the preview), tables resolved to their SQL rows.
+@MainActor
+enum ExportRendering {
+
+    static func chartImage(for figure: Figure, store: ManuscriptStore) -> NSImage? {
+        guard let assetID = figure.dataAssetID,
+              let asset = store.manuscript?.dataAssets.first(where: { $0.id == assetID })
+        else { return nil }
+        let result = store.runQuery(figure.chartQuery ?? "SELECT * FROM data", for: asset)
+        guard result.errorMessage == nil, !result.rows.isEmpty else { return nil }
+        let chart = DataChartView(
+            result: result,
+            chartType: figure.chartType == .histogram ? .bar : (figure.chartType ?? .bar),
+            palette: ChartPalette(rawValue: figure.chartPalette ?? "") ?? .standard
+        )
+        .frame(width: 560, height: 320)
+        .padding(14)
+        .background(Color.white)
+        .environment(\.colorScheme, .light)   // print output is always light
+
+        let renderer = ImageRenderer(content: chart)
+        renderer.scale = 2
+        return renderer.nsImage
+    }
+
+    static func tableData(for table: ManuscriptTable, store: ManuscriptStore) -> QueryResult? {
+        guard let assetID = table.dataAssetID,
+              let asset = store.manuscript?.dataAssets.first(where: { $0.id == assetID })
+        else { return nil }
+        let result = store.runQuery(table.dataQuery ?? "SELECT * FROM data", for: asset)
+        return result.errorMessage == nil ? result : nil
     }
 }
 

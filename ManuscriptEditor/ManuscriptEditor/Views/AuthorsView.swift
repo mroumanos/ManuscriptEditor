@@ -193,67 +193,6 @@ struct AuthorEditor: View {
                     }
                 }
 
-                Section("Signatures") {
-                    // Signing keys tied to this author (0 to many) — rich ties
-                    // carry the identity type; legacy bare keys read as local.
-                    let infos = draft.signatureInfos ?? []
-                    let legacy = (draft.publicKeys ?? []).filter { key in
-                        !infos.contains { $0.publicKey == key }
-                    }
-                    if infos.isEmpty && legacy.isEmpty {
-                        Text("No signing keys tied — this author's activity shows under the signer's name with a ?")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    ForEach(infos, id: \.publicKey) { info in
-                        signatureRow(key: info.publicKey,
-                                     detail: signatureDetail(info)) {
-                            draft.signatureInfos = infos.filter { $0.publicKey != info.publicKey }
-                            if draft.signatureInfos?.isEmpty == true { draft.signatureInfos = nil }
-                        }
-                    }
-                    ForEach(legacy, id: \.self) { key in
-                        signatureRow(key: key, detail: "Local") {
-                            draft.publicKeys = (draft.publicKeys ?? []).filter { $0 != key }
-                            if draft.publicKeys?.isEmpty == true { draft.publicKeys = nil }
-                        }
-                    }
-                    if let mine = SigningService.currentSignatureInfo,
-                       !infos.contains(where: { $0.publicKey == mine.publicKey }),
-                       !legacy.contains(mine.publicKey) {
-                        Button {
-                            draft.signatureInfos = infos + [mine]
-                        } label: {
-                            Label("Tie My Signing Key to This Author", systemImage: "signature")
-                        }
-                        .help("Your stamps and comments will show as \(draft.fullName.isEmpty ? "this author" : draft.fullName)\(mine.type == "local" ? " ?" : " ✓")")
-                    }
-                }
-
-                Section("Affiliations") {
-                    // One text field per affiliation; the user can add more.
-                    ForEach(draft.affiliations.indices, id: \.self) { i in
-                        HStack {
-                            TextField("Institution / Department", text: $draft.affiliations[i])
-                            // Remove button shown when there is more than one affiliation.
-                            if draft.affiliations.count > 1 {
-                                Button {
-                                    draft.affiliations.remove(at: i)
-                                } label: {
-                                    Image(systemName: "minus.circle.fill")
-                                        .foregroundStyle(.red)
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                    }
-                    Button {
-                        draft.affiliations.append("")
-                    } label: {
-                        Label("Add Affiliation", systemImage: "plus")
-                    }
-                }
-
                 Section("Role") {
                     Toggle("Corresponding Author", isOn: $draft.isCorresponding)
                 }
@@ -268,39 +207,8 @@ struct AuthorEditor: View {
         .onChange(of: draft.orcid)           { _, _ in onChange(draft) }
         .onChange(of: draft.affiliations)    { _, _ in onChange(draft) }
         .onChange(of: draft.isCorresponding) { _, _ in onChange(draft) }
-        .onChange(of: draft.publicKeys)      { _, _ in onChange(draft) }
-        .onChange(of: draft.signatureInfos)  { _, _ in onChange(draft) }
         // If the user clicks a different author row, reload from the new author.
         .onChange(of: author.id) { _, _ in draft = author }
     }
 
-    /// "GitHub · mroumanos (verified)" / "Local" — the tie's provenance.
-    private func signatureDetail(_ info: AuthorSignature) -> String {
-        let type = IdentityType(rawValue: info.type)?.label ?? info.type
-        guard let handle = info.handle, !handle.isEmpty else { return type }
-        return "\(type) · \(handle)\(info.verified == true ? " (verified)" : "")"
-    }
-
-    private func signatureRow(key: String, detail: String,
-                              onRemove: @escaping () -> Void) -> some View {
-        HStack {
-            Image(systemName: "signature").foregroundStyle(.secondary)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(detail).font(.caption)
-                Text(key)
-                    .font(.system(.caption2, design: .monospaced))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-            }
-            if key == SigningService.publicKeyBase64 {
-                Text("this Mac").font(.caption2).foregroundStyle(.secondary)
-            }
-            Spacer()
-            Button(action: onRemove) {
-                Image(systemName: "xmark.circle.fill").foregroundStyle(.tertiary)
-            }
-            .buttonStyle(.plain)
-        }
-    }
 }

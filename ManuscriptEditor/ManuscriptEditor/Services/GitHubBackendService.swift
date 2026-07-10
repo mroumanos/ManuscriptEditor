@@ -54,6 +54,12 @@ struct GitHubBackendService {
         let branch: String
         let token: String
 
+        /// The same repository, different branch (the app manages a fixed
+        /// branch layout: main / source / journal-*).
+        func with(branch newBranch: String) -> Config {
+            Config(owner: owner, repo: repo, branch: newBranch, token: token)
+        }
+
         /// Builds a config from a backend account + its Keychain token.
         /// The repository/branch are **per-manuscript** (ManuscriptSettings),
         /// falling back to legacy account-level fields.

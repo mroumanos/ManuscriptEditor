@@ -89,9 +89,9 @@ struct OverviewView: View {
                             SignatureBadge(
                                 signerName: editor.name,
                                 signerKey: editor.key,
+                                signerType: editor.type,
                                 message: editor.message,
-                                signature: editor.signature,
-                                authors: store.signatureAuthors
+                                signature: editor.signature
                             )
                             .font(.subheadline)
                         }
@@ -140,6 +140,7 @@ struct OverviewView: View {
         let id: String
         let name: String
         let key: String?
+        let type: String?
         let message: String?
         let signature: String?
         let date: Date
@@ -153,6 +154,7 @@ struct OverviewView: View {
             let id = version.stampedByKey ?? "name:\(version.author)"
             let entry = EditorEntry(
                 id: id, name: version.author, key: version.stampedByKey,
+                type: version.stampedByType,
                 message: SigningService.stampMessage(
                     id: version.id, createdAt: version.createdAt, author: version.author),
                 signature: version.stampSignature, date: version.createdAt)
@@ -162,6 +164,7 @@ struct OverviewView: View {
             let id = note.authorKey ?? "name:\(note.author)"
             let entry = EditorEntry(
                 id: id, name: note.author, key: note.authorKey,
+                type: note.authorType,
                 message: SigningService.noteMessage(
                     id: note.id, createdAt: note.createdAt, body: note.body),
                 signature: note.signature, date: note.createdAt)

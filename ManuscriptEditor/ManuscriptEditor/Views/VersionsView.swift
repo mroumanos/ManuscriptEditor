@@ -60,6 +60,7 @@ struct VersionsView: View {
         let to: String
         let byName: String
         let byKey: String?
+        let byType: String?
         let byMessage: String?
         let bySignature: String?
         let version: ManuscriptVersion?   // nil = the live-Source latest row
@@ -75,7 +76,7 @@ struct VersionsView: View {
                 out.append(Row(
                     id: "live-source", versionLabel: "latest", stamped: m.updatedAt,
                     from: fromLabel, to: "latest",
-                    byName: "", byKey: nil, byMessage: nil, bySignature: nil,
+                    byName: "", byKey: nil, byType: nil, byMessage: nil, bySignature: nil,
                     version: nil, isLatest: true))
             }
             for stamp in store.sourceStamps.reversed() {
@@ -102,6 +103,7 @@ struct VersionsView: View {
             to: label,
             byName: version.author.isEmpty ? "—" : version.author,
             byKey: version.stampedByKey,
+            byType: version.stampedByType,
             byMessage: SigningService.stampMessage(
                 id: version.id, createdAt: version.createdAt, author: version.author),
             bySignature: version.stampSignature,
@@ -277,9 +279,9 @@ struct VersionsView: View {
                 SignatureBadge(
                     signerName: row.byName,
                     signerKey: row.byKey,
+                    signerType: row.byType,
                     message: row.byMessage,
-                    signature: row.bySignature,
-                    authors: store.signatureAuthors
+                    signature: row.bySignature
                 )
             }
             .width(min: 120, ideal: 160)

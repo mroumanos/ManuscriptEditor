@@ -82,6 +82,7 @@ struct ExportService {
         requiresSeparateFigures: Bool,
         format: Format,
         figureURL: (Figure) -> URL?,
+        chartImage: ((Figure) -> NSImage?)? = nil,
         into destination: URL
     ) throws -> URL {
         let folder = destination.appendingPathComponent("\(sanitize(journalName)) Submission", isDirectory: true)
@@ -98,7 +99,7 @@ struct ExportService {
         }
 
         // Copy figure image files so the package is self-contained.
-        try copyFigureImages(content, figureURL: figureURL, into: folder)
+        try copyFigureImages(content, figureURL: figureURL, chartImage: chartImage, into: folder)
 
         return folder
     }
@@ -118,6 +119,8 @@ struct ExportService {
         content: Manuscript,
         packageName: String,
         figureURL: @escaping (Figure) -> URL?,
+        chartImage: ((Figure) -> NSImage?)? = nil,
+        tableData: ((ManuscriptTable) -> QueryResult?)? = nil,
         into destination: URL
     ) throws -> URL {
         let folder = destination.appendingPathComponent("\(sanitize(packageName)) Submission", isDirectory: true)
@@ -129,11 +132,11 @@ struct ExportService {
             let url = folder.appendingPathComponent("\(name).\(document.fileType.ext)")
             switch document.fileType {
             case .pdf:
-                let segments = pageSegments(for: document, content: content, refContext: refContext, figureURL: figureURL)
+                let segments = pageSegments(for: document, content: content, refContext: refContext, figureURL: figureURL, chartImage: chartImage, tableData: tableData)
                 let data = PDFPaginator(format: document.format).render(segments: segments)
                 try data.write(to: url, options: .atomic)
             case .docx, .rtf:
-                let segments = pageSegments(for: document, content: content, refContext: refContext, figureURL: figureURL)
+                let segments = pageSegments(for: document, content: content, refContext: refContext, figureURL: figureURL, chartImage: chartImage, tableData: tableData)
                 // Form feed is the closest page-break the attributed writers offer.
                 let joined = NSMutableAttributedString()
                 for (i, seg) in segments.enumerated() {
@@ -161,7 +164,7 @@ struct ExportService {
 
         // Copy figure images whenever any document includes the figures block.
         if config.documents.contains(where: { doc in doc.items.contains { $0.kind == .figures } }) {
-            try copyFigureImages(content, figureURL: figureURL, into: folder)
+            try copyFigureImages(content, figureURL: figureURL, chartImage: chartImage, into: folder)
         }
         return folder
     }
@@ -172,8 +175,11 @@ struct ExportService {
     /// starts at every page break.
     private func pageSegments(for document: ExportDocument, content: Manuscript,
                               refContext: RefEngine.Context,
-                              figureURL: ((Figure) -> URL?)? = nil) -> [NSAttributedString] {
-        let builder = OutlineBuilder(format: document.format, refContext: refContext, figureURL: figureURL)
+                              figureURL: ((Figure) -> URL?)? = nil,
+                              chartImage: ((Figure) -> NSImage?)? = nil,
+                              tableData: ((ManuscriptTable) -> QueryResult?)? = nil) -> [NSAttributedString] {
+        let builder = OutlineBuilder(format: document.format, refContext: refContext,
+                                     figureURL: figureURL, chartImage: chartImage, tableData: tableData)
         var segments: [NSAttributedString] = []
         var current = NSMutableAttributedString()
         for item in document.items {
@@ -420,13 +426,27 @@ struct ExportService {
         try data.write(to: url, options: .atomic)
     }
 
-    private func copyFigureImages(_ m: Manuscript, figureURL: (Figure) -> URL?, into folder: URL) throws {
+    private func copyFigureImages(_ m: Manuscript, figureURL: (Figure) -> URL?,
+                                  chartImage: ((Figure) -> NSImage?)? = nil, into folder: URL) throws {
         let fm = FileManager.default
         let figuresDir = folder.appendingPathComponent("figures", isDirectory: true)
         var created = false
         // File names follow reference-order numbering, matching in-text tokens.
         let numbers = RefEngine.effectiveFigureNumbers(in: m)
         for figure in m.figures.sorted(by: { (numbers[$0.id] ?? $0.number) < (numbers[$1.id] ?? $1.number) }) {
+            // Data-linked figures export their rendered chart.
+            if figure.dataAssetID != nil {
+                if let image = chartImage?(figure), let data = FigureImaging.pngData(image) {
+                    if !created {
+                        try fm.createDirectory(at: figuresDir, withIntermediateDirectories: true)
+                        created = true
+                    }
+                    let dest = figuresDir.appendingPathComponent("Figure \(numbers[figure.id] ?? figure.number).png")
+                    try? fm.removeItem(at: dest)
+                    try? data.write(to: dest)
+                }
+                continue
+            }
             guard let src = figureURL(figure), fm.fileExists(atPath: src.path) else { continue }
             if !created {
                 try fm.createDirectory(at: figuresDir, withIntermediateDirectories: true)
@@ -512,12 +532,16 @@ private struct OutlineBuilder {
     let refContext: RefEngine.Context
     /// Resolves a figure's image file for inline placement rendering.
     var figureURL: ((Figure) -> URL?)? = nil
+    /// Renders a data-linked figure's chart (SQL + chart type) to an image.
+    var chartImage: ((Figure) -> NSImage?)? = nil
+    /// Runs a data-linked table's SQL and returns the rows to lay out.
+    var tableData: ((ManuscriptTable) -> QueryResult?)? = nil
 
     /// Renders `item`, honoring its format override and custom title, and
     /// stamps the line-number attribute when its effective format asks for it.
     func block(for item: ExportItem, content m: Manuscript) -> NSAttributedString? {
         let effective = effectiveFormat(for: item)
-        let builder = OutlineBuilder(format: effective, refContext: refContext, figureURL: figureURL)
+        let builder = OutlineBuilder(format: effective, refContext: refContext, figureURL: figureURL, chartImage: chartImage, tableData: tableData)
         guard let rendered = builder.renderBlock(item, content: m) else { return nil }
         guard effective.lineNumbers else { return rendered }
         let out = NSMutableAttributedString(attributedString: rendered)
@@ -591,6 +615,9 @@ private struct OutlineBuilder {
             guard !figures.isEmpty else { return nil }
             let doc = NSMutableAttributedString(attributedString: headingBlock(item.customTitle ?? "Figures"))
             for f in figures {
+                if let image = figureImage(f) {
+                    doc.append(attachmentBlock(image))
+                }
                 doc.append(line("Figure \(refContext.figures[f.id]?.number ?? f.number). \(f.title)",
                                 font: NSFontManager.shared.convert(base, toHaveTrait: .boldFontMask), after: 2))
                 if !f.caption.isEmpty { doc.append(line(f.caption, font: meta, color: .darkGray, after: 8)) }
@@ -605,7 +632,10 @@ private struct OutlineBuilder {
             for t in tables {
                 doc.append(line("Table \(refContext.tables[t.id]?.number ?? t.number). \(t.title)",
                                 font: NSFontManager.shared.convert(base, toHaveTrait: .boldFontMask), after: 2))
-                if !t.content.isEmpty {
+                if let result = tableData?(t), !result.columns.isEmpty {
+                    // Data-linked: the SQL result IS the table.
+                    doc.append(queryTableBlock(result))
+                } else if !t.content.isEmpty {
                     doc.append(line(t.content, font: .monospacedSystemFont(ofSize: format.fontSize - 1, weight: .regular), after: 4))
                 }
                 if !t.caption.isEmpty { doc.append(line(t.caption, font: meta, color: .darkGray, after: 8)) }
@@ -701,6 +731,99 @@ private struct OutlineBuilder {
         out.append(NSAttributedString(string: "\n", attributes: [.font: base]))
         return out
     }
+
+    // MARK: Figure/table rendering helpers
+
+    /// The figure's exportable image: the processed file image, or the chart
+    /// rendered from its SQL data.
+    private func figureImage(_ figure: Figure) -> NSImage? {
+        if figure.dataAssetID != nil {
+            return chartImage?(figure)
+        }
+        guard let url = figureURL?(figure), let image = NSImage(contentsOf: url) else { return nil }
+        return FigureImaging.processed(image, crop: figure.crop,
+                                       scalePercent: figure.scalePercent,
+                                       monochrome: figure.monochrome)
+    }
+
+    /// An image attachment sized into the text column, centered.
+    private func attachmentBlock(_ image: NSImage) -> NSAttributedString {
+        let attachment = NSTextAttachment()
+        attachment.image = image
+        let maxWidth: CGFloat = 612 - format.marginInches * 144 - 12
+        let size = image.size
+        let scale = size.width > maxWidth ? maxWidth / size.width : 1
+        attachment.bounds = CGRect(x: 0, y: 0,
+                                   width: size.width * scale, height: size.height * scale)
+        let out = NSMutableAttributedString(attributedString: NSAttributedString(attachment: attachment))
+        let style = NSMutableParagraphStyle()
+        style.alignment = .center
+        style.paragraphSpacing = 6
+        out.addAttribute(.paragraphStyle, value: style, range: NSRange(location: 0, length: out.length))
+        out.append(NSAttributedString(string: "\n", attributes: [.font: base]))
+        return out
+    }
+
+    /// A SQL result laid out as a clean text table: document font, columns at
+    /// minimum width (widest cell + padding), header bold with a rule, whole
+    /// block centered in the text column.  Tab stops keep it working across
+    /// PDF (CoreText) and DOCX/RTF alike.
+    private func queryTableBlock(_ result: QueryResult) -> NSAttributedString {
+        let cellFont = NSFont(descriptor: base.fontDescriptor, size: max(9, format.fontSize - 1)) ?? base
+        let headerFont = NSFontManager.shared.convert(cellFont, toHaveTrait: .boldFontMask)
+        let maxCell = 38   // keep runaway values from destroying the layout
+
+        func clip(_ value: String) -> String {
+            value.count > maxCell ? String(value.prefix(maxCell - 1)) + "…" : value
+        }
+
+        // Minimum column widths: widest content + a little padding.
+        var widths = result.columns.map { clip($0).size(withAttributes: [.font: headerFont]).width }
+        for row in result.rows {
+            for (index, value) in row.enumerated() where index < widths.count {
+                widths[index] = max(widths[index], clip(value).size(withAttributes: [.font: cellFont]).width)
+            }
+        }
+        widths = widths.map { min($0 + 14, 220) }
+
+        let textWidth: CGFloat = 612 - format.marginInches * 144
+        let total = widths.reduce(0, +)
+        let indent = max(0, (textWidth - total) / 2)   // center the block
+
+        let style = NSMutableParagraphStyle()
+        style.tabStops = []
+        var x = indent
+        for width in widths {
+            x += width
+            style.tabStops.append(NSTextTab(textAlignment: .left, location: x))
+        }
+        style.firstLineHeadIndent = indent
+        style.headIndent = indent
+        style.lineHeightMultiple = 1.1
+        style.paragraphSpacing = 1
+
+        func rowString(_ cells: [String], font: NSFont) -> NSAttributedString {
+            let padded = cells.map(clip).joined(separator: "\t")
+            return NSAttributedString(string: padded + "\n", attributes: [
+                .font: font,
+                .paragraphStyle: style,
+                .foregroundColor: NSColor.black,
+            ])
+        }
+
+        let out = NSMutableAttributedString()
+        out.append(rowString(result.columns, font: headerFont))
+        out.append(rowString(result.columns.map { _ in "—" }, font: cellFont))
+        for row in result.rows.prefix(200) {
+            out.append(rowString(row, font: cellFont))
+        }
+        if result.rows.count > 200 {
+            out.append(line("… \(result.rows.count - 200) more rows (see data)", font: meta, color: .darkGray, after: 4))
+        }
+        out.append(NSAttributedString(string: "\n", attributes: [.font: base]))
+        return out
+    }
+
     // MARK: Placement tokens (⟦Figure 2 here⟧ → the rendered figure/table)
 
     /// Replaces figure/table placement tokens with their rendered blocks —
@@ -731,20 +854,8 @@ private struct OutlineBuilder {
                 return NSAttributedString(string: "")
             }
             let number = refContext.figures[figure.id]?.number ?? figure.number
-            if let url = figureURL?(figure), let image = NSImage(contentsOf: url) {
-                let processed = FigureImaging.processed(
-                    image, crop: figure.crop, scalePercent: figure.scalePercent,
-                    monochrome: figure.monochrome)
-                let attachment = NSTextAttachment()
-                attachment.image = processed
-                // Fit within typical margins (~5.5in of text width).
-                let maxWidth: CGFloat = 396
-                let size = processed.size
-                let scale = size.width > maxWidth ? maxWidth / size.width : 1
-                attachment.bounds = CGRect(x: 0, y: 0,
-                                           width: size.width * scale, height: size.height * scale)
-                out.append(NSAttributedString(attachment: attachment))
-                out.append(NSAttributedString(string: "\n", attributes: [.font: base]))
+            if let image = figureImage(figure) {
+                out.append(attachmentBlock(image))
             }
             out.append(line("Figure \(number). \(figure.title)", font: meta, color: .darkGray, after: 2))
             if !figure.caption.isEmpty {
@@ -756,7 +867,9 @@ private struct OutlineBuilder {
             }
             let number = refContext.tables[table.id]?.number ?? table.number
             out.append(line("Table \(number). \(table.title)", font: meta, color: .darkGray, after: 2))
-            if !table.content.isEmpty {
+            if let result = tableData?(table), !result.columns.isEmpty {
+                out.append(queryTableBlock(result))
+            } else if !table.content.isEmpty {
                 out.append(line(table.content, font: base, after: 2))
             }
             if !table.caption.isEmpty {
@@ -835,10 +948,9 @@ private struct PDFPaginator {
             guard range.location >= 0, range.location < segment.length,
                   segment.attribute(ExportAttr.lineNumbers, at: range.location,
                                     effectiveRange: nil) != nil else { continue }
-            // Number text lines only — blank spacer lines (around headings,
-            // between blocks) get no number, like LaTeX's lineno.
-            let content = text.substring(with: NSRange(location: range.location, length: range.length))
-            guard !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { continue }
+            // Blank lines count too — the margin numbering matches the
+            // editor's gutter, which numbers every visual line.
+            _ = text   // (content no longer inspected)
             let label = NSAttributedString(string: "\(next)", attributes: [
                 .font: NSFont.monospacedDigitSystemFont(ofSize: 7.5, weight: .regular),
                 NSAttributedString.Key(kCTForegroundColorAttributeName as String): NSColor.gray.cgColor,

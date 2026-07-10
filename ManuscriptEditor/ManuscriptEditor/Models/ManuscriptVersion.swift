@@ -107,13 +107,17 @@ struct ManuscriptVersion: Codable, Identifiable, Sendable {
     /// attribution for the Versions table.  Optional: older versions unsigned.
     var stampedByKey: String?
     var stampSignature: String?
+    /// The signer's identity type at stamp time: "github"/"gitlab"/"openpgp"
+    /// (remote-verified → green ✓) or "local"/nil (unverifiable → ?).
+    var stampedByType: String?
 
     // MARK: - Init
 
     init(id: UUID, label: String, parentID: UUID?, journalID: UUID?, viewConfigID: UUID?,
          number: Int, author: String, createdAt: Date, sourceSnapshotDate: Date,
          notes: String, content: Manuscript, checklistResults: [ChecklistResult],
-         sourceStamp: Bool? = nil, stampedByKey: String? = nil, stampSignature: String? = nil) {
+         sourceStamp: Bool? = nil, stampedByKey: String? = nil, stampSignature: String? = nil,
+         stampedByType: String? = nil) {
         self.id = id; self.label = label; self.parentID = parentID
         self.journalID = journalID; self.viewConfigID = viewConfigID
         self.number = number; self.author = author
@@ -121,6 +125,7 @@ struct ManuscriptVersion: Codable, Identifiable, Sendable {
         self.notes = notes; self.content = content; self.checklistResults = checklistResults
         self.sourceStamp = sourceStamp
         self.stampedByKey = stampedByKey; self.stampSignature = stampSignature
+        self.stampedByType = stampedByType
     }
 
     // MARK: - Backward-compatible Codable
@@ -130,7 +135,7 @@ struct ManuscriptVersion: Codable, Identifiable, Sendable {
     private enum CodingKeys: String, CodingKey {
         case id, label, parentID, journalID, viewConfigID, number, author,
              createdAt, sourceSnapshotDate, notes, content, checklistResults,
-             sourceStamp, stampedByKey, stampSignature
+             sourceStamp, stampedByKey, stampSignature, stampedByType
     }
 
     init(from decoder: Decoder) throws {
@@ -150,6 +155,7 @@ struct ManuscriptVersion: Codable, Identifiable, Sendable {
         sourceStamp        = try c.decodeIfPresent(Bool.self, forKey: .sourceStamp)
         stampedByKey       = try c.decodeIfPresent(String.self, forKey: .stampedByKey)
         stampSignature     = try c.decodeIfPresent(String.self, forKey: .stampSignature)
+        stampedByType      = try c.decodeIfPresent(String.self, forKey: .stampedByType)
     }
 
     // MARK: - Factory

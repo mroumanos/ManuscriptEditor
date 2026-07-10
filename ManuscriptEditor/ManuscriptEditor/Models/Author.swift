@@ -38,19 +38,6 @@ struct Author: Codable, Identifiable, Sendable {
     /// Zero-based position in the author list.  First author = 0.
     var order: Int
 
-    /// Public signing keys (base64 P-256) tied to this author — 0 to many.
-    /// When an edit/comment's signature matches one of these keys, the UI
-    /// shows this author's name (with a verified badge) instead of the raw
-    /// signer name.  Private keys never enter manuscript files.
-    /// Legacy field: entries here are treated as **local** identities; richer
-    /// ties live in `signatureInfos`.
-    var publicKeys: [String]? = nil
-
-    /// Richer key ties: each carries the identity type (local / github /
-    /// gitlab / openpgp) and handle, so badges can distinguish
-    /// remote-anchored identities (✓) from unverifiable local ones (?).
-    var signatureInfos: [AuthorSignature]? = nil
-
     // MARK: - Computed
 
     /// "First Last" — used in export and overview display.
@@ -75,16 +62,4 @@ struct Author: Codable, Identifiable, Sendable {
             order: order
         )
     }
-}
-
-/// One signing key tied to an author, with the identity that anchors it.
-struct AuthorSignature: Codable, Sendable, Equatable {
-    /// The app's P-256 public key (base64) that actually signs activity.
-    var publicKey: String
-    /// "local" | "github" | "gitlab" | "openpgp" (IdentityType raw values).
-    var type: String
-    /// Username (github/gitlab) or email (openpgp); nil for local.
-    var handle: String?
-    /// Whether the remote GPG key check passed when the tie was made.
-    var verified: Bool?
 }
