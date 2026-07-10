@@ -250,34 +250,66 @@ enum SigningService {
                 if name.hasPrefix("S.") || name.hasSuffix(".lock") { continue }
                 try? fm.copyItem(at: item, to: mirror.appendingPathComponent(name))
             }
+            // Copied lock files deeper in the tree (keyboxd's
+            // public-keys.d/pubring.db.lock) reference the user's LIVE
+            // daemons — gpg would wait on them and time out.  Strip them all.
+            if let walker = fm.enumerator(at: mirror, includingPropertiesForKeys: nil) {
+                for case let url as URL in walker {
+                    let name = url.lastPathComponent
+                    if name.hasSuffix(".lock") || name.hasPrefix("S.") {
+                        try? fm.removeItem(at: url)
+                    }
+                }
+            }
             return mirror
         } catch {
             return nil
         }
     }
 
-    private static func runGPGRaw(_ arguments: [String]) -> String? {
-        runGPGProcess(arguments)
+    /// Stops the gpg-agent/keyboxd instances spawned for the mirror homedir
+    /// so queries don't leave daemons running against a temp folder.
+    static func killMirrorDaemons() {
+        guard let home = effectiveGPGHome else { return }
+        _ = runTool("gpgconf", ["--homedir", home.path, "--kill", "all"])
     }
 
-    private static func runGPGProcess(_ arguments: [String]) -> String? {
-        let candidates = ["/opt/homebrew/bin/gpg", "/usr/local/bin/gpg",
-                          "/usr/local/MacGPG2/bin/gpg", "/usr/bin/gpg"]
-        guard let path = candidates.first(where: { FileManager.default.isExecutableFile(atPath: $0) })
-        else { return nil }
+    /// The last gpg failure (stderr), surfaced by the identity UI.
+    static private(set) var lastGPGError: String?
+
+    private static func runGPGRaw(_ arguments: [String]) -> String? {
+        runTool("gpg", arguments)
+    }
+
+    private static func runTool(_ tool: String, _ arguments: [String]) -> String? {
+        let prefixes = ["/opt/homebrew/bin/", "/usr/local/bin/",
+                        "/usr/local/MacGPG2/bin/", "/usr/bin/"]
+        guard let path = prefixes.map({ $0 + tool })
+            .first(where: { FileManager.default.isExecutableFile(atPath: $0) })
+        else {
+            lastGPGError = "\(tool) not found (looked in Homebrew, MacGPG2, /usr/bin)."
+            return nil
+        }
         let process = Process()
         process.executableURL = URL(fileURLWithPath: path)
         process.arguments = arguments
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = Pipe()
+        let out = Pipe()
+        let err = Pipe()
+        process.standardOutput = out
+        process.standardError = err
         do {
             try process.run()
             process.waitUntilExit()
-            guard process.terminationStatus == 0 else { return nil }
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            return String(data: data, encoding: .utf8)
+            let errText = String(data: err.fileHandleForReading.readDataToEndOfFile(),
+                                 encoding: .utf8) ?? ""
+            guard process.terminationStatus == 0 else {
+                lastGPGError = errText.isEmpty ? "\(tool) exited \(process.terminationStatus)" : errText
+                return nil
+            }
+            lastGPGError = nil
+            return String(data: out.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)
         } catch {
+            lastGPGError = error.localizedDescription
             return nil
         }
     }

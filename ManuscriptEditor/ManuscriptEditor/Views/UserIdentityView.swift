@@ -31,6 +31,8 @@ struct UserIdentityView: View {
     @State private var testResult: Result<String, Error>?
     /// Local gpg keyring contents (nil = gpg unavailable/blocked).
     @State private var localKeys: [SigningService.GPGKey]?
+    /// Dropdown selection (fingerprint).
+    @State private var selectedFingerprint: String?
 
     var body: some View {
         Form {
@@ -69,77 +71,94 @@ struct UserIdentityView: View {
 
             if type != .local {
                 Section("GPG Key") {
-                    HStack(spacing: 10) {
-                        // The user's local gpg keyring as a menu.  The App
-                        // Sandbox blocks ~/.gnupg until the user grants it
-                        // once; the file picker below always works.
-                        if let localKeys {
-                            // "<name>, <email> (<long ID>, <algorithm>)"
-                            Menu {
+                    if let localKeys {
+                        // Dropdown of the local keyring, with a compact Test
+                        // right beside it — green seal once verified.
+                        HStack(spacing: 8) {
+                            Picker("GPG key", selection: $selectedFingerprint) {
+                                Text("Select a key…").tag(String?.none)
                                 ForEach(localKeys) { key in
-                                    Button(key.display) {
-                                        if let armored = SigningService.exportLocalGPGKey(fingerprint: key.fingerprint) {
-                                            gpgKey = armored
-                                            SigningService.identityGPGKey = armored
-                                            testResult = nil
-                                        } else {
-                                            testResult = .failure(AccountTestError.failed(
-                                                "Couldn't export that key — try the file picker (gpg --armor --export > key.asc)."))
-                                        }
-                                    }
+                                    Text(key.display).tag(Optional(key.fingerprint))
                                 }
-                            } label: {
-                                Label("Choose from local GPG…", systemImage: "key.viewfinder")
                             }
-                            .fixedSize()
-                        } else {
+                            .labelsHidden()
+                            .onChange(of: selectedFingerprint) { _, new in
+                                testResult = nil
+                                remoteVerified = false
+                                SigningService.identityRemoteVerified = false
+                                guard let new else { return }
+                                if let armored = SigningService.exportLocalGPGKey(fingerprint: new) {
+                                    gpgKey = armored
+                                    SigningService.identityGPGKey = armored
+                                } else {
+                                    testResult = .failure(AccountTestError.failed(
+                                        SigningService.lastGPGError ?? "Couldn't export that key."))
+                                }
+                                SigningService.killMirrorDaemons()
+                            }
+
+                            Button {
+                                runTest()
+                            } label: {
+                                if isTesting {
+                                    ProgressView().controlSize(.small)
+                                } else {
+                                    Image(systemName: "bolt")
+                                }
+                            }
+                            .controlSize(.small)
+                            .disabled(isTesting || handle.isEmpty || selectedFingerprint == nil)
+                            .help("Verify this key is registered to \(handle.isEmpty ? "your account" : handle)")
+
+                            if remoteVerified {
+                                Image(systemName: "checkmark.seal.fill")
+                                    .foregroundStyle(.green)
+                                    .help("Verified against \(handle)")
+                            }
+                        }
+                        if case .failure(let error) = testResult {
+                            Label(error.localizedDescription, systemImage: "xmark.circle.fill")
+                                .font(.caption).foregroundStyle(.red).lineLimit(3)
+                        }
+                    } else {
+                        // Keyring unreadable: one-time grant, or a key file.
+                        HStack(spacing: 10) {
                             Button {
                                 grantKeyringAccess()
                             } label: {
                                 Label("Allow Access to GPG Keyring…", systemImage: "lock.open")
                             }
-                            .help("The sandbox blocks ~/.gnupg until you grant it once; gpg is then queried with --homedir")
-                        }
-                        Button {
-                            showKeyImporter = true
-                        } label: {
-                            Label(gpgKey.isEmpty ? "Select Key File…" : "GPG key selected",
-                                  systemImage: gpgKey.isEmpty ? "key" : "key.fill")
-                        }
-                        if !gpgKey.isEmpty {
-                            Button("Clear") {
-                                gpgKey = ""
-                                SigningService.identityGPGKey = ""
-                                remoteVerified = false
-                                SigningService.identityRemoteVerified = false
-                            }
-                            .controlSize(.small)
-                        }
-                    }
-
-                    HStack(spacing: 10) {
-                        Button {
-                            runTest()
-                        } label: {
-                            if isTesting {
-                                ProgressView().controlSize(.small)
-                            } else {
-                                Label("Test", systemImage: "bolt")
+                            .help("The sandbox blocks ~/.gnupg until you grant it once")
+                            Button {
+                                showKeyImporter = true
+                            } label: {
+                                Label(gpgKey.isEmpty ? "Select Key File…" : "GPG key selected",
+                                      systemImage: gpgKey.isEmpty ? "key" : "key.fill")
                             }
                         }
-                        .disabled(isTesting || handle.isEmpty || gpgKey.isEmpty)
-
-                        switch testResult {
-                        case .success(let message):
-                            Label(message, systemImage: "checkmark.circle.fill")
-                                .font(.caption).foregroundStyle(.green)
-                        case .failure(let error):
-                            Label(error.localizedDescription, systemImage: "xmark.circle.fill")
-                                .font(.caption).foregroundStyle(.red).lineLimit(2)
-                        case nil:
-                            if remoteVerified {
-                                Label("Verified", systemImage: "checkmark.seal.fill")
+                        HStack(spacing: 10) {
+                            Button {
+                                runTest()
+                            } label: {
+                                if isTesting {
+                                    ProgressView().controlSize(.small)
+                                } else {
+                                    Label("Test", systemImage: "bolt")
+                                }
+                            }
+                            .disabled(isTesting || handle.isEmpty || gpgKey.isEmpty)
+                            switch testResult {
+                            case .success(let message):
+                                Label(message, systemImage: "checkmark.circle.fill")
                                     .font(.caption).foregroundStyle(.green)
+                            case .failure(let error):
+                                Label(error.localizedDescription, systemImage: "xmark.circle.fill")
+                                    .font(.caption).foregroundStyle(.red).lineLimit(3)
+                            case nil:
+                                if remoteVerified {
+                                    Label("Verified", systemImage: "checkmark.seal.fill")
+                                        .font(.caption).foregroundStyle(.green)
+                                }
                             }
                         }
                     }
