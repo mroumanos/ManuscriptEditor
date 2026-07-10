@@ -30,7 +30,7 @@ struct UserIdentityView: View {
     @State private var isTesting = false
     @State private var testResult: Result<String, Error>?
     /// Local gpg keyring contents (nil = gpg unavailable/blocked).
-    @State private var localKeys: [(fingerprint: String, uid: String)]?
+    @State private var localKeys: [SigningService.GPGKey]?
 
     var body: some View {
         Form {
@@ -74,13 +74,17 @@ struct UserIdentityView: View {
                         // Sandbox blocks ~/.gnupg until the user grants it
                         // once; the file picker below always works.
                         if let localKeys {
+                            // "<name>, <email> (<long ID>, <algorithm>)"
                             Menu {
-                                ForEach(localKeys, id: \.fingerprint) { key in
-                                    Button(key.uid) {
+                                ForEach(localKeys) { key in
+                                    Button(key.display) {
                                         if let armored = SigningService.exportLocalGPGKey(fingerprint: key.fingerprint) {
                                             gpgKey = armored
                                             SigningService.identityGPGKey = armored
                                             testResult = nil
+                                        } else {
+                                            testResult = .failure(AccountTestError.failed(
+                                                "Couldn't export that key — try the file picker (gpg --armor --export > key.asc)."))
                                         }
                                     }
                                 }

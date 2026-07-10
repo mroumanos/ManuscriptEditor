@@ -124,24 +124,105 @@ enum SigningService {
         UserDefaults.standard.data(forKey: "gnupgHomeBookmark") != nil
     }
 
-    /// Secret keys from the user's local gpg, for the identity dropdown.
-    /// Returns nil when gpg is missing or the sandbox blocks ~/.gnupg —
-    /// callers fall back to the key-file picker.
-    static func localGPGKeys() -> [(fingerprint: String, uid: String)]? {
-        guard let output = runGPG(["--list-secret-keys", "--with-colons"]) else { return nil }
-        var keys: [(String, String)] = []
+    /// One secret key from the local keyring, formatted for the dropdown as
+    /// "<name>, <email> (<long ID>, <algorithm>)".
+    struct GPGKey: Identifiable {
+        let fingerprint: String
+        let name: String
+        let email: String
+        let longID: String
+        let algorithm: String
+
+        var id: String { fingerprint }
+        var display: String {
+            let who = [name, email].filter { !$0.isEmpty }.joined(separator: ", ")
+            return "\(who.isEmpty ? "(no uid)" : who) (\(longID), \(algorithm))"
+        }
+    }
+
+    /// gpg public-key algorithm ids (RFC 4880 + ECC extensions).
+    private static let gpgAlgorithms: [String: String] = [
+        "1": "RSA", "2": "RSA", "3": "RSA", "16": "ElGamal", "17": "DSA",
+        "18": "ECDH", "19": "ECDSA", "22": "EdDSA",
+    ]
+
+    /// Where gpg should look for the keyring: the granted folder when the
+    /// spawned child can read it, else a **mirror inside our own container**.
+    /// Sandbox children don't reliably inherit the parent's folder grant, but
+    /// the PARENT does hold it — so the app copies the keyring into its
+    /// container (always readable by children), points gpg at the mirror, and
+    /// nothing ever leaves the machine.
+    private static var effectiveGPGHome: URL?
+
+    /// Secret keys from the user's local gpg (`--list-secret-keys
+    /// --keyid-format=long`), for the identity dropdown.  Returns nil when
+    /// gpg is missing or the keyring is unreachable — callers fall back to
+    /// the key-file picker.
+    static func localGPGKeys() -> [GPGKey]? {
+        // 1. Direct (works when unsandboxed or the grant carries through).
+        if let home = gnupgHome, let keys = parseSecretKeys(runGPG(home: home)) {
+            effectiveGPGHome = home
+            return keys
+        }
+        if let keys = parseSecretKeys(runGPG(home: nil)) {
+            effectiveGPGHome = nil
+            return keys
+        }
+        // 2. Container mirror: the parent copies the granted keyring into the
+        //    sandbox container, where the child can always read it.
+        guard let mirror = mirrorGrantedKeyring(),
+              let keys = parseSecretKeys(runGPG(home: mirror)) else { return nil }
+        effectiveGPGHome = mirror
+        return keys
+    }
+
+    /// The armored public key for a local gpg fingerprint.
+    static func exportLocalGPGKey(fingerprint: String) -> String? {
+        var arguments = ["--armor", "--export", fingerprint]
+        if let home = effectiveGPGHome {
+            arguments = ["--homedir", home.path, "--no-permission-warning"] + arguments
+        }
+        guard let armored = runGPGRaw(arguments), armored.contains("PGP PUBLIC KEY") else { return nil }
+        return armored
+    }
+
+    private static func runGPG(home: URL?) -> String? {
+        var arguments = ["--list-secret-keys", "--keyid-format=long", "--with-colons"]
+        if let home {
+            arguments = ["--homedir", home.path, "--no-permission-warning"] + arguments
+        }
+        return runGPGRaw(arguments)
+    }
+
+    private static func parseSecretKeys(_ output: String?) -> [GPGKey]? {
+        guard let output else { return nil }
+        var keys: [GPGKey] = []
+        var algorithm = ""
+        var longID = ""
         var fingerprint: String?
         for line in output.components(separatedBy: .newlines) {
             let fields = line.components(separatedBy: ":")
             switch fields.first {
+            case "sec" where fields.count > 4:
+                algorithm = gpgAlgorithms[fields[3]] ?? "algo \(fields[3])"
+                longID = fields[4]
+                fingerprint = nil
             case "fpr" where fingerprint == nil && fields.count > 9:
                 fingerprint = fields[9]
             case "uid" where fields.count > 9:
-                if let fpr = fingerprint {
-                    keys.append((fpr, fields[9]))
-                    fingerprint = nil
+                guard let fpr = fingerprint else { break }
+                // uid is "Name (comment) <email>".
+                var uid = fields[9]
+                var email = ""
+                if let open = uid.range(of: "<"), let close = uid.range(of: ">") {
+                    email = String(uid[open.upperBound..<close.lowerBound])
+                    uid.removeSubrange(open.lowerBound..<close.upperBound)
                 }
-            case "sec":
+                let name = uid
+                    .replacingOccurrences(of: "\\(.*\\)", with: "", options: .regularExpression)
+                    .trimmingCharacters(in: .whitespaces)
+                keys.append(GPGKey(fingerprint: fpr, name: name, email: email,
+                                   longID: longID, algorithm: algorithm))
                 fingerprint = nil
             default:
                 break
@@ -150,27 +231,43 @@ enum SigningService {
         return keys.isEmpty ? nil : keys
     }
 
-    /// The armored public key for a local gpg fingerprint.
-    static func exportLocalGPGKey(fingerprint: String) -> String? {
-        guard let armored = runGPG(["--armor", "--export", fingerprint]),
-              armored.contains("PGP PUBLIC KEY") else { return nil }
-        return armored
+    /// Copies the granted ~/.gnupg into the app container (skipping sockets
+    /// and locks) so the sandboxed gpg child can read it.  Refreshed on every
+    /// call; lives only inside this app's private container.
+    private static func mirrorGrantedKeyring() -> URL? {
+        guard let source = gnupgHome else { return nil }
+        let fm = FileManager.default
+        let mirror = fm.temporaryDirectory.appendingPathComponent("gnupg-mirror", isDirectory: true)
+        try? fm.removeItem(at: mirror)
+        do {
+            try fm.createDirectory(at: mirror, withIntermediateDirectories: true,
+                                   attributes: [.posixPermissions: 0o700])
+            guard let items = try? fm.contentsOfDirectory(at: source, includingPropertiesForKeys: nil)
+            else { return nil }
+            for item in items {
+                let name = item.lastPathComponent
+                // Sockets (S.gpg-agent…) and locks can't/shouldn't be copied.
+                if name.hasPrefix("S.") || name.hasSuffix(".lock") { continue }
+                try? fm.copyItem(at: item, to: mirror.appendingPathComponent(name))
+            }
+            return mirror
+        } catch {
+            return nil
+        }
     }
 
-    private static func runGPG(_ arguments: [String]) -> String? {
+    private static func runGPGRaw(_ arguments: [String]) -> String? {
+        runGPGProcess(arguments)
+    }
+
+    private static func runGPGProcess(_ arguments: [String]) -> String? {
         let candidates = ["/opt/homebrew/bin/gpg", "/usr/local/bin/gpg",
                           "/usr/local/MacGPG2/bin/gpg", "/usr/bin/gpg"]
         guard let path = candidates.first(where: { FileManager.default.isExecutableFile(atPath: $0) })
         else { return nil }
         let process = Process()
         process.executableURL = URL(fileURLWithPath: path)
-        // The sandbox grant (if any) must be active in THIS process before
-        // spawning — the child inherits the sandbox state.
-        if let home = gnupgHome {
-            process.arguments = ["--homedir", home.path] + arguments
-        } else {
-            process.arguments = arguments
-        }
+        process.arguments = arguments
         let pipe = Pipe()
         process.standardOutput = pipe
         process.standardError = Pipe()
