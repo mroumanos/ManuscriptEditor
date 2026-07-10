@@ -164,7 +164,9 @@ struct PersistenceService: Sendable {
             guard let data = try? Data(contentsOf: url),
                   let m = try? decoder.decode(Manuscript.self, from: data)
             else { return nil }
-            return ManuscriptSummary(id: m.id, title: m.title, updatedAt: m.updatedAt)
+            return ManuscriptSummary(id: m.id, title: m.title, updatedAt: m.updatedAt,
+                                     createdAt: m.createdAt,
+                                     location: manuscriptDirectory(for: id))
         }
         .sorted { $0.updatedAt > $1.updatedAt }
     }
@@ -191,6 +193,15 @@ struct PersistenceService: Sendable {
         return raw.compactMap { UUID(uuidString: $0) }
     }
 
+    /// Drops a manuscript from the known list and its custom-folder mapping
+    /// (used after its files are trashed).
+    func forget(id: UUID) {
+        var existing = (UserDefaults.standard.array(forKey: "allManuscriptIDs") as? [String]) ?? []
+        existing.removeAll { $0 == id.uuidString }
+        UserDefaults.standard.set(existing, forKey: "allManuscriptIDs")
+        UserDefaults.standard.removeObject(forKey: "manuscriptFolder_\(id.uuidString)")
+    }
+
     private func addToKnownIDs(_ id: UUID) {
         var existing = (UserDefaults.standard.array(forKey: "allManuscriptIDs") as? [String]) ?? []
         let s = id.uuidString
@@ -208,4 +219,7 @@ struct ManuscriptSummary: Identifiable {
     let id: UUID
     let title: String
     let updatedAt: Date
+    let createdAt: Date
+    /// Where the project lives (app data or a user folder).
+    let location: URL
 }

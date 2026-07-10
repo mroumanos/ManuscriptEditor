@@ -31,10 +31,18 @@ import SwiftUI
 struct ManuscriptEditorApp: App {
 
     /// Per-manuscript store: content, journals, letter, settings.
-    @State private var store    = ManuscriptStore()
+    @State private var store: ManuscriptStore
 
     /// Global store: backends, AI services, view configs.
-    @State private var appStore = AppStore()
+    @State private var appStore: AppStore
+
+    init() {
+        // Must run before either store loads: pulls container-era data
+        // (manuscripts, accounts, defaults) into the unsandboxed locations.
+        SandboxMigration.runIfNeeded()
+        _store    = State(initialValue: ManuscriptStore())
+        _appStore = State(initialValue: AppStore())
+    }
 
     /// App-wide light/dark/system appearance.
     @AppStorage(EditorPrefs.appearanceKey) private var appearance = AppearanceMode.system.rawValue

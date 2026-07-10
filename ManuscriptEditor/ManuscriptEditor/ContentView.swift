@@ -198,7 +198,9 @@ struct ContentView: View {
                 // The window title is the manuscript's name (not the app name).
                 .navigationTitle(windowTitle)
             } else {
-                WelcomeView(onNewManuscript: createInAppData)
+                WelcomeView(onNewManuscript: createInAppData,
+                            onOpenLocal: openLocalFolder,
+                            onOpenRemote: { showingNewRemote = true })
                     .navigationTitle("Manuscript Editor")
             }
         }
@@ -206,6 +208,7 @@ struct ContentView: View {
         .onAppear {
             store.loadMostRecent()
             appStore.load()
+            SigningService.debugProbe()   // container-side keyring trace
         }
         // A removed journal must not leave a dangling tab selection.
         .onChange(of: allTabs) { _, tabs in

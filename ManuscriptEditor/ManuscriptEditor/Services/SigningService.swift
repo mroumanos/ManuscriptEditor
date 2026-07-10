@@ -159,19 +159,15 @@ enum SigningService {
     /// gpg is missing or the keyring is unreachable — callers fall back to
     /// the key-file picker.
     static func localGPGKeys() -> [GPGKey]? {
-        // With a grant, go straight to the container mirror — the direct
-        // attempts are the flaky path under the sandbox (child can't read
-        // ~/.gnupg, and the live keyring's lock/daemons interfere) and each
-        // costs seconds of lock-wait before failing.
-        if hasGnupgGrant {
-            guard let mirror = mirrorGrantedKeyring() else { return nil }
-            let keys = parseSecretKeys(runGPG(home: mirror))
-            if keys != nil { effectiveGPGHome = mirror }
-            return keys
-        }
-        // No grant: a plain run works when the app is unsandboxed.
+        // Unsandboxed (the normal build): gpg reads ~/.gnupg directly.
         if let keys = parseSecretKeys(runGPG(home: nil)) {
             effectiveGPGHome = nil
+            return keys
+        }
+        // Sandboxed fallback: mirror a granted keyring into the container.
+        if hasGnupgGrant, let mirror = mirrorGrantedKeyring() {
+            let keys = parseSecretKeys(runGPG(home: mirror))
+            if keys != nil { effectiveGPGHome = mirror }
             return keys
         }
         return nil
@@ -320,6 +316,34 @@ enum SigningService {
             lastGPGError = error.localizedDescription
             return nil
         }
+    }
+
+    // MARK: - Diagnostics
+
+    /// Writes a step-by-step trace of the keyring flow into the container
+    /// (tmp/gpg-probe.txt) so failures are observable without a debugger.
+    static func debugProbe() {
+        var lines: [String] = ["gpg probe \(Date())"]
+        lines.append("hasGrant: \(hasGnupgGrant)")
+        if let data = UserDefaults.standard.data(forKey: "gnupgHomeBookmark") {
+            var stale = false
+            if let url = try? URL(resolvingBookmarkData: data, options: .withSecurityScope,
+                                  relativeTo: nil, bookmarkDataIsStale: &stale) {
+                let ok = url.startAccessingSecurityScopedResource()
+                lines.append("bookmark → \(url.path) (stale: \(stale), access: \(ok))")
+                let names = (try? FileManager.default.contentsOfDirectory(atPath: url.path)) ?? []
+                lines.append("granted dir readable: \(names.isEmpty ? "NO/empty" : "yes (\(names.count) items)")")
+            } else {
+                lines.append("bookmark FAILED to resolve")
+            }
+        }
+        lines.append("tmp: \(FileManager.default.temporaryDirectory.path)")
+        let keys = localGPGKeys()
+        lines.append("keys: \(keys?.map(\.display).joined(separator: " | ") ?? "nil")")
+        lines.append("lastGPGError: \(lastGPGError ?? "none")")
+        let out = lines.joined(separator: "\n")
+        try? out.write(to: FileManager.default.temporaryDirectory.appendingPathComponent("gpg-probe.txt"),
+                       atomically: true, encoding: .utf8)
     }
 
     // MARK: - Remote GPG key verification

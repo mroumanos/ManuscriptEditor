@@ -1,23 +1,27 @@
 // WelcomeView.swift
 //
-// Screen shown when no manuscript is open.
-// The "New Manuscript" button invokes `onNewManuscript` (injected by ContentView)
-// which shows an NSOpenPanel folder picker before creating the manuscript.
+// Screen shown when no manuscript is open — the project manager: create a
+// new manuscript, open one from a local folder or a remote repository, and
+// see/delete every known manuscript (app-data AND custom-folder projects).
 
 import SwiftUI
 
 struct WelcomeView: View {
     @Environment(ManuscriptStore.self) private var store
 
-    /// Called when the user wants to create a new manuscript.
-    /// ContentView provides this closure, which shows the folder picker.
+    /// Actions injected by ContentView (they own pickers/sheets).
     var onNewManuscript: () -> Void
+    var onOpenLocal: () -> Void = {}
+    var onOpenRemote: () -> Void = {}
 
     @State private var recentManuscripts: [ManuscriptSummary] = []
+    /// Manuscript awaiting delete confirmation.
+    @State private var pendingDelete: ManuscriptSummary?
+    @State private var deleteError: String?
 
     var body: some View {
         HStack(spacing: 0) {
-            // Left column — branding and new-manuscript action
+            // Left column — branding and project actions
             VStack(spacing: 24) {
                 Spacer()
 
@@ -32,14 +36,26 @@ struct WelcomeView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                Button(action: onNewManuscript) {
-                    Label("New Manuscript", systemImage: "plus.circle.fill")
-                        .font(.title3)
-                        .padding(.horizontal, 20)
-                        .padding(.vertical, 10)
+                VStack(spacing: 10) {
+                    Button(action: onNewManuscript) {
+                        Label("New Manuscript", systemImage: "plus.circle.fill")
+                            .frame(width: 220)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+
+                    Button(action: onOpenLocal) {
+                        Label("Open (Local)…", systemImage: "folder")
+                            .frame(width: 220)
+                    }
+                    .controlSize(.large)
+
+                    Button(action: onOpenRemote) {
+                        Label("Open (Remote)…", systemImage: "icloud.and.arrow.down")
+                            .frame(width: 220)
+                    }
+                    .controlSize(.large)
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
 
                 Spacer()
             }
@@ -48,9 +64,9 @@ struct WelcomeView: View {
 
             Divider()
 
-            // Right column — recent manuscripts
+            // Right column — every known manuscript, with delete
             VStack(alignment: .leading, spacing: 0) {
-                Text("Recent")
+                Text("Manuscripts")
                     .font(.headline)
                     .padding([.horizontal, .top], 20)
                     .padding(.bottom, 12)
@@ -58,35 +74,90 @@ struct WelcomeView: View {
                 if recentManuscripts.isEmpty {
                     VStack {
                         Spacer()
-                        Text("No recent manuscripts")
+                        Text("No manuscripts yet")
                             .foregroundStyle(.tertiary)
                         Spacer()
                     }
                     .frame(maxWidth: .infinity)
                 } else {
                     List(recentManuscripts) { summary in
-                        Button {
-                            store.open(id: summary.id)
-                        } label: {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(summary.title)
-                                    .font(.body)
-                                    .lineLimit(1)
-                                Text(summary.updatedAt, style: .relative)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
+                        row(summary)
                     }
                     .listStyle(.plain)
                 }
             }
-            .frame(width: 280)
+            .frame(width: 320)
         }
-        .onAppear {
-            recentManuscripts = store.listSaved()
+        .onAppear { refresh() }
+        .confirmationDialog(
+            "Delete \"\(pendingDelete?.title ?? "")\"?",
+            isPresented: Binding(get: { pendingDelete != nil },
+                                 set: { if !$0 { pendingDelete = nil } })
+        ) {
+            Button("Move to Trash", role: .destructive) {
+                if let summary = pendingDelete {
+                    deleteError = store.deleteManuscript(id: summary.id)
+                    refresh()
+                }
+                pendingDelete = nil
+            }
+            Button("Cancel", role: .cancel) { pendingDelete = nil }
+        } message: {
+            Text("Moves the manuscript folder (\(pendingDelete?.location.path(percentEncoded: false) ?? "")) to the Trash — recoverable from there.")
         }
+        .alert("Couldn't Delete", isPresented: Binding(
+            get: { deleteError != nil },
+            set: { if !$0 { deleteError = nil } }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(deleteError ?? "")
+        }
+    }
+
+    private func row(_ summary: ManuscriptSummary) -> some View {
+        HStack(spacing: 8) {
+            Button {
+                store.open(id: summary.id)
+            } label: {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(summary.title)
+                        .font(.body)
+                        .lineLimit(1)
+                    Text("Created \(summary.createdAt.formatted(date: .abbreviated, time: .omitted))")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text(summary.location.path(percentEncoded: false))
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            Spacer()
+
+            Button {
+                pendingDelete = summary
+            } label: {
+                Image(systemName: "trash")
+                    .foregroundStyle(.tertiary)
+            }
+            .buttonStyle(.plain)
+            .help("Move this manuscript's folder to the Trash")
+        }
+        .contextMenu {
+            Button("Open") { store.open(id: summary.id) }
+            Button("Reveal in Finder") {
+                NSWorkspace.shared.activateFileViewerSelecting([summary.location])
+            }
+            Button("Delete…", role: .destructive) { pendingDelete = summary }
+        }
+    }
+
+    private func refresh() {
+        recentManuscripts = store.listSaved()
     }
 }

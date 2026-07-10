@@ -176,6 +176,23 @@ final class ManuscriptStore {
         persistence.listManuscripts()
     }
 
+    /// Deletes a manuscript: its folder goes to the **Trash** (recoverable)
+    /// and it is forgotten from the recents list.  Returns an error, or nil.
+    func deleteManuscript(id: UUID) -> String? {
+        let dir = persistence.manuscriptDirectory(for: id)
+        do {
+            try FileManager.default.trashItem(at: dir, resultingItemURL: nil)
+        } catch {
+            return "Couldn't move the manuscript folder to the Trash: \(error.localizedDescription)"
+        }
+        persistence.forget(id: id)
+        if UserDefaults.standard.string(forKey: "lastOpenedManuscriptID") == id.uuidString {
+            UserDefaults.standard.removeObject(forKey: "lastOpenedManuscriptID")
+        }
+        if manuscript?.id == id { manuscript = nil }
+        return nil
+    }
+
     // MARK: - Persistence
 
     func trySave() {

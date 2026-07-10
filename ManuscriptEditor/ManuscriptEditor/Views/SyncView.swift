@@ -29,6 +29,9 @@ struct SyncView: View {
     /// Journal awaiting the sync confirmation itself.
     @State private var pendingSync: Journal?
     @State private var showAddJournal = false
+    /// Transient "successfully synced" confirmation (auto-dismisses).
+    @State private var successMessage: String?
+    @State private var successTask: Task<Void, Never>?
 
     private var journals: [Journal] { store.manuscript?.journals ?? [] }
     private let cardWidth: CGFloat = 640
@@ -38,6 +41,16 @@ struct SyncView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 Text("Sync").font(.title2.weight(.semibold))
+
+                if let successMessage {
+                    Label(successMessage, systemImage: "checkmark.circle.fill")
+                        .font(.callout.weight(.medium))
+                        .foregroundStyle(.green)
+                        .padding(10)
+                        .frame(maxWidth: cardWidth, alignment: .leading)
+                        .background(Color.green.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+                        .transition(.opacity)
+                }
 
                 savingCard
 
@@ -185,7 +198,9 @@ struct SyncView: View {
                         .foregroundStyle(.secondary)
                 }
                 Text("Original source of manuscript content."
-                     + (store.sourceHasUnstampedChanges ? " Has changes since its last stamp." : ""))
+                     + (store.sourceHasUnstampedChanges
+                        ? " Has edits since its last stamp — they're stamped automatically when a journal syncs."
+                        : ""))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -290,16 +305,24 @@ struct SyncView: View {
                 .font(.caption)
                 .foregroundStyle(.tertiary)
         } else if let source {
-            if upstreamNeedsStamp(journal) {
-                Label("\(source.upstreamName)'s latest has unstamped changes — syncing stamps it first",
-                      systemImage: "seal")
-                    .font(.caption)
-                    .foregroundStyle(.blue)
-            } else if let target = source.targetVersion, target.id != head?.parentID {
+            let behindStamp = source.targetVersion.map { $0.id != head?.parentID } ?? false
+            if behindStamp {
                 Label("\(source.upstreamName) has moved — fast-forward available",
                       systemImage: "arrow.triangle.2.circlepath")
                     .font(.caption)
                     .foregroundStyle(.blue)
+            } else if upstreamNeedsStamp(journal) {
+                // Current with the last stamp; the upstream just has newer
+                // unstamped edits.  Calm note, not an alarm.
+                VStack(alignment: .leading, spacing: 2) {
+                    Label("Up to date with \(source.upstreamName)'s last stamp",
+                          systemImage: "checkmark.circle")
+                        .font(.caption)
+                        .foregroundStyle(.green)
+                    Text("\(source.upstreamName) has newer edits — Sync stamps them and pulls the new version.")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
             } else if let upstreamID = source.upstreamJournalID,
                       store.syncSource(forJournal: upstreamID)?.targetVersion?.id
                         != store.latestVersion(forJournal: upstreamID)?.parentID {
@@ -338,10 +361,37 @@ struct SyncView: View {
             title: Text("Sync \(journal.name) from \(upstream)?"),
             message: Text(message),
             primaryButton: .destructive(Text("Sync")) {
-                store.syncJournal(journal.id)
+                performSync(journal)
             },
             secondaryButton: .cancel()
         )
+    }
+
+    /// Runs the sync and surfaces an explicit confirmation — the status line
+    /// alone was too quiet to read as success.
+    private func performSync(_ journal: Journal) {
+        guard let synced = store.syncJournal(journal.id) else { return }
+        let from = syncedFromLabel(of: synced)
+        let ordinal = store.versions(forJournal: journal.id).count
+        withAnimation { successMessage = "Successfully synced \(journal.name) from \(from) — now at v\(ordinal) / latest." }
+        successTask?.cancel()
+        successTask = Task {
+            try? await Task.sleep(for: .seconds(6))
+            guard !Task.isCancelled else { return }
+            withAnimation { successMessage = nil }
+        }
+    }
+
+    /// "Source v3" / "NEJM v2" — what the fresh head was derived from.
+    private func syncedFromLabel(of version: ManuscriptVersion) -> String {
+        guard let pid = version.parentID,
+              let parent = store.versions.first(where: { $0.id == pid }) else { return "Source" }
+        if parent.sourceStamp == true { return "Source v\(store.sourceOrdinal(of: parent))" }
+        if let jid = parent.journalID,
+           let journal = store.manuscript?.journals.first(where: { $0.id == jid }) {
+            return "\(journal.name) v\(store.journalOrdinal(of: parent))"
+        }
+        return "Source"
     }
 }
 

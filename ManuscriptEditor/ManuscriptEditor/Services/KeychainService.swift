@@ -27,7 +27,15 @@ enum KeychainService {
         let status = SecItemUpdate(query as CFDictionary, update as CFDictionary)
         if status == errSecItemNotFound {
             query[kSecValueData as String] = data
-            return SecItemAdd(query as CFDictionary, nil) == errSecSuccess
+            var addStatus = SecItemAdd(query as CFDictionary, nil)
+            if addStatus == errSecDuplicateItem {
+                // An item exists but isn't accessible to this build (created
+                // under a different sandbox partition — e.g. before the app
+                // was unsandboxed).  Clear the slot and write fresh.
+                SecItemDelete(baseQuery(for: accountID) as CFDictionary)
+                addStatus = SecItemAdd(query as CFDictionary, nil)
+            }
+            return addStatus == errSecSuccess
         }
         return status == errSecSuccess
     }

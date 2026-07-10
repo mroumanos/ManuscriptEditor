@@ -116,6 +116,15 @@ struct UserIdentityView: View {
                                     .help("Verified against \(handle)")
                             }
                         }
+                        // Confirm which key is in force: every stamp and note
+                        // from now on is signed with the checked key.
+                        if let fp = selectedFingerprint,
+                           let key = localKeys.first(where: { $0.fingerprint == fp }) {
+                            Label("\(key.name) (\(key.longID)) signs your stamps and notes",
+                                  systemImage: "checkmark.circle.fill")
+                                .font(.caption)
+                                .foregroundStyle(.green)
+                        }
                         if case .failure(let error) = testResult {
                             Label(error.localizedDescription, systemImage: "xmark.circle.fill")
                                 .font(.caption).foregroundStyle(.red).lineLimit(3)
@@ -234,10 +243,20 @@ struct UserIdentityView: View {
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
         panel.showsHiddenFiles = true
+        // Browse from HOME so .gnupg is selected as an item — starting inside
+        // it made it too easy to grant a subfolder by accident.
         panel.directoryURL = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".gnupg", isDirectory: true)
         panel.prompt = "Allow"
         guard panel.runModal() == .OK, let url = panel.url else { return }
+        // The pick must be the gpg home itself, not something inside it.
+        let looksLikeGPGHome = url.lastPathComponent == ".gnupg"
+            || FileManager.default.fileExists(
+                atPath: url.appendingPathComponent("private-keys-v1.d").path)
+        guard looksLikeGPGHome else {
+            testResult = .failure(AccountTestError.failed(
+                "\"\(url.lastPathComponent)\" isn't a GPG home — select the .gnupg folder itself."))
+            return
+        }
         SigningService.grantGnupgAccess(url)
         localKeys = SigningService.localGPGKeys()
         if localKeys == nil {

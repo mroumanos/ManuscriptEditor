@@ -78,6 +78,18 @@ xcodebuild -scheme ManuscriptEditor -destination 'platform=macOS' build
    `"\n"` case — a character-level parser silently swallows every Windows/Excel
    line break (the CSV importer once globbed whole files into one giant row this
    way). Normalize `\r\n` → `\n` before parsing, or iterate unicode scalars.
+10. **The app runs UNSANDBOXED** (`ENABLE_APP_SANDBOX = NO`) — deliberately.
+    The sandbox blocked two must-haves: reading `/opt/homebrew` (so `gpg` was
+    unreachable for the local-keyring dropdown) and reading `~/.gnupg` (grants
+    don't inherit to child processes). Do not re-enable it casually: sandboxed
+    and unsandboxed builds use **different data homes** (container vs real
+    `~/Library`) and **different Keychain partitions** (items written by one
+    are invisible to the other). `SandboxMigration.runIfNeeded()` (called
+    before the stores load) does the one-time container → real-`~/Library`
+    migration; `KeychainService.setSecret` recovers slots blocked by an
+    inaccessible other-partition item (delete-then-add on
+    `errSecDuplicateItem`). Sandbox-era Keychain secrets are unrecoverable —
+    users re-enter them once.
 
 ## Working style for LLM contributors
 

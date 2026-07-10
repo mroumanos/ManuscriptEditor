@@ -217,6 +217,72 @@ private struct TestConnectionRow: View {
     }
 }
 
+// MARK: - Secret field with inline test (same pattern as the GPG key row)
+
+/// A redacted secret field with a compact ⚡ test button immediately to its
+/// right and a green seal once the credential verifies.  The secret saves to
+/// the Keychain as it's typed; a failed save is reported in place.
+private struct SecretTestField: View {
+    let prompt: String
+    @Binding var secret: String
+    let run: () async throws -> String
+
+    @State private var isTesting = false
+    @State private var result: Result<String, Error>?
+    var saveFailed = false
+
+    var body: some View {
+        HStack(spacing: 8) {
+            SecureField(prompt, text: $secret)
+                .onChange(of: secret) { _, _ in result = nil }
+
+            Button {
+                isTesting = true
+                result = nil
+                Task {
+                    do { result = .success(try await run()) }
+                    catch { result = .failure(error) }
+                    isTesting = false
+                }
+            } label: {
+                if isTesting {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Image(systemName: "bolt")
+                }
+            }
+            .controlSize(.small)
+            .disabled(isTesting || secret.isEmpty)
+            .help("Test the connection with this credential")
+
+            if case .success = result {
+                Image(systemName: "checkmark.seal.fill")
+                    .foregroundStyle(.green)
+                    .help("Connection verified")
+            }
+        }
+
+        if saveFailed {
+            Label("Couldn't save to the Keychain — try re-entering it.",
+                  systemImage: "xmark.circle.fill")
+                .font(.caption).foregroundStyle(.red)
+        }
+        switch result {
+        case .success(let message):
+            Label(message, systemImage: "checkmark.circle.fill")
+                .font(.caption)
+                .foregroundStyle(.green)
+        case .failure(let error):
+            Label(error.localizedDescription, systemImage: "xmark.circle.fill")
+                .font(.caption)
+                .foregroundStyle(.red)
+                .lineLimit(2)
+        case nil:
+            EmptyView()
+        }
+    }
+}
+
 // MARK: - Backend account form
 
 struct BackendAccountForm: View {
@@ -224,6 +290,7 @@ struct BackendAccountForm: View {
     let account: BackendAccount
     @State private var draft: BackendAccount
     @State private var token: String
+    @State private var tokenSaveFailed = false
 
     init(account: BackendAccount) {
         self.account = account
@@ -239,38 +306,43 @@ struct BackendAccountForm: View {
                     LabeledContent("Provider") {
                         Text(draft.provider.rawValue).foregroundStyle(.secondary)
                     }
-                    TextField("Username / email", text: $draft.username)
                 }
 
                 Section("Credentials") {
-                    SecureField("Personal access token", text: $token)
+                    SecretTestField(prompt: "Personal access token",
+                                    secret: $token,
+                                    run: { try await AccountTesting.test(backend: draft) },
+                                    saveFailed: tokenSaveFailed)
                     if draft.provider == .github {
                         Text("Fine-grained token with Contents read & write (plus \"Administration\" if you'll create repositories from the app). Stored in your Keychain only.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
-                    TestConnectionRow { try await AccountTesting.test(backend: draft) }
                 }
 
                 Section {
                     Text(draft.provider.description)
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    Button("Remove Account", role: .destructive) {
+                    Button(role: .destructive) {
                         if let idx = appStore.backends.firstIndex(where: { $0.id == account.id }) {
                             appStore.deleteBackends(at: IndexSet([idx]))
                         }
+                    } label: {
+                        Text("Remove Account").foregroundStyle(.red)
                     }
                 }
             }
             .formStyle(.grouped)
         }
         .onChange(of: draft.displayName) { _, _ in appStore.updateBackend(draft) }
-        .onChange(of: draft.username)    { _, _ in appStore.updateBackend(draft) }
-        .onChange(of: token)             { _, new in KeychainService.setSecret(new, for: account.id) }
+        .onChange(of: token) { _, new in
+            tokenSaveFailed = !KeychainService.setSecret(new, for: account.id)
+        }
         .onChange(of: account.id) { _, _ in
             draft = account
             token = KeychainService.secret(for: account.id) ?? ""
+            tokenSaveFailed = false
         }
     }
 }
@@ -301,7 +373,9 @@ struct AIAccountForm: View {
 
                 Section("Credentials") {
                     if draft.provider.requiresAPIKey {
-                        SecureField("API key", text: $key)
+                        SecretTestField(prompt: "API key",
+                                        secret: $key,
+                                        run: { try await AccountTesting.test(aiService: draft) })
                         Text("Stored in your Keychain only — never in app or manuscript files.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -309,19 +383,21 @@ struct AIAccountForm: View {
                         Text("No key needed — connects to the local service.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                        TestConnectionRow { try await AccountTesting.test(aiService: draft) }
                     }
-                    TestConnectionRow { try await AccountTesting.test(aiService: draft) }
                 }
 
                 Section {
                     Text(draft.provider.description)
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    Button("Remove Account", role: .destructive) {
+                    Button(role: .destructive) {
                         if let idx = appStore.aiServices.firstIndex(where: { $0.id == account.id }) {
                             KeychainService.deleteSecret(for: account.id)
                             appStore.deleteAIServices(at: IndexSet([idx]))
                         }
+                    } label: {
+                        Text("Remove Account").foregroundStyle(.red)
                     }
                 }
             }
