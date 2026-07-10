@@ -1,0 +1,24 @@
+# macOS
+.DS_Store
+
+# Xcode
+ManuscriptEditor/build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+*.xccheckout
+*.moved-aside
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.mode2v3
+!default.mode2v3
+*.perspectivev3
+!default.perspectivev3
+
+# Release artifacts (published via GitHub Releases, not the repo)
+dist/
+
+# Local scratch (not part of the published project)
+prompt.txt

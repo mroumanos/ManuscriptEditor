@@ -1,0 +1,408 @@
+# 05 — Features & Acceptance Criteria
+
+Each feature lists the intent and concrete, checkable acceptance criteria. "AC"
+items are the bar for "done."
+
+## A. Manuscript lifecycle & storage
+
+Intent: a manuscript is a folder the user owns.
+- AC: New manuscript prompts a folder picker; `manuscript.json`, `figures/`,
+  `data/` are created in the chosen folder.
+- AC: Access persists across launches via security-scoped bookmark.
+- AC: Window title shows the manuscript name at all times.
+- AC: Older saved manuscripts still open (backward-compatible decoding).
+
+## B. Source content authoring
+
+Intent: most time is spent here; it must be excellent and AI-optional.
+- Components: Authors, Abstract, Keywords, body Sections (add/reorder/rename/
+  delete; custom types allowed), Figures, Tables, Bibliography, Letter to Editor.
+- AC: Each list view (Authors/Figures/Tables/Bibliography/Data) auto-selects the
+  first item; an empty state offers a centered "Add …" action (no broken
+  half-empty split).
+- AC: Each added item has a clear inline delete affordance.
+- AC: Prose editors are rich text (see §G). Word counts update live.
+- AC: Letter to Editor has header (icon + institution + subtitle), body, and
+  signature, with a preview toggle.
+- AC: **Custom sections with per-journal activation.** Add sections from an
+  inline "＋ Add Section" row at the **bottom of the section list** (not a toolbar
+  button); titles are kept **unique**. A new section is **created for every
+  journal** (shared structure). Each journal can **deactivate** a section it
+  doesn't use via the eye toggle in that section's pane header — deactivated ⇒
+  **empty, uneditable, and excluded from Checks and Export** (e.g. keep a
+  Disclosure section active only for NEJM). Renaming, reordering, and deleting
+  apply everywhere; content is per-journal. A section absent from an older cut
+  shows a clean "Not included in this version" state (no broken rendering).
+
+## C. Data repository + SQL binding
+
+Intent: data lives once; figures/tables reference it; cuts convert only SQL.
+- AC: Import CSV → stored as SQLite in `data/`; import images → copied to `data/`.
+- AC: A CSV asset has a SQL editor; results show in a grid; errors show inline.
+- AC: Figures can reference a CSV (chart: line/bar/histogram via SQL) **or** an
+  image; tables can reference a CSV (SQL → table). Reference = `dataAssetID` + SQL.
+- AC: Changing journals/cuts never alters underlying data — only the SQL/format.
+- AC: Each data asset has a delete affordance.
+
+## D. Journals, views, and requirements
+
+Intent: a journal is what you adapt *for*; it bundles content **requirements** and
+an output-format **view** (both required). The Source is the root journal.
+- AC: Add a journal from a **preset** (supplies requirements + view) or custom.
+  Every journal has `JournalRequirements` **and** a `ViewConfig`.
+- AC: The **Source** journal exists from creation with **default (empty)
+  requirements** and a **default view**.
+- AC: A journal's default view is derived from its requirements
+  (`ViewConfig.from(requirements:)`): sections, export format, separate-figures
+  doc. Users can also create/manage **custom views** (Preferences → Views).
+- AC: **View = output format only** (documents, per-section title/font/spacing,
+  line numbering, export format). It is NOT content requirements and NOT the
+  user's global editor preferences. Keep these three separate everywhere.
+- AC: Target journals carry submission config; Source does not submit.
+
+### D2. Submission profiles (article types)
+
+Intent: one journal accepts different **article types** (Original Article, Review,
+Case Report, …), each with its own rules and layout.
+- AC: A journal has **one or more submission profiles**. A profile bundles, for a
+  named article type: its **checks** (`JournalRequirements`) **and** its **export
+  outline** (a view — sections, order, per-section format; see M). Checks and
+  export travel together per profile.
+- AC: A journal may include a **Custom** profile the user defines.
+- AC: The active profile is selectable per version; Checks and Export both use the
+  **active profile** so what's verified matches what's exported.
+- MODEL: `Journal.profiles: [SubmissionProfile]` where
+  `SubmissionProfile { articleType, requirements, outlineViewConfigID }`. This
+  supersedes the single requirements + view per journal and ties into the pending
+  migration (see [`09-roadmap.md`](09-roadmap.md)). The Source journal has one
+  default profile with empty requirements + a default outline.
+
+## E. Versioning (within a journal)
+
+Intent: every journal (incl. Source) has its own save-point history.
+- AC: **Save** persists the journal's working content; **Save new version** stamps
+  a new `vN` snapshot.
+- AC: The user can **roll back / forward** through a journal's versions, changing
+  only that journal.
+- AC: A per-pane version control surfaces the current version and these actions.
+- AC: When a journal has unsaved edits, show a prominent **unsaved-changes
+  banner** that triggers Save when clicked.
+
+  ![Unsaved changes banner](examples/banner-for-unsaved-content.png)
+
+## F. Lineage, cuts, sync & rollback
+
+Intent: derivation is tracked as edges between journal *versions*; updates
+propagate by explicit, individual fast-forwards.
+- AC: The **Journals** panel shows a lineage tree rooted at **Source** (unlimited
+  depth).
+- AC: Creating a journal from a parent journal's current version makes the child
+  at `v1` and an edge `parent@vX → child@v1`.
+- AC: Editing a parent forward (new versions) does **not** alter existing edges.
+- AC: **Sync** re-derives one child from its parent's newer version: stamps a new
+  child version and a new edge `parent@vNow → child@vNew`. **Never recursive.**
+  Example: `Source@v2 → NEJM@v1`; Source edited to `v3`; Sync NEJM ⇒ `NEJM@v2` and
+  edge `Source@v3 → NEJM@v2`.
+- AC: **Rollback** restores the prior edge and **soft-archives** the newer
+  versions it produced (hidden but recoverable — not hard-deleted). Example:
+  `Source@v3 → NEJM@v2` with prior `Source@v2 → NEJM@v1` ⇒ rollback re-activates
+  `Source@v2 → NEJM@v1` and archives `Source@v3`, `NEJM@v2`.
+- AC: **Phase I** — cut/sync creates the journal version and lineage edge and
+  **seeds the child from the parent snapshot**; the user reconciles content
+  **manually**. **Phase II** — the configured **AI service** auto-derives the
+  child content toward the child's requirements.
+- AC (implemented): **Sync pane** — a dedicated sidebar item (between Settings
+  and Checks). One card per target journal showing the lineage edge it hangs
+  from (upstream name + the parent-version badge), the journal node with its
+  current head badge, a drift status ("up to date" / "upstream has moved —
+  fast-forward available"), and a blue **Sync** button. Syncing shows a
+  **warning dialog** ("overwrites what currently exists in the journal's
+  working head; previous versions remain in history") before creating the new
+  version + edge via `ManuscriptStore.syncJournal`.
+  Because syncs are one edge and never recursive, the status must not
+  overstate freshness for chains through another journal: when the upstream
+  journal is itself behind *its* upstream, the card warns "sync it first"
+  (orange) instead of a green "up to date"; when up to date through a journal
+  whose root is the live Source, the card dates the content the upstream
+  carries and the warning dialog names the exact snapshot that will be copied
+  ("Nature does not pull from Source directly — sync NEJM first, then
+  Nature").
+- AC (implemented): **Versions pane is per-journal** — a journal picker, that
+  journal's **linear** history (v1 → v2 …, newest = working head, leaf-only
+  delete), a **lineage diagram** of the upstream journal it was cut from and
+  downstream journals cut from it (arrows connect the exact versions — see
+  `LineageDiagram`, modeled on examples/lineage-detailed.png), and the selected
+  version's details. Version numbers in these views are **per-journal
+  ordinals** (`journalOrdinal`). The Versions pane no longer embeds
+  requirements/checklists — the live checklist lives in **Checks** (§J);
+  requirements editing lives in the Journals settings.
+- NOTE: Two open design questions remain in [`02-domain-model.md`](02-domain-model.md)
+  (multi-edge endpoints on one version; which version the tabs show by default) —
+  resolve before implementing, don't guess.
+
+### Lineage visualization (two views)
+
+**Compressed view** — the default tree. Each journal node shows its **current
+version** (e.g. NEJM v2, PLOS v1, Nature v1); the edge into it is labeled with the
+**parent version** it derived from (Source v2, v3, …). The Source node needs no
+version label because the edges carry it. A **sync icon** on an edge means a
+fast-forward is available (the parent has advanced past the edge).
+
+![Compressed lineage with sync indicators](examples/lineage-management.png)
+
+![Compressed lineage tree](examples/lineage-compressed.png)
+
+**Detailed view** — opened by clicking an edge between two journals; shows the
+**historical and most-recent edges** between just those two journals (e.g.
+`Source v1→NEJM v1`, then `Source v2→NEJM v2`), so the derivation history is
+legible.
+
+![Detailed lineage between two journals](examples/lineage-detailed.png)
+
+## G. Side-by-side comparison & editing
+
+Intent: compare/edit journals together.
+- AC: Comparison tabs at top list active **journals**, color-coded; Source is a
+  closable tab; ＋ reopens closed journals.
+- AC: Selecting a **Content** item with ≥1 tab open renders one **editable** pane
+  per tab; sidebar navigation moves all panes together.
+- AC: Editing a pane writes to that journal's working content, not other journals.
+- AC: With zero tabs open, the Content section disappears and selection falls back
+  to Overview.
+
+## H. Notes & feedback (first-class)
+
+Intent: leave feedback for oneself or collaborators, anchored to content.
+- AC: A note can be attached to a content element (figure, table, author,
+  section, …) via a "notes" affordance, or to a **highlighted text range** in
+  prose. Selecting text shows a small action popover (edit / **add comment** /
+  react); choosing add-comment anchors a note to that range.
+- AC: Notes show author + timestamp and can be marked resolved, displayed in a
+  panel beside the content.
+- AC: Notes are visible while comparing journals side-by-side.
+
+![Highlight selection → add-comment popover](examples/text-highlight-add-notes.png)
+![Note anchored to a highlight, with author + timestamp](examples/text-highlight-with-notes.png)
+
+## I. Rich text editing
+
+Intent: clean, modern, capable prose editing.
+- AC: Editor backed by `NSTextView` (TextKit 1) storing `RichText` (plain + RTF).
+- AC: **Inline toolbar** (not a popover) at the top: bold, italic, underline,
+  strikethrough, superscript, subscript | align left/center/right/justify |
+  bulleted list. Aligned to the text column.
+- AC: **Paste strips source formatting.** The editor keeps one base style
+  (final typography is chosen per export outline); ⌘V re-sets pasted text in
+  the editor's default format, preserving only inline emphasis (bold, italic,
+  underline, strikethrough, super/subscript), reference tokens when pasting
+  from another section, and dropping images/attachments.
+- AC: **Line-number gutter** numbering visual (wrapped) lines, vertically aligned
+  to each line, reflowing when wrap width changes.
+- AC: **Width ruler** with a draggable handle setting the wrap column (page-like
+  layout); persisted (`editorWrapWidth`).
+- AC: Typography (font family/size/line-spacing) is user-configurable and shared
+  across editors.
+- Visual references (the formatting bar shown is the longer-term target — see
+  [`06-design-system.md`](06-design-system.md#visual-references) for which controls
+  are Phase I vs later):
+
+  ![Formatting bar target](examples/text-editing-bar.png)
+  ![Width ruler](examples/text-width-ruler.png)
+  ![Line numbering](examples/line-numbering.png)
+
+## J. Checks (live, per-journal, comparable)
+
+> **Implemented shape:** the Checks pane is the live submission **checklist
+> only** (ChecklistService results — word/asset limits, required sections,
+> custom rules — green ✓ / red ✗ with a summary banner). A journal pane checks
+> its own journal; the Source pane has a journal picker. Requirements *editing*
+> lives in the Journals settings, not here.
+
+Intent: deterministic requirement verification that is **always current** and
+viewable **side-by-side per journal**, like any Content item.
+- AC: Checks evaluates a journal's content against **that journal's**
+  `JournalRequirements` (word/abstract limits, required sections present &
+  non-empty, figure/table/reference counts, custom rules) and renders a pass/fail
+  checklist with a ready/attention summary.
+- AC: **Live.** Results recompute immediately as content changes — edit a journal
+  over its word count and that check flips to a red ✗ without any manual refresh;
+  bring it back under and it returns to a green ✓.
+- AC: **Comparable.** With multiple journal tabs open and **Checks** selected, the
+  detail shows one checklist pane per open journal (e.g. Source ✓ all green, NEJM
+  ✗ over word count), each evaluated against its own journal's requirements and
+  content. Selectable and navigable exactly like the Abstract page.
+- AC: Checks are **derived, not stored** — computed on demand from content +
+  requirements (so they can never go stale).
+- Implementation note: because content edits flow through the store and the
+  stores are `@Observable`, a checks pane that reads `ChecklistService.run(...)`
+  in its `body` recomputes automatically on every edit. Keep it that way.
+
+## K. Global integrations (account-free)
+
+Intent: a **backend** (cloud storage) and an **AI service** (LLM) are different
+things; neither is needed for Phase I (manual, local) editing.
+- AC: Preferences → Backend: add/remove GitHub/Office365/Dropbox/Google Docs/
+  GitLab accounts that say **where the project is stored in the cloud** (persist
+  across manuscripts). One is the manuscript's "active" backend (Settings).
+  **Phase II** = save-and-share: push the project to the active backend on every
+  Save / Save new version, and fetch/restore. **Active collaboration/concurrency
+  is Phase III (stub only).**
+- AC: Preferences → AI: add/remove Claude/ChatGPT/Gemini/Ollama services used for
+  content **adaptation/revision** (**Phase II**; needs Keychain for keys). In
+  Phase I, cuts are created and edited **manually** without any AI. Never conflate
+  AI with the storage backend.
+
+## L. Theming & professionalism
+
+Intent: the product must look professional.
+- AC: System/Light/Dark applies app-wide (main + Preferences windows).
+- AC: Lists are left-aligned and fill their pane (no floating "glass" cards, no
+  centered shrunken content); detail fills available space.
+- AC: Spacing, color, and typography follow [`06-design-system.md`](06-design-system.md).
+
+## M. Export — the submission package (Phase I — build now)
+
+Intent: for a given journal (and active **profile**/article type), **export
+produces everything needed to submit online** — correctly formatted, in the right
+document types, laid out to the journal's outline. It is a complete package, not
+just a rendered blob.
+- AC: Export targets a **version** (Source or a cut) using its journal's **active
+  profile** — the profile's **export outline** decides *what sections go in what
+  order and in what format*, across **all components** (title, authors, abstract,
+  keywords, body sections, journal-specific sections, figures, tables,
+  bibliography, letter to editor), not just body sections.
+- AC (implemented): **Per-journal export outline, editable visually.** Every
+  journal (and Source) has a pre-configured `ExportConfig` shown in the Export
+  pane as a **stacked list of document cards**. The user can add/remove
+  documents, add components (title block, abstract, keywords, body sections by
+  name, figures, tables, references, cover letter) and **page breaks** inside a
+  document, **drag items to reorder** (three-line grab handle per row). The
+  card header holds the **file type** and the page geometry (**margins**,
+  **single vs two-column (IEEE-style)**) — all typography lives in the per-item
+  columns (no document-level format row). The outline persists on the journal
+  (`Journal.exportConfig` / `Manuscript.sourceExportConfig`) once edited; until
+  then the standard outline is derived live (the pane snapshots it into state
+  so ids stay stable while editing).
+- AC (implemented): **Per-item overrides, shown as columns.** The item list has
+  aligned columns — **Font · Size · Spacing · Lines** — with inline controls on
+  every row showing the item's *effective* format; changing any value creates
+  that item's override (`ExportItem.format`; right-click → "Reset Formatting to
+  Document"). Click the **item name to rename its exported heading**
+  (export-level `customTitle`; empty reverts). Margins/columns remain
+  document-level (page geometry). PDF line numbering follows the per-item
+  effective format (attribute-driven); LaTeX emits
+  `\linenumbers`/`\nolinenumbers` transitions.
+- AC (implemented): **Headings in output** get a blank line before and after,
+  and are **capitalized by default** (first letter; applies to renamed/custom
+  titles too, in attributed output and LaTeX alike).
+- AC (implemented): **Document types.** **PDF** (custom dependency-free CoreText
+  paginator honoring margins, page breaks, columns, and continuous line
+  numbers), **DOCX**, **RTF** (attributed writers with margins; page breaks as
+  form feeds), and **LaTeX** source (`article` class; `twocolumn`, `geometry`
+  margins, `setspace`, `lineno`; body as escaped plain text in v1). HTML/plain
+  remain in the legacy ⌘E sheet.
+- AC: **Package, not one file.** Export writes a folder containing every
+  outline document; figure image files are copied in whenever a document
+  includes the figures block, so the package is self-contained.
+- AC: Figures/tables render from their data binding (source + SQL) or uploaded
+  image.
+- AC: Export uses the journal's **working head** (its latest version; Source
+  exports the live manuscript). The user picks the destination folder; on
+  completion, reveal the package in Finder.
+- IMPLEMENTATION: `ExportService.exportPackage(config:…)` assembles attributed
+  segments per document via `OutlineBuilder` (re-setting prose in the document
+  font while preserving bold/italic, re-rendering citation tokens via
+  `RefEngine`), paginates PDF with `PDFPaginator`, and emits LaTeX directly. No
+  third-party dependencies.
+- Follow-ups: submission profiles (multiple outlines per journal by article
+  type); styled LaTeX body; true DOCX section breaks/columns.
+
+## N. Publishing & submission (Phase III — stub only)
+
+- Submit via the journal's web interface where possible, with submission status
+  tracking; manual, editable status otherwise. Journals with no integration stay
+  "None" with an editable manual status. **Stub honestly** (disabled controls)
+  until Phase III.
+
+## O. Bibliography — Zotero connector
+
+Intent: manage the bibliography from the user's **locally-running Zotero** rather
+than re-entering references by hand.
+- AC: Preferences → Backend/Integrations (or Bibliography) can connect to a local
+  Zotero over its **local HTTP API** (`http://localhost:23119`) — no account, no
+  cloud round-trip. Requires the app's `com.apple.security.network.client`
+  entitlement.
+- AC: Browse/search the local Zotero library and **import selected references** as
+  `BibEntry`s; optionally keep them linked (by Zotero item key) so they can be
+  re-synced.
+- AC: Insert citations that reference imported entries; the journal's citation
+  style governs rendering (Phase II for full CSL styling).
+- AC: Degrade gracefully when Zotero isn't running (clear, non-blocking message).
+- PHASE: This is an external **integration → Phase II** per the phasing, but is a
+  high priority within it. Implement behind the same "bring-your-own service"
+  model as other integrations; never block Phase I bibliography editing on it.
+
+## P. In-text references (implemented)
+
+Intent: reference bibliography entries, figures, and tables from any prose
+editor as **live, formatted, auto-numbered tokens**, and keep the bibliography
+ordered by use. `RefEngine` (Services/) is the single home for this logic.
+
+**Trigger & insertion**
+- AC: Typing **`/`** at a word boundary in any rich text box (abstract,
+  sections, letter) opens a live dropdown with categorized candidates —
+  **bibliography references** ("Ref • Key — Title"), **figures**
+  ("Figure 2 — Title"), and **tables**; further typing filters by key, title,
+  authors, journal, or category word ("figure", "table"). `/` mid-word
+  ("and/or", DOIs, URLs) does not trigger; no matches → no dropdown.
+- AC: Accepting (Return/Tab, or click) inserts a **formatted token** —
+  default **`[1]`** numeric for citations, "Figure 2"/"Table 1" for
+  cross-references — bold, carrying an identity link
+  (`cite://<id>?f=<style>`, `figref://<id>`, `tabref://<id>`). The list does
+  not preview into the text while arrowing; dismissing leaves exactly what was
+  typed.
+- AC: **Hovering a token** shows a details card after ~0.25s: key + "cited as
+  [n]" and the full reference (or figure/table title + caption). The `.toolTip`
+  attribute remains as fallback.
+- AC: **Clicking a token** opens a menu headed by those same details, then (for
+  citations) a "Citation Format" section and Remove.
+
+**Citation styles** (click a token → menu; per-token choice, persisted in the
+link URL)
+- `[1]` numeric, bracketed — IEEE / Vancouver (default)
+- `(1)` numeric, parenthesized — Vancouver variant
+- `¹` superscript numeric (Unicode digits) — AMA / Nature / NEJM
+- `(Smith et al., 2024)` author–year parenthetical — APA / Harvard / Chicago
+- `Smith et al. (2024)` narrative — APA narrative
+- Menu also offers **Remove Citation/Reference** (deletes the token text).
+
+**Automatic numbering & ordering**
+- AC: Numbers are assigned by **first appearance in document order** (abstract
+  → active sections → letter); re-citing an entry **reuses its number**.
+  Reordering text (e.g. swapping paragraphs) **renumbers tokens automatically**
+  in every open pane, and stale closed-editor text is corrected on open and on
+  export.
+- AC: The **bibliography array auto-orders** to match: cited entries first, in
+  citation order; uncited after, keeping their manual drag order (dragging a
+  cited entry snaps back). The manual "Order" button is gone — ordering is an
+  invariant, enforced on every store mutation.
+- AC: Figure/table tokens re-render when the target's number changes; deleted
+  targets render as **`[?]`** so a stale number never poses as live.
+- Mechanism: each `RichText` persists `refs` (ordered token list, extracted by
+  the editor on change; back-filled from RTF once for older files), so
+  numbering/ordering never decode RTF on the keystroke path. Editors skip the
+  rewrite pass unless the rendering context's signature changed.
+
+**Bibliography annotations**
+- AC: Cited entries show a blue **`[n]` number badge** and a green quote badge
+  with the citation count in the list; the entry details include a **"Cited
+  In"** section listing each prose field (Abstract, section title, Letter to
+  Editor) with per-field counts — no extra list column.
+
+**Export**
+- AC: Export re-renders every token against final numbering, strips the in-app
+  link/tooltip/bold chrome, and prints the references list in citation order so
+  printed numbers match in-text tokens.
+- Known limits (v1): no grouped ranges (`[1–3]` renders as separate tokens);
+  letter-to-editor citations share the manuscript numbering; legacy `{Key}`
+  tokens from the previous scheme upgrade to `[n]` automatically on open.

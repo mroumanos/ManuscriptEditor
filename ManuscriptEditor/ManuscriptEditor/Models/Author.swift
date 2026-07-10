@@ -1,0 +1,65 @@
+// Author.swift
+//
+// Represents one author on a manuscript.  Authors are ordered (first author, last author,
+// etc.) and the user can reorder them by dragging rows in AuthorsView.
+
+import Foundation
+
+/// All the information the app tracks for a single manuscript author.
+///
+/// Most journal submission systems require names, institutional affiliations, contact
+/// email, and ORCID identifiers.  This struct captures all of those.
+struct Author: Codable, Identifiable, Sendable {
+
+    /// Stable unique identifier.  Used by SwiftUI's `ForEach` to track rows efficiently.
+    var id: UUID
+
+    /// Author's given / first name.
+    var firstName: String
+
+    /// Author's family / last name.
+    var lastName: String
+
+    /// Contact email address — required for the corresponding author.
+    var email: String
+
+    /// List of institutional affiliations (department + institution).
+    /// An author can have more than one (e.g. dual appointments).
+    var affiliations: [String]
+
+    /// Whether this author is the one journals should contact for revisions.
+    /// Typically shown with a star or envelope symbol in author lists.
+    var isCorresponding: Bool
+
+    /// ORCID persistent researcher identifier, formatted as 0000-0000-0000-0000.
+    /// Many journals now require or strongly recommend this.
+    var orcid: String
+
+    /// Zero-based position in the author list.  First author = 0.
+    var order: Int
+
+    // MARK: - Computed
+
+    /// "First Last" — used in export and overview display.
+    var fullName: String { "\(firstName) \(lastName)".trimmingCharacters(in: .whitespaces) }
+
+    /// "Last, First" — conventional format for reference lists and author lines.
+    var displayName: String { lastName.isEmpty ? firstName : "\(lastName), \(firstName)" }
+
+    // MARK: - Factory
+
+    /// A blank author value ready for the user to fill in.
+    /// `order` should be set to the author's intended position (0 = first author).
+    static func empty(order: Int = 0) -> Author {
+        Author(
+            id: UUID(),
+            firstName: "",
+            lastName: "",
+            email: "",
+            affiliations: [""],   // start with one empty affiliation slot
+            isCorresponding: false,
+            orcid: "",
+            order: order
+        )
+    }
+}
