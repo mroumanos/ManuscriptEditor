@@ -21,12 +21,11 @@ struct ChecksView: View {
     /// Which version this checklist evaluates (Source by default).
     var versionRef: VersionRef = .source
 
-    /// Journal picked in the Source pane (version panes use their own journal).
-    @State private var pickedJournalID: UUID?
-
     private var journals: [Journal] { store.manuscript?.journals ?? [] }
 
-    /// The journal behind this pane's version, when it is journal-based.
+    /// The journal behind this pane's tab.  The pane IS its tab's journal —
+    /// there is no picker; the Source pane has no requirements of its own
+    /// (Source uses empty defaults per the domain model).
     private var paneJournal: Journal? {
         guard case .version(let id) = versionRef,
               let jid = store.versions.first(where: { $0.id == id })?.journalID
@@ -34,19 +33,12 @@ struct ChecksView: View {
         return journals.first { $0.id == jid }
     }
 
-    /// The journal whose requirements drive this pane's checklist.
-    private var activeJournal: Journal? {
-        paneJournal
-            ?? journals.first(where: { $0.id == pickedJournalID })
-            ?? journals.first
-    }
-
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 if store.manuscript(for: versionRef) == nil {
                     ContentUnavailableView("No manuscript open", systemImage: "doc")
-                } else if let journal = activeJournal {
+                } else if let journal = paneJournal {
                     header(journal)
                     checklist(journal)
                 } else {
@@ -55,9 +47,6 @@ struct ChecksView: View {
             }
             .padding(20)
             .frame(maxWidth: .infinity, alignment: .topLeading)
-        }
-        .onAppear {
-            if pickedJournalID == nil { pickedJournalID = journals.first?.id }
         }
     }
 
@@ -68,16 +57,6 @@ struct ChecksView: View {
         HStack {
             Text(journal.name).font(.headline)
             Spacer()
-            // The Source pane can check against any journal.
-            if paneJournal == nil, journals.count > 1 {
-                Picker("Journal", selection: $pickedJournalID) {
-                    ForEach(journals) { j in
-                        Text(j.name).tag(Optional(j.id))
-                    }
-                }
-                .labelsHidden()
-                .frame(maxWidth: 220)
-            }
         }
     }
 
@@ -134,12 +113,12 @@ struct ChecksView: View {
                 .font(.system(size: 48, weight: .thin))
                 .foregroundStyle(.secondary)
             VStack(spacing: 8) {
-                Text("No Journal to Check Against")
+                Text("Source Has No Requirements")
                     .font(.title3.weight(.semibold))
-                Text("Checks evaluate your content against a journal's requirements.\nCut a version for a journal in Versions to get started.")
+                Text("Checks evaluate a journal cut against that journal's requirements.\nOpen a journal tab (＋ above) to see its checklist beside this pane.")
                     .multilineTextAlignment(.center)
                     .foregroundStyle(.secondary)
-                    .frame(maxWidth: 400)
+                    .frame(maxWidth: 420)
             }
             Spacer()
         }

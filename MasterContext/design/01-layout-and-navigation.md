@@ -15,7 +15,7 @@ One main window per manuscript (`NavigationSplitView`): **sidebar** left,
 │ SIDEBAR          │ [📄 Source ✕] [⌥ NEJM ✕]                       [＋]  │
 │  Manuscript      ├───────────────────┬──────────────────────────────────┤
 │  Journal         │  pane (Source)    │  pane (NEJM)                     │
-│  Content         │  capsule·toolbar  │  capsule·toolbar                 │
+│  Content         │  header·toolbar   │  header·toolbar                  │
 │  ─ bottom bar ─  │  ruler·gutter·text│  ruler·gutter·text               │
 └──────────────────┴───────────────────┴──────────────────────────────────┘
 ```
@@ -40,11 +40,12 @@ The tab bar is the app's most important state indicator (00 §3.3):
 - Each chip = one active journal (**Source is a normal, closable tab**), titled
   `Journal vN` with per-journal ordinals; non-head versions marked **"(older)"**.
 - Chips are **color-coded by the journal** (Source blue, then orange, green,
-  purple, pink, teal). The chip, its pane's title capsule, and any lineage/Sync
-  reference to that journal share the same color — color is identity. Key colors
-  to the `VersionRef`, never the tab index, so closing a tab never recolors the
+  purple, pink, teal); panes render below the chips in the same left-to-right
+  order, so the chip carries each pane's identity. Key colors to the
+  `VersionRef`, never the tab index, so closing a tab never recolors the
   survivors.
-- **＋** opens a picker of journals not currently open, working heads first.
+- **＋** opens a picker of journals not currently open, offering **working
+  heads only** — older versions are history (Versions pane), never tabs.
   Journals are *created* in the Journals panel, never here.
 - The "Source" tab sits first and never shifts position.
 
@@ -58,10 +59,11 @@ The tab bar is the app's most important state indicator (00 §3.3):
   imply otherwise.
 - With zero tabs open the Content section disappears and selection falls back to
   Overview — never a dead selection pointing at nothing.
-- Each pane carries its **colored title capsule** (the content item's name; for
-  body sections it is the editable section title) and a **per-pane version
-  control** (`v3 ▾`: Save / Save new version / roll back-forward) scoped to that
-  journal only.
+- Each pane carries a **slim header** (word count, section-activation eye,
+  notes — never a repeat of the selected item's name; the sidebar names it) and
+  a **per-pane version control** (`v3 ▾`: Save / Save new version / roll
+  back-forward) scoped to that journal only. Body sections rename via the
+  sidebar context menu.
 
 ## 4. Panels, popovers, and sheets
 

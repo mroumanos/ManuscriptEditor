@@ -60,10 +60,11 @@ enum SidebarItem: Hashable {
     }
 
     /// Comparable items render one pane per open journal tab in side-by-side.
-    /// This is the Content items plus **Checks** (each pane evaluates its own
-    /// journal's content against its own view — live).
+    /// This is the Content items plus the per-journal panes — **Checks**,
+    /// **Versions**, and **Export** — each pane representing its own tab's
+    /// journal (starting with Source), with no journal picker of its own.
     var isComparable: Bool {
-        isContent || self == .checks
+        isContent || self == .checks || self == .versions || self == .export
     }
 
     /// Stable key used to anchor `Note`s to this content item.
@@ -116,6 +117,9 @@ struct ContentView: View {
     /// Drives the Export sheet (File → Export Submission Package…).
     @State private var showingExport = false
 
+    /// Confirmation before Load from Remote overwrites local content.
+    @State private var confirmLoadFromRemote = false
+
     var body: some View {
         NavigationSplitView {
             SidebarView(selection: $selection, hasOpenTabs: !openTabs.isEmpty)
@@ -159,6 +163,33 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: .exportManuscript)) { _ in
             if store.manuscript != nil { showingExport = true }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .saveToRemote)) { _ in
+            store.saveToRemote(appStore: appStore)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .loadFromRemote)) { _ in
+            if store.manuscript != nil { confirmLoadFromRemote = true }
+        }
+        // Pull replaces local content — always confirmed, never silent.
+        .confirmationDialog(
+            "Load from Remote?",
+            isPresented: $confirmLoadFromRemote
+        ) {
+            Button("Replace Local Content", role: .destructive) {
+                store.loadFromRemote(appStore: appStore)
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Replaces this manuscript's content, figures, and data with the files on the active backend. Local versions saved in the remote manuscript.json come with it; anything not pushed is overwritten.")
+        }
+        // Remote failures are loud (alert); successes stay quiet (sidebar line).
+        .alert("Remote Sync Failed", isPresented: Binding(
+            get: { store.remoteError != nil },
+            set: { if !$0 { store.remoteError = nil } }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(store.remoteError ?? "")
+        }
         // After a sync, retarget any open tab from the journal's old head to
         // its new one so the synced content is what the user sees.
         .onReceive(NotificationCenter.default.publisher(for: .journalHeadChanged)) { note in
@@ -197,16 +228,17 @@ struct ContentView: View {
         }
     }
 
-    /// One comparison pane: a colored capsule holding the section title (which
-    /// version it belongs to is shown by the colour, matching the tab chip),
-    /// then the editable content view bound to that version.  Both Source and
+    /// One comparison pane: a slim header (word count, per-journal section
+    /// activation, notes) over the editable content view bound to that
+    /// version.  The selected item's name is NOT repeated here — the sidebar
+    /// selection already names it; which journal a pane shows is carried by
+    /// the tab chip above it (panes render in tab order).  Both Source and
     /// versions are fully editable.
     @ViewBuilder
     private func versionPane(_ ref: VersionRef, item: SidebarItem, index: Int) -> some View {
-        let color = versionColor(at: index)
         VStack(spacing: 0) {
             HStack(spacing: 8) {
-                paneTitleCapsule(item: item, ref: ref, color: color)
+                deactivatedBadge(item: item, ref: ref)
                 Spacer()
                 if let words = wordCount(for: item, ref: ref) {
                     Label("\(words) words", systemImage: "text.word.spacing")
@@ -217,8 +249,8 @@ struct ContentView: View {
                 sectionActivationControl(item: item, ref: ref)
                 NotesButton(versionKey: ref.id, itemKey: item.notesKey)
             }
-            // Align the title past the editor's line-number gutter so it doesn't
-            // sit over the gutter's edge.
+            // Align the header past the editor's line-number gutter so it
+            // doesn't sit over the gutter's edge.
             .padding(.leading, EditorLayout.leftInset)
             .padding(.trailing, 12)
             .padding(.vertical, 7)
@@ -228,45 +260,15 @@ struct ContentView: View {
         .id(ref)
     }
 
-    /// The colored title capsule.  Active body sections are editable inline
-    /// (rename applies everywhere); a deactivated or absent section shows a
-    /// dimmed static capsule; other items show a static title.
+    /// A quiet "deactivated" marker for sections switched off in this journal —
+    /// the only state the slim pane header still needs to carry.
     @ViewBuilder
-    private func paneTitleCapsule(item: SidebarItem, ref: VersionRef, color: Color) -> some View {
-        if case .section(let id) = item {
-            let section = resolvedSection(id, ref)
-            if let section, section.active {
-                TextField("", text: sectionTitleBinding(id, ref))
-                    .textFieldStyle(.plain)
-                    .font(.callout.weight(.semibold))
-                    .foregroundStyle(color)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 4)
-                    .background(color.opacity(0.18), in: Capsule())
-                    .overlay(Capsule().strokeBorder(color.opacity(0.55), lineWidth: 1))
-                    .frame(maxWidth: 260)
-            } else {
-                let title = section?.title
-                    ?? store.manuscript?.sections.first(where: { $0.id == id })?.title
-                    ?? "Section"
-                HStack(spacing: 4) {
-                    Image(systemName: "moon.zzz")
-                    Text(title)
-                }
-                .font(.callout.weight(.semibold))
+    private func deactivatedBadge(item: SidebarItem, ref: VersionRef) -> some View {
+        if case .section(let id) = item,
+           let section = resolvedSection(id, ref), !section.active {
+            Label("Deactivated in this journal", systemImage: "moon.zzz")
+                .font(.caption)
                 .foregroundStyle(.secondary)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 4)
-                .background(Color.secondary.opacity(0.12), in: Capsule())
-            }
-        } else {
-            Text(itemTitle(item))
-                .font(.callout.weight(.semibold))
-                .foregroundStyle(color)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 4)
-                .background(color.opacity(0.18), in: Capsule())
-                .overlay(Capsule().strokeBorder(color.opacity(0.55), lineWidth: 1))
         }
     }
 
@@ -284,21 +286,6 @@ struct ContentView: View {
             .help(section.active
                   ? "Active in this journal — click to deactivate"
                   : "Deactivated in this journal — click to activate")
-        }
-    }
-
-    /// Fixed display title for non-section content items.
-    private func itemTitle(_ item: SidebarItem) -> String {
-        switch item {
-        case .authors:        return "Authors"
-        case .abstract:       return "Abstract"
-        case .keywords:       return "Keywords"
-        case .figures:        return "Figures"
-        case .tables:         return "Tables"
-        case .bibliography:   return "Bibliography"
-        case .letterToEditor: return "Cover Letter"
-        case .checks:         return "Checks"
-        default:              return ""
         }
     }
 
@@ -325,14 +312,6 @@ struct ContentView: View {
         return nil
     }
 
-    /// Section titles are shared structure — renaming applies to every version.
-    private func sectionTitleBinding(_ id: UUID, _ ref: VersionRef) -> Binding<String> {
-        Binding(
-            get: { resolvedSection(id, ref)?.title ?? "" },
-            set: { newValue in store.renameSection(id: id, title: newValue) }
-        )
-    }
-
     /// The editable content view for a sidebar item, bound to a specific version.
     @ViewBuilder
     private func contentView(for item: SidebarItem, ref: VersionRef) -> some View {
@@ -346,6 +325,8 @@ struct ContentView: View {
         case .bibliography:      BibliographyView(versionRef: ref)
         case .letterToEditor:    LetterToEditorView(versionRef: ref)
         case .checks:            ChecksView(versionRef: ref)
+        case .versions:          VersionsView(versionRef: ref)
+        case .export:            ExportView(versionRef: ref)
         default:                 EmptyView()
         }
     }
@@ -407,18 +388,17 @@ struct CutTabBar: View {
 
     @State private var showAddPicker = false
 
-    /// References that can still be opened: Source (if closed) + unopened
-    /// versions — journal working heads first, so "open Nature" naturally means
-    /// the head, not an older cut that happens to carry the journal's name as
-    /// its label.
+    /// References that can still be opened: Source (if closed) + each journal's
+    /// **working head only**.  Opening "Nature" always means its latest
+    /// version — older versions are history, browsed in the Versions pane, and
+    /// never offered as tabs.
     private var availableRefs: [VersionRef] {
         var refs: [VersionRef] = []
         if !openTabs.contains(.source) { refs.append(.source) }
-        let sorted = versions.sorted { a, b in
-            if isHead(a) != isHead(b) { return isHead(a) }
-            return a.number < b.number
-        }
-        for v in sorted where !openTabs.contains(.version(v.id)) {
+        let heads = versions
+            .filter { isHead($0) }
+            .sorted { $0.number < $1.number }
+        for v in heads where !openTabs.contains(.version(v.id)) {
             refs.append(.version(v.id))
         }
         return refs

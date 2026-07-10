@@ -44,6 +44,19 @@ struct ManuscriptCommands: Commands {
                 NotificationCenter.default.post(name: .saveManuscript, object: nil)
             }
             .keyboardShortcut("s", modifiers: .command)   // ⌘S
+
+            Divider()
+
+            // Backend save-and-share (Phase II): push/pull the manuscript
+            // folder to the manuscript's active backend (GitHub first).
+            Button("Save to Remote") {
+                NotificationCenter.default.post(name: .saveToRemote, object: nil)
+            }
+            .keyboardShortcut("s", modifiers: [.command, .shift])   // ⇧⌘S
+
+            Button("Load from Remote…") {
+                NotificationCenter.default.post(name: .loadFromRemote, object: nil)
+            }
         }
     }
 }
@@ -62,4 +75,8 @@ extension Notification.Name {
     /// Posted after a sync stamps a journal's new working head, so open
     /// comparison tabs can follow it (userInfo: "old"/"new" version UUIDs).
     static let journalHeadChanged = Notification.Name("ManuscriptEditor.journalHeadChanged")
+    /// Posted when the user chooses Manuscript → Save to Remote (⇧⌘S).
+    static let saveToRemote = Notification.Name("ManuscriptEditor.saveToRemote")
+    /// Posted when the user chooses Manuscript → Load from Remote….
+    static let loadFromRemote = Notification.Name("ManuscriptEditor.loadFromRemote")
 }

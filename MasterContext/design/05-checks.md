@@ -45,9 +45,10 @@ fresh UUID) so rows don't churn focus or animate on every keystroke.
 
 With multiple tabs open and **Checks** selected, the detail renders one
 checklist pane per open journal — each against its own journal's requirements
-(the Source pane gets a journal picker, since Source's own requirements are
-empty defaults). Selectable and navigable exactly like the Abstract page. This
-is the "which of my cuts is submittable?" dashboard.
+(the Source pane — whose own requirements are empty defaults — shows an
+explanatory state pointing at the journal tabs; no picker). Selectable and
+navigable exactly like the Abstract page. This is the "which of my cuts is
+submittable?" dashboard.
 
 ## 4. Fix-forward
 
@@ -56,7 +57,7 @@ is the "which of my cuts is submittable?" dashboard.
   section. Where navigation is possible, clicking a failure takes the user to
   the evidence without dialogs (01 §5).
 - Length failures pair naturally with the live word counts already shown in the
-  sidebar and pane capsules — the user watches the number fall as they cut, and
+  sidebar and pane headers — the user watches the number fall as they cut, and
   the check flips green the moment they're under. Preserve that feedback loop;
   never require a manual re-run.
 - Requirements **editing** lives in the Journals settings, not in Checks. The

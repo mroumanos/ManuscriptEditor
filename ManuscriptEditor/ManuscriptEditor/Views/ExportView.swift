@@ -26,10 +26,26 @@ import UniformTypeIdentifiers
 struct ExportView: View {
     @Environment(ManuscriptStore.self) private var store
 
-    /// Which journal's outline is being edited/exported (nil = Source).
-    @State private var journalID: UUID?
+    /// When set, this pane represents one comparison tab's journal (Source or
+    /// a cut) and edits/exports **that journal's** outline — no journal
+    /// picker.  nil = standalone (no tabs open); falls back to Source.
+    var versionRef: VersionRef? = nil
+
     @State private var lastPackage: URL?
     @State private var errorMessage: String?
+
+    /// Which journal's outline is being edited/exported (nil = Source),
+    /// derived from the pane's tab.
+    private var journalID: UUID? {
+        guard case .version(let id) = versionRef ?? .source else { return nil }
+        return store.versions.first { $0.id == id }?.journalID
+    }
+
+    /// Display name for the pane's journal.
+    private var journalName: String {
+        guard let journalID else { return "Source" }
+        return journals.first { $0.id == journalID }?.name ?? "Journal"
+    }
 
     /// The outline being edited.  Held in state (not recomputed per access):
     /// an unsaved standard outline gets fresh item ids on every derivation, so
@@ -125,13 +141,9 @@ struct ExportView: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             HStack(spacing: 10) {
-                Picker("Journal", selection: $journalID) {
-                    Label("Source", systemImage: "doc.text").tag(Optional<UUID>.none)
-                    ForEach(journals) { journal in
-                        Label(journal.name, systemImage: "building.columns").tag(Optional(journal.id))
-                    }
-                }
-                .frame(maxWidth: 340)
+                // The pane IS its tab's journal — no picker to re-litigate it.
+                Label(journalName, systemImage: journalID == nil ? "doc.text" : "building.columns")
+                    .font(.headline)
 
                 if let content = exportContent, journalID != nil,
                    let head = store.latestVersion(forJournal: journalID) {

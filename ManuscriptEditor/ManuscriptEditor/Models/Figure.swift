@@ -11,7 +11,10 @@ import CoreGraphics
 ///
 /// Image files are stored separately from the JSON to keep the manuscript file small.
 /// `PersistenceService` manages copying images into the manuscript's folder on disk.
-struct Figure: Codable, Identifiable, Sendable {
+///
+/// Equatable so the figure editor can watch its whole draft with one
+/// `onChange` instead of a per-field modifier chain.
+struct Figure: Codable, Identifiable, Sendable, Equatable {
 
     /// Stable unique identifier used as the image file name on disk (e.g. `{id}.png`).
     var id: UUID
@@ -42,6 +45,11 @@ struct Figure: Codable, Identifiable, Sendable {
     /// Output size as a percentage of the (cropped) original, 10–100.
     /// nil = 100%.  Applied when rendering the export package.
     var scalePercent: Double? = nil
+
+    /// Render the figure in black & white (grayscale).  nil/false = original
+    /// colors.  Like crop/scale this is a per-figure presentation choice —
+    /// the original image in the Data library is never modified.
+    var monochrome: Bool? = nil
 
     /// Text description for accessibility / screen readers.  Some journals require this.
     var altText: String

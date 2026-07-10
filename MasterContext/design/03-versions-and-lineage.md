@@ -13,7 +13,7 @@ it is showing:
 
 | Axis | Question it answers | Where it lives |
 |---|---|---|
-| **Journal** | "Which target is this copy for?" | Tab chips, capsules, Journals panel |
+| **Journal** | "Which target is this copy for?" | Tab chips, Journals panel |
 | **Version** (`v1, v2…` per journal) | "Which save point of that journal?" | Per-pane version control, Versions pane |
 | **Lineage** (edges between versions) | "What was this derived from, and is it stale?" | Journals panel tree, Sync pane |
 
@@ -37,7 +37,7 @@ global counter.
 
 ## 3. Version history (per journal)
 
-- The Versions pane is **per-journal**: a journal picker, that journal's linear
+- The Versions pane is **per-tab** (its tab's journal, no picker): the linear
   history (v1 → v2 …, newest = working head), the lineage diagram of its
   upstream and downstream journals, and the selected version's details.
 - **Leaf-only delete**: only the newest version may be deleted, with a

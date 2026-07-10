@@ -54,8 +54,10 @@ Implemented so far (Phase I):
   global custom views.
 - `ManuscriptVersion` lineage (`parentID`), Versions panel with tree + Add Version
   (parent + journal/custom-view basis); leaf-only delete.
-- Comparison tabs (color-coded, Source closable); side-by-side comparison,
-  synced navigation, per-pane editable views with colored title capsules.
+- Comparison tabs (color-coded, Source closable; ＋ offers working heads only);
+  side-by-side comparison, synced navigation, per-pane editable views with slim
+  headers (word count / activation eye / notes — item titles live in the
+  sidebar, sections rename via its context menu).
 - **Live, per-journal comparable Checks**: Checks renders one pane per open
   journal, evaluated against that journal's view + content, updating on every edit.
 - **Element-level Notes**: add/resolve/delete notes anchored to a content item
@@ -93,11 +95,21 @@ Implemented so far (Phase I):
   document cards (add/remove documents, components, page breaks; reorder), per-
   document format (font/size/spacing/margins/line numbers/columns) and file
   type — **PDF** (CoreText paginator), DOCX, RTF, **LaTeX**. See §M.
-- **Per-journal Versions pane**: journal picker, linear history (working head),
-  upstream/downstream **lineage diagram** with version-to-version arrows;
-  requirements editing moved to Checks. Per-journal version ordinals.
-- **Sync pane** (sidebar): per-journal fast-forward of one lineage edge with
-  drift status and an overwrite warning dialog (`syncJournal`).
+- **Per-tab Journal panes**: Checks, Versions, and Export each render one pane
+  per open comparison tab, scoped to that tab's journal (no journal dropdowns).
+  Versions shows linear history (working head; unnamed v1 reads "Created") and
+  the **full lineage diagram** (all journals, pane's journal highlighted) with
+  version-to-version arrows; requirements editing moved to Checks. Per-journal
+  version ordinals.
+- **Sync pane** (sidebar): **nested lineage tree** (journals indented under
+  their upstream) with per-edge fast-forward, drift status, and an overwrite
+  warning dialog (`syncJournal`).
+- **Overview journal-cut statistics**: one dashboard row per cut (head version,
+  word/asset counts, live checks verdict).
+- **Remote save-and-share (GitHub)**: Manuscript → Save to Remote (⇧⌘S) / Load
+  from Remote…; `GitHubBackendService` (Git Data API, single commit),
+  `KeychainService` token storage, repo/branch/token config in Preferences →
+  Backend. Phase II save-and-share for the first provider.
 - Window title shows the **manuscript title** (not the app name).
 - Preferences (Editor/Backend/Views/AI/Export); theme toggle.
 

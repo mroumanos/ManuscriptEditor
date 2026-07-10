@@ -662,8 +662,8 @@ final class CitationTextView: NSTextView {
     /// Current numbering + entry details, refreshed by `updateNSView`.
     var refContext = RefEngine.Context()
 
-    /// The editor's normal typing attributes — restored after inserting a bold
-    /// token so continued typing isn't bold/linked.
+    /// The editor's normal typing attributes — restored after inserting a
+    /// token so continued typing isn't linked to it.
     var defaultTypingAttributes: [NSAttributedString.Key: Any] = [:]
 
     /// True while a completion session is being processed; used to stop
@@ -752,15 +752,14 @@ final class CitationTextView: NSTextView {
         // Dismissed — nothing to restore; the text was never touched.
     }
 
-    /// Replaces `range` with a rendered token: bold, identity link, tooltip.
+    /// Replaces `range` with a rendered token: identity link + tooltip in the
+    /// editor's **default** format — tokens read as normal prose, not bold;
+    /// their identity lives in the link attribute, not in styling.
     /// A first-time citation shows the next free number; the store-driven
     /// rewrite pass corrects it if document order says otherwise.
     private func insertToken(_ token: RefEngine.Token, replacing range: NSRange) {
         let text = RefEngine.displayText(for: token, context: refContext)
         var attrs = defaultTypingAttributes
-        if let font = attrs[.font] as? NSFont {
-            attrs[.font] = NSFontManager.shared.convert(font, toHaveTrait: .boldFontMask)
-        }
         if let url = token.url { attrs[.link] = url }
         if let tip = RefEngine.tooltip(for: token, context: refContext) { attrs[.toolTip] = tip }
 

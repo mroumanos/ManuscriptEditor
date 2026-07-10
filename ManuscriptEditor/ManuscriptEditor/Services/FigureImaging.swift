@@ -8,9 +8,11 @@ import AppKit
 
 enum FigureImaging {
 
-    /// Applies a normalized crop (origin top-left, 0–1) and a percent resize.
+    /// Applies a normalized crop (origin top-left, 0–1), a percent resize, and
+    /// an optional grayscale conversion.
     /// Returns the original image when nothing applies or processing fails.
-    static func processed(_ image: NSImage, crop: CGRect?, scalePercent: Double?) -> NSImage {
+    static func processed(_ image: NSImage, crop: CGRect?, scalePercent: Double?,
+                          monochrome: Bool? = nil) -> NSImage {
         guard var cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return image }
 
         if let crop, crop.width > 0.01, crop.height > 0.01 {
@@ -20,6 +22,8 @@ enum FigureImaging {
                                    height: crop.height * CGFloat(cg.height))
             if let cropped = cg.cropping(to: pixelRect.integral) { cg = cropped }
         }
+
+        if monochrome == true, let gray = grayscale(cg) { cg = gray }
 
         var out = NSImage(cgImage: cg, size: NSSize(width: cg.width, height: cg.height))
 
@@ -37,9 +41,22 @@ enum FigureImaging {
         return out
     }
 
+    /// Redraws into a grayscale context — journals often require B&W figures;
+    /// converting at render time keeps the Data-library original untouched.
+    private static func grayscale(_ cg: CGImage) -> CGImage? {
+        guard let ctx = CGContext(
+            data: nil, width: cg.width, height: cg.height,
+            bitsPerComponent: 8, bytesPerRow: 0,
+            space: CGColorSpaceCreateDeviceGray(),
+            bitmapInfo: CGImageAlphaInfo.none.rawValue
+        ) else { return nil }
+        ctx.draw(cg, in: CGRect(x: 0, y: 0, width: cg.width, height: cg.height))
+        return ctx.makeImage()
+    }
+
     /// True when the figure needs re-rendering on export (vs a plain file copy).
     static func needsRendering(_ figure: Figure) -> Bool {
-        figure.crop != nil || (figure.scalePercent ?? 100) < 99.5
+        figure.crop != nil || (figure.scalePercent ?? 100) < 99.5 || figure.monochrome == true
     }
 
     static func pngData(_ image: NSImage) -> Data? {

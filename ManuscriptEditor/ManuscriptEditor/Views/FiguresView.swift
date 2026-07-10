@@ -139,8 +139,9 @@ struct FigureThumbnail: View {
                     RoundedRectangle(cornerRadius: 6).fill(.secondary.opacity(0.1)).frame(height: 90)
                     if let url = store.figureURL(for: figure),
                        let image = NSImage(contentsOf: url) {
-                        // Thumbnails show the cropped result (what will export).
-                        Image(nsImage: FigureImaging.processed(image, crop: figure.crop, scalePercent: nil))
+                        // Thumbnails show the cropped/B&W result (what will export).
+                        Image(nsImage: FigureImaging.processed(image, crop: figure.crop, scalePercent: nil,
+                                                               monochrome: figure.monochrome))
                             .resizable()
                             .scaledToFill()
                             .frame(height: 90)
@@ -193,6 +194,11 @@ struct FigureEditor: View {
     /// Controls the system file-picker sheet.
     @State private var isImporting = false
 
+    /// Live result of the chart query (when a CSV data source is linked).
+    @State private var chartResult: QueryResult = .empty
+    /// Debounces chart re-runs while the user types SQL.
+    @State private var chartTask: Task<Void, Never>?
+
     init(figure: Figure, versionRef: VersionRef = .source) {
         self.figure = figure
         self.versionRef = versionRef
@@ -232,17 +238,18 @@ struct FigureEditor: View {
             }
             .padding(16)
         }
-        .onChange(of: draft.title)      { _, _ in store.updateFigure(draft, ref: versionRef) }
-        .onChange(of: draft.caption)    { _, _ in store.updateFigure(draft, ref: versionRef) }
-        .onChange(of: draft.altText)    { _, _ in store.updateFigure(draft, ref: versionRef) }
-        .onChange(of: draft.number)     { _, _ in store.updateFigure(draft, ref: versionRef) }
-        .onChange(of: draft.dataAssetID){ _, _ in store.updateFigure(draft, ref: versionRef) }
-        .onChange(of: draft.chartType)  { _, _ in store.updateFigure(draft, ref: versionRef) }
-        .onChange(of: draft.chartQuery) { _, _ in store.updateFigure(draft, ref: versionRef) }
-        .onChange(of: draft.imageAssetID) { _, _ in store.updateFigure(draft, ref: versionRef) }
-        .onChange(of: draft.crop)         { _, _ in store.updateFigure(draft, ref: versionRef) }
-        .onChange(of: draft.scalePercent) { _, _ in store.updateFigure(draft, ref: versionRef) }
-        .onChange(of: figure.id)        { _, _ in draft = figure }
+        // One draft observer (Figure is Equatable) — a per-field chain of
+        // onChange modifiers is what the type-checker times out on.
+        .onChange(of: draft) { old, new in
+            store.updateFigure(new, ref: versionRef)
+            if old.dataAssetID != new.dataAssetID {
+                refreshChart()
+            } else if old.chartQuery != new.chartQuery {
+                refreshChart(debounced: true)
+            }
+        }
+        .onChange(of: figure.id) { _, _ in draft = figure; refreshChart() }
+        .onAppear                { refreshChart() }
         .fileImporter(isPresented: $isImporting, allowedContentTypes: [.image]) { result in
             if case .success(let url) = result {
                 _ = url.startAccessingSecurityScopedResource()
@@ -301,6 +308,13 @@ struct FigureEditor: View {
                             .disabled(draft.crop == nil)
                     }
                 }
+                Toggle("Black & white", isOn: Binding(
+                    get: { draft.monochrome ?? false },
+                    set: { draft.monochrome = $0 ? true : nil }
+                ))
+                Text("Crop, size, and black & white apply to this figure's rendering only — the original image in Data is never changed.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
     }
@@ -342,16 +356,38 @@ struct FigureEditor: View {
         }
     }
 
-    /// Shows the crop editor over the image, or a drop-zone prompt.
+    /// Shows the live chart (data-linked figure), the crop editor over the
+    /// image, or a drop-zone prompt.
     @ViewBuilder
     private var imageZone: some View {
-        if let url = store.figureURL(for: draft),
+        if draft.dataAssetID != nil {
+            // Chart figure: render from the linked CSV + SQL, live — edits to
+            // the query or chart type below re-draw immediately.
+            VStack(spacing: 4) {
+                if let error = chartResult.errorMessage {
+                    Label(error, systemImage: "exclamationmark.triangle")
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    DataChartView(result: chartResult, chartType: draft.chartType ?? .bar)
+                        .padding(10)
+                }
+            }
+        } else if let url = store.figureURL(for: draft),
            let image = NSImage(contentsOf: url) {
             VStack(spacing: 4) {
-                CropAdjustView(image: image, crop: Binding(
-                    get: { draft.crop },
-                    set: { draft.crop = $0 }
-                ))
+                // The crop frame adjusts over the B&W-rendered image when that
+                // option is on, so the preview is what exports.
+                CropAdjustView(
+                    image: draft.monochrome == true
+                        ? FigureImaging.processed(image, crop: nil, scalePercent: nil, monochrome: true)
+                        : image,
+                    crop: Binding(
+                        get: { draft.crop },
+                        set: { draft.crop = $0 }
+                    )
+                )
                 .padding(8)
                 Text("Drag inside the frame to move the crop; drag a corner to resize.")
                     .font(.caption2)
@@ -366,6 +402,28 @@ struct FigureEditor: View {
                 Text("Drop image here, pick one from the Data library below, or").foregroundStyle(.secondary)
                 Button("Choose File…") { isImporting = true }.buttonStyle(.bordered)
             }
+        }
+    }
+
+    // MARK: - Live chart
+
+    /// Re-runs the chart query.  Typing SQL debounces ~0.4 s; picking an
+    /// asset or switching figures runs immediately.
+    private func refreshChart(debounced: Bool = false) {
+        chartTask?.cancel()
+        guard let assetID = draft.dataAssetID,
+              let asset = store.manuscript?.dataAssets.first(where: { $0.id == assetID })
+        else {
+            chartResult = .empty
+            return
+        }
+        let sql = draft.chartQuery ?? "SELECT * FROM data"
+        chartTask = Task {
+            if debounced {
+                try? await Task.sleep(for: .milliseconds(400))
+                guard !Task.isCancelled else { return }
+            }
+            chartResult = store.runQuery(sql, for: asset)
         }
     }
 

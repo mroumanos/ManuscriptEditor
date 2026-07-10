@@ -87,7 +87,8 @@ struct BackendAccount: Codable, Identifiable, Sendable {
     var username: String
 
     /// Whether the connection has been authenticated and tested.
-    /// `false` until the OAuth/token flow completes in Phase 2.
+    /// GitHub accounts flip this on when a token is stored and a push/pull
+    /// succeeds; other providers remain stubbed.
     var isConnected: Bool
 
     /// Current sync health, updated by the sync engine.
@@ -98,6 +99,16 @@ struct BackendAccount: Codable, Identifiable, Sendable {
 
     /// When this account was first added.
     var addedAt: Date
+
+    /// Git-provider repository in "owner/name" form (GitHub for now).
+    /// Optional so app.json files written before this field keep decoding.
+    var repository: String?
+
+    /// Branch to push/pull (Git providers).  nil = "main".
+    var branch: String?
+
+    /// The token itself lives in the **Keychain** (see `KeychainService`),
+    /// keyed by this account's `id` — never in app.json.
 
     // MARK: - Factory
 

@@ -311,41 +311,7 @@ struct CSVAssetDetail: View {
     // MARK: - Table results
 
     private var tableResultsView: some View {
-        Group {
-            if queryResult.columns.isEmpty && queryResult.errorMessage == nil {
-                ContentUnavailableView("No Results", systemImage: "tablecells")
-            } else {
-                ScrollView([.horizontal, .vertical]) {
-                    Grid(alignment: .leading, horizontalSpacing: 0, verticalSpacing: 0) {
-                        // Header row
-                        GridRow {
-                            ForEach(queryResult.columns, id: \.self) { col in
-                                Text(col)
-                                    .font(.caption.weight(.semibold))
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 6)
-                                    .frame(minWidth: 100, alignment: .leading)
-                                    .background(.secondary.opacity(0.12))
-                                    .border(.separator, width: 0.5)
-                            }
-                        }
-                        // Data rows
-                        ForEach(Array(queryResult.rows.enumerated()), id: \.offset) { _, row in
-                            GridRow {
-                                ForEach(Array(zip(queryResult.columns, row)), id: \.0) { _, val in
-                                    Text(val)
-                                        .font(.callout)
-                                        .padding(.horizontal, 12)
-                                        .padding(.vertical, 5)
-                                        .frame(minWidth: 100, alignment: .leading)
-                                        .border(.separator, width: 0.5)
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        QueryResultTable(result: queryResult)
     }
 
     // MARK: - Chart results
@@ -416,12 +382,18 @@ struct CSVAssetDetail: View {
 
 // MARK: - DataChartView
 
-/// Renders QueryResult as a Swift Charts chart.
+/// Renders QueryResult as a Swift Charts chart (shared by the Data pane and
+/// data-linked figures).
+///
+/// Column mapping: explicit X/Y when the caller provides them (the Data pane's
+/// pickers); otherwise the SQL SELECT decides — the first column is X and the
+/// second (or first, for single-column results) is Y.  So a figure's
+/// `SELECT month, revenue FROM data` charts exactly what it reads as.
 struct DataChartView: View {
     let result: QueryResult
     let chartType: ChartType
-    let xColumn: String
-    let yColumn: String
+    var xColumn: String? = nil
+    var yColumn: String? = nil
 
     private struct ChartPoint: Identifiable {
         let id: Int
@@ -429,9 +401,14 @@ struct DataChartView: View {
         let y: Double
     }
 
+    private var resolvedX: String { xColumn ?? result.columns.first ?? "" }
+    private var resolvedY: String {
+        yColumn ?? result.columns.dropFirst().first ?? result.columns.first ?? ""
+    }
+
     private var points: [ChartPoint] {
-        let xIdx = result.columns.firstIndex(of: xColumn) ?? 0
-        let yIdx = result.columns.firstIndex(of: yColumn) ?? 0
+        let xIdx = result.columns.firstIndex(of: resolvedX) ?? 0
+        let yIdx = result.columns.firstIndex(of: resolvedY) ?? 0
         return result.rows.enumerated().compactMap { idx, row in
             let xVal = row.indices.contains(xIdx) ? row[xIdx] : ""
             let yRaw = row.indices.contains(yIdx) ? row[yIdx] : ""
@@ -440,29 +417,60 @@ struct DataChartView: View {
         }
     }
 
+    /// Histogram bins over the Y column's numeric values: ~12 equal-width
+    /// buckets, each bar = how many values fall in the bucket.  (A histogram
+    /// is a distribution, not a bar-per-row — the pre-binned look of the old
+    /// implementation was just a recolored bar chart.)
+    private var bins: [(label: String, count: Int)] {
+        let values = points.map(\.y)
+        guard let lo = values.min(), let hi = values.max(), values.count > 1 else {
+            return values.map { (String($0), 1) }
+        }
+        let binCount = min(12, max(4, Int(Double(values.count).squareRoot())))
+        let width = (hi - lo) / Double(binCount)
+        guard width > 0 else { return [(String(lo), values.count)] }
+        var counts = Array(repeating: 0, count: binCount)
+        for v in values {
+            let idx = min(binCount - 1, Int((v - lo) / width))
+            counts[idx] += 1
+        }
+        return counts.enumerated().map { i, c in
+            let start = lo + Double(i) * width
+            return (String(format: "%.3g–%.3g", start, start + width), c)
+        }
+    }
+
     var body: some View {
         if points.isEmpty {
             ContentUnavailableView(
                 "No numeric data",
                 systemImage: "chart.bar",
-                description: Text("The Y-axis column must contain numeric values.")
+                description: Text("The Y column (second column of the SELECT) must contain numeric values.")
             )
         } else {
+            chart
+                .chartXAxis { AxisMarks(values: .automatic) }
+                .chartYAxis { AxisMarks(position: .leading) }
+                .frame(minHeight: 220)
+        }
+    }
+
+    @ViewBuilder
+    private var chart: some View {
+        switch chartType {
+        case .line:
             Chart(points) { pt in
-                switch chartType {
-                case .line:
-                    LineMark(x: .value(xColumn, pt.x), y: .value(yColumn, pt.y))
-                        .interpolationMethod(.catmullRom)
-                case .bar:
-                    BarMark(x: .value(xColumn, pt.x), y: .value(yColumn, pt.y))
-                case .histogram:
-                    BarMark(x: .value(xColumn, pt.x), y: .value(yColumn, pt.y))
-                        .foregroundStyle(by: .value("Series", xColumn))
-                }
+                LineMark(x: .value(resolvedX, pt.x), y: .value(resolvedY, pt.y))
+                    .interpolationMethod(.catmullRom)
             }
-            .chartXAxis { AxisMarks(values: .automatic) }
-            .chartYAxis { AxisMarks(position: .leading) }
-            .frame(minHeight: 220)
+        case .bar:
+            Chart(points) { pt in
+                BarMark(x: .value(resolvedX, pt.x), y: .value(resolvedY, pt.y))
+            }
+        case .histogram:
+            Chart(Array(bins.enumerated()), id: \.offset) { _, bin in
+                BarMark(x: .value(resolvedY, bin.label), y: .value("Count", bin.count))
+            }
         }
     }
 }

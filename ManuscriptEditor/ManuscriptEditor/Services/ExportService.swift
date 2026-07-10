@@ -427,12 +427,13 @@ struct ExportService {
                 try fm.createDirectory(at: figuresDir, withIntermediateDirectories: true)
                 created = true
             }
-            // Cropped/resized figures are rendered to PNG so the package
+            // Cropped/resized/B&W figures are rendered to PNG so the package
             // contains exactly what the user framed; others copy verbatim.
             if FigureImaging.needsRendering(figure),
                let image = NSImage(contentsOf: src),
                let data = FigureImaging.pngData(
-                   FigureImaging.processed(image, crop: figure.crop, scalePercent: figure.scalePercent)) {
+                   FigureImaging.processed(image, crop: figure.crop, scalePercent: figure.scalePercent,
+                                           monochrome: figure.monochrome)) {
                 let dest = figuresDir.appendingPathComponent("Figure \(figure.number).png")
                 try? fm.removeItem(at: dest)
                 try? data.write(to: dest)

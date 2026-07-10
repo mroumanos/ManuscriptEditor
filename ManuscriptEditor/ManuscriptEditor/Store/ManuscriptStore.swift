@@ -733,6 +733,146 @@ final class ManuscriptStore {
         max(0, lineagePath(to: id).count - 1)
     }
 
+    // MARK: - Remote (backend save-and-share — Phase II)
+    //
+    // "Save to remote" pushes the manuscript folder (manuscript.json, figures/,
+    // data/) to the manuscript's active backend as one commit; "Load from
+    // remote" pulls those files back and replaces the local content.  GitHub is
+    // the first supported provider; the token lives in the Keychain.
+
+    /// Transient success line ("Pushed to owner/repo@main (ab12cd3)").
+    var remoteStatus: String?
+    /// Last remote failure, surfaced as an alert by ContentView.
+    var remoteError: String?
+    /// True while a push/pull is in flight (disables re-entry).
+    var isRemoteBusy = false
+
+    private let gitHubService = GitHubBackendService()
+
+    /// The manuscript's active backend account, or a user-actionable error.
+    private func activeBackend(_ appStore: AppStore) throws -> BackendAccount {
+        guard let m = manuscript else {
+            throw GitHubBackendError.notConfigured("No manuscript is open.")
+        }
+        guard let backendID = m.settings.activeBackendID,
+              let account = appStore.backends.first(where: { $0.id == backendID })
+        else {
+            throw GitHubBackendError.notConfigured("This manuscript has no active backend. Pick one in Manuscript → Settings (add accounts in Preferences → Backend).")
+        }
+        return account
+    }
+
+    /// Every file that belongs to the manuscript on the remote, with paths
+    /// relative to the manuscript folder.
+    private func gatherRemoteFiles() throws -> [GitHubBackendService.File] {
+        guard let m = manuscript else { return [] }
+        let dir = persistence.manuscriptDirectory(for: m.id)
+        var files: [GitHubBackendService.File] = []
+        let manuscriptJSON = dir.appendingPathComponent("manuscript.json")
+        files.append(.init(path: "manuscript.json", data: try Data(contentsOf: manuscriptJSON)))
+        for sub in ["figures", "data"] {
+            let subdir = dir.appendingPathComponent(sub, isDirectory: true)
+            guard let names = try? FileManager.default.contentsOfDirectory(atPath: subdir.path) else { continue }
+            for name in names.sorted() where !name.hasPrefix(".") {
+                let url = subdir.appendingPathComponent(name)
+                if let data = try? Data(contentsOf: url) {
+                    files.append(.init(path: "\(sub)/\(name)", data: data))
+                }
+            }
+        }
+        return files
+    }
+
+    /// Pushes the saved manuscript folder to the active backend.
+    func saveToRemote(appStore: AppStore) {
+        guard !isRemoteBusy else { return }
+        trySave()   // flush current edits so the push carries what's on screen
+        remoteStatus = nil
+        remoteError = nil
+        do {
+            var account = try activeBackend(appStore)
+            let config = try GitHubBackendService.Config.from(account: account)
+            let files = try gatherRemoteFiles()
+            let title = manuscript?.title ?? "manuscript"
+            isRemoteBusy = true
+            account.syncStatus = .syncing
+            appStore.updateBackend(account)
+
+            Task {
+                do {
+                    let sha = try await gitHubService.push(
+                        files: files,
+                        message: "Save \(title) from Manuscript Editor",
+                        config: config)
+                    remoteStatus = "Pushed to \(config.owner)/\(config.repo)@\(config.branch) (\(sha))"
+                    account.isConnected = true
+                    account.syncStatus = .available
+                    account.lastErrorMessage = nil
+                } catch {
+                    remoteError = error.localizedDescription
+                    account.syncStatus = .error
+                    account.lastErrorMessage = error.localizedDescription
+                }
+                appStore.updateBackend(account)
+                isRemoteBusy = false
+            }
+        } catch {
+            remoteError = error.localizedDescription
+        }
+    }
+
+    /// Pulls the manuscript files from the active backend, **replacing** the
+    /// local content (the caller confirms with the user first).  The local
+    /// manuscript id is kept so the folder mapping and lineage of trust stay
+    /// local — load-from-remote restores content, it doesn't adopt identity.
+    func loadFromRemote(appStore: AppStore) {
+        guard !isRemoteBusy else { return }
+        guard let current = manuscript else { return }
+        remoteStatus = nil
+        remoteError = nil
+        do {
+            var account = try activeBackend(appStore)
+            let config = try GitHubBackendService.Config.from(account: account)
+            isRemoteBusy = true
+            account.syncStatus = .syncing
+            appStore.updateBackend(account)
+
+            Task {
+                do {
+                    let files = try await gitHubService.pull(config: config)
+                    let dir = persistence.manuscriptDirectory(for: current.id)
+                    for file in files where file.path != "manuscript.json" {
+                        let dest = dir.appendingPathComponent(file.path)
+                        try FileManager.default.createDirectory(
+                            at: dest.deletingLastPathComponent(), withIntermediateDirectories: true)
+                        try file.data.write(to: dest, options: .atomic)
+                    }
+                    if let json = files.first(where: { $0.path == "manuscript.json" }) {
+                        let decoder = JSONDecoder()
+                        decoder.dateDecodingStrategy = .iso8601
+                        var decoded = try decoder.decode(Manuscript.self, from: json.data)
+                        decoded.id = current.id                     // keep the local folder mapping
+                        decoded.folderBookmark = current.folderBookmark
+                        manuscript = normalized(decoded)
+                        trySave()
+                    }
+                    remoteStatus = "Loaded from \(config.owner)/\(config.repo)@\(config.branch)"
+                    account.isConnected = true
+                    account.syncStatus = .available
+                    account.lastErrorMessage = nil
+                } catch {
+                    remoteError = error.localizedDescription
+                    account.syncStatus = .error
+                    account.lastErrorMessage = error.localizedDescription
+                }
+                appStore.updateBackend(account)
+                isRemoteBusy = false
+            }
+        } catch {
+            remoteError = error.localizedDescription
+        }
+    }
+
     // MARK: - Private helpers
 
     /// Applies `mutation` to the manuscript backing `ref` — the live Source, or

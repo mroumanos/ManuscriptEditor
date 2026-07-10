@@ -30,10 +30,10 @@ text on the editor surface. Reference inspiration lives in [`assets/`](assets/).
 - Accent: system accent (blue) for primary/selection. The app has exactly **one
   accent** — journal colors are identity, not accent.
 - **Journal colors**: a fixed palette in order — Source = blue, then orange,
-  green, purple, pink, teal (code symbol `versionColor(at:)`). A journal's
-  comparison tab chip and its pane title capsule MUST share the same color; key
-  the assignment to the journal (`VersionRef`), not the tab index, so closing a
-  tab never recolors the surviving panes
+  green, purple, pink, teal (code symbol `versionColor(at:)`). The comparison
+  tab chips carry journal identity (panes render below them in the same
+  left-to-right order); key color assignment to the journal (`VersionRef`), not
+  the tab index, so closing a tab never recolors the survivors
   ([`10-performance-plan.md`](10-performance-plan.md) P3).
 - Status: green = pass/ready, orange = attention, red = fail/destructive,
   secondary gray = neutral/disabled. Status color is **never the only channel** —
@@ -75,8 +75,9 @@ text on the editor surface. Reference inspiration lives in [`assets/`](assets/).
 - **Comparison tab chip**: icon + journal label + ✕, filled in the journal color
   at ~15% opacity with a matching border. Give the ✕ an adequate hit area
   (≥ 20pt), not a sliver.
-- **Pane title capsule**: the content item's name in the journal color
-  (background ~18%, border ~55%); editable text field for body section titles.
+- **Slim pane header**: word count, section-activation eye, and notes only —
+  the selected item's name is never repeated per pane (the sidebar names it),
+  and body sections rename via the sidebar context menu.
 - **Empty states**: centered icon + title + one-line hint + a prominent "Add …"
   button; the hint teaches the model in one sentence. Used by
   Authors/Figures/Tables/Bibliography/Data/Versions when empty.
@@ -107,8 +108,8 @@ the symbol alone must still disambiguate for color-blind users.
 ## The prose editor (most-used surface — get it right)
 
 Top-to-bottom inside each editor pane:
-1. **Colored title capsule** (in the pane chrome, from ContentView) + live word
-   count on the right.
+1. **Slim pane header** (from ContentView): live word count on the right, plus
+   the section-activation eye and notes — no item title (see Components).
 2. **Inline formatting toolbar** (`.bar` background), aligned to the text column:
    B / I / U / S / superscript / subscript │ align L/C/R/justify │ bulleted list.
    Fixed height (~36pt) — a horizontal ScrollView must be height-pinned or it

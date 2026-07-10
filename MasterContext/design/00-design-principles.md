@@ -63,9 +63,9 @@ When principles conflict, the lower number wins.
 3. **State is always visible and always nameable.** At a glance the user can
    answer: *Which journal and version is this pane? Is it the working head or an
    older version? Are there unsaved edits? Do Checks pass for this journal?*
-   Delivered by: color-coded tab chips + matching pane capsules, per-pane version
-   control (`v3 ▾`), "(older)" badges, the unsaved banner, and the Checks
-   summary. No hidden modes.
+   Delivered by: color-coded tab chips (panes render below them in tab order),
+   per-pane version control (`v3 ▾`), "(older)" badges, the unsaved banner, and
+   the Checks summary. No hidden modes.
 
 4. **Progressive disclosure over feature density.** A new user sees a writing
    app: sidebar + editor. The journal machinery (Sync, Checks, Export, Versions,

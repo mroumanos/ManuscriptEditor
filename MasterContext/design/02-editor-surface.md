@@ -9,8 +9,9 @@
 
 ## 1. The editor stack (top to bottom, inside each pane)
 
-1. **Colored title capsule** in the journal's color + live word count on the
-   right. For body sections the capsule is the editable section title.
+1. **Slim pane header**: live word count on the right, plus the per-journal
+   section-activation eye and notes. No item title — the sidebar selection
+   names it; sections rename via the sidebar context menu.
 2. **Inline formatting toolbar** (`.bar` background), aligned to the text column:
    B / I / U / S / superscript / subscript │ align L/C/R/justify │ bulleted list.
    Fixed height (~36 pt). The longer-term control target is the reference image
@@ -25,7 +26,7 @@
 
 All four align to one shared constant set (`EditorLayout`: gutter width, text
 inset, derived `leftInset`). Misalignment between gutter, ruler, toolbar, and
-capsule is a bug.
+header is a bug.
 
 ## 2. Typography is the user's, format is the journal's
 

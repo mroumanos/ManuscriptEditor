@@ -24,6 +24,7 @@ struct OverviewView: View {
             VStack(alignment: .leading, spacing: 28) {
                 titleCard
                 statsGrid
+                journalCutsCard
                 authorsCard
                 keywordsCard
             }
@@ -104,6 +105,81 @@ struct OverviewView: View {
                 StatCard(value: "\(m.bibliography.count)", label: "References", icon: "books.vertical")
             }
         }
+    }
+
+    // MARK: - Journal cuts card
+
+    /// One row of statistics per journal cut, beside the Source stats above:
+    /// current head version, word/asset counts of the head's content, and its
+    /// live checks state — the "how is each cut doing?" dashboard.
+    @ViewBuilder
+    private var journalCutsCard: some View {
+        let cuts: [(journal: Journal, head: ManuscriptVersion)] =
+            m.journals.compactMap { journal in
+                store.latestVersion(forJournal: journal.id).map { (journal, $0) }
+            }
+        if !cuts.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Journal Cuts")
+                    .font(.headline)
+                    .foregroundStyle(.secondary)
+
+                VStack(spacing: 0) {
+                    ForEach(Array(cuts.enumerated()), id: \.element.journal.id) { index, cut in
+                        journalCutRow(cut.journal, head: cut.head)
+                        if index < cuts.count - 1 { Divider() }
+                    }
+                }
+                .background(.background.secondary, in: RoundedRectangle(cornerRadius: 10))
+            }
+        }
+    }
+
+    private func journalCutRow(_ journal: Journal, head: ManuscriptVersion) -> some View {
+        let content = head.content
+        let checks = ChecklistService.run(manuscript: content, requirements: journal.requirements)
+        let passed = checks.filter(\.passed).count
+
+        return HStack(spacing: 14) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(journal.name).fontWeight(.semibold)
+                Text("v\(store.journalOrdinal(of: head)) · \(head.createdAt.formatted(date: .abbreviated, time: .omitted))")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(minWidth: 130, alignment: .leading)
+
+            Spacer()
+
+            statChip("\(content.bodyWordCount)", "body words")
+            statChip("\(content.abstractWordCount)", "abstract")
+            statChip("\(content.figures.count)", "figures")
+            statChip("\(content.tables.count)", "tables")
+            statChip("\(content.bibliography.count)", "refs")
+
+            // Live checks state, matching the Checks pane's verdict colors.
+            if checks.isEmpty {
+                Text("no checks")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            } else {
+                Label("\(passed)/\(checks.count)",
+                      systemImage: passed == checks.count ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(passed == checks.count ? .green : (passed == 0 ? .red : .orange))
+                    .help("\(passed) of \(checks.count) requirement checks pass")
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+    }
+
+    private func statChip(_ value: String, _ label: String) -> some View {
+        VStack(spacing: 1) {
+            Text(value).font(.callout.weight(.semibold)).monospacedDigit()
+            Text(label).font(.caption2).foregroundStyle(.secondary)
+        }
+        .frame(minWidth: 52)
     }
 
     // MARK: - Authors card

@@ -24,21 +24,30 @@ struct VersionsView: View {
     @Environment(ManuscriptStore.self) private var store
     @Environment(AppStore.self)        private var appStore
 
-    /// Which journal's history is shown; nil = cuts not tied to a journal
-    /// ("Custom"), shown only when such versions exist.
-    @State private var journalID: UUID?
-    @State private var pickedDefault = false
+    /// When set, this pane represents one comparison tab's journal (Source or
+    /// a cut) and shows **that journal's** history only — no journal picker.
+    /// nil = standalone (no tabs open); the pane falls back to Source.
+    var versionRef: VersionRef? = nil
+
     @State private var selectedVersionID: UUID?
     @State private var showAddVersion = false
 
     private var manuscript: Manuscript? { store.manuscript }
     private var journals: [Journal] { manuscript?.journals ?? [] }
+
+    /// The journal this pane shows: the tab's journal, or nil for the Source
+    /// tab (whose own "chain" is the custom cuts not tied to any journal).
+    private var journalID: UUID? {
+        guard case .version(let id) = versionRef ?? .source else { return nil }
+        return store.versions.first { $0.id == id }?.journalID
+    }
+
+    private var isSourcePane: Bool { journalID == nil }
     private var chain: [ManuscriptVersion] { store.versions(forJournal: journalID) }
-    private var hasCustomCuts: Bool { store.versions.contains { $0.journalID == nil } }
 
     var body: some View {
         VStack(spacing: 0) {
-            pickerBar
+            headerBar
             Divider()
             HSplitView {
                 historyList
@@ -48,38 +57,24 @@ struct VersionsView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .onAppear { pickDefaultJournal() }
         .sheet(isPresented: $showAddVersion) {
             AddVersionSheet(isPresented: $showAddVersion) { newID in
-                if let v = store.versions.first(where: { $0.id == newID }) {
-                    journalID = v.journalID
-                }
                 selectedVersionID = newID
             }
         }
     }
 
-    /// Default to the first journal that has versions, else the first journal.
-    private func pickDefaultJournal() {
-        guard !pickedDefault else { return }
-        pickedDefault = true
-        journalID = journals.first { !store.versions(forJournal: $0.id).isEmpty }?.id
-            ?? journals.first?.id
+    private var journalName: String {
+        guard let journalID else { return "Source" }
+        return journals.first { $0.id == journalID }?.name ?? "Journal"
     }
 
-    // MARK: - Journal picker
+    // MARK: - Header (no journal picker — the pane IS the tab's journal)
 
-    private var pickerBar: some View {
+    private var headerBar: some View {
         HStack(spacing: 12) {
-            Picker("Journal", selection: $journalID) {
-                ForEach(journals) { journal in
-                    Label(journal.name, systemImage: "building.columns").tag(Optional(journal.id))
-                }
-                if hasCustomCuts || journals.isEmpty {
-                    Label("Custom cuts", systemImage: "rectangle.split.3x1").tag(Optional<UUID>.none)
-                }
-            }
-            .frame(maxWidth: 320)
+            Label(journalName, systemImage: isSourcePane ? "doc.text" : "building.columns")
+                .font(.headline)
 
             Text("\(chain.count) version\(chain.count == 1 ? "" : "s")")
                 .font(.caption)
@@ -108,9 +103,13 @@ struct VersionsView: View {
                     Image(systemName: "arrow.triangle.branch")
                         .font(.system(size: 30, weight: .thin))
                         .foregroundStyle(.tertiary)
-                    Text("No versions for this journal yet.")
+                    Text(isSourcePane
+                         ? "Source is always the live manuscript — cut versions live under their journals."
+                         : "No versions for this journal yet.")
                         .font(.callout)
                         .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: 260)
                     Button("Add Version") { showAddVersion = true }
                         .buttonStyle(.link)
                     Spacer()
@@ -146,7 +145,11 @@ struct VersionsView: View {
 
             VStack(alignment: .leading, spacing: 1) {
                 HStack(spacing: 6) {
-                    Text(version.label.isEmpty ? "(unnamed version)" : version.label)
+                    // v1 is the journal's creation point — an unnamed first
+                    // version reads "Created", not "(unnamed version)".
+                    Text(version.label.isEmpty
+                         ? (ordinal == 1 ? "Created" : "(unnamed version)")
+                         : version.label)
                         .fontWeight(.medium)
                         .lineLimit(1)
                     if isHead {
@@ -204,7 +207,7 @@ struct VersionsView: View {
     private var rightPanel: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                LineageDiagram(journalID: journalID)
+                LineageDiagram(highlightJournalID: journalID, highlightSource: isSourcePane)
 
                 if let id = selectedVersionID,
                    let version = store.versions.first(where: { $0.id == id }) {
@@ -220,16 +223,18 @@ struct VersionsView: View {
 
 // MARK: - LineageDiagram
 
-/// The upstream/downstream lineage graphic (see examples/lineage-detailed.png):
-/// one row per journal — the upstream journal(s) this one was cut from, the
-/// selected journal, and any journals cut from it — each drawn as a large
-/// journal circle followed by its version chain, with arrows connecting the
-/// specific parent version to the specific child version.
+/// The **entire** lineage graphic (see examples/lineage-detailed.png): one row
+/// per journal — Source at the root, then every journal that has versions —
+/// each drawn as a large journal circle followed by its version chain, with
+/// arrows connecting the specific parent version to the specific child
+/// version.  The journal the pane represents is highlighted; the rest render
+/// quietly for orientation.
 struct LineageDiagram: View {
     @Environment(ManuscriptStore.self) private var store
 
-    /// The journal at the center of the diagram (nil = custom cuts).
-    let journalID: UUID?
+    /// The journal to highlight (nil + highlightSource = the Source pane).
+    let highlightJournalID: UUID?
+    var highlightSource: Bool = false
 
     // MARK: graph derivation
 
@@ -253,77 +258,53 @@ struct LineageDiagram: View {
         let to: Node
     }
 
-    private var chain: [ManuscriptVersion] { store.versions(forJournal: journalID) }
-
     private func journalName(_ id: UUID?) -> String {
         guard let id else { return "Custom" }
         return store.manuscript?.journals.first(where: { $0.id == id })?.name ?? "Journal"
     }
 
-    /// Upstream journal groups: the journals of the chain's parent versions.
-    private var upstreamGroups: [UUID?] {
-        var seen = Set<UUID?>()
-        var out: [UUID?] = []
-        for v in chain {
-            guard let pid = v.parentID,
-                  let parent = store.versions.first(where: { $0.id == pid }),
-                  parent.journalID != journalID else { continue }
-            if seen.insert(parent.journalID).inserted { out.append(parent.journalID) }
+    /// Every journal group that has versions, in manuscript order, with a
+    /// trailing "Custom" group for cuts not tied to a journal.
+    private var journalGroups: [UUID?] {
+        var out: [UUID?] = (store.manuscript?.journals ?? [])
+            .map { Optional.some($0.id) }
+            .filter { !store.versions(forJournal: $0).isEmpty }
+        if store.versions.contains(where: { $0.journalID == nil }) {
+            out.append(nil)
         }
         return out
-    }
-
-    /// Downstream journal groups: journals with versions cut from this chain.
-    private var downstreamGroups: [UUID?] {
-        let mine = Set(chain.map(\.id))
-        var seen = Set<UUID?>()
-        var out: [UUID?] = []
-        for v in store.versions where v.journalID != journalID {
-            guard let pid = v.parentID, mine.contains(pid) else { continue }
-            if seen.insert(v.journalID).inserted { out.append(v.journalID) }
-        }
-        return out
-    }
-
-    private var needsSourceRow: Bool {
-        chain.contains { $0.parentID == nil }
     }
 
     private var rows: [Row] {
-        var rows: [Row] = []
-        if needsSourceRow {
-            rows.append(Row(id: "source", name: "Source", versions: [], isSelected: false, isSource: true))
-        }
-        for gid in upstreamGroups {
-            rows.append(Row(id: "up-\(gid?.uuidString ?? "custom")", name: journalName(gid),
-                            versions: store.versions(forJournal: gid), isSelected: false, isSource: false))
-        }
-        rows.append(Row(id: "selected", name: journalName(journalID),
-                        versions: chain, isSelected: true, isSource: false))
-        for gid in downstreamGroups {
-            rows.append(Row(id: "down-\(gid?.uuidString ?? "custom")", name: journalName(gid),
-                            versions: store.versions(forJournal: gid), isSelected: false, isSource: false))
+        var rows: [Row] = [
+            Row(id: "source", name: "Source", versions: [],
+                isSelected: highlightSource, isSource: true)
+        ]
+        for gid in journalGroups {
+            rows.append(Row(
+                id: gid?.uuidString ?? "custom",
+                name: journalName(gid),
+                versions: store.versions(forJournal: gid),
+                isSelected: !highlightSource && gid == highlightJournalID,
+                isSource: false
+            ))
         }
         return rows
     }
 
+    /// Every cross-journal derivation: Source → first cut of a chain, and
+    /// journal version → child journal version.  Same-journal succession is
+    /// the dashes within a row, not an arrow.
     private var edges: [Edge] {
         var edges: [Edge] = []
-        // Into the selected chain (from Source or an upstream journal version).
-        for v in chain {
+        for v in store.versions {
             if let pid = v.parentID {
-                if let parent = store.versions.first(where: { $0.id == pid }), parent.journalID != journalID {
+                if let parent = store.versions.first(where: { $0.id == pid }),
+                   parent.journalID != v.journalID {
                     edges.append(Edge(id: "e-\(v.id)", from: .version(pid), to: .version(v.id)))
                 }
             } else {
                 edges.append(Edge(id: "e-\(v.id)", from: .sourceRoot, to: .version(v.id)))
-            }
-        }
-        // Out of the selected chain into downstream journals.
-        let mine = Set(chain.map(\.id))
-        for v in store.versions where v.journalID != journalID {
-            if let pid = v.parentID, mine.contains(pid) {
-                edges.append(Edge(id: "d-\(v.id)", from: .version(pid), to: .version(v.id)))
             }
         }
         return edges
@@ -335,11 +316,11 @@ struct LineageDiagram: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Lineage")
                 .font(.headline)
-            Text("Where \(journalName(journalID)) was cut from, and what was cut from it. Arrows connect the exact versions.")
+            Text("The full derivation tree — \(highlightSource ? "Source" : journalName(highlightJournalID)) highlighted. Arrows connect the exact versions.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
-            if chain.isEmpty {
+            if store.versions.isEmpty {
                 Text("No versions yet — the diagram appears after the first cut.")
                     .font(.callout)
                     .foregroundStyle(.tertiary)

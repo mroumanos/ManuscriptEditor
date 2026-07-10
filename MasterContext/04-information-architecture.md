@@ -16,11 +16,20 @@ Two sections, plus a bottom utility bar:
 - Settings
 
 **Journal** (the per-journal hub — sits above Content)
-- Sync     ← lineage management: per-journal fast-forward with overwrite warning
-- Checks   ← **comparable**: renders one pane per open journal, live (see below);
-             also hosts the journal's requirements/checklist editing
-- Export   ← the per-journal **export outline editor** + submission package build
-- Versions (N)   ← **per-journal**: journal picker, linear history, lineage diagram
+- Sync     ← lineage management as a **nested tree** (each journal indented
+             under its upstream) with a per-edge fast-forward + overwrite warning
+- Checks   ← **comparable**: one live pane per open tab, each checking its own
+             tab's journal (Source shows an explanatory state — no picker)
+- Export   ← **comparable**: one pane per open tab — that journal's export
+             outline editor + submission package build (no picker)
+- Versions (N)   ← **comparable**: one pane per open tab — that journal's linear
+             history + the full lineage diagram with the journal highlighted
+             (no picker)
+
+The Checks/Export/Versions panes **represent the journal of their tab**
+(starting with Source): open a NEJM tab and you see NEJM's side of the
+environment beside Source's. There is never a journal dropdown inside these
+panes.
 
 **Content** (version-comparable items — these render side-by-side per open tab)
 - Authors (N)
@@ -56,23 +65,28 @@ its current working version unless a history version is explicitly selected).
   (non-head) versions marked "(older)". The free-text version label (e.g.
   "Synced from NEJM v2") appears only as secondary context in the picker — it
   names the upstream, not the journal, so it cannot be the tab identity.
-- A **＋** opens a picker of journals not currently open, **working heads
-  first**, so opening "Nature" naturally means its current head. Journals are
-  created in the **Journals** panel, not here.
-- **Side-by-side for comparable items.** Comparable = the **Content** items **plus
-  Checks**. When a comparable item is selected AND ≥1 tab is open, the detail
-  splits into one pane per open journal. For the remaining manuscript-level items
-  (Overview/Data/Journals/Settings) the tabs are irrelevant and a single pane
-  renders against Source.
+- A **＋** opens a picker of journals not currently open, offering **working
+  heads only** — opening "Nature" always means its current head; older versions
+  are history, browsed in Versions, never tab candidates. Journals are created
+  in the **Journals** panel, not here.
+- **Side-by-side for comparable items.** Comparable = the **Content** items
+  **plus Checks, Versions, and Export**. When a comparable item is selected AND
+  ≥1 tab is open, the detail splits into one pane per open journal. For the
+  remaining manuscript-level items (Overview/Data/Sync/Settings) the tabs are
+  irrelevant and a single pane renders against Source.
 - **Checks renders per-journal and live.** With Source + NEJM open and **Checks**
   selected, each pane shows that journal's requirement checklist evaluated against
   that journal's current content — updating **instantly** as you edit. So you can
   bring up Checks side-by-side exactly like Abstract.
 - **Synced navigation.** One shared sidebar selection: click "Methods" and every
   open pane shows Methods; click "Introduction" and they all switch together.
-- Each pane has a **colored title capsule** naming the content item, tinted with
-  that journal's color, aligned to the text column. For body sections the capsule
-  is the editable section title.
+- **Pane headers are slim** — word count, per-journal section activation (eye),
+  and notes, aligned past the editor gutter. The selected item's name is NOT
+  repeated per pane (the sidebar selection already names it; the former colored
+  title capsule is gone). Which journal a pane shows is carried by the tab
+  chips above, in the same left-to-right order. Body sections are renamed via
+  the sidebar's **context menu → Rename Section…** (shared structure — applies
+  to every journal).
 - A per-pane **version control** (e.g. a `v3 ▾` menu with Save / Save new version
   / roll back-forward) lets the user move through that journal's history without
   affecting other journals.
@@ -91,6 +105,7 @@ its current working version unless a history version is explicitly selected).
 | Notes & feedback on content | inline on content items / highlight-to-comment in prose |
 | Import CSV/images; SQL; charts | **Data** sidebar item |
 | Requirement pass/fail for active view | **Checks** sidebar item |
+| Save to Remote / Load from Remote (GitHub backend) | **Manuscript menu** (⇧⌘S / Load from Remote…); repo+token in Preferences → Backend; active backend in **Settings** |
 | New manuscript (folder picker) | ＋ in window toolbar / ⌘N |
 
 ## Journal hub (implemented) & profiles (planned)

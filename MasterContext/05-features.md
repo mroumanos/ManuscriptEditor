@@ -11,6 +11,10 @@ Intent: a manuscript is a folder the user owns.
 - AC: Access persists across launches via security-scoped bookmark.
 - AC: Window title shows the manuscript name at all times.
 - AC: Older saved manuscripts still open (backward-compatible decoding).
+- AC: **Overview is the manuscript dashboard**: source statistics (words,
+  sections, figures, tables, references) **plus one row per journal cut** —
+  head version, its content's word/asset counts, and its live checks verdict
+  (`12/14` with the pass/attention color).
 
 ## B. Source content authoring
 
@@ -39,8 +43,22 @@ Intent: most time is spent here; it must be excellent and AI-optional.
 Intent: data lives once; figures/tables reference it; cuts convert only SQL.
 - AC: Import CSV → stored as SQLite in `data/`; import images → copied to `data/`.
 - AC: A CSV asset has a SQL editor; results show in a grid; errors show inline.
+- AC: **Result grids use the native SwiftUI `Table`** (shared `QueryResultTable`
+  component): resizable columns, alternating rows, single-line truncation with
+  the full value on hover — never a hand-rolled per-cell-border grid. Results
+  cap at 500 rendered rows with an honest "showing first N" footer.
 - AC: Figures can reference a CSV (chart: line/bar/histogram via SQL) **or** an
   image; tables can reference a CSV (SQL → table). Reference = `dataAssetID` + SQL.
+- AC: **Data-linked figures render live in the figure editor**: the chart
+  (bar/line, or a real binned histogram) redraws as the SQL or chart type
+  changes (SQL debounced ~0.4 s). Column mapping: first SELECT column = X,
+  second = Y.
+- AC: **Data-linked tables preview live**: when a table has a data source, the
+  editor's content pane shows the query's result grid (same component as Data)
+  instead of the Markdown editor, updating as the SQL changes.
+- AC: **Figure image adjustments are non-destructive**: crop, resize (10–100%),
+  and **black & white** each apply to the figure's rendering (previews,
+  thumbnails, export) only — the original image in Data never changes.
 - AC: Changing journals/cuts never alters underlying data — only the SQL/format.
 - AC: Each data asset has a delete affordance.
 
@@ -85,6 +103,8 @@ Intent: every journal (incl. Source) has its own save-point history.
 - AC: The user can **roll back / forward** through a journal's versions, changing
   only that journal.
 - AC: A per-pane version control surfaces the current version and these actions.
+- AC: An unnamed first version (`v1`) displays as **"Created"** — it is the
+  journal's creation point, never "(unnamed version)".
 - AC: When a journal has unsaved edits, show a prominent **unsaved-changes
   banner** that triggers Save when clicked.
 
@@ -112,10 +132,12 @@ propagate by explicit, individual fast-forwards.
   **manually**. **Phase II** — the configured **AI service** auto-derives the
   child content toward the child's requirements.
 - AC (implemented): **Sync pane** — a dedicated sidebar item (between Settings
-  and Checks). One card per target journal showing the lineage edge it hangs
-  from (upstream name + the parent-version badge), the journal node with its
-  current head badge, a drift status ("up to date" / "upstream has moved —
-  fast-forward available"), and a blue **Sync** button. Syncing shows a
+  and Checks), laid out as a **nested lineage tree**: Source at the root, each
+  journal indented under the journal it syncs from (↳ connector per level).
+  Each card shows the lineage edge it hangs from (upstream name + the
+  parent-version badge), the journal node with its current head badge, a drift
+  status ("up to date" / "upstream has moved — fast-forward available"), and a
+  blue **Sync** button on the edge. Syncing shows a
   **warning dialog** ("overwrites what currently exists in the journal's
   working head; previous versions remain in history") before creating the new
   version + edge via `ManuscriptStore.syncJournal`.
@@ -127,12 +149,15 @@ propagate by explicit, individual fast-forwards.
   carries and the warning dialog names the exact snapshot that will be copied
   ("Nature does not pull from Source directly — sync NEJM first, then
   Nature").
-- AC (implemented): **Versions pane is per-journal** — a journal picker, that
-  journal's **linear** history (v1 → v2 …, newest = working head, leaf-only
-  delete), a **lineage diagram** of the upstream journal it was cut from and
-  downstream journals cut from it (arrows connect the exact versions — see
-  `LineageDiagram`, modeled on examples/lineage-detailed.png), and the selected
-  version's details. Version numbers in these views are **per-journal
+- AC (implemented): **Versions pane is per-tab** — like Checks, it renders one
+  pane per open comparison tab, each scoped to **that tab's journal** with no
+  journal dropdown (the Source tab's pane covers custom cuts and explains that
+  Source itself is always live). Each pane shows the journal's **linear**
+  history (v1 → v2 …, newest = working head, leaf-only delete) and the
+  **entire lineage diagram** — Source root plus every journal's chain, with
+  the pane's journal **highlighted** and arrows connecting the exact versions
+  (`LineageDiagram`, modeled on examples/lineage-detailed.png) — plus the
+  selected version's details. Version numbers in these views are **per-journal
   ordinals** (`journalOrdinal`). The Versions pane no longer embeds
   requirements/checklists — the live checklist lives in **Checks** (§J);
   requirements editing lives in the Journals settings.
@@ -163,9 +188,17 @@ legible.
 
 Intent: compare/edit journals together.
 - AC: Comparison tabs at top list active **journals**, color-coded; Source is a
-  closable tab; ＋ reopens closed journals.
+  closable tab. The **＋ picker offers each journal's working head only** —
+  older versions are history (browsed in Versions), never tab candidates.
 - AC: Selecting a **Content** item with ≥1 tab open renders one **editable** pane
-  per tab; sidebar navigation moves all panes together.
+  per tab; sidebar navigation moves all panes together. **Checks, Versions, and
+  Export are comparable the same way** — one pane per tab, each representing
+  its tab's journal with no journal dropdown of its own.
+- AC: **Pane headers are slim**: word count, per-journal section activation
+  (eye), and notes only. The selected item's name is NOT repeated in the pane —
+  the sidebar selection already names it (body sections rename via the
+  sidebar's context menu). Which journal a pane shows is carried by the tab
+  chips above, in the same left-to-right order.
 - AC: Editing a pane writes to that journal's working content, not other journals.
 - AC: With zero tabs open, the Content section disappears and selection falls back
   to Overview.
@@ -215,8 +248,9 @@ Intent: clean, modern, capable prose editing.
 > **Implemented shape:** the Checks pane is the live submission **checklist
 > only** (ChecklistService results — word/asset limits, required sections,
 > custom rules — green ✓ / red ✗ with a summary banner). A journal pane checks
-> its own journal; the Source pane has a journal picker. Requirements *editing*
-> lives in the Journals settings, not here.
+> its own journal; the Source pane (Source has empty default requirements)
+> shows an explanatory state pointing at the journal tabs — no journal picker.
+> Requirements *editing* lives in the Journals settings, not here.
 
 Intent: deterministic requirement verification that is **always current** and
 viewable **side-by-side per journal**, like any Content item.
@@ -244,9 +278,20 @@ things; neither is needed for Phase I (manual, local) editing.
 - AC: Preferences → Backend: add/remove GitHub/Office365/Dropbox/Google Docs/
   GitLab accounts that say **where the project is stored in the cloud** (persist
   across manuscripts). One is the manuscript's "active" backend (Settings).
-  **Phase II** = save-and-share: push the project to the active backend on every
-  Save / Save new version, and fetch/restore. **Active collaboration/concurrency
-  is Phase III (stub only).**
+  **Phase II** = save-and-share. **Active collaboration/concurrency is Phase III
+  (stub only).**
+- AC (implemented — GitHub first): **Save to Remote / Load from Remote**
+  (Manuscript menu; ⇧⌘S for save). A GitHub backend account carries a
+  repository ("owner/name") + branch (default `main`); its **personal access
+  token lives in the Keychain** (`KeychainService`, keyed by account id) —
+  never in app.json. *Save* pushes the manuscript folder (manuscript.json,
+  figures/, data/) as **one commit** via the Git Data API on top of the branch
+  head, leaving unrelated repo files (README, LICENSE) untouched; *Load* pulls
+  those managed paths back after a **destructive-action confirmation**,
+  replacing local content but keeping the local manuscript id/folder mapping.
+  Success shows quietly in the sidebar subtitle; failures alert with an
+  actionable message (bad token / missing repo / unconfigured backend). Other
+  providers remain honest stubs.
 - AC: Preferences → AI: add/remove Claude/ChatGPT/Gemini/Ollama services used for
   content **adaptation/revision** (**Phase II**; needs Keychain for keys). In
   Phase I, cuts are created and edited **manually** without any AI. Never conflate
@@ -357,10 +402,11 @@ ordered by use. `RefEngine` (Services/) is the single home for this logic.
   ("and/or", DOIs, URLs) does not trigger; no matches → no dropdown.
 - AC: Accepting (Return/Tab, or click) inserts a **formatted token** —
   default **`[1]`** numeric for citations, "Figure 2"/"Table 1" for
-  cross-references — bold, carrying an identity link
-  (`cite://<id>?f=<style>`, `figref://<id>`, `tabref://<id>`). The list does
-  not preview into the text while arrowing; dismissing leaves exactly what was
-  typed.
+  cross-references — **in the editor's default format (no bolding, italics, or
+  font change)**; the token's identity lives in its link attribute
+  (`cite://<id>?f=<style>`, `figref://<id>`, `tabref://<id>`), not in styling.
+  The list does not preview into the text while arrowing; dismissing leaves
+  exactly what was typed.
 - AC: **Hovering a token** shows a details card after ~0.25s: key + "cited as
   [n]" and the full reference (or figure/table title + caption). The `.toolTip`
   attribute remains as fallback.

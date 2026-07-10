@@ -14,26 +14,28 @@ pane is a full editor for its journal, not a preview.
 
 ## 2. Pane identity (the user always knows which is which)
 
-- Every pane carries its journal's **color** on the title capsule, matching its
-  tab chip. Colors key to the `VersionRef`, never tab position, so closing one
-  tab never recolors the rest.
-- The capsule names the content item; the per-pane version control shows the
-  version (`v3 ▾`) and its Save / Save new version / roll back-forward actions,
-  scoped strictly to that pane's journal.
-- Older (non-head) versions are visibly marked "(older)" in the tab; a pane
-  showing an older version must read as an archive view, not the working head.
+- Panes render below the tab chips **in the same left-to-right order** — the
+  color-coded chip carries each pane's journal identity; the pane itself stays
+  quiet (no repeated title). Colors key to the `VersionRef`, never tab
+  position, so closing one tab never recolors the rest.
+- The per-pane version control shows the version (`v3 ▾`) and its Save / Save
+  new version / roll back-forward actions, scoped strictly to that pane's
+  journal.
+- Tabs open **working heads only**; if a rollback leaves a tab on a non-head
+  version it is marked "(older)" and must read as an archive view, not the
+  working head.
 
 ## 3. Layout rules
 
 - Panes split the width **evenly** with a `minWidth` (~360). Beyond the width
   budget, horizontal scrolling of panes beats shrinking any pane below its
   comfortable measure (00 §3.1).
-- Panes are visually parallel: identical stack order (capsule → toolbar → ruler
+- Panes are visually parallel: identical stack order (header → toolbar → ruler
   → gutter → text), identical editor typography (it's a global preference), so
   the eye can jump horizontally between the same element in each pane.
-- Word counts sit in the same place in every capsule — cross-pane word-count
-  comparison ("Abstract: 214 vs 148") is a primary use, so make the numbers
-  scannable at a glance.
+- Word counts sit in the same place in every pane header — cross-pane
+  word-count comparison ("Abstract: 214 vs 148") is a primary use, so make the
+  numbers scannable at a glance.
 
 ## 4. Synced navigation, independent editing
 

@@ -101,8 +101,12 @@ final class AppStore {
         save()
     }
 
-    /// Deletes backend accounts at the given offsets.
+    /// Deletes backend accounts at the given offsets, and their Keychain
+    /// secrets — an orphaned token must not outlive its account.
     func deleteBackends(at offsets: IndexSet) {
+        for offset in offsets where backends.indices.contains(offset) {
+            KeychainService.deleteSecret(for: backends[offset].id)
+        }
         backends.remove(atOffsets: offsets)
         save()
     }

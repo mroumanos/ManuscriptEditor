@@ -136,6 +136,11 @@ struct TableEditor: View {
     /// Mutable working copy.
     @State private var draft: ManuscriptTable
 
+    /// Live result of the linked data query (when a data source is set).
+    @State private var previewResult: QueryResult = .empty
+    /// Debounces query re-runs while the user types SQL.
+    @State private var previewTask: Task<Void, Never>?
+
     init(table: ManuscriptTable, versionRef: VersionRef = .source) {
         self.table = table
         self.versionRef = versionRef
@@ -144,22 +149,43 @@ struct TableEditor: View {
 
     var body: some View {
         VSplitView {
-            // MARK: Markdown content editor
+            // MARK: Content: live data preview (linked) or Markdown editor
             VStack(alignment: .leading, spacing: 0) {
                 HStack {
-                    Text("Table Content (Markdown)").font(.headline)
+                    Text(draft.dataAssetID == nil ? "Table Content (Markdown)" : "Data Preview")
+                        .font(.headline)
                     Spacer()
-                    Text("Tip: use | Col1 | Col2 | syntax")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
+                    if draft.dataAssetID == nil {
+                        Text("Tip: use | Col1 | Col2 | syntax")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                    } else {
+                        Text("\(previewResult.rows.count) row\(previewResult.rows.count == 1 ? "" : "s") · updates as the SQL below changes")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                    }
                 }
                 .padding([.horizontal, .top], 16)
                 .padding(.bottom, 8)
                 Divider()
-                // Monospaced font makes pipe-table columns easier to align visually.
-                TextEditor(text: $draft.content)
-                    .font(.system(.body, design: .monospaced))
-                    .padding(12)
+                if draft.dataAssetID != nil {
+                    // The linked query's rows ARE the table — rendered with the
+                    // same component as the Data pane.
+                    if let error = previewResult.errorMessage {
+                        Label(error, systemImage: "exclamationmark.triangle")
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                            .padding(12)
+                        Spacer(minLength: 0)
+                    } else {
+                        QueryResultTable(result: previewResult)
+                    }
+                } else {
+                    // Monospaced font makes pipe-table columns easier to align visually.
+                    TextEditor(text: $draft.content)
+                        .font(.system(.body, design: .monospaced))
+                        .padding(12)
+                }
             }
             .frame(minHeight: 200)
 
@@ -192,9 +218,32 @@ struct TableEditor: View {
         .onChange(of: draft.caption)      { _, _ in store.updateTable(draft, ref: versionRef) }
         .onChange(of: draft.footnotes)    { _, _ in store.updateTable(draft, ref: versionRef) }
         .onChange(of: draft.number)       { _, _ in store.updateTable(draft, ref: versionRef) }
-        .onChange(of: draft.dataAssetID)  { _, _ in store.updateTable(draft, ref: versionRef) }
-        .onChange(of: draft.dataQuery)    { _, _ in store.updateTable(draft, ref: versionRef) }
-        .onChange(of: table.id)           { _, _ in draft = table }
+        .onChange(of: draft.dataAssetID)  { _, _ in store.updateTable(draft, ref: versionRef); refreshPreview() }
+        .onChange(of: draft.dataQuery)    { _, _ in store.updateTable(draft, ref: versionRef); refreshPreview(debounced: true) }
+        .onChange(of: table.id)           { _, _ in draft = table; refreshPreview() }
+        .onAppear                         { refreshPreview() }
+    }
+
+    // MARK: - Live data preview
+
+    /// Re-runs the linked query.  Typing in the SQL field debounces ~0.4 s so
+    /// half-written statements don't spam errors; picking an asset runs now.
+    private func refreshPreview(debounced: Bool = false) {
+        previewTask?.cancel()
+        guard let assetID = draft.dataAssetID,
+              let asset = store.manuscript?.dataAssets.first(where: { $0.id == assetID })
+        else {
+            previewResult = .empty
+            return
+        }
+        let sql = draft.dataQuery ?? "SELECT * FROM data"
+        previewTask = Task {
+            if debounced {
+                try? await Task.sleep(for: .milliseconds(400))
+                guard !Task.isCancelled else { return }
+            }
+            previewResult = store.runQuery(sql, for: asset)
+        }
     }
 
     // MARK: - Data source section

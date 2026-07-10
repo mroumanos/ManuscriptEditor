@@ -39,8 +39,18 @@ struct SyncView: View {
                         .foregroundStyle(.tertiary)
                         .padding(.top, 8)
                 } else {
-                    ForEach(journals) { journal in
-                        journalRow(journal)
+                    // Nested lineage: each journal sits indented under the
+                    // journal (or Source) it syncs from, so the tree reads
+                    // top-down and each edge carries its own Sync button.
+                    ForEach(flattenedTree, id: \.journal.id) { entry in
+                        HStack(alignment: .center, spacing: 6) {
+                            if entry.depth > 0 {
+                                Color.clear.frame(width: CGFloat(entry.depth - 1) * 32)
+                                Image(systemName: "arrow.turn.down.right")
+                                    .foregroundStyle(.tertiary)
+                            }
+                            journalRow(entry.journal)
+                        }
                     }
                 }
 
@@ -70,6 +80,33 @@ struct SyncView: View {
                 secondaryButton: .cancel()
             )
         }
+    }
+
+    // MARK: - Lineage tree shape
+
+    /// Journals depth-first under their upstream journal (Source = depth 0),
+    /// so the cards render as a nested tree.  Journals without versions (no
+    /// lineage yet) list under Source.  `visited` guards a malformed cycle.
+    private var flattenedTree: [(journal: Journal, depth: Int)] {
+        var childrenByUpstream: [UUID?: [Journal]] = [:]
+        for journal in journals {
+            let upstream = store.syncSource(forJournal: journal.id)?.upstreamJournalID
+            childrenByUpstream[upstream, default: []].append(journal)
+        }
+        var out: [(Journal, Int)] = []
+        var visited = Set<UUID>()
+        func walk(_ upstream: UUID?, depth: Int) {
+            for child in childrenByUpstream[upstream] ?? [] where visited.insert(child.id).inserted {
+                out.append((child, depth))
+                walk(child.id, depth: depth + 1)
+            }
+        }
+        walk(nil, depth: 0)
+        // Anything unreachable (shouldn't happen) still gets listed flat.
+        for journal in journals where !visited.contains(journal.id) {
+            out.append((journal, 0))
+        }
+        return out
     }
 
     /// True when `journalID`'s own upstream has a newer version than the one its

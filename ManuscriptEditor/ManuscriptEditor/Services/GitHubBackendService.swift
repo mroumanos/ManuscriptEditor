@@ -1,0 +1,217 @@
+// GitHubBackendService.swift
+//
+// "Save to remote" / "Load from remote" against a GitHub repository — the
+// first concrete backend (Phase II save-and-share; see MasterContext
+// 05-features §K).  Account-free: the user supplies their own repository and
+// a personal access token (stored in the Keychain, never in app files).
+//
+// PUSH — one commit per save, via the Git Data API:
+//   1. GET  the branch ref (base commit), if the branch exists
+//   2. POST a blob per file (base64)
+//   3. POST a tree containing the blobs (base_tree = base commit's tree, so
+//      files other than ours — README, LICENSE — are never touched)
+//   4. POST a commit pointing at the tree
+//   5. PATCH (or POST, first push) the branch ref to the commit
+//
+// PULL — GET the branch's tree recursively, download the blobs this app
+// manages (manuscript.json, figures/, data/), and hand them to the caller to
+// write into the manuscript folder.
+//
+// The service is deliberately synchronous-per-call (async/await, no state):
+// the store decides when to push/pull and owns status reporting.
+
+import Foundation
+
+// MARK: - Errors
+
+enum GitHubBackendError: LocalizedError {
+    case notConfigured(String)
+    case http(Int, String)
+    case badResponse(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .notConfigured(let m): return m
+        case .http(let code, let m):
+            switch code {
+            case 401: return "GitHub rejected the token (401). Check the personal access token in Preferences → Backend."
+            case 404: return "Repository or branch not found (404). Check the \"owner/name\" repository and that the token can access it."
+            default:  return "GitHub request failed (\(code)): \(m)"
+            }
+        case .badResponse(let m): return "Unexpected GitHub response: \(m)"
+        }
+    }
+}
+
+// MARK: - GitHubBackendService
+
+struct GitHubBackendService {
+
+    /// Everything needed to talk to one repository.
+    struct Config {
+        let owner: String
+        let repo: String
+        let branch: String
+        let token: String
+
+        /// Builds a config from a backend account + its Keychain token.
+        /// Throws a user-actionable message when anything is missing.
+        static func from(account: BackendAccount) throws -> Config {
+            guard account.provider == .github else {
+                throw GitHubBackendError.notConfigured("The active backend is \(account.provider.rawValue) — only GitHub is supported so far. Pick a GitHub backend in Manuscript → Settings.")
+            }
+            let parts = (account.repository ?? "").split(separator: "/").map(String.init)
+            guard parts.count == 2, !parts[0].isEmpty, !parts[1].isEmpty else {
+                throw GitHubBackendError.notConfigured("Set the GitHub repository as \"owner/name\" in Preferences → Backend.")
+            }
+            guard let token = KeychainService.secret(for: account.id), !token.isEmpty else {
+                throw GitHubBackendError.notConfigured("No personal access token stored for \"\(account.displayName)\". Add one in Preferences → Backend.")
+            }
+            return Config(owner: parts[0], repo: parts[1],
+                          branch: account.branch?.isEmpty == false ? account.branch! : "main",
+                          token: token)
+        }
+    }
+
+    /// One file to push / pulled from the remote, path relative to the
+    /// manuscript folder (e.g. "manuscript.json", "figures/x.png").
+    struct File {
+        let path: String
+        let data: Data
+    }
+
+    // MARK: - Push
+
+    /// Pushes `files` as a single commit; returns the new commit's short SHA.
+    func push(files: [File], message: String, config: Config) async throws -> String {
+        // 1. Base commit (nil on a brand-new branch/empty repository).
+        let base = try await branchHead(config: config)
+
+        // 2. One blob per file.
+        var treeEntries: [[String: Any]] = []
+        for file in files {
+            let blob: [String: Any] = try await post("git/blobs", config: config, body: [
+                "content": file.data.base64EncodedString(),
+                "encoding": "base64",
+            ])
+            guard let sha = blob["sha"] as? String else {
+                throw GitHubBackendError.badResponse("blob for \(file.path) returned no sha")
+            }
+            treeEntries.append(["path": file.path, "mode": "100644", "type": "blob", "sha": sha])
+        }
+
+        // 3. Tree on top of the base tree (leaves unrelated repo files alone).
+        var treeBody: [String: Any] = ["tree": treeEntries]
+        if let base { treeBody["base_tree"] = base.treeSHA }
+        let tree: [String: Any] = try await post("git/trees", config: config, body: treeBody)
+        guard let treeSHA = tree["sha"] as? String else {
+            throw GitHubBackendError.badResponse("tree returned no sha")
+        }
+
+        // 4. Commit.
+        var commitBody: [String: Any] = ["message": message, "tree": treeSHA]
+        if let base { commitBody["parents"] = [base.commitSHA] }
+        let commit: [String: Any] = try await post("git/commits", config: config, body: commitBody)
+        guard let commitSHA = commit["sha"] as? String else {
+            throw GitHubBackendError.badResponse("commit returned no sha")
+        }
+
+        // 5. Move (or create) the branch ref.
+        if base != nil {
+            _ = try await request("PATCH", "git/refs/heads/\(config.branch)", config: config,
+                                  body: ["sha": commitSHA])
+        } else {
+            _ = try await request("POST", "git/refs", config: config,
+                                  body: ["ref": "refs/heads/\(config.branch)", "sha": commitSHA])
+        }
+        return String(commitSHA.prefix(7))
+    }
+
+    // MARK: - Pull
+
+    /// Paths (exact or directory prefixes) this app owns in the repository.
+    private static let managedPrefixes = ["manuscript.json", "figures/", "data/"]
+
+    /// Downloads the manuscript files from the branch head.
+    func pull(config: Config) async throws -> [File] {
+        guard let base = try await branchHead(config: config) else {
+            throw GitHubBackendError.notConfigured("Branch \"\(config.branch)\" has no commits yet — save to remote first.")
+        }
+        let tree: [String: Any] = try await get("git/trees/\(base.treeSHA)?recursive=1", config: config)
+        guard let entries = tree["tree"] as? [[String: Any]] else {
+            throw GitHubBackendError.badResponse("tree listing missing entries")
+        }
+
+        var files: [File] = []
+        for entry in entries {
+            guard let path = entry["path"] as? String,
+                  let type = entry["type"] as? String, type == "blob",
+                  let sha = entry["sha"] as? String,
+                  Self.managedPrefixes.contains(where: { path == $0 || path.hasPrefix($0) })
+            else { continue }
+            let blob: [String: Any] = try await get("git/blobs/\(sha)", config: config)
+            guard let b64 = blob["content"] as? String,
+                  let data = Data(base64Encoded: b64, options: .ignoreUnknownCharacters)
+            else { throw GitHubBackendError.badResponse("blob \(path) not decodable") }
+            files.append(File(path: path, data: data))
+        }
+        guard files.contains(where: { $0.path == "manuscript.json" }) else {
+            throw GitHubBackendError.notConfigured("The repository has no manuscript.json on \"\(config.branch)\" — nothing to load.")
+        }
+        return files
+    }
+
+    // MARK: - HTTP plumbing
+
+    /// The branch's current commit + tree, or nil when the branch/repo is empty.
+    private func branchHead(config: Config) async throws -> (commitSHA: String, treeSHA: String)? {
+        do {
+            let ref: [String: Any] = try await get("git/ref/heads/\(config.branch)", config: config)
+            guard let object = ref["object"] as? [String: Any],
+                  let commitSHA = object["sha"] as? String else {
+                throw GitHubBackendError.badResponse("ref missing object sha")
+            }
+            let commit: [String: Any] = try await get("git/commits/\(commitSHA)", config: config)
+            guard let tree = commit["tree"] as? [String: Any],
+                  let treeSHA = tree["sha"] as? String else {
+                throw GitHubBackendError.badResponse("commit missing tree sha")
+            }
+            return (commitSHA, treeSHA)
+        } catch GitHubBackendError.http(let code, _) where code == 404 || code == 409 {
+            // 404: branch doesn't exist; 409: repository has no commits at all.
+            return nil
+        }
+    }
+
+    private func get(_ path: String, config: Config) async throws -> [String: Any] {
+        try await request("GET", path, config: config, body: nil)
+    }
+
+    private func post(_ path: String, config: Config, body: [String: Any]) async throws -> [String: Any] {
+        try await request("POST", path, config: config, body: body)
+    }
+
+    @discardableResult
+    private func request(_ method: String, _ path: String, config: Config,
+                         body: [String: Any]?) async throws -> [String: Any] {
+        let url = URL(string: "https://api.github.com/repos/\(config.owner)/\(config.repo)/\(path)")!
+        var req = URLRequest(url: url)
+        req.httpMethod = method
+        req.setValue("Bearer \(config.token)", forHTTPHeaderField: "Authorization")
+        req.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        req.setValue("2022-11-28", forHTTPHeaderField: "X-GitHub-Api-Version")
+        if let body {
+            req.httpBody = try JSONSerialization.data(withJSONObject: body)
+            req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        }
+
+        let (data, response) = try await URLSession.shared.data(for: req)
+        let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+        guard (200..<300).contains(code) else {
+            let message = (try? JSONSerialization.jsonObject(with: data) as? [String: Any])
+                .flatMap { $0?["message"] as? String } ?? ""
+            throw GitHubBackendError.http(code, message)
+        }
+        return (try? JSONSerialization.jsonObject(with: data) as? [String: Any]).flatMap { $0 } ?? [:]
+    }
+}

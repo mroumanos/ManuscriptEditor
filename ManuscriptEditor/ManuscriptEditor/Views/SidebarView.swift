@@ -30,6 +30,11 @@ struct SidebarView: View {
     /// App-wide appearance, also editable from Preferences.
     @AppStorage(EditorPrefs.appearanceKey) private var appearance = AppearanceMode.system.rawValue
 
+    /// Section being renamed via the context menu (drives the rename alert).
+    /// Renaming lives here since the pane headers no longer carry a title field.
+    @State private var renamingSectionID: UUID?
+    @State private var renameDraft = ""
+
     private var manuscript: Manuscript? { store.manuscript }
 
     var body: some View {
@@ -199,7 +204,24 @@ struct SidebarView: View {
             }
         }
         .contextMenu {
+            Button("Rename Section…") {
+                renameDraft = section.title
+                renamingSectionID = section.id
+            }
             Button("Delete Section", role: .destructive) { deleteSection(section) }
+        }
+        .alert("Rename Section", isPresented: Binding(
+            get: { renamingSectionID == section.id },
+            set: { if !$0 { renamingSectionID = nil } }
+        )) {
+            TextField("Section title", text: $renameDraft)
+            Button("Rename") {
+                store.renameSection(id: section.id, title: renameDraft)
+                renamingSectionID = nil
+            }
+            Button("Cancel", role: .cancel) { renamingSectionID = nil }
+        } message: {
+            Text("Renames this section in every journal (shared structure).")
         }
     }
 
@@ -213,9 +235,18 @@ struct SidebarView: View {
     }
 
     private var saveSubtitle: String {
-        guard let saved = store.lastSaved else { return "" }
-        let fmt = RelativeDateTimeFormatter()
-        fmt.unitsStyle = .abbreviated
-        return "Saved \(fmt.localizedString(for: saved, relativeTo: Date()))"
+        var parts: [String] = []
+        if let saved = store.lastSaved {
+            let fmt = RelativeDateTimeFormatter()
+            fmt.unitsStyle = .abbreviated
+            parts.append("Saved \(fmt.localizedString(for: saved, relativeTo: Date()))")
+        }
+        // Remote push/pull state rides along quietly (errors alert instead).
+        if store.isRemoteBusy {
+            parts.append("Syncing with remote…")
+        } else if let remote = store.remoteStatus {
+            parts.append(remote)
+        }
+        return parts.joined(separator: " · ")
     }
 }

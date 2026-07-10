@@ -140,9 +140,14 @@ struct BackendDetailForm: View {
     let account: BackendAccount
     @State private var draft: BackendAccount
 
+    /// Token draft — read from / written to the **Keychain**, never persisted
+    /// with the account (app.json is a plain file).
+    @State private var token = ""
+
     init(account: BackendAccount) {
         self.account = account
         _draft = State(initialValue: account)
+        _token = State(initialValue: KeychainService.secret(for: account.id) ?? "")
     }
 
     var body: some View {
@@ -156,6 +161,10 @@ struct BackendDetailForm: View {
                     TextField("Username / email", text: $draft.username)
                 }
 
+                if draft.provider == .github {
+                    githubSection
+                }
+
                 Section("Connection") {
                     LabeledContent("Status") {
                         HStack(spacing: 6) {
@@ -166,9 +175,20 @@ struct BackendDetailForm: View {
                                 .foregroundStyle(.secondary)
                         }
                     }
-                    Button("Connect Account (Phase 2)") {}
-                        .buttonStyle(.borderedProminent)
-                        .disabled(true)
+                    if let error = draft.lastErrorMessage, draft.syncStatus == .error {
+                        Text(error)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    }
+                    if draft.provider == .github {
+                        Text("Select this backend in Manuscript → Settings, then use Manuscript → Save to Remote (⇧⌘S) / Load from Remote.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Button("Connect Account (coming later)") {}
+                            .buttonStyle(.borderedProminent)
+                            .disabled(true)
+                    }
                 }
 
                 Section {
@@ -181,7 +201,35 @@ struct BackendDetailForm: View {
         }
         .onChange(of: draft.displayName) { _, _ in appStore.updateBackend(draft) }
         .onChange(of: draft.username)    { _, _ in appStore.updateBackend(draft) }
-        .onChange(of: account.id)        { _, _ in draft = account }
+        .onChange(of: draft.repository)  { _, _ in appStore.updateBackend(draft) }
+        .onChange(of: draft.branch)      { _, _ in appStore.updateBackend(draft) }
+        .onChange(of: token)             { _, new in KeychainService.setSecret(new, for: account.id) }
+        .onChange(of: account.id) { _, _ in
+            draft = account
+            token = KeychainService.secret(for: account.id) ?? ""
+        }
+    }
+
+    /// GitHub push/pull configuration: which repository/branch, and the
+    /// personal access token (stored in the Keychain as the user types).
+    @ViewBuilder
+    private var githubSection: some View {
+        Section("GitHub Repository") {
+            TextField("Repository (owner/name)", text: Binding(
+                get: { draft.repository ?? "" },
+                set: { draft.repository = $0.isEmpty ? nil : $0 }
+            ))
+            .autocorrectionDisabled()
+            TextField("Branch", text: Binding(
+                get: { draft.branch ?? "" },
+                set: { draft.branch = $0.isEmpty ? nil : $0 }
+            ), prompt: Text("main"))
+            .autocorrectionDisabled()
+            SecureField("Personal access token", text: $token)
+            Text("Create a fine-grained token with Contents read & write access to that repository (github.com → Settings → Developer settings). The token is stored in your Keychain only.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
     }
 }
 

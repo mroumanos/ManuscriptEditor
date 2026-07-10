@@ -11,8 +11,8 @@ Drop annotated screenshots/mockups in [`assets/`](assets/) and link them here.
 │ SIDEBAR                    │ ┌ [📄 Source ✕] [⌥ NEJM ✕]                    [＋] ┐    │
 │ Manuscript                 │ │  (comparison tabs — color-coded; Source closable) │  │
 │   Overview                 │ ├───────────────────────┬───────────────────────────┤ │
-│   Checks                   │ │ (Abstract)  14 words  │ (Abstract)        6 words │ │  ← colored
-│   Data (3)                 │ │ B I U S x² x₂ ▤▤▤▤ •  │ B I U S x² x₂ ▤▤▤▤ •      │ │    capsule +
+│   Checks                   │ │           14 words 👁 │             6 words 👁    │ │  ← slim header
+│   Data (3)                 │ │ B I U S x² x₂ ▤▤▤▤ •  │ B I U S x² x₂ ▤▤▤▤ •      │ │    (no title) +
 │   Journals (4)             │ │ ┌── width ruler ▼──┐  │ ┌── width ruler ▼──┐      │ │    toolbar
 │   Settings                 │ │ 1 │ Lorem ipsum…    │  │ 1 │ Adapted text…   │      │ │  + ruler
 │ Content                    │ │ 2 │ …               │  │ 2 │ …               │      │ │  + gutter

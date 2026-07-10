@@ -79,10 +79,10 @@ long lists, and **never block the keystroke path** — treat regressions as bugs
 - Full keyboard operability (§1) and visible focus (§2) are the foundation.
 - Contrast: manuscript text ≥ 7:1; UI text ≥ 4.5:1; non-text indicators ≥ 3:1 —
   in both themes. Semantic system colors get most of this free; verify the
-  journal palette's chips/capsules against their backgrounds in both themes.
+  journal palette's tab chips against their backgrounds in both themes.
 - **Color is never the only channel:** check state pairs color with ✓/✗ glyphs;
   sync drift pairs orange with explanatory text; journal identity pairs color
-  with the journal name on the chip/capsule.
+  with the journal name on the tab chip.
 - VoiceOver: panes are named regions ("NEJM — Abstract, v2"); check results
   read as "failed, Abstract, 291 of 250 words"; token hover-cards have
   accessible equivalents (the `.toolTip` fallback stays). Announce check-count
