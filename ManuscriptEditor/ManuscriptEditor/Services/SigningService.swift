@@ -82,6 +82,13 @@ enum SigningService {
         set { UserDefaults.standard.set(newValue, forKey: "identityGPGKey") }
     }
 
+    /// Fingerprint of the keyring key the armored `identityGPGKey` came from —
+    /// restores the dropdown selection when the settings window reopens.
+    static var identityGPGFingerprint: String? {
+        get { UserDefaults.standard.string(forKey: "identityGPGFingerprint") }
+        set { UserDefaults.standard.set(newValue, forKey: "identityGPGFingerprint") }
+    }
+
     /// Whether the last remote check confirmed the GPG key is registered to
     /// the handle.
     static var identityRemoteVerified: Bool {

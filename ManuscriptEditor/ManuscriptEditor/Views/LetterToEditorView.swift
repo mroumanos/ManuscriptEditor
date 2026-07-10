@@ -7,8 +7,9 @@
 // The view uses a VSplitView so the header/signature form and the body editor
 // are independently resizable — useful because the body is usually much longer.
 //
-// TOP HALF — Header form + signature:
-//   • Icon picker (SF Symbol) and institution name / subtitle
+// TOP HALF — Letterhead + signature:
+//   • Three header slots (left / center / right), each an optional image
+//     (logo, letterhead art) above freeform text — like a real letterhead
 //   • Signature block (plain text, monospaced font)
 //
 // BOTTOM HALF — Body TextEditor:
@@ -22,11 +23,13 @@
 //
 // AUTO-SAVE
 // ─────────────────────────────────────────────────────────────────────────────
-// Every field change calls `store.updateLetterToEditor(_:)` via `onChange`,
+// Any draft change calls `store.updateLetterToEditor(_:)` via `onChange`,
 // which routes through the `touch(_:)` helper in `ManuscriptStore` to bump
 // `updatedAt` and persist to disk.
 
 import SwiftUI
+import AppKit
+import UniformTypeIdentifiers
 
 // MARK: - LetterToEditorView
 
@@ -40,7 +43,7 @@ struct LetterToEditorView: View {
     /// Mutable working copy to avoid writing to the store on every render.
     @State private var draft: LetterToEditor = .empty()
     @State private var showPreview = false
-    @State private var showIconPicker = false
+    @State private var showSignaturePad = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -52,19 +55,14 @@ struct LetterToEditorView: View {
                 editorPanel
             }
         }
-        .onAppear {
-            if let letter = store.manuscript(for: versionRef)?.letterToEditor {
-                draft = letter
-            }
-        }
+        .onAppear { syncDraft() }
         // Sync from external changes (e.g. undo, cut switch).
-        .onChange(of: store.manuscript(for: versionRef)?.letterToEditor.headerTitle) { _, _ in syncDraft() }
-        // Auto-save
-        .onChange(of: draft.headerIconName) { _, _ in store.updateLetterToEditor(draft, ref: versionRef) }
-        .onChange(of: draft.headerTitle)    { _, _ in store.updateLetterToEditor(draft, ref: versionRef) }
-        .onChange(of: draft.headerSubtitle) { _, _ in store.updateLetterToEditor(draft, ref: versionRef) }
-        .onChange(of: draft.body)           { _, _ in store.updateLetterToEditor(draft, ref: versionRef) }
-        .onChange(of: draft.signature)      { _, _ in store.updateLetterToEditor(draft, ref: versionRef) }
+        .onChange(of: store.manuscript(for: versionRef)?.letterToEditor) { _, _ in syncDraft() }
+        // Auto-save — guarded so external syncs don't echo back into the store.
+        .onChange(of: draft) { _, new in
+            guard new != store.manuscript(for: versionRef)?.letterToEditor else { return }
+            store.updateLetterToEditor(new, ref: versionRef)
+        }
     }
 
     // MARK: - Toolbar
@@ -87,47 +85,67 @@ struct LetterToEditorView: View {
     private var editorPanel: some View {
         VSplitView {
             metadataForm
-                .frame(minHeight: 220, idealHeight: 280)
+                .frame(minHeight: 260, idealHeight: 320)
             bodyEditor
                 .frame(minHeight: 200)
         }
     }
 
-    // MARK: – Top: header + signature form
+    // MARK: – Top: letterhead + signature form
 
     private var metadataForm: some View {
         ScrollView {
             Form {
                 Section("Header") {
-                    // Icon selection
-                    HStack(spacing: 12) {
-                        Image(systemName: draft.headerIconName)
-                            .font(.title2)
-                            .foregroundStyle(Color.accentColor)
-                            .frame(width: 36, height: 36)
-                            .background(Color.accentColor.opacity(0.1), in: RoundedRectangle(cornerRadius: 8))
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Header icon").font(.caption).foregroundStyle(.secondary)
-                            Button("Change Icon") { showIconPicker = true }
-                                .buttonStyle(.bordered)
-                                .font(.caption)
-                        }
+                    HStack(alignment: .top, spacing: 0) {
+                        HeaderSlotEditor(title: "Left", alignment: .leading, slot: $draft.headerLeft)
+                        Divider().padding(.horizontal, 10)
+                        HeaderSlotEditor(title: "Center", alignment: .center, slot: $draft.headerCenter)
+                        Divider().padding(.horizontal, 10)
+                        HeaderSlotEditor(title: "Right", alignment: .trailing, slot: $draft.headerRight)
                     }
-                    TextField("Institution / Lab name", text: $draft.headerTitle)
-                    TextField("Department or subtitle (optional)", text: $draft.headerSubtitle)
+                    Text("Each slot holds an optional image and free text — laid out left, centered, and right across the top of the letter, like a letterhead.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
 
                 Section("Signature") {
                     TextEditor(text: $draft.signature)
                         .font(.system(.callout, design: .monospaced))
                         .frame(minHeight: 80)
+
+                    if let data = draft.signatureImageData, let image = NSImage(data: data) {
+                        HStack(spacing: 12) {
+                            Image(nsImage: image)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(maxHeight: 56)
+                                .padding(6)
+                                .background(Color.white, in: RoundedRectangle(cornerRadius: 6))
+                            Spacer()
+                            Button("Redraw…") { showSignaturePad = true }
+                            Button {
+                                draft.signatureImageData = nil
+                            } label: {
+                                Text("Remove").foregroundStyle(.red)
+                            }
+                        }
+                    } else {
+                        Button {
+                            showSignaturePad = true
+                        } label: {
+                            Label("Draw Signature…", systemImage: "signature")
+                        }
+                    }
                 }
             }
             .formStyle(.grouped)
             .padding(.bottom, 8)
         }
-        .sheet(isPresented: $showIconPicker) {
-            IconPickerSheet(selected: $draft.headerIconName, isPresented: $showIconPicker)
+        .sheet(isPresented: $showSignaturePad) {
+            SignaturePadSheet(isPresented: $showSignaturePad) { image in
+                draft.signatureImageData = image.pngData(maxDimension: 800)
+            }
         }
     }
 
@@ -156,23 +174,16 @@ struct LetterToEditorView: View {
     private var previewPanel: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                // Header block
-                HStack(spacing: 12) {
-                    Image(systemName: draft.headerIconName)
-                        .font(.title)
-                        .foregroundStyle(Color.accentColor)
-                    VStack(alignment: .leading, spacing: 2) {
-                        if !draft.headerTitle.isEmpty {
-                            Text(draft.headerTitle).font(.title3.weight(.semibold))
-                        }
-                        if !draft.headerSubtitle.isEmpty {
-                            Text(draft.headerSubtitle).foregroundStyle(.secondary)
-                        }
+                if draft.hasHeader {
+                    HStack(alignment: .top, spacing: 16) {
+                        HeaderSlotPreview(slot: draft.headerLeft, alignment: .leading)
+                        HeaderSlotPreview(slot: draft.headerCenter, alignment: .center)
+                        HeaderSlotPreview(slot: draft.headerRight, alignment: .trailing)
                     }
-                }
-                .padding(.bottom, 8)
+                    .padding(.bottom, 8)
 
-                Divider()
+                    Divider()
+                }
 
                 // Body
                 if draft.body.isEmpty {
@@ -185,11 +196,21 @@ struct LetterToEditorView: View {
                 }
 
                 // Signature
-                if !draft.signature.isEmpty {
+                if !draft.signature.isEmpty || draft.signatureImageData != nil {
                     Divider()
-                    Text(draft.signature)
-                        .font(.system(.callout, design: .monospaced))
-                        .foregroundStyle(.secondary)
+                    if let data = draft.signatureImageData, let image = NSImage(data: data) {
+                        Image(nsImage: image)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(maxHeight: 56)
+                            .padding(4)
+                            .background(Color.white, in: RoundedRectangle(cornerRadius: 4))
+                    }
+                    if !draft.signature.isEmpty {
+                        Text(draft.signature)
+                            .font(.system(.callout, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
             .padding(32)
@@ -202,77 +223,237 @@ struct LetterToEditorView: View {
     // MARK: - Helpers
 
     private func syncDraft() {
-        if let letter = store.manuscript(for: versionRef)?.letterToEditor {
+        if let letter = store.manuscript(for: versionRef)?.letterToEditor, letter != draft {
             draft = letter
         }
     }
 }
 
-// MARK: - IconPickerSheet
+// MARK: - HeaderSlotEditor
 
-/// Simple SF Symbol picker for the letter header icon.
-struct IconPickerSheet: View {
-    @Binding var selected: String
-    @Binding var isPresented: Bool
+/// Edits one letterhead slot: an image well (add/replace/remove) above a
+/// small freeform text area, previewed with the slot's real alignment.
+private struct HeaderSlotEditor: View {
+    let title: String
+    let alignment: HorizontalAlignment
+    @Binding var slot: LetterHeaderSlot
 
-    /// A curated list of institution-relevant SF Symbols.
-    private let icons: [String] = [
-        "building.columns",        // university / institution
-        "cross.case",              // medical / hospital
-        "flask",                   // lab / chemistry
-        "atom",                    // physics / science
-        "stethoscope",             // medicine
-        "microscope",              // biology / pathology
-        "heart.text.square",       // cardiology
-        "brain",                   // neuroscience
-        "dna",                     // genetics
-        "chart.bar.doc.horizontal",// data science / statistics
-        "globe.europe.africa",     // international
-        "leaf",                    // ecology / environmental
-        "sun.max",                 // energy / climate
-        "lightbulb",               // innovation / engineering
-        "person.3",                // team / collaboration
-        "doc.richtext",            // documents / publication
-    ]
-
-    let columns = [GridItem(.adaptive(minimum: 52))]
+    private var textAlignment: TextAlignment {
+        switch alignment {
+        case .center:   return .center
+        case .trailing: return .trailing
+        default:        return .leading
+        }
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Choose Icon").font(.headline)
-            LazyVGrid(columns: columns, spacing: 12) {
-                ForEach(icons, id: \.self) { name in
-                    Button {
-                        selected = name
-                        isPresented = false
-                    } label: {
-                        Image(systemName: name)
-                            .font(.title2)
-                            .frame(width: 44, height: 44)
-                            .background(
-                                selected == name
-                                    ? Color.accentColor.opacity(0.15)
-                                    : Color.secondary.opacity(0.08),
-                                in: RoundedRectangle(cornerRadius: 8)
-                            )
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 8)
-                                    .strokeBorder(
-                                        selected == name ? Color.accentColor : Color.clear,
-                                        lineWidth: 1.5
-                                    )
-                            )
+        VStack(alignment: alignment, spacing: 6) {
+            Text(title)
+                .font(.caption.weight(.medium))
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .center)
+
+            if let data = slot.imageData, let image = NSImage(data: data) {
+                Image(nsImage: image)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxHeight: 56)
+                    .overlay(alignment: .topTrailing) {
+                        Button {
+                            slot.imageData = nil
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(.secondary)
+                                .background(Circle().fill(.background))
+                        }
+                        .buttonStyle(.plain)
+                        .help("Remove image")
+                        .offset(x: 8, y: -8)
                     }
-                    .buttonStyle(.plain)
+                    .frame(maxWidth: .infinity, alignment: swiftUIAlignment)
+            } else {
+                Button {
+                    chooseImage()
+                } label: {
+                    Label("Add Image…", systemImage: "photo.badge.plus")
+                        .font(.caption)
                 }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .frame(maxWidth: .infinity, alignment: .center)
             }
+
+            TextEditor(text: $slot.text)
+                .font(.callout)
+                .multilineTextAlignment(textAlignment)
+                .frame(minHeight: 54, maxHeight: 72)
+                .overlay(alignment: .topLeading) {
+                    if slot.text.isEmpty {
+                        Text("Text…")
+                            .font(.callout)
+                            .foregroundStyle(.quaternary)
+                            .padding(.top, 1)
+                            .padding(.leading, 5)
+                            .allowsHitTesting(false)
+                    }
+                }
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private var swiftUIAlignment: Alignment {
+        switch alignment {
+        case .center:   return .center
+        case .trailing: return .trailing
+        default:        return .leading
+        }
+    }
+
+    /// Picks an image file and stores it (downscaled) in the slot.  Logos are
+    /// embedded in manuscript.json, so large photos are capped at 1000 px.
+    private func chooseImage() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.png, .jpeg, .tiff, .heic]
+        panel.allowsMultipleSelection = false
+        guard panel.runModal() == .OK, let url = panel.url,
+              let image = NSImage(contentsOf: url) else { return }
+        slot.imageData = image.pngData(maxDimension: 1000)
+    }
+}
+
+// MARK: - HeaderSlotPreview
+
+/// One letterhead slot as it will appear: image above text, slot-aligned.
+struct HeaderSlotPreview: View {
+    let slot: LetterHeaderSlot
+    let alignment: HorizontalAlignment
+
+    private var frameAlignment: Alignment {
+        switch alignment {
+        case .center:   return .center
+        case .trailing: return .trailing
+        default:        return .leading
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: alignment, spacing: 4) {
+            if let data = slot.imageData, let image = NSImage(data: data) {
+                Image(nsImage: image)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxHeight: 56)
+            }
+            if !slot.text.isEmpty {
+                Text(slot.text)
+                    .font(.callout)
+                    .multilineTextAlignment(alignment == .center ? .center
+                                            : alignment == .trailing ? .trailing : .leading)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: frameAlignment)
+    }
+}
+
+// MARK: - SignaturePadSheet
+
+/// A drawable signature pad: freehand strokes on a white pad, with Reset.
+/// Saving renders the strokes to a PNG (black ink, 2× scale) via ImageRenderer.
+private struct SignaturePadSheet: View {
+    @Binding var isPresented: Bool
+    let onSave: (NSImage) -> Void
+
+    @State private var strokes: [[CGPoint]] = []
+    private let padSize = CGSize(width: 440, height: 160)
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Draw Signature").font(.headline)
+
+            SignatureCanvas(strokes: $strokes)
+                .frame(width: padSize.width, height: padSize.height)
+                .background(Color.white, in: RoundedRectangle(cornerRadius: 8))
+                .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(.separator))
+
             HStack {
+                Button("Reset") { strokes = [] }
+                    .disabled(strokes.isEmpty)
                 Spacer()
                 Button("Cancel") { isPresented = false }
                     .keyboardShortcut(.cancelAction)
+                Button("Save") {
+                    let renderer = ImageRenderer(content:
+                        SignatureShape(strokes: strokes)
+                            .stroke(Color.black, style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+                            .frame(width: padSize.width, height: padSize.height))
+                    renderer.scale = 2
+                    if let image = renderer.nsImage { onSave(image) }
+                    isPresented = false
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(strokes.isEmpty)
             }
         }
         .padding(24)
-        .frame(width: 320)
+    }
+}
+
+/// The strokes as one Path (each stroke a connected polyline).
+private struct SignatureShape: Shape {
+    let strokes: [[CGPoint]]
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        for stroke in strokes where !stroke.isEmpty {
+            path.move(to: stroke[0])
+            for point in stroke.dropFirst() { path.addLine(to: point) }
+        }
+        return path
+    }
+}
+
+/// The live drawing surface: black ink following the pointer.
+private struct SignatureCanvas: View {
+    @Binding var strokes: [[CGPoint]]
+    @State private var current: [CGPoint] = []
+
+    var body: some View {
+        SignatureShape(strokes: strokes + [current])
+            .stroke(Color.black, style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { current.append($0.location) }
+                    .onEnded { _ in
+                        if current.count > 1 { strokes.append(current) }
+                        current = []
+                    }
+            )
+    }
+}
+
+// MARK: - NSImage → PNG helper
+
+extension NSImage {
+    /// PNG data, downscaled so the longest side is at most `maxDimension`
+    /// (letterhead logos live inside manuscript.json — keep them small).
+    func pngData(maxDimension: CGFloat) -> Data? {
+        guard let tiff = tiffRepresentation, let rep = NSBitmapImageRep(data: tiff) else { return nil }
+        let pixelSize = CGSize(width: rep.pixelsWide, height: rep.pixelsHigh)
+        let scale = min(1, maxDimension / max(pixelSize.width, pixelSize.height))
+        if scale >= 1 {
+            return rep.representation(using: .png, properties: [:])
+        }
+        let target = CGSize(width: pixelSize.width * scale, height: pixelSize.height * scale)
+        guard let scaled = NSBitmapImageRep(bitmapDataPlanes: nil,
+                                            pixelsWide: Int(target.width), pixelsHigh: Int(target.height),
+                                            bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true,
+                                            isPlanar: false, colorSpaceName: .deviceRGB,
+                                            bytesPerRow: 0, bitsPerPixel: 0) else { return nil }
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: scaled)
+        draw(in: NSRect(origin: .zero, size: target))
+        NSGraphicsContext.restoreGraphicsState()
+        return scaled.representation(using: .png, properties: [:])
     }
 }

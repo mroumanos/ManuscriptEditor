@@ -5,9 +5,11 @@
 //
 //   1. SAVING   — Save (Local) writes to the manuscript folder on disk;
 //                 Save (Remote) pushes to the active backend account.
-//   2. SYNCING  — fast-forward any journal from its upstream.  When the
-//                 upstream's latest has unstamped changes, the action becomes
-//                 **Stamp & Sync**: the upstream is stamped first so lineage
+//   2. SYNCING  — fast-forward any journal from its upstream.  Every sync
+//                 edge A→B is checksum-verified first: identical latest
+//                 contents short-circuit to an "already in sync" banner, and
+//                 an upstream whose latest drifted from its own last stamp
+//                 refuses to sync until it's stamped (Versions tab) — lineage
 //                 always hangs from frozen versions.
 //   3. ADDING   — cut a new journal: FROM any journal (or Source), TO a
 //                 journal profile from the app-settings library (or custom).
@@ -23,15 +25,15 @@ struct SyncView: View {
     @Environment(ManuscriptStore.self) private var store
     @Environment(AppStore.self)        private var appStore
 
-    /// Journal awaiting the stamp prompt (upstream has unstamped changes) —
-    /// declining cancels the sync entirely.
-    @State private var pendingStamp: Journal?
     /// Journal awaiting the sync confirmation itself.
     @State private var pendingSync: Journal?
     @State private var showAddJournal = false
     /// Transient "successfully synced" confirmation (auto-dismisses).
     @State private var successMessage: String?
     @State private var successTask: Task<Void, Never>?
+    /// Transient sync-refused message (auto-dismisses).
+    @State private var errorMessage: String?
+    @State private var errorTask: Task<Void, Never>?
 
     private var journals: [Journal] { store.manuscript?.journals ?? [] }
     private let cardWidth: CGFloat = 640
@@ -49,6 +51,16 @@ struct SyncView: View {
                         .padding(10)
                         .frame(maxWidth: cardWidth, alignment: .leading)
                         .background(Color.green.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+                        .transition(.opacity)
+                }
+
+                if let errorMessage {
+                    Label(errorMessage, systemImage: "exclamationmark.circle.fill")
+                        .font(.callout.weight(.medium))
+                        .foregroundStyle(.red)
+                        .padding(10)
+                        .frame(maxWidth: cardWidth, alignment: .leading)
+                        .background(Color.red.opacity(0.1), in: RoundedRectangle(cornerRadius: 8))
                         .transition(.opacity)
                 }
 
@@ -75,25 +87,8 @@ struct SyncView: View {
         .sheet(isPresented: $showAddJournal) {
             AddJournalSheet(isPresented: $showAddJournal)
         }
-        // Prompt 1 (only when needed): stamp the drifted upstream, or cancel
-        // the whole sync.
-        .alert(item: $pendingStamp) { journal in
-            let upstream = store.syncSource(forJournal: journal.id)?.upstreamName ?? "the upstream"
-            return Alert(
-                title: Text("Stamp \(upstream) First?"),
-                message: Text("\(upstream)'s latest has changes that aren't stamped. To keep proper lineage, syncing stamps \(upstream) first. Cancel to leave everything untouched."),
-                primaryButton: .default(Text("Stamp & Continue")) {
-                    // Presenting a second alert from the first one's dismiss
-                    // handler gets silently dropped by SwiftUI — defer a beat
-                    // so the sync confirmation actually appears.
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                        pendingSync = journal   // stamping happens inside syncJournal
-                    }
-                },
-                secondaryButton: .cancel()
-            )
-        }
-        // Prompt 2: the sync itself, stating plainly whether AI is involved.
+        // The sync confirmation, stating plainly whether AI is involved.
+        // (Reached only after the checksum precheck says the edge is ready.)
         .alert(item: $pendingSync) { journal in
             syncAlert(journal)
         }
@@ -199,7 +194,7 @@ struct SyncView: View {
                 }
                 Text("Original source of manuscript content."
                      + (store.sourceHasUnstampedChanges
-                        ? " Has edits since its last stamp — they're stamped automatically when a journal syncs."
+                        ? " Has edits since its last stamp — stamp it in the Versions tab before journals sync from it."
                         : ""))
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -250,10 +245,13 @@ struct SyncView: View {
 
             if head != nil {
                 Button {
-                    // Stamping is its own prompt; declining cancels the sync.
-                    if upstreamNeedsStamp(journal) {
-                        pendingStamp = journal
-                    } else {
+                    // Checksum-verify the A→B edge before anything happens.
+                    switch store.syncPrecheck(forJournal: journal.id) {
+                    case .alreadyInSync(let upstream):
+                        showSuccess("\(journal.name) and \(upstream) are already in sync — their latest contents are identical.")
+                    case .upstreamNeedsStamp(let upstream):
+                        showError("\(upstream)'s latest has changes that aren't stamped. Stamp \(upstream) in its Versions tab first — syncing pulls a frozen version so the lineage stays intact.")
+                    case .ready:
                         pendingSync = journal
                     }
                 } label: {
@@ -319,7 +317,7 @@ struct SyncView: View {
                           systemImage: "checkmark.circle")
                         .font(.caption)
                         .foregroundStyle(.green)
-                    Text("\(source.upstreamName) has newer edits — Sync stamps them and pulls the new version.")
+                    Text("\(source.upstreamName) has newer edits — stamp \(source.upstreamName) in its Versions tab, then Sync to pull them.")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
@@ -373,12 +371,26 @@ struct SyncView: View {
         guard let synced = store.syncJournal(journal.id) else { return }
         let from = syncedFromLabel(of: synced)
         let ordinal = store.versions(forJournal: journal.id).count
-        withAnimation { successMessage = "Successfully synced \(journal.name) from \(from) — now at v\(ordinal) / latest." }
+        showSuccess("Successfully synced \(journal.name) from \(from) — now at v\(ordinal) / latest.")
+    }
+
+    private func showSuccess(_ message: String) {
+        withAnimation { successMessage = message; errorMessage = nil }
         successTask?.cancel()
         successTask = Task {
             try? await Task.sleep(for: .seconds(6))
             guard !Task.isCancelled else { return }
             withAnimation { successMessage = nil }
+        }
+    }
+
+    private func showError(_ message: String) {
+        withAnimation { errorMessage = message; successMessage = nil }
+        errorTask?.cancel()
+        errorTask = Task {
+            try? await Task.sleep(for: .seconds(8))
+            guard !Task.isCancelled else { return }
+            withAnimation { errorMessage = nil }
         }
     }
 

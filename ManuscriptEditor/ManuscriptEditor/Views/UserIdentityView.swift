@@ -92,6 +92,10 @@ struct UserIdentityView: View {
                             }
                             .labelsHidden()
                             .onChange(of: selectedFingerprint) { _, new in
+                                // Restoring the saved selection on appear must
+                                // not reset the verified state or re-export.
+                                guard new != SigningService.identityGPGFingerprint else { return }
+                                SigningService.identityGPGFingerprint = new
                                 testResult = nil
                                 remoteVerified = false
                                 SigningService.identityRemoteVerified = false
@@ -207,7 +211,10 @@ struct UserIdentityView: View {
         }
         .formStyle(.grouped)
         .padding()
-        .onAppear { localKeys = SigningService.localGPGKeys() }
+        .onAppear {
+            localKeys = SigningService.localGPGKeys()
+            restoreSelection()
+        }
         .fileImporter(isPresented: $showKeyImporter,
                       allowedContentTypes: [.plainText, .data, .item]) { result in
             guard case .success(let url) = result else { return }
@@ -263,6 +270,18 @@ struct UserIdentityView: View {
             let detail = SigningService.lastGPGError.map { "\n\ngpg said: \($0)" } ?? ""
             testResult = .failure(AccountTestError.failed(
                 "Couldn't read the keyring.\(detail)\n\nThe file picker (gpg --armor --export > key.asc) always works."))
+        } else {
+            restoreSelection()
+        }
+    }
+
+    /// Re-selects the saved signing key in the dropdown (the selection itself
+    /// is @State, so it resets whenever the settings window closes).
+    private func restoreSelection() {
+        if selectedFingerprint == nil,
+           let fp = SigningService.identityGPGFingerprint,
+           localKeys?.contains(where: { $0.fingerprint == fp }) == true {
+            selectedFingerprint = fp
         }
     }
 

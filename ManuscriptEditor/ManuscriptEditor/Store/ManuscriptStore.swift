@@ -14,6 +14,7 @@ import Foundation
 import Observation
 import SwiftUI
 import AppKit   // NSOpenPanel for folder picker
+import CryptoKit   // content checksums for sync prechecks
 
 @MainActor
 @Observable
@@ -679,19 +680,88 @@ final class ManuscriptStore {
         return v
     }
 
+    /// Canonical content checksum — volatile metadata (timestamps, sync
+    /// marker, the version list itself) is zeroed first, so two states hash
+    /// equal exactly when their real content is identical.
+    func contentChecksum(_ m: Manuscript) -> String {
+        var normalized = m
+        normalized.updatedAt = .distantPast
+        normalized.lastSyncedAt = nil
+        normalized.versions = []
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .sortedKeys
+        guard let data = try? encoder.encode(normalized) else { return m.id.uuidString }
+        return SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+    }
+
     /// True when the journal's working head has edits since it was created —
-    /// i.e. stamping now would actually freeze something new.
+    /// i.e. stamping now would actually freeze something new.  A timestamp
+    /// touch alone doesn't count: the checksum must actually differ from the
+    /// frozen predecessor's.
     func headHasUnstampedChanges(journalID: UUID) -> Bool {
         guard let head = latestVersion(forJournal: journalID) else { return false }
-        return head.content.updatedAt > head.createdAt.addingTimeInterval(1)
+        guard head.content.updatedAt > head.createdAt.addingTimeInterval(1) else { return false }
+        guard let pid = head.parentID,
+              let parent = versions.first(where: { $0.id == pid }),
+              parent.journalID == journalID else { return true }
+        return contentChecksum(head.content) != contentChecksum(parent.content)
     }
 
     /// True when the live Source has edits since its latest stamp (or has
-    /// never been stamped).
+    /// never been stamped).  Checksum-confirmed like the journal check.
     var sourceHasUnstampedChanges: Bool {
         guard let m = manuscript else { return false }
         guard let stamp = latestSourceStamp else { return true }
-        return m.updatedAt > stamp.createdAt.addingTimeInterval(1)
+        guard m.updatedAt > stamp.createdAt.addingTimeInterval(1) else { return false }
+        return contentChecksum(m) != contentChecksum(stamp.content)
+    }
+
+    // MARK: - Sync prechecks (A → B)
+
+    /// What comparing an edge's two ends found, checked before any sync runs.
+    enum SyncPrecheck {
+        /// A's latest content and B's latest content hash identically —
+        /// there is nothing to pull.
+        case alreadyInSync(upstreamName: String)
+        /// A's latest content differs from A's last stamp — the sync must
+        /// wait until A is stamped, so lineage always hangs from a frozen
+        /// version.
+        case upstreamNeedsStamp(upstreamName: String)
+        case ready
+    }
+
+    /// Verifies an A→B sync edge by content checksums:
+    /// checksum(A latest) == checksum(B latest) → `.alreadyInSync`;
+    /// checksum(A latest) != checksum(A's last stamp) → `.upstreamNeedsStamp`;
+    /// otherwise `.ready`.
+    func syncPrecheck(forJournal journalID: UUID) -> SyncPrecheck {
+        guard let m = manuscript,
+              let head = latestVersion(forJournal: journalID),
+              let source = syncSource(forJournal: journalID) else { return .ready }
+
+        let upstreamLatest: Manuscript
+        var upstreamStamp: Manuscript?
+        if let upID = source.upstreamJournalID {
+            guard let upHead = latestVersion(forJournal: upID) else { return .ready }
+            upstreamLatest = upHead.content
+            if let pid = upHead.parentID,
+               let parent = versions.first(where: { $0.id == pid }),
+               parent.journalID == upID {
+                upstreamStamp = parent.content
+            }
+        } else {
+            upstreamLatest = m
+            upstreamStamp = latestSourceStamp?.content
+        }
+
+        let latestSum = contentChecksum(upstreamLatest)
+        if latestSum == contentChecksum(head.content) {
+            return .alreadyInSync(upstreamName: source.upstreamName)
+        }
+        guard let stamp = upstreamStamp, contentChecksum(stamp) == latestSum else {
+            return .upstreamNeedsStamp(upstreamName: source.upstreamName)
+        }
+        return .ready
     }
 
     /// Stamps a journal: freezes the current head as-is and opens a new
@@ -736,8 +806,9 @@ final class ManuscriptStore {
     }
 
     /// The frozen version a sync/cut should base on for an upstream —
-    /// stamping the upstream first when it has unstamped changes ("stamp &
-    /// sync").  nil upstream = Source.
+    /// stamping the upstream first when it has unstamped changes.  Syncs are
+    /// pre-gated by `syncPrecheck` (they refuse instead of auto-stamping), so
+    /// the auto-stamp here effectively serves cut-creation.  nil = Source.
     func syncBase(forUpstream journalID: UUID?) -> ManuscriptVersion? {
         if let journalID {
             if headHasUnstampedChanges(journalID: journalID) {

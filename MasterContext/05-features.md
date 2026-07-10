@@ -26,8 +26,11 @@ Intent: most time is spent here; it must be excellent and AI-optional.
   half-empty split).
 - AC: Each added item has a clear inline delete affordance.
 - AC: Prose editors are rich text (see §G). Word counts update live.
-- AC: Letter to Editor has header (icon + institution + subtitle), body, and
-  signature, with a preview toggle.
+- AC: Letter to Editor has a three-slot letterhead (left / center / right —
+  each an optional uploaded image plus freeform text, laid out like a real
+  letterhead in editor, preview, and exports), body, and a signature block
+  with an optional **hand-drawn signature** (drawable pad with Reset; renders
+  above the typed signature in preview and exports), with a preview toggle.
 - AC: **Custom sections with per-journal activation.** Add sections from an
   inline "＋ Add Section" row at the **bottom of the section list** (not a toolbar
   button); titles are kept **unique**. A new section is **created for every
@@ -125,9 +128,12 @@ propagate by explicit, individual fast-forwards.
   at `v1` and an edge `parent@vX → child@v1`.
 - AC: Editing a parent forward (new versions) does **not** alter existing edges.
 - AC: **Sync** re-derives one child from its parent's newest **stamped**
-  version: when the upstream's latest has unstamped changes the action becomes
-  **Stamp & Sync** (the upstream is stamped first), so lineage edges always
-  hang from frozen versions. **Never recursive.**
+  version. Every edge A→B is **checksum-verified** first (SHA-256 over the
+  content with volatile metadata zeroed): identical A/B latest contents
+  short-circuit to a green "already in sync" banner (no version churn), and
+  an upstream whose latest differs from its own last stamp **refuses to
+  sync** with a red banner directing the user to stamp A in its Versions tab
+  first — lineage edges always hang from frozen versions. **Never recursive.**
   Example: `Source@v2 → NEJM@v1`; Source edited to `v3`; Sync NEJM ⇒ `NEJM@v2` and
   edge `Source@v3 → NEJM@v2`.
 - AC: **Rollback** restores the prior edge and **soft-archives** the newer
@@ -140,7 +146,7 @@ propagate by explicit, individual fast-forwards.
   child content toward the child's requirements.
 - AC (implemented): **Sync pane** — under the Manuscript section — carries the
   three flow functions: **Saving** (Save Local / Save Remote / Load from
-  Remote with last-saved/last-synced timestamps), **Syncing** (plain per-edge Sync buttons — stamping is its own prompt,
+  Remote with last-saved/last-synced timestamps), **Syncing** (plain per-edge Sync buttons — checksum-prechecked as above,
   and the confirmation states whether a connected AI may modify the copy —
   on a **contiguous** nested lineage tree — child
   cards attached beneath their upstream, tabbed left, right edges aligned),

@@ -221,8 +221,10 @@ Notes are a first-class way to leave feedback for oneself or collaborators,
   url, note; `authorsFormatted`. **Zotero linkage (refinement):** an optional
   `zoteroKey` links an entry to a local Zotero item so it can be re-synced
   (see [`05-features.md`](05-features.md) O).
-- `LetterToEditor`: `headerIconName, headerTitle, headerSubtitle, body(RichText),
-  signature`.
+- `LetterToEditor`: three letterhead slots `headerLeft/headerCenter/headerRight`
+  (each a `LetterHeaderSlot`: `text` + optional embedded `imageData`),
+  `body(RichText)`, `signature`, optional `signatureImageData` (hand-drawn PNG).
+  Legacy `headerTitle`/`headerSubtitle` decode into the center slot.
 - `RichText`: `plain` (mirror for word count/search) + `rtf?` (styled archive);
   decodes a legacy bare `String` as unstyled.
 
