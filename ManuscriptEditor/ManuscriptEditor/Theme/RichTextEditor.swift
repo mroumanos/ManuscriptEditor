@@ -108,27 +108,40 @@ struct RichEditor: View {
                 display: "Ref • \(e.key) — \(e.title.isEmpty ? "(no title)" : e.title)"
             ))
         }
-        // Figures/tables offer two insertions each: a cross-REFERENCE
-        // ("Figure 2", numbered by first-reference order like citations) and
-        // a PLACEMENT marker (the figure/table itself renders there on
-        // export; the editor shows a faint ⟦Figure 2 here⟧).
+        // Figures/tables get ONE row each; accepting opens a small menu at the
+        // caret to choose Reference vs Placement (with a figure thumbnail).
         let figureNumbers = RefEngine.effectiveFigureNumbers(in: m)
         for f in m.figures.sorted(by: { (figureNumbers[$0.id] ?? 0) < (figureNumbers[$1.id] ?? 0) }) {
             let n = figureNumbers[f.id] ?? f.number
-            guard matches(["figure \(n)", f.title, f.caption, "place"]) else { continue }
-            out.append(RefCandidate(kind: .figure, id: f.id, display: "Figure \(n) — \(f.title)"))
-            out.append(RefCandidate(kind: .figurePlacement, id: f.id,
-                                    display: "Place Figure \(n) here (renders on export)"))
+            guard matches(["figure \(n)", f.title, f.caption]) else { continue }
+            out.append(RefCandidate(kind: .figure, id: f.id,
+                                    display: "Figure \(n) — \(f.title)",
+                                    thumbnail: thumbnail(for: f)))
         }
         let tableNumbers = RefEngine.effectiveTableNumbers(in: m)
         for t in m.tables.sorted(by: { (tableNumbers[$0.id] ?? 0) < (tableNumbers[$1.id] ?? 0) }) {
             let n = tableNumbers[t.id] ?? t.number
-            guard matches(["table \(n)", t.title, t.caption, "place"]) else { continue }
+            guard matches(["table \(n)", t.title, t.caption]) else { continue }
             out.append(RefCandidate(kind: .table, id: t.id, display: "Table \(n) — \(t.title)"))
-            out.append(RefCandidate(kind: .tablePlacement, id: t.id,
-                                    display: "Place Table \(n) here (renders on export)"))
         }
         return out
+    }
+
+    /// A small sample image of the figure for the insert menu.
+    private static let thumbnailCache = NSCache<NSUUID, NSImage>()
+    private func thumbnail(for figure: Figure) -> NSImage? {
+        if let cached = Self.thumbnailCache.object(forKey: figure.id as NSUUID) { return cached }
+        guard let url = store.figureURL(for: figure),
+              let image = NSImage(contentsOf: url) else { return nil }
+        let size = image.size
+        guard size.width > 0, size.height > 0 else { return nil }
+        let scale = min(72 / size.width, 48 / size.height, 1)
+        let thumb = NSImage(size: NSSize(width: size.width * scale, height: size.height * scale))
+        thumb.lockFocus()
+        image.draw(in: NSRect(origin: .zero, size: thumb.size))
+        thumb.unlockFocus()
+        Self.thumbnailCache.setObject(thumb, forKey: figure.id as NSUUID)
+        return thumb
     }
 }
 
@@ -141,6 +154,8 @@ struct RefCandidate {
     let id: UUID
     /// String shown in the completion list ("Ref • Key — Title", "Figure 2 — …").
     let display: String
+    /// Sample image shown in the insert-kind menu (figures only).
+    var thumbnail: NSImage? = nil
 }
 
 // MARK: - FormatBar (inline toolbar)
@@ -758,10 +773,71 @@ final class CitationTextView: NSTextView {
         }
 
         if accepted, let candidate = currentCandidates.first(where: { $0.display == word }) {
-            let token = RefEngine.Token(kind: candidate.kind, targetID: candidate.id, style: .numeric)
-            insertToken(token, replacing: charRange)
+            switch candidate.kind {
+            case .bib:
+                let token = RefEngine.Token(kind: .bib, targetID: candidate.id, style: .numeric)
+                insertToken(token, replacing: charRange)
+            default:
+                // Figures/tables: one dropdown row, then a caret menu chooses
+                // Reference vs Placement.  Deferred a tick so the completion
+                // window finishes tearing down first.
+                DispatchQueue.main.async { [weak self] in
+                    self?.showInsertKindMenu(for: candidate, replacing: charRange)
+                }
+            }
         }
         // Dismissed — nothing to restore; the text was never touched.
+    }
+
+    /// The candidate + range awaiting a Reference/Placement choice.
+    private var pendingInsert: (candidate: RefCandidate, range: NSRange)?
+
+    /// Pops a two-choice menu at the caret: insert a cross-reference token, or
+    /// a placement marker (the figure/table renders there on export).  Figures
+    /// show a sample image.  Esc/click-away cancels, leaving the typed text.
+    private func showInsertKindMenu(for candidate: RefCandidate, replacing range: NSRange) {
+        pendingInsert = (candidate, range)
+        let isFigure = candidate.kind == .figure
+        let noun = isFigure ? "Figure" : "Table"
+
+        let menu = NSMenu()
+        if let thumb = candidate.thumbnail {
+            let preview = NSMenuItem(title: candidate.display, action: nil, keyEquivalent: "")
+            preview.image = thumb
+            preview.isEnabled = false
+            menu.addItem(preview)
+            menu.addItem(.separator())
+        }
+        let reference = NSMenuItem(title: "Insert Reference (\(candidate.display))",
+                                   action: #selector(insertPendingReference), keyEquivalent: "")
+        reference.target = self
+        menu.addItem(reference)
+        let placement = NSMenuItem(title: "Place \(noun) Here (renders on export)",
+                                   action: #selector(insertPendingPlacement), keyEquivalent: "")
+        placement.target = self
+        menu.addItem(placement)
+
+        // Anchor at the caret.
+        let screenRect = firstRect(forCharacterRange: range, actualRange: nil)
+        let windowPoint = window?.convertPoint(fromScreen: screenRect.origin) ?? .zero
+        let local = convert(windowPoint, from: nil)
+        menu.popUp(positioning: nil, at: NSPoint(x: local.x, y: local.y), in: self)
+    }
+
+    @objc private func insertPendingReference() {
+        guard let pending = pendingInsert else { return }
+        pendingInsert = nil
+        let kind: RefOccurrence.Kind = pending.candidate.kind == .figure ? .figure : .table
+        insertToken(RefEngine.Token(kind: kind, targetID: pending.candidate.id, style: .numeric),
+                    replacing: pending.range)
+    }
+
+    @objc private func insertPendingPlacement() {
+        guard let pending = pendingInsert else { return }
+        pendingInsert = nil
+        let kind: RefOccurrence.Kind = pending.candidate.kind == .figure ? .figurePlacement : .tablePlacement
+        insertToken(RefEngine.Token(kind: kind, targetID: pending.candidate.id, style: .numeric),
+                    replacing: pending.range)
     }
 
     /// Replaces `range` with a rendered token: identity link + tooltip in the
@@ -772,6 +848,17 @@ final class CitationTextView: NSTextView {
     private func insertToken(_ token: RefEngine.Token, replacing range: NSRange) {
         let text = RefEngine.displayText(for: token, context: refContext)
         var attrs = defaultTypingAttributes
+        // Inherit the surrounding line's paragraph style and font so the
+        // insertion never changes the line's spacing (no gap above/below).
+        if let storage = textStorage, storage.length > 0 {
+            let anchor = min(max(range.location - 1, 0), storage.length - 1)
+            let inherited = storage.attributes(at: anchor, effectiveRange: nil)
+            if let style = inherited[.paragraphStyle] { attrs[.paragraphStyle] = style }
+            if let font = inherited[.font] as? NSFont,
+               RefEngine.Token.parse((inherited[.link] as? URL) ?? URL(fileURLWithPath: "/")) == nil {
+                attrs[.font] = font
+            }
+        }
         if let url = token.url { attrs[.link] = url }
         if let tip = RefEngine.tooltip(for: token, context: refContext) { attrs[.toolTip] = tip }
 

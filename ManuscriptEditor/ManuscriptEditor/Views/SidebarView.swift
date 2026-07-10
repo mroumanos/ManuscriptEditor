@@ -23,6 +23,10 @@ struct SidebarView: View {
 
     @Binding var selection: SidebarItem?
 
+    /// The active tab's content reference — item counts reflect the **active
+    /// journal** (Data stays global; sections are shared structure).
+    var activeRef: VersionRef = .source
+
     /// App-wide appearance, also editable from Preferences.
     @AppStorage(EditorPrefs.appearanceKey) private var appearance = AppearanceMode.system.rawValue
 
@@ -32,6 +36,18 @@ struct SidebarView: View {
     @State private var renameDraft = ""
 
     private var manuscript: Manuscript? { store.manuscript }
+
+    /// The active journal's content (counts source).
+    private var active: Manuscript? { store.manuscript(for: activeRef) }
+
+    /// Version count for the active journal (Source = its stamp chain).
+    private var versionCount: Int {
+        if case .version(let id) = activeRef,
+           let jid = store.versions.first(where: { $0.id == id })?.journalID {
+            return store.versions(forJournal: jid).count
+        }
+        return store.sourceStamps.count
+    }
 
     var body: some View {
         List(selection: $selection) {
@@ -131,7 +147,7 @@ struct SidebarView: View {
                 .tag(SidebarItem.checks)
             Label("Export", systemImage: "square.and.arrow.up")
                 .tag(SidebarItem.export)
-            Label("Versions (\(manuscript?.versions.count ?? 0))", systemImage: "arrow.triangle.branch")
+            Label("Versions (\(versionCount))", systemImage: "arrow.triangle.branch")
                 .tag(SidebarItem.versions)
         }
     }
@@ -141,19 +157,19 @@ struct SidebarView: View {
     @ViewBuilder
     private var contentSection: some View {
         Section("Content") {
-            Label("Authors (\(manuscript?.authors.count ?? 0))", systemImage: "person.2")
+            Label("Authors (\(active?.authors.count ?? 0))", systemImage: "person.2")
                 .tag(SidebarItem.authors)
             Label("Abstract", systemImage: "text.quote")
                 .tag(SidebarItem.abstract)
-            Label("Keywords (\(manuscript?.keywords.count ?? 0))", systemImage: "tag")
+            Label("Keywords (\(active?.keywords.count ?? 0))", systemImage: "tag")
                 .tag(SidebarItem.keywords)
             bodySection
 
-            Label("Figures (\(manuscript?.figures.count ?? 0))",    systemImage: "photo.on.rectangle.angled")
+            Label("Figures (\(active?.figures.count ?? 0))",    systemImage: "photo.on.rectangle.angled")
                 .tag(SidebarItem.figures)
-            Label("Tables (\(manuscript?.tables.count ?? 0))",      systemImage: "tablecells")
+            Label("Tables (\(active?.tables.count ?? 0))",      systemImage: "tablecells")
                 .tag(SidebarItem.tables)
-            Label("Bibliography (\(manuscript?.bibliography.count ?? 0))", systemImage: "books.vertical")
+            Label("Bibliography (\(active?.bibliography.count ?? 0))", systemImage: "books.vertical")
                 .tag(SidebarItem.bibliography)
             Label("Letter to Editor", systemImage: "envelope")
                 .tag(SidebarItem.letterToEditor)
@@ -189,11 +205,6 @@ struct SidebarView: View {
         HStack {
             Label(section.title, systemImage: section.type.systemImage)
             Spacer()
-            if section.wordCount > 0 {
-                Text("\(section.wordCount)w")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
         }
         .tag(SidebarItem.section(section.id))
         // Reliable delete affordances (macOS swipe can be non-obvious).

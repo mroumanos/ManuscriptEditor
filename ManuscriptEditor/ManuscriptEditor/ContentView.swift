@@ -135,9 +135,6 @@ struct ContentView: View {
     /// Drives the Export sheet (File → Export Submission Package…).
     @State private var showingExport = false
 
-    /// Confirmation before Load from Remote overwrites local content.
-    @State private var confirmLoadFromRemote = false
-
     /// A requested "new manuscript" awaiting the unsaved-work confirmation.
     enum PendingNew: String, Identifiable {
         case file, remote
@@ -176,7 +173,7 @@ struct ContentView: View {
 
     var body: some View {
         NavigationSplitView {
-            SidebarView(selection: $selection)
+            SidebarView(selection: $selection, activeRef: ref(for: activeTab) ?? .source)
                 .navigationSplitViewColumnWidth(min: 200, ideal: 230, max: 290)
         } detail: {
             if store.manuscript != nil {
@@ -224,27 +221,12 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: .saveToRemote)) { _ in
             store.saveToRemote(appStore: appStore)
         }
-        .onReceive(NotificationCenter.default.publisher(for: .loadFromRemote)) { _ in
-            if store.manuscript != nil { confirmLoadFromRemote = true }
-        }
         // ⌘⇧←/→ cycles the active journal tab.
         .onReceive(NotificationCenter.default.publisher(for: .previousJournalTab)) { _ in
             cycleActiveTab(by: -1)
         }
         .onReceive(NotificationCenter.default.publisher(for: .nextJournalTab)) { _ in
             cycleActiveTab(by: 1)
-        }
-        // Pull replaces local content — always confirmed, never silent.
-        .confirmationDialog(
-            "Load from Remote?",
-            isPresented: $confirmLoadFromRemote
-        ) {
-            Button("Replace Local Content", role: .destructive) {
-                store.loadFromRemote(appStore: appStore)
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("Replaces this manuscript's content, figures, and data with the files on the active backend. Local versions saved in the remote manuscript.json come with it; anything not pushed is overwritten.")
         }
         // Remote failures are loud (alert); successes stay quiet (sidebar line).
         .alert("Remote Sync Failed", isPresented: Binding(

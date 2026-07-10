@@ -34,18 +34,23 @@ struct QueryResultTable: View {
             ContentUnavailableView("No Results", systemImage: "tablecells")
         } else {
             VStack(spacing: 0) {
-                Table(rows) {
-                    TableColumnForEach(Array(result.columns.enumerated()), id: \.offset) { index, column in
-                        TableColumn(column) { (row: Row) in
-                            let value = row.values.indices.contains(index) ? row.values[index] : ""
-                            Text(value)
-                                .lineLimit(1)
-                                .truncationMode(.tail)
-                                .help(value)   // full value on hover when truncated
+                // Columns share the width evenly by default (still resizable).
+                GeometryReader { geo in
+                    let equal = max(60, geo.size.width / CGFloat(max(1, result.columns.count)) - 12)
+                    Table(rows) {
+                        TableColumnForEach(Array(result.columns.enumerated()), id: \.offset) { index, column in
+                            TableColumn(column) { (row: Row) in
+                                let value = row.values.indices.contains(index) ? row.values[index] : ""
+                                Text(value)
+                                    .lineLimit(1)
+                                    .truncationMode(.tail)
+                                    .help(value)   // full value on hover when truncated
+                            }
+                            .width(ideal: equal)
                         }
                     }
+                    .alternatingRowBackgrounds(.enabled)
                 }
-                .alternatingRowBackgrounds(.enabled)
 
                 if result.rows.count > Self.maxRows {
                     HStack {

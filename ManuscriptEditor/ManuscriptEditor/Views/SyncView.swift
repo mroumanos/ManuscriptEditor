@@ -23,7 +23,10 @@ struct SyncView: View {
     @Environment(ManuscriptStore.self) private var store
     @Environment(AppStore.self)        private var appStore
 
-    /// Journal awaiting sync confirmation (drives the warning alert).
+    /// Journal awaiting the stamp prompt (upstream has unstamped changes) —
+    /// declining cancels the sync entirely.
+    @State private var pendingStamp: Journal?
+    /// Journal awaiting the sync confirmation itself.
     @State private var pendingSync: Journal?
     @State private var showAddJournal = false
 
@@ -59,6 +62,20 @@ struct SyncView: View {
         .sheet(isPresented: $showAddJournal) {
             AddJournalSheet(isPresented: $showAddJournal)
         }
+        // Prompt 1 (only when needed): stamp the drifted upstream, or cancel
+        // the whole sync.
+        .alert(item: $pendingStamp) { journal in
+            let upstream = store.syncSource(forJournal: journal.id)?.upstreamName ?? "the upstream"
+            return Alert(
+                title: Text("Stamp \(upstream) First?"),
+                message: Text("\(upstream)'s latest has changes that aren't stamped. To keep proper lineage, syncing stamps \(upstream) first. Cancel to leave everything untouched."),
+                primaryButton: .default(Text("Stamp & Continue")) {
+                    pendingSync = journal   // stamping happens inside syncJournal
+                },
+                secondaryButton: .cancel()
+            )
+        }
+        // Prompt 2: the sync itself, stating plainly whether AI is involved.
         .alert(item: $pendingSync) { journal in
             syncAlert(journal)
         }
@@ -88,12 +105,6 @@ struct SyncView: View {
                         store.saveToRemote(appStore: appStore)
                     } label: {
                         Label("Save (Remote)", systemImage: "icloud.and.arrow.up")
-                    }
-                    .disabled(store.isRemoteBusy)
-                    Button {
-                        NotificationCenter.default.post(name: .loadFromRemote, object: nil)
-                    } label: {
-                        Label("Load from Remote…", systemImage: "icloud.and.arrow.down")
                     }
                     .disabled(store.isRemoteBusy)
                 }
@@ -219,10 +230,14 @@ struct SyncView: View {
 
             if head != nil {
                 Button {
-                    pendingSync = journal
+                    // Stamping is its own prompt; declining cancels the sync.
+                    if upstreamNeedsStamp(journal) {
+                        pendingStamp = journal
+                    } else {
+                        pendingSync = journal
+                    }
                 } label: {
-                    Label(upstreamNeedsStamp(journal) ? "Stamp & Sync" : "Sync",
-                          systemImage: "arrow.triangle.2.circlepath")
+                    Label("Sync", systemImage: "arrow.triangle.2.circlepath")
                         .foregroundStyle(.blue)
                 }
                 .buttonStyle(.bordered)
@@ -300,12 +315,14 @@ struct SyncView: View {
     private func syncAlert(_ journal: Journal) -> Alert {
         let source = store.syncSource(forJournal: journal.id)
         let upstream = source?.upstreamName ?? "its upstream"
-        let stamps = upstreamNeedsStamp(journal)
-        var message = "This creates a new \(journal.name) version from \(upstream)'s latest content — overwriting what currently exists in \(journal.name)'s working head. Previous versions remain in its history."
-        if stamps {
-            message += "\n\n\(upstream)'s latest has unstamped changes, so it is stamped first — lineage always hangs from frozen versions."
+        var message = "This creates a new \(journal.name) version from \(upstream)'s latest stamped content — overwriting what currently exists in \(journal.name)'s working head. Previous versions remain in its history."
+        // Be explicit about whether AI participates in the copy.
+        if store.manuscript?.settings.activeAIServiceID != nil {
+            message += "\n\nAI is connected — it may modify what's copied over to fit \(journal.name)'s requirements."
+        } else {
+            message += "\n\nNo AI is connected — this is a straight copy."
         }
-        if let target = source?.targetVersion, !stamps {
+        if let target = source?.targetVersion, !upstreamNeedsStamp(journal) {
             let when = target.sourceSnapshotDate.formatted(date: .abbreviated, time: .omitted)
             let label = target.sourceStamp == true
                 ? "Source v\(store.sourceOrdinal(of: target))"
@@ -313,9 +330,9 @@ struct SyncView: View {
             message += "\n\nContent copied: \(label), which carries content from \(when)."
         }
         return Alert(
-            title: Text("\(stamps ? "Stamp & Sync" : "Sync") \(journal.name) from \(upstream)?"),
+            title: Text("Sync \(journal.name) from \(upstream)?"),
             message: Text(message),
-            primaryButton: .destructive(Text(stamps ? "Stamp & Sync" : "Sync")) {
+            primaryButton: .destructive(Text("Sync")) {
                 store.syncJournal(journal.id)
             },
             secondaryButton: .cancel()

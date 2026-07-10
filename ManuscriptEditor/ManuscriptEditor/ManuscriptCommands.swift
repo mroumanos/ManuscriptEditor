@@ -51,10 +51,8 @@ struct ManuscriptCommands: Commands {
                 NotificationCenter.default.post(name: .saveToRemote, object: nil)
             }
             .keyboardShortcut("s", modifiers: [.command, .shift])   // ⇧⌘S
-
-            Button("Load from Remote…") {
-                NotificationCenter.default.post(name: .loadFromRemote, object: nil)
-            }
+            // (Loading an existing remote manuscript IS "New Manuscript
+            // (Remote)…" — there is deliberately no separate Load command.)
         }
 
         // Export lives in the File menu, next to import/new.

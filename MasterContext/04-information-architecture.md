@@ -14,8 +14,9 @@ Two sections, plus a bottom utility bar:
 - Overview
 - Data (N)
 - Sync     ← the flow-of-content hub: Save (Local/Remote), sync between
-             journals ("Stamp & Sync" when the upstream has unstamped
-             changes), and Add Journal (from = Source/journal; to = a profile
+             journals (a plain **Sync** button; a drifted upstream first raises
+             its own stamp prompt — declining cancels — and the sync prompt
+             states whether a connected AI may modify the copy), and Add Journal (from = Source/journal; to = a profile
              from the app-settings journal library)
 - Backend  ← THIS manuscript's storage: local folder, active account, remote
              repository (create one here for local-first projects, with a link
@@ -104,7 +105,7 @@ Tab identity is the **journal**, always resolving to its current working head.
 | Editor font / size / line spacing | Preferences → Editor |
 | This manuscript's backend account / local folder / remote repo (create + link) | **Manuscript → Backend** sidebar item |
 | This manuscript's AI service | **Manuscript → AI** sidebar item |
-| Save (Local) ⌘S / Save (Remote) ⇧⌘S / Load from Remote | **File menu** + the **Sync** pane |
+| Save (Local) ⌘S / Save (Remote) ⇧⌘S | **File menu** + the **Sync** pane (loading an existing remote = New Manuscript (Remote)… — no separate Load command) |
 | Add journals (from → to); sync between journals; lineage tree | **Manuscript → Sync** pane |
 | Stamp Version / Roll Back; per-journal version table | **Journal → Versions** pane (per tab) |
 | Journal requirements editing; save profile to library | **Journal → Checks** pane (per tab) |

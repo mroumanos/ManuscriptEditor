@@ -266,7 +266,17 @@ struct DataService: Sendable {
             seen[base.lowercased()] = count
             safeColumns.append(count == 1 ? base : "\(base)_\(count)")
         }
-        let colDefs = safeColumns.map { "\"\($0)\" TEXT" }.joined(separator: ", ")
+        // Infer column affinity so ORDER BY sorts numbers numerically: a
+        // column whose every non-empty value parses as a number is REAL,
+        // otherwise TEXT.  (SQLite coerces the bound strings on insert.)
+        let colDefs = safeColumns.enumerated().map { index, name in
+            let numeric = rows.allSatisfy { row in
+                guard row.indices.contains(index) else { return true }
+                let value = row[index]
+                return value.isEmpty || Double(value.replacingOccurrences(of: ",", with: "")) != nil
+            }
+            return "\"\(name)\" \(numeric ? "REAL" : "TEXT")"
+        }.joined(separator: ", ")
         let createSQL = "CREATE TABLE IF NOT EXISTS data (\(colDefs));"
         var errMsg: UnsafeMutablePointer<Int8>?
         let createRC = sqlite3_exec(db, createSQL, nil, nil, &errMsg)
@@ -285,11 +295,19 @@ struct DataService: Sendable {
             guard sqlite3_prepare_v2(db, insertSQL, -1, &stmt, nil) == SQLITE_OK else { continue }
             defer { sqlite3_finalize(stmt) }
             for (idx, value) in padded.enumerated() {
-                // SQLITE_TRANSIENT: SQLite copies the string immediately. A nil
-                // destructor (SQLITE_STATIC) would promise the buffer outlives
-                // the statement, which a bridged temporary can't guarantee.
-                let SQLITE_TRANSIENT = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
-                sqlite3_bind_text(stmt, Int32(idx + 1), value, -1, SQLITE_TRANSIENT)
+                // Bind numeric-looking values as doubles (comma separators
+                // stripped) so REAL columns actually sort numerically; SQLite
+                // stores a "1,234" bound as text even in a REAL column.
+                let stripped = value.replacingOccurrences(of: ",", with: "")
+                if !value.isEmpty, let number = Double(stripped) {
+                    sqlite3_bind_double(stmt, Int32(idx + 1), number)
+                } else {
+                    // SQLITE_TRANSIENT: SQLite copies the string immediately. A nil
+                    // destructor (SQLITE_STATIC) would promise the buffer outlives
+                    // the statement, which a bridged temporary can't guarantee.
+                    let SQLITE_TRANSIENT = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
+                    sqlite3_bind_text(stmt, Int32(idx + 1), value, -1, SQLITE_TRANSIENT)
+                }
             }
             sqlite3_step(stmt)
         }

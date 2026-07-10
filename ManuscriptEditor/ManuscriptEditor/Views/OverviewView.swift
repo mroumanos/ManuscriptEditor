@@ -69,6 +69,8 @@ struct OverviewView: View {
             }
 
             HStack(spacing: 16) {
+                Label("Created \(m.createdAt.formatted(date: .abbreviated, time: .omitted))",
+                      systemImage: "calendar")
                 Label("Saved \(m.updatedAt.formatted(date: .abbreviated, time: .shortened)) (to disk)",
                       systemImage: "internaldrive")
                 if let synced = m.lastSyncedAt {
@@ -88,12 +90,13 @@ struct OverviewView: View {
 
     // MARK: - Source content card
 
-    /// The Source's key front matter — authors, keywords, abstract — clearly
-    /// annotated as Source (journal cuts adapt these per journal).
+    /// The Source's key front matter, clearly annotated as Source (journal
+    /// cuts adapt these per journal) — with Authors / Abstract / Keywords as
+    /// labeled subsections.
     private var sourceCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 8) {
-                Text("Authors, Keywords & Abstract")
+                Text("Summary")
                     .font(.headline)
                     .foregroundStyle(.secondary)
                 Text("Source")
@@ -104,13 +107,14 @@ struct OverviewView: View {
                     .foregroundStyle(Color.accentColor)
             }
 
-            VStack(alignment: .leading, spacing: 14) {
-                if m.authors.isEmpty {
-                    Text("No authors added yet.")
-                        .foregroundStyle(.tertiary)
-                        .italic()
-                } else {
-                    VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 6) {
+                    subsectionLabel("Authors")
+                    if m.authors.isEmpty {
+                        Text("No authors added yet.")
+                            .foregroundStyle(.tertiary)
+                            .italic()
+                    } else {
                         ForEach(m.authors.sorted { $0.order < $1.order }) { author in
                             HStack(spacing: 8) {
                                 Text("\(author.order + 1).")
@@ -137,30 +141,51 @@ struct OverviewView: View {
                     }
                 }
 
-                if !m.keywords.isEmpty {
-                    FlowLayout(spacing: 6) {
-                        ForEach(m.keywords, id: \.self) { kw in
-                            Text(kw)
-                                .font(.callout)
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 4)
-                                .background(.blue.opacity(0.12), in: Capsule())
-                                .foregroundStyle(.blue)
-                        }
+                VStack(alignment: .leading, spacing: 6) {
+                    subsectionLabel("Abstract")
+                    if m.abstract.plain.isEmpty {
+                        Text("No abstract yet.")
+                            .foregroundStyle(.tertiary)
+                            .italic()
+                    } else {
+                        Text(m.abstract.plain)
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(6)
                     }
                 }
 
-                if !m.abstract.plain.isEmpty {
-                    Text(m.abstract.plain)
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(6)
+                VStack(alignment: .leading, spacing: 6) {
+                    subsectionLabel("Keywords")
+                    if m.keywords.isEmpty {
+                        Text("No keywords yet.")
+                            .foregroundStyle(.tertiary)
+                            .italic()
+                    } else {
+                        FlowLayout(spacing: 6) {
+                            ForEach(m.keywords, id: \.self) { kw in
+                                Text(kw)
+                                    .font(.callout)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 4)
+                                    .background(.blue.opacity(0.12), in: Capsule())
+                                    .foregroundStyle(.blue)
+                            }
+                        }
+                    }
                 }
             }
             .padding(14)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(.background.secondary, in: RoundedRectangle(cornerRadius: 8))
         }
+    }
+
+    private func subsectionLabel(_ title: String) -> some View {
+        Text(title.uppercased())
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.tertiary)
+            .kerning(0.5)
     }
 
     // MARK: - Journals card

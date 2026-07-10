@@ -1179,6 +1179,36 @@ final class ManuscriptStore {
         }
     }
 
+    /// Moves the manuscript's folder: copies manuscript.json, figures/, and
+    /// data/ into `newFolder`, repoints the folder mapping + security bookmark,
+    /// then deletes the previous folder.  Returns an error message, or nil.
+    func moveManuscriptFolder(to newFolder: URL) -> String? {
+        guard var m = manuscript else { return "No manuscript is open." }
+        let old = persistence.manuscriptDirectory(for: m.id)
+        guard newFolder.standardizedFileURL != old.standardizedFileURL else { return nil }
+        let fm = FileManager.default
+        do {
+            for name in (try? fm.contentsOfDirectory(atPath: old.path)) ?? [] where !name.hasPrefix(".") {
+                let src = old.appendingPathComponent(name)
+                let dst = newFolder.appendingPathComponent(name)
+                try? fm.removeItem(at: dst)
+                try fm.copyItem(at: src, to: dst)
+            }
+            if let bookmark = try? newFolder.bookmarkData(
+                options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil) {
+                m.folderBookmark = bookmark
+            }
+            _ = newFolder.startAccessingSecurityScopedResource()
+            persistence.setCustomFolder(newFolder, for: m.id)
+            manuscript = m
+            trySave()
+            try? fm.removeItem(at: old)   // the move is a move, not a copy
+            return nil
+        } catch {
+            return "Couldn't move the folder: \(error.localizedDescription)"
+        }
+    }
+
     /// Pulls the manuscript files from the active backend, **replacing** the
     /// local content (the caller confirms with the user first).  The local
     /// manuscript id is kept so the folder mapping and lineage of trust stay

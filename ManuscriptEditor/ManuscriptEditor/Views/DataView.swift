@@ -270,13 +270,9 @@ struct CSVAssetDetail: View {
 
             Divider()
 
-            // SQL query bar
-            HStack(spacing: 8) {
-                TextField("SQL query…", text: $queryDraft, axis: .vertical)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.system(.body, design: .monospaced))
-                    .lineLimit(1...4)
-                    .onSubmit { runQuery() }
+            // SQL query bar (terminal-style, multi-line; ⌘⏎ runs)
+            HStack(alignment: .bottom, spacing: 8) {
+                SQLEditor(text: $queryDraft)
 
                 Button("Run") { runQuery() }
                     .buttonStyle(.borderedProminent)
@@ -481,8 +477,17 @@ struct DataChartView: View {
             chart
                 .chartXAxis { AxisMarks(values: .automatic) }
                 .chartYAxis { AxisMarks(position: .leading) }
-                .chartXAxisLabel(resolvedX)
-                .chartYAxisLabel(resolvedY)
+                // Axis titles: X centered below; Y rotated to read upwards,
+                // centered along the axis.
+                .chartXAxisLabel(position: .bottom, alignment: .center) {
+                    Text(resolvedX)
+                }
+                .chartYAxisLabel(position: .leading, alignment: .center) {
+                    Text(resolvedY)
+                        .rotationEffect(.degrees(-90))
+                        .fixedSize()
+                        .frame(width: 16)
+                }
                 .chartForegroundStyleScale(range: palette.colors)
                 .frame(minHeight: 220)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)

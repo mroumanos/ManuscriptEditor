@@ -362,12 +362,10 @@ struct FigureEditor: View {
                 )) {
                     ForEach(ChartPalette.allCases) { p in Text(p.rawValue).tag(p) }
                 }
-                TextField("SQL Query", text: Binding(
+                SQLEditor(text: Binding(
                     get: { draft.chartQuery ?? "SELECT * FROM data" },
                     set: { draft.chartQuery = $0 }
-                ), axis: .vertical)
-                .font(.system(.callout, design: .monospaced))
-                .lineLimit(2...5)
+                ))
                 Text("Column aliases name the axes (1st = X, 2nd = Y); an optional 3rd column colors multiple lines/bars by category.")
                     .font(.caption)
                     .foregroundStyle(.secondary)

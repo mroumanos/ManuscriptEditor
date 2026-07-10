@@ -27,6 +27,8 @@ enum JournalPresets {
         let name: String
         /// Publisher name shown as a subtitle in the picker.
         let publisher: String
+        /// Country of the journal/publisher (journal-library detail).
+        var country: String? = nil
         /// Pre-filled requirements based on the journal's published author guidelines.
         let requirements: JournalRequirements
     }
@@ -35,7 +37,9 @@ enum JournalPresets {
 
     /// Every available preset, in the order shown in the picker.
     static var all: [JournalPreset] {
-        [nature, nejm, plosOne, lancet, bmj, cell, science]
+        [nature, nejm, plosOne, lancet, bmj, cell, science,
+         jama, healthAffairs, healthAndPlace, hsr, ajph, plosMedicine,
+         diabetesCare, bmjOpenDiabetes, jneb]
     }
 
     // MARK: - Individual presets
@@ -45,6 +49,7 @@ enum JournalPresets {
     static let nature = JournalPreset(
         name: "Nature",
         publisher: "Springer Nature",
+        country: "United Kingdom",
         requirements: JournalRequirements(
             maxBodyWords: 3000,
             maxAbstractWords: 150,
@@ -68,6 +73,7 @@ enum JournalPresets {
     static let nejm = JournalPreset(
         name: "New England Journal of Medicine",
         publisher: "NEJM Group",
+        country: "United States",
         requirements: JournalRequirements(
             maxBodyWords: 2700,
             maxAbstractWords: 150,
@@ -91,6 +97,7 @@ enum JournalPresets {
     static let plosOne = JournalPreset(
         name: "PLOS ONE",
         publisher: "Public Library of Science",
+        country: "United States",
         requirements: JournalRequirements(
             maxBodyWords: nil,    // No strict body word limit
             maxAbstractWords: 300,
@@ -115,6 +122,7 @@ enum JournalPresets {
     static let lancet = JournalPreset(
         name: "The Lancet",
         publisher: "Elsevier",
+        country: "United Kingdom",
         requirements: JournalRequirements(
             maxBodyWords: 3000,
             maxAbstractWords: 250,
@@ -138,6 +146,7 @@ enum JournalPresets {
     static let bmj = JournalPreset(
         name: "BMJ",
         publisher: "BMJ Publishing Group",
+        country: "United Kingdom",
         requirements: JournalRequirements(
             maxBodyWords: 3000,
             maxAbstractWords: 250,
@@ -161,6 +170,7 @@ enum JournalPresets {
     static let cell = JournalPreset(
         name: "Cell",
         publisher: "Cell Press / Elsevier",
+        country: "United States",
         requirements: JournalRequirements(
             maxBodyWords: 8000,
             maxAbstractWords: 150,
@@ -185,6 +195,7 @@ enum JournalPresets {
     static let science = JournalPreset(
         name: "Science",
         publisher: "American Association for the Advancement of Science",
+        country: "United States",
         requirements: JournalRequirements(
             maxBodyWords: 2500,
             maxAbstractWords: 125,
@@ -199,6 +210,203 @@ enum JournalPresets {
                 "Summary paragraph replaces traditional abstract (125 words max)",
                 "Materials and Methods placed after references (not counted in word limit)",
                 "Supplementary materials uploaded as separate file"
+            ]
+        )
+    )
+
+    /// JAMA — Journal of the American Medical Association.
+    /// Original Investigation: ~3,000-word body, 350-word structured abstract.
+    static let jama = JournalPreset(
+        name: "JAMA",
+        publisher: "American Medical Association",
+        country: "United States",
+        requirements: JournalRequirements(
+            maxBodyWords: 3000,
+            maxAbstractWords: 350,
+            maxFigures: 5,
+            maxTables: 4,
+            maxReferences: 75,
+            requiresSeparateFigures: true,
+            allowedExportFormats: [.docx, .pdf],
+            citationStyle: .ama,
+            requiredSections: [.introduction, .methods, .results, .discussion],
+            customRules: [
+                "Structured abstract required",
+                "Key Points box (Question/Findings/Meaning) required",
+            ]
+        )
+    )
+
+    /// Health Affairs — health policy research and commentary.
+    static let healthAffairs = JournalPreset(
+        name: "Health Affairs",
+        publisher: "Project HOPE",
+        country: "United States",
+        requirements: JournalRequirements(
+            maxBodyWords: 3500,
+            maxAbstractWords: 100,
+            maxFigures: 4,
+            maxTables: 4,
+            maxReferences: 40,
+            requiresSeparateFigures: true,
+            allowedExportFormats: [.docx],
+            citationStyle: .vancouver,
+            requiredSections: [.introduction, .methods, .results, .discussion],
+            customRules: [
+                "Exhibits (figures + tables combined) limited to four",
+                "Policy implications must be explicit",
+            ]
+        )
+    )
+
+    /// Health & Place — geography of health (Elsevier).
+    static let healthAndPlace = JournalPreset(
+        name: "Health & Place",
+        publisher: "Elsevier",
+        country: "Netherlands",
+        requirements: JournalRequirements(
+            maxBodyWords: 8000,
+            maxAbstractWords: 250,
+            maxFigures: nil,
+            maxTables: nil,
+            maxReferences: nil,
+            requiresSeparateFigures: false,
+            allowedExportFormats: [.docx, .pdf],
+            citationStyle: .harvard,
+            requiredSections: [.introduction, .methods, .results, .discussion],
+            customRules: [
+                "Highlights (3–5 bullet points) required",
+            ]
+        )
+    )
+
+    /// HSR — Health Services Research (Wiley).
+    static let hsr = JournalPreset(
+        name: "Health Services Research",
+        publisher: "Wiley",
+        country: "United States",
+        requirements: JournalRequirements(
+            maxBodyWords: 6000,
+            maxAbstractWords: 250,
+            maxFigures: 4,
+            maxTables: 4,
+            maxReferences: nil,
+            requiresSeparateFigures: true,
+            allowedExportFormats: [.docx],
+            citationStyle: .ama,
+            requiredSections: [.introduction, .methods, .results, .discussion],
+            customRules: [
+                "Structured abstract (Objective/Data Sources/Study Design/Findings/Conclusions)",
+                "What This Study Adds box required",
+            ]
+        )
+    )
+
+    /// AJPH — American Journal of Public Health.
+    static let ajph = JournalPreset(
+        name: "American Journal of Public Health",
+        publisher: "American Public Health Association",
+        country: "United States",
+        requirements: JournalRequirements(
+            maxBodyWords: 3500,
+            maxAbstractWords: 200,
+            maxFigures: 4,
+            maxTables: 4,
+            maxReferences: 40,
+            requiresSeparateFigures: true,
+            allowedExportFormats: [.docx],
+            citationStyle: .ama,
+            requiredSections: [.introduction, .methods, .results, .discussion],
+            customRules: [
+                "Structured abstract (Objectives/Methods/Results/Conclusions)",
+                "Public Health Implications section required",
+            ]
+        )
+    )
+
+    /// PLOS Medicine — open-access general medical journal.
+    static let plosMedicine = JournalPreset(
+        name: "PLOS Medicine",
+        publisher: "Public Library of Science",
+        country: "United States",
+        requirements: JournalRequirements(
+            maxBodyWords: nil,
+            maxAbstractWords: 300,
+            maxFigures: nil,
+            maxTables: nil,
+            maxReferences: nil,
+            requiresSeparateFigures: true,
+            allowedExportFormats: [.docx, .pdf],
+            citationStyle: .vancouver,
+            requiredSections: [.introduction, .methods, .results, .discussion],
+            customRules: [
+                "Structured abstract (Background/Methods and Findings/Conclusions)",
+                "Author Summary (non-technical) required",
+                "Data availability statement required",
+            ]
+        )
+    )
+
+    /// Diabetes Care — American Diabetes Association clinical journal.
+    static let diabetesCare = JournalPreset(
+        name: "Diabetes Care",
+        publisher: "American Diabetes Association",
+        country: "United States",
+        requirements: JournalRequirements(
+            maxBodyWords: 4000,
+            maxAbstractWords: 250,
+            maxFigures: 4,
+            maxTables: 4,
+            maxReferences: 50,
+            requiresSeparateFigures: true,
+            allowedExportFormats: [.docx],
+            citationStyle: .ama,
+            requiredSections: [.introduction, .methods, .results, .discussion],
+            customRules: [
+                "Structured abstract (Objective/Research Design and Methods/Results/Conclusions)",
+            ]
+        )
+    )
+
+    /// BMJ Open Diabetes Research & Care.
+    static let bmjOpenDiabetes = JournalPreset(
+        name: "BMJ Open Diabetes Research & Care",
+        publisher: "BMJ Group",
+        country: "United Kingdom",
+        requirements: JournalRequirements(
+            maxBodyWords: 4000,
+            maxAbstractWords: 300,
+            maxFigures: 5,
+            maxTables: 5,
+            maxReferences: nil,
+            requiresSeparateFigures: true,
+            allowedExportFormats: [.docx],
+            citationStyle: .vancouver,
+            requiredSections: [.introduction, .methods, .results, .discussion],
+            customRules: [
+                "Significance of this study box required",
+                "Open-access article processing charge applies",
+            ]
+        )
+    )
+
+    /// JNEB — Journal of Nutrition Education and Behavior (Elsevier).
+    static let jneb = JournalPreset(
+        name: "Journal of Nutrition Education and Behavior",
+        publisher: "Elsevier",
+        country: "United States",
+        requirements: JournalRequirements(
+            maxBodyWords: 4500,
+            maxAbstractWords: 250,
+            maxFigures: nil,
+            maxTables: nil,
+            maxReferences: nil,
+            requiresSeparateFigures: false,
+            allowedExportFormats: [.docx],
+            citationStyle: .ama,
+            requiredSections: [.introduction, .methods, .results, .discussion],
+            customRules: [
+                "Structured abstract (Objective/Design/Participants/Main Outcome Measures/Analysis/Results/Conclusions and Implications)",
             ]
         )
     )

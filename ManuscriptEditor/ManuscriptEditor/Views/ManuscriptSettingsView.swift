@@ -24,6 +24,10 @@ struct ManuscriptBackendView: View {
     @State private var createdRepoURL: URL?
     @State private var isCreating = false
 
+    /// A picked new folder awaiting the move confirmation.
+    @State private var pendingMove: URL?
+    @State private var moveError: String?
+
     private var manuscript: Manuscript? { store.manuscript }
 
     /// Git-hosting accounts (LLM accounts can't store a manuscript).
@@ -42,18 +46,21 @@ struct ManuscriptBackendView: View {
         Form {
             Section("Local Copy") {
                 LabeledContent("Folder") {
-                    let dir = manuscript.map { store.persistence.manuscriptDirectory(for: $0.id) }
-                    HStack(spacing: 8) {
-                        Text(dir?.path(percentEncoded: false) ?? "—")
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                        if let dir {
-                            Button("Reveal") {
-                                NSWorkspace.shared.activateFileViewerSelecting([dir])
-                            }
-                            .controlSize(.small)
+                    if let dir = manuscript.map({ store.persistence.manuscriptDirectory(for: $0.id) }) {
+                        // The button IS the folder (truncated name, not the
+                        // path); clicking opens the picker — choosing a new
+                        // location moves the manuscript there.
+                        Button {
+                            pickFolder(current: dir)
+                        } label: {
+                            Label(dir.lastPathComponent, systemImage: "folder")
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                                .frame(maxWidth: 220)
                         }
+                        .help(dir.path(percentEncoded: false))
+                    } else {
+                        Text("—").foregroundStyle(.secondary)
                     }
                 }
                 LabeledContent("Last saved") {
@@ -84,8 +91,10 @@ struct ManuscriptBackendView: View {
                         HStack(spacing: 8) {
                             Text(repo).foregroundStyle(.secondary)
                             if let url = URL(string: "https://github.com/\(repo)") {
-                                Link("Open on GitHub", destination: url)
-                                    .font(.caption)
+                                Link(destination: url) {
+                                    Image(systemName: "arrow.up.right.square")
+                                }
+                                .help("Open on GitHub")
                             }
                         }
                     }
@@ -146,6 +155,48 @@ struct ManuscriptBackendView: View {
             }
         }
         .formStyle(.grouped)
+        // Moving is destructive to the old location — always confirmed.
+        .confirmationDialog(
+            "Move Manuscript Folder?",
+            isPresented: Binding(get: { pendingMove != nil },
+                                 set: { if !$0 { pendingMove = nil } })
+        ) {
+            Button("Move and Delete Old Folder", role: .destructive) {
+                if let dest = pendingMove {
+                    moveError = store.moveManuscriptFolder(to: dest)
+                }
+                pendingMove = nil
+            }
+            Button("Cancel", role: .cancel) { pendingMove = nil }
+        } message: {
+            Text("Copies manuscript.json, figures, and data to \"\(pendingMove?.lastPathComponent ?? "")\" and deletes the previous folder.")
+        }
+        .alert("Move Failed", isPresented: Binding(
+            get: { moveError != nil },
+            set: { if !$0 { moveError = nil } }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(moveError ?? "")
+        }
+    }
+
+    /// Opens the folder picker at the current location; picking a different
+    /// directory proposes the move.
+    private func pickFolder(current: URL) {
+        let panel = NSOpenPanel()
+        panel.title = "Manuscript Folder"
+        panel.message = "This is where the manuscript lives. Choose a different folder to move it."
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.canCreateDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.directoryURL = current
+        panel.prompt = "Choose"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        if url.standardizedFileURL != current.standardizedFileURL {
+            pendingMove = url
+        }
     }
 }
 

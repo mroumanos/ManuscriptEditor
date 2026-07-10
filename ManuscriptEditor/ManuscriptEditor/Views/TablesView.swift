@@ -271,12 +271,10 @@ struct TableEditor: View {
                 }
             }
             if draft.dataAssetID != nil {
-                TextField("SQL Query", text: Binding(
+                SQLEditor(text: Binding(
                     get: { draft.dataQuery ?? "SELECT * FROM data" },
                     set: { draft.dataQuery = $0 }
-                ), axis: .vertical)
-                .font(.system(.callout, design: .monospaced))
-                .lineLimit(2...4)
+                ))
                 Text("The query result populates the table. Markdown content is ignored when a data source is linked.")
                     .font(.caption)
                     .foregroundStyle(.secondary)

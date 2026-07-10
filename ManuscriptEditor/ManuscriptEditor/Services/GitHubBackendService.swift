@@ -119,7 +119,19 @@ struct GitHubBackendService {
     /// Pushes `files` as a single commit; returns the new commit's short SHA.
     func push(files: [File], message: String, config: Config) async throws -> String {
         // 1. Base commit (nil on a brand-new branch/empty repository).
-        let base = try await branchHead(config: config)
+        var base = try await branchHead(config: config)
+
+        // A completely empty repository rejects the whole Git Data API with
+        // 409 "Git Repository is empty." — bootstrap the initial commit
+        // through the Contents API, then continue normally on top of it.
+        if base == nil, let first = files.first {
+            _ = try await request("PUT", "contents/\(first.path)", config: config, body: [
+                "message": "Initialize manuscript",
+                "content": first.data.base64EncodedString(),
+                "branch": config.branch,
+            ])
+            base = try await branchHead(config: config)
+        }
 
         // 2. One blob per file.
         var treeEntries: [[String: Any]] = []

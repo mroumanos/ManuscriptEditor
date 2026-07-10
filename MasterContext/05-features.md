@@ -140,8 +140,9 @@ propagate by explicit, individual fast-forwards.
   child content toward the child's requirements.
 - AC (implemented): **Sync pane** — under the Manuscript section — carries the
   three flow functions: **Saving** (Save Local / Save Remote / Load from
-  Remote with last-saved/last-synced timestamps), **Syncing** (per-edge
-  Sync/Stamp & Sync buttons on a **contiguous** nested lineage tree — child
+  Remote with last-saved/last-synced timestamps), **Syncing** (plain per-edge Sync buttons — stamping is its own prompt,
+  and the confirmation states whether a connected AI may modify the copy —
+  on a **contiguous** nested lineage tree — child
   cards attached beneath their upstream, tabbed left, right edges aligned),
   and **Add Journal** (from = Source or any journal; to = a profile from the
   global journal library or a custom name; creates v1 "Created" + the edge,
@@ -303,8 +304,9 @@ things; neither is needed for Phase I (manual, local) editing.
   current manuscript's unsynced work first. Remote asks for account + repository
   link; a repository that already holds a manuscript is pulled, an empty one
   receives the fresh manuscript; a local copy always exists.
-- AC: Saving lives under **File**: Save (Local) ⌘S, Save (Remote) ⇧⌘S, Load
-  from Remote… (mirrored in the Sync pane).
+- AC: Saving lives under **File**: Save (Local) ⌘S and Save (Remote) ⇧⌘S (mirrored in the
+  Sync pane). Loading an existing remote manuscript IS New Manuscript
+  (Remote)… — there is no separate Load command.
 - AC (implemented — GitHub first): **Save to Remote / Load from Remote**
   (Manuscript menu; ⇧⌘S for save). A GitHub backend account carries a
   repository ("owner/name") + branch (default `main`); its **personal access

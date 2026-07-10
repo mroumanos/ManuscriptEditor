@@ -88,13 +88,19 @@ final class AppStore {
             views      = decoded.views
             journalLibrary = decoded.journalLibrary ?? []
         }
-        if journalLibrary.isEmpty {
-            journalLibrary = JournalPresets.all.map { preset in
-                Journal(
+        // Seed/merge presets: any preset name not yet in the library is
+        // appended, so newly shipped presets reach existing installs too.
+        let existingNames = Set(journalLibrary.map { $0.name.lowercased() })
+        let missing = JournalPresets.all.filter { !existingNames.contains($0.name.lowercased()) }
+        if !missing.isEmpty {
+            journalLibrary += missing.map { preset in
+                var journal = Journal(
                     id: UUID(), name: preset.name, publisher: preset.publisher,
                     submissionURL: "", requirements: preset.requirements,
                     viewConfigID: nil, createdAt: Date()
                 )
+                journal.country = preset.country
+                return journal
             }
             save()
         }
