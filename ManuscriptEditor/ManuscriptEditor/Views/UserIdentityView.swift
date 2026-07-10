@@ -34,12 +34,21 @@ struct UserIdentityView: View {
     /// Dropdown selection (fingerprint).
     @State private var selectedFingerprint: String?
 
+    /// The type currently signing changes: the selected remote type once its
+    /// key verifies, otherwise Local (mirrors effectiveIdentityType).
+    private var signingType: IdentityType {
+        (type != .local && remoteVerified) ? type : .local
+    }
+
     var body: some View {
         Form {
             Section("Identity") {
+                // The checkmark marks the type that actually signs changes:
+                // a remote type earns it only once its key verifies, until
+                // then Local carries it (matching effectiveIdentityType).
                 Picker("Type", selection: $type) {
                     ForEach(IdentityType.allCases) { t in
-                        Text(t.label).tag(t)
+                        Text(t == signingType ? "✓ \(t.label)" : t.label).tag(t)
                     }
                 }
                 .pickerStyle(.segmented)
@@ -115,15 +124,6 @@ struct UserIdentityView: View {
                                     .foregroundStyle(.green)
                                     .help("Verified against \(handle)")
                             }
-                        }
-                        // Confirm which key is in force: every stamp and note
-                        // from now on is signed with the checked key.
-                        if let fp = selectedFingerprint,
-                           let key = localKeys.first(where: { $0.fingerprint == fp }) {
-                            Label("\(key.name) (\(key.longID)) signs your stamps and notes",
-                                  systemImage: "checkmark.circle.fill")
-                                .font(.caption)
-                                .foregroundStyle(.green)
                         }
                         if case .failure(let error) = testResult {
                             Label(error.localizedDescription, systemImage: "xmark.circle.fill")
