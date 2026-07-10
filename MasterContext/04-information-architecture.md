@@ -111,7 +111,7 @@ Tab identity is the **journal**, always resolving to its current working head.
 | Journal requirements editing; save profile to library | **Journal → Checks** pane (per tab) |
 | Notes & feedback on content | notes button in pane headers (signed) |
 | Import CSV/images; SQL; charts | **Data** sidebar item |
-| New Manuscript (File ⌘N / Remote…) with unsaved-work warning | **File menu** |
+| New (app data) ⌘N / Open (Local)… ⌘O in-place / Open (Remote)… clone / Export Project zip ⌘E | **File menu** (all warn about unsynced work first) |
 
 ## Lineage (Sync pane)
 

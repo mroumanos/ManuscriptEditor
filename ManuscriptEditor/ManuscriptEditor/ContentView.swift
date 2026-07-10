@@ -24,6 +24,7 @@
 
 import SwiftUI
 import AppKit
+import UniformTypeIdentifiers
 
 // MARK: - SidebarItem
 
@@ -137,12 +138,14 @@ struct ContentView: View {
 
     /// A requested "new manuscript" awaiting the unsaved-work confirmation.
     enum PendingNew: String, Identifiable {
-        case file, remote
+        case file, remote, openLocal
         var id: String { rawValue }
     }
     @State private var pendingNew: PendingNew?
-    /// Drives the New Manuscript (Remote) sheet.
+    /// Drives the Open Manuscript (Remote) sheet.
     @State private var showingNewRemote = false
+    /// Open/Export project failures (bad folder, zip error).
+    @State private var projectError: String?
 
     /// Every tab, in stable order: Source first, then journals in manuscript
     /// order.  Loaded automatically — adding a journal (Sync pane) adds its
@@ -172,6 +175,10 @@ struct ContentView: View {
     }
 
     var body: some View {
+        dialogLayer(notificationLayer(splitView))
+    }
+
+    private var splitView: some View {
         NavigationSplitView {
             SidebarView(selection: $selection, activeRef: ref(for: activeTab) ?? .source)
                 .navigationSplitViewColumnWidth(min: 200, ideal: 230, max: 290)
@@ -191,7 +198,7 @@ struct ContentView: View {
                 // The window title is the manuscript's name (not the app name).
                 .navigationTitle(windowTitle)
             } else {
-                WelcomeView(onNewManuscript: pickFolderThenCreate)
+                WelcomeView(onNewManuscript: createInAppData)
                     .navigationTitle("Manuscript Editor")
             }
         }
@@ -206,8 +213,19 @@ struct ContentView: View {
             compareTabs = compareTabs.filter(tabs.contains)
             if compareTabs.isEmpty { compareTabs = [.source] }
         }
+    }
+
+    /// Menu-bar notifications (split out to keep type-checking fast).
+    private func notificationLayer(_ content: some View) -> some View {
+        content
         .onReceive(NotificationCenter.default.publisher(for: .newManuscript)) { _ in
-            if store.manuscript == nil { pickFolderThenCreate() } else { pendingNew = .file }
+            if store.manuscript == nil { createInAppData() } else { pendingNew = .file }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .openManuscriptLocal)) { _ in
+            if store.manuscript == nil { openLocalFolder() } else { pendingNew = .openLocal }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .exportProject)) { _ in
+            exportProjectZip()
         }
         .onReceive(NotificationCenter.default.publisher(for: .newManuscriptRemote)) { _ in
             if store.manuscript == nil { showingNewRemote = true } else { pendingNew = .remote }
@@ -227,6 +245,19 @@ struct ContentView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .nextJournalTab)) { _ in
             cycleActiveTab(by: 1)
+        }
+    }
+
+    /// Alerts, dialogs, and sheets (split out to keep type-checking fast).
+    private func dialogLayer(_ content: some View) -> some View {
+        content
+        .alert("Project Error", isPresented: Binding(
+            get: { projectError != nil },
+            set: { if !$0 { projectError = nil } }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(projectError ?? "")
         }
         // Remote failures are loud (alert); successes stay quiet (sidebar line).
         .alert("Remote Sync Failed", isPresented: Binding(
@@ -250,9 +281,10 @@ struct ContentView: View {
                 let kind = pendingNew
                 pendingNew = nil
                 switch kind {
-                case .file:   pickFolderThenCreate()
-                case .remote: showingNewRemote = true
-                case .none:   break
+                case .file:      createInAppData()
+                case .remote:    showingNewRemote = true
+                case .openLocal: openLocalFolder()
+                case .none:      break
                 }
             }
             Button("Cancel", role: .cancel) { pendingNew = nil }
@@ -436,19 +468,47 @@ struct ContentView: View {
 
     // MARK: - Folder picker
 
-    private func pickFolderThenCreate() {
+    /// File → New: a fresh manuscript in the app-data folder (move it later
+    /// from Manuscript → Backend if you want it somewhere visible).
+    private func createInAppData() {
+        store.createNew()
+        resetWorkspace()
+    }
+
+    /// File → Open (Local)…: point at an existing project folder; files are
+    /// edited in place.
+    private func openLocalFolder() {
         let panel = NSOpenPanel()
-        panel.title = "Choose a folder for your manuscript"
-        panel.message = "All manuscript files will be saved here."
+        panel.title = "Open Manuscript Project"
+        panel.message = "Choose a project folder containing manuscript.json."
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
-        panel.canCreateDirectories = true
         panel.allowsMultipleSelection = false
-        panel.prompt = "Choose"
-
+        panel.prompt = "Open"
         guard panel.runModal() == .OK, let url = panel.url else { return }
+        if let error = store.openLocal(folder: url) {
+            projectError = error
+        } else {
+            resetWorkspace()
+        }
+    }
 
-        store.createNew(in: url)
+    /// File → Export Project…: the whole project as a reopenable zip.
+    private func exportProjectZip() {
+        guard let m = store.manuscript else { return }
+        let panel = NSSavePanel()
+        panel.title = "Export Project"
+        panel.nameFieldStringValue = "\(m.title.isEmpty ? "Manuscript" : m.title).zip"
+        panel.allowedContentTypes = [.zip]
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        if let error = store.exportProject(to: url) {
+            projectError = error
+        } else {
+            NSWorkspace.shared.activateFileViewerSelecting([url])
+        }
+    }
+
+    private func resetWorkspace() {
         selection = .overview
         tabMode   = .active
         activeTab = .source

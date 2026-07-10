@@ -26,15 +26,24 @@ import SwiftUI
 struct ManuscriptCommands: Commands {
     var body: some Commands {
 
-        // Replace SwiftUI's default "New Item" with the manuscript flows.
-        // Both confirm first when the current manuscript has unsynced work.
+        // The project lifecycle lives under File:
+        //   New           — a fresh manuscript in the app-data folder
+        //   Open (Local)… — point at an existing project folder; files are
+        //                   edited in place (never copied into app data)
+        //   Open (Remote)…— clone a GitHub/GitLab repository into app data;
+        //                   local saves land there, remote saves push
         CommandGroup(replacing: .newItem) {
-            Button("New Manuscript (File)…") {
+            Button("New Manuscript") {
                 NotificationCenter.default.post(name: .newManuscript, object: nil)
             }
             .keyboardShortcut("n", modifiers: .command)   // ⌘N
 
-            Button("New Manuscript (Remote)…") {
+            Button("Open Manuscript (Local)…") {
+                NotificationCenter.default.post(name: .openManuscriptLocal, object: nil)
+            }
+            .keyboardShortcut("o", modifiers: .command)   // ⌘O
+
+            Button("Open Manuscript (Remote)…") {
                 NotificationCenter.default.post(name: .newManuscriptRemote, object: nil)
             }
         }
@@ -55,10 +64,12 @@ struct ManuscriptCommands: Commands {
             // (Remote)…" — there is deliberately no separate Load command.)
         }
 
-        // Export lives in the File menu, next to import/new.
+        // Export here means the PROJECT — a zip of the manuscript folder that
+        // "Open Manuscript (Local)…" can reopen.  Journal submission packages
+        // are built in the Journal → Export pane, not the File menu.
         CommandGroup(after: .importExport) {
-            Button("Export Submission Package…") {
-                NotificationCenter.default.post(name: .exportManuscript, object: nil)
+            Button("Export Project (Zip)…") {
+                NotificationCenter.default.post(name: .exportProject, object: nil)
             }
             .keyboardShortcut("e", modifiers: .command)   // ⌘E
         }
@@ -83,13 +94,17 @@ struct ManuscriptCommands: Commands {
 /// Strongly-typed notification names used to communicate between the menu bar and
 /// `ContentView`.  Using named extensions avoids typos that would come from raw strings.
 extension Notification.Name {
-    /// Posted when the user chooses File → New Manuscript (File)… (⌘N).
+    /// Posted when the user chooses File → New Manuscript (⌘N).
     static let newManuscript  = Notification.Name("ManuscriptEditor.newManuscript")
-    /// Posted when the user chooses File → New Manuscript (Remote)….
+    /// Posted when the user chooses File → Open Manuscript (Local)… (⌘O).
+    static let openManuscriptLocal = Notification.Name("ManuscriptEditor.openManuscriptLocal")
+    /// Posted when the user chooses File → Open Manuscript (Remote)….
     static let newManuscriptRemote = Notification.Name("ManuscriptEditor.newManuscriptRemote")
     /// Posted when the user chooses File → Save (Local) (⌘S).
     static let saveManuscript = Notification.Name("ManuscriptEditor.saveManuscript")
-    /// Posted when the user chooses File → Export Submission Package… (⌘E).
+    /// Posted when the user chooses File → Export Project (Zip)… (⌘E).
+    static let exportProject = Notification.Name("ManuscriptEditor.exportProject")
+    /// Legacy: the old submission-package sheet (still used by ExportSheet).
     static let exportManuscript = Notification.Name("ManuscriptEditor.exportManuscript")
     /// Posted after a stamp/sync moves a journal's working head (userInfo:
     /// "old"/"new" version UUIDs) — Versions selections may follow it.

@@ -40,7 +40,7 @@ struct NewRemoteManuscriptSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            Text("New Manuscript (Remote)").font(.headline)
+            Text("Open Manuscript (Remote)").font(.headline)
 
             if accounts.isEmpty {
                 Text("No Git-hosting accounts configured yet. Add a GitHub account in Preferences → Accounts (⌘,) first.")
@@ -63,7 +63,7 @@ struct NewRemoteManuscriptSheet: View {
                     .textFieldStyle(.roundedBorder)
                     .autocorrectionDisabled()
 
-                Text("A local copy is kept on this Mac (see Manuscript → Backend). If the repository already contains a manuscript, it is loaded; an empty repository gets this new manuscript pushed to it.")
+                Text("Clones into the app-data folder: a repository that already contains a manuscript opens it; an empty repository starts a fresh manuscript there. Local saves write to the clone; Save (Remote) pushes.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -73,7 +73,7 @@ struct NewRemoteManuscriptSheet: View {
                 Spacer()
                 Button("Cancel") { isPresented = false }
                     .keyboardShortcut(.cancelAction)
-                Button("Create") {
+                Button("Open") {
                     guard let accountID, let repository else { return }
                     store.createNewRemote(repository: repository, branch: branch,
                                           accountID: accountID, appStore: appStore)

@@ -71,6 +71,62 @@ final class ManuscriptStore {
         }
     }
 
+    /// Opens an existing project folder **in place** (File → Open (Local)…):
+    /// the folder must hold a manuscript.json; edits keep writing there —
+    /// nothing is copied into app data.  Returns an error message, or nil.
+    func openLocal(folder: URL) -> String? {
+        let json = folder.appendingPathComponent("manuscript.json")
+        guard FileManager.default.fileExists(atPath: json.path) else {
+            return "That folder doesn't contain a manuscript.json — pick the project folder exported or created by Manuscript Editor."
+        }
+        do {
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            var decoded = try decoder.decode(Manuscript.self, from: Data(contentsOf: json))
+            // Keep editing THIS folder: register the mapping + a bookmark so
+            // access survives relaunch.
+            if let bookmark = try? folder.bookmarkData(
+                options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil) {
+                decoded.folderBookmark = bookmark
+            }
+            _ = folder.startAccessingSecurityScopedResource()
+            persistence.setCustomFolder(folder, for: decoded.id)
+            manuscript = normalized(decoded)
+            trySave()
+            return nil
+        } catch {
+            return "Couldn't read manuscript.json: \(error.localizedDescription)"
+        }
+    }
+
+    /// Exports the whole project as a zip (File → Export Project…) that
+    /// "Open Manuscript (Local)…" can reopen after unzipping.  Returns an
+    /// error message, or nil.
+    func exportProject(to zipURL: URL) -> String? {
+        trySave()   // the zip carries what's on screen
+        guard let m = manuscript else { return "No manuscript is open." }
+        let dir = persistence.manuscriptDirectory(for: m.id)
+        try? FileManager.default.removeItem(at: zipURL)
+        // ditto preserves structure/attributes and ships with macOS.
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
+        process.arguments = ["-c", "-k", "--keepParent", dir.path, zipURL.path]
+        let errPipe = Pipe()
+        process.standardError = errPipe
+        do {
+            try process.run()
+            process.waitUntilExit()
+            guard process.terminationStatus == 0 else {
+                let message = String(data: errPipe.fileHandleForReading.readDataToEndOfFile(),
+                                     encoding: .utf8) ?? ""
+                return "Couldn't create the zip: \(message.isEmpty ? "ditto failed" : message)"
+            }
+            return nil
+        } catch {
+            return "Couldn't create the zip: \(error.localizedDescription)"
+        }
+    }
+
     // MARK: - Normalization
 
     /// Sorts sections into canonical display order and renumbers `order`
