@@ -474,23 +474,31 @@ struct DataChartView: View {
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
-            chart
-                .chartXAxis { AxisMarks(values: .automatic) }
-                .chartYAxis { AxisMarks(position: .leading) }
-                // Axis titles: X centered below; Y rotated to read upwards,
-                // centered along the axis.
-                .chartXAxisLabel(position: .bottom, alignment: .center) {
+            // Manual axis-title layout: a truly vertical (bottom-to-top) Y
+            // title on the left, the X title centered underneath.  The plot
+            // itself gets a small margin on every side so tick labels (the
+            // max Y value especially) never overlap the plot box.
+            HStack(spacing: 2) {
+                VerticalAxisTitle(text: resolvedY)
+                VStack(spacing: 2) {
+                    chart
+                        .chartXAxis { AxisMarks(values: .automatic) }
+                        .chartYAxis { AxisMarks(position: .leading) }
+                        .chartXScale(range: .plotDimension(padding: 10))
+                        .chartYScale(range: .plotDimension(padding: 10))
+                        .chartPlotStyle { plot in
+                            plot.padding(6)
+                        }
+                        .chartForegroundStyleScale(range: palette.colors)
+                        .frame(minHeight: 220)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                     Text(resolvedX)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
-                .chartYAxisLabel(position: .leading, alignment: .center) {
-                    Text(resolvedY)
-                        .rotationEffect(.degrees(-90))
-                        .fixedSize()
-                        .frame(width: 16)
-                }
-                .chartForegroundStyleScale(range: palette.colors)
-                .frame(minHeight: 220)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            .padding(8)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 
@@ -513,6 +521,26 @@ struct DataChartView: View {
                     .position(by: .value(seriesColumn ?? "Series", pt.series ?? resolvedY))
             }
         }
+    }
+}
+
+// MARK: - VerticalAxisTitle
+
+/// A Y-axis title reading bottom-to-top, vertically centered.  Rotation via
+/// a fixed-size swap (rotationEffect doesn't change layout bounds, so the
+/// label is measured horizontally and then laid out in a narrow column).
+private struct VerticalAxisTitle: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .fixedSize()
+            .rotationEffect(.degrees(-90))
+            .frame(width: 18)
+            .frame(maxHeight: .infinity)
     }
 }
 

@@ -118,6 +118,9 @@ struct Manuscript: Codable, Identifiable, Sendable {
     /// backend.  nil = never synced.  Optional so older files keep decoding.
     var lastSyncedAt: Date? = nil
 
+    /// Free-text project description, editable on the Overview dashboard.
+    var about: String? = nil
+
     // MARK: - Factory
 
     /// Creates a brand-new, empty manuscript with the standard set of body sections

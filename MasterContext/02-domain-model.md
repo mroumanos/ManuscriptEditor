@@ -250,11 +250,16 @@ Notes are a first-class way to leave feedback for oneself or collaborators,
   Rollback restores a prior version and drops the versions after it (refused
   when a dropped version has cross-journal children).
 - **Identity**: the app keeps a local P-256 keypair (private key in the
-  Keychain — never in manuscript files; `SigningService`). Version stamps and
-  notes carry the signer's public key + signature. `Author.publicKeys` ties
-  keys to authors (0..many): tied+verified activity shows the author's name
-  with ✓; verified-but-untied shows the signer name with ?; failed
-  verification shows ✗ (`SignatureBadge`, used wherever names appear).
+  Keychain — never in manuscript files; `SigningService`). Identities have a
+  **type** — local (freeform name; unverifiable, warned), or GitHub / GitLab /
+  OpenPGP (a GPG public key checked against the handle's publicly registered
+  keys; "Test" + how-to link in Preferences → User). Stamps and notes carry
+  the signer's public key + signature; `Author.signatureInfos` (rich) /
+  `Author.publicKeys` (legacy=local) tie keys to authors. Badge rules
+  (`SignatureBadge`): **✓ green** = signature verifies AND the tie is a
+  verified remote identity; **? orange** = verifies but only a local identity
+  vouches (or untied); **! red** = signature fails. Badges check keys across
+  the Source AND every version snapshot.
 - **Journal library**: `AppStore.journalLibrary: [Journal]` — global, reusable
   journal profiles (name, country, requirements, export outline), seeded from
   presets, grown via "Save to Journal Library". Adding a journal to a

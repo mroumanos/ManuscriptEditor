@@ -93,7 +93,7 @@ struct NotesButton: View {
                     message: SigningService.noteMessage(
                         id: note.id, createdAt: note.createdAt, body: note.body),
                     signature: note.signature,
-                    authors: store.manuscript?.authors ?? []
+                    authors: store.signatureAuthors
                 )
                 .font(.caption.weight(.semibold))
                 Text(note.createdAt, format: .dateTime.month().day().hour().minute())

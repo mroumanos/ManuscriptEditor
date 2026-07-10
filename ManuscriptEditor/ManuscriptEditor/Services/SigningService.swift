@@ -15,11 +15,163 @@
 import Foundation
 import CryptoKit
 
+/// How the user's identity is anchored.  Local identities sign with the
+/// app-generated key only — nothing external vouches for them; remote types
+/// pair the app key with a GPG key that is publicly registered (GitHub,
+/// GitLab, or the keys.openpgp.org keyserver), so collaborators can verify
+/// who an editor actually is.
+enum IdentityType: String, CaseIterable, Identifiable {
+    case local, github, gitlab, openpgp
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .local:   return "Local"
+        case .github:  return "GitHub"
+        case .gitlab:  return "GitLab"
+        case .openpgp: return "OpenPGP"
+        }
+    }
+
+    /// What the handle field means (nil = no handle needed).
+    var handlePrompt: String? {
+        switch self {
+        case .local:   return nil
+        case .github:  return "GitHub username"
+        case .gitlab:  return "GitLab username"
+        case .openpgp: return "Email address"
+        }
+    }
+
+    /// Provider documentation for registering a GPG key.
+    var howToURL: URL? {
+        switch self {
+        case .local:   return nil
+        case .github:  return URL(string: "https://docs.github.com/en/authentication/managing-commit-signature-verification/adding-a-gpg-key-to-your-github-account")
+        case .gitlab:  return URL(string: "https://docs.gitlab.com/ee/user/gpg_signed_commits/")
+        case .openpgp: return URL(string: "https://keys.openpgp.org/about/usage")
+        }
+    }
+}
+
 enum SigningService {
 
     /// Reserved Keychain slot for the user's signing key (KeychainService is
     /// keyed by UUID; this one is never used by a backend account).
     private static let keySlot = UUID(uuidString: "51674E00-0000-4000-8000-000000000001")!
+
+    // MARK: - Identity (type + handle + GPG anchor)
+
+    static var identityType: IdentityType {
+        get { UserDefaults.standard.string(forKey: "identityType")
+                .flatMap(IdentityType.init(rawValue:)) ?? .local }
+        set { UserDefaults.standard.set(newValue.rawValue, forKey: "identityType") }
+    }
+
+    /// GitHub/GitLab username or OpenPGP email.
+    static var identityHandle: String {
+        get { UserDefaults.standard.string(forKey: "identityHandle") ?? "" }
+        set { UserDefaults.standard.set(newValue, forKey: "identityHandle") }
+    }
+
+    /// The user's ASCII-armored GPG **public** key (remote types) — public
+    /// material, safe in UserDefaults.
+    static var identityGPGKey: String {
+        get { UserDefaults.standard.string(forKey: "identityGPGKey") ?? "" }
+        set { UserDefaults.standard.set(newValue, forKey: "identityGPGKey") }
+    }
+
+    /// Whether the last remote check confirmed the GPG key is registered to
+    /// the handle.
+    static var identityRemoteVerified: Bool {
+        get { UserDefaults.standard.bool(forKey: "identityRemoteVerified") }
+        set { UserDefaults.standard.set(newValue, forKey: "identityRemoteVerified") }
+    }
+
+    /// The tie descriptor stamped onto authors when the user ties their key.
+    static var currentSignatureInfo: AuthorSignature? {
+        guard let key = publicKeyBase64 else { return nil }
+        return AuthorSignature(
+            publicKey: key,
+            type: identityType.rawValue,
+            handle: identityType == .local ? nil : identityHandle,
+            verified: identityType == .local ? nil : identityRemoteVerified
+        )
+    }
+
+    // MARK: - Remote GPG key verification
+
+    /// Confirms the selected GPG public key is registered to the handle on
+    /// the provider (GitHub/GitLab public API, or the keys.openpgp.org
+    /// keyserver).  Returns a success line; throws a readable failure.
+    static func verifyRemoteKey(type: IdentityType, handle: String, armoredKey: String) async throws -> String {
+        let localBody = armorBody(armoredKey)
+        guard !localBody.isEmpty else {
+            throw AccountTestError.failed("Select an ASCII-armored GPG public key file first (-----BEGIN PGP PUBLIC KEY BLOCK-----).")
+        }
+        let remoteKeys: [String]
+        switch type {
+        case .local:
+            return "Local identity — nothing to verify."
+        case .github:
+            let data = try await fetch("https://api.github.com/users/\(handle)/gpg_keys")
+            let list = (try? JSONSerialization.jsonObject(with: data) as? [[String: Any]]) ?? []
+            remoteKeys = (list ?? []).compactMap { $0["raw_key"] as? String }
+        case .gitlab:
+            let userData = try await fetch("https://gitlab.com/api/v4/users?username=\(handle)")
+            guard let users = try? JSONSerialization.jsonObject(with: userData) as? [[String: Any]],
+                  let id = users.first?["id"] as? Int else {
+                throw AccountTestError.failed("GitLab user \"\(handle)\" not found.")
+            }
+            let keysData = try await fetch("https://gitlab.com/api/v4/users/\(id)/gpg_keys")
+            let list = (try? JSONSerialization.jsonObject(with: keysData) as? [[String: Any]]) ?? []
+            remoteKeys = (list ?? []).compactMap { $0["key"] as? String }
+        case .openpgp:
+            let encoded = handle.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? handle
+            let data = try await fetch("https://keys.openpgp.org/vks/v1/by-email/\(encoded)")
+            remoteKeys = [String(data: data, encoding: .utf8) ?? ""]
+        }
+        guard remoteKeys.contains(where: { keysMatch(armorBody($0), localBody) }) else {
+            throw AccountTestError.failed("The selected GPG key isn't registered to \"\(handle)\" — upload it there first (see How-To).")
+        }
+        return "Verified — the GPG key is registered to \(handle)."
+    }
+
+    /// The base64 payload of an armored block, whitespace/headers stripped —
+    /// good enough to compare "same key" without a full PGP parser.
+    private static func armorBody(_ armored: String) -> String {
+        var lines = armored.components(separatedBy: .newlines)
+        lines.removeAll {
+            $0.hasPrefix("-----") || $0.contains(":") || $0.trimmingCharacters(in: .whitespaces).isEmpty
+        }
+        // Drop the trailing CRC line ("=xxxx").
+        if let last = lines.last, last.hasPrefix("=") { lines.removeLast() }
+        return lines.joined()
+    }
+
+    private static func keysMatch(_ a: String, _ b: String) -> Bool {
+        guard !a.isEmpty, !b.isEmpty else { return false }
+        return a == b || a.contains(b) || b.contains(a)
+    }
+
+    private static func fetch(_ url: String) async throws -> Data {
+        var request = URLRequest(url: URL(string: url)!)
+        request.timeoutInterval = 15
+        let (data, response): (Data, URLResponse)
+        do {
+            (data, response) = try await URLSession.shared.data(for: request)
+        } catch {
+            throw AccountTestError.failed("Could not reach the service: \(error.localizedDescription)")
+        }
+        let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+        guard (200..<300).contains(code) else {
+            throw AccountTestError.failed(code == 404
+                ? "Not found — check the username/email."
+                : "The service returned HTTP \(code).")
+        }
+        return data
+    }
 
     /// The user-facing signer name.  Defaults to the macOS account's full
     /// name; editable in Preferences → User.

@@ -26,10 +26,24 @@ struct SignatureBadge: View {
     var authors: [Author] = []
 
     private enum Verdict {
-        case verifiedAuthor(String)   // author display name
-        case verifiedUntied           // valid signature, no author tie
-        case invalid                  // signature fails verification
+        case remoteVerified(String)   // ✓ signature checks AND identity is remote-anchored
+        case localChecks(String)      // ? signature checks but only a local identity vouches
+        case invalid                  // ! signature does not authenticate
         case unsigned
+    }
+
+    /// The tie for a key, searching rich `signatureInfos` first, then the
+    /// legacy `publicKeys` list (treated as local identities).
+    private func tie(for key: String) -> (author: Author, info: AuthorSignature?)? {
+        for author in authors {
+            if let info = (author.signatureInfos ?? []).first(where: { $0.publicKey == key }) {
+                return (author, info)
+            }
+            if (author.publicKeys ?? []).contains(key) {
+                return (author, nil)   // legacy tie = local
+            }
+        }
+        return nil
     }
 
     private var verdict: Verdict {
@@ -37,30 +51,36 @@ struct SignatureBadge: View {
         guard SigningService.verify(message: message, signature: signature, publicKey: signerKey) else {
             return .invalid
         }
-        if let author = authors.first(where: { ($0.publicKeys ?? []).contains(signerKey) }) {
-            return .verifiedAuthor(author.fullName.isEmpty ? signerName : author.fullName)
+        if let (author, info) = tie(for: signerKey) {
+            let name = author.fullName.isEmpty ? signerName : author.fullName
+            // Green only when a REMOTE identity anchors the key; a local
+            // identity can't prove who the editor is.
+            if let info, info.type != IdentityType.local.rawValue, info.verified == true {
+                return .remoteVerified(name)
+            }
+            return .localChecks(name)
         }
-        return .verifiedUntied
+        return .localChecks(signerName)
     }
 
     var body: some View {
         switch verdict {
-        case .verifiedAuthor(let name):
+        case .remoteVerified(let name):
             HStack(spacing: 4) {
                 Text(name)
                 Image(systemName: "checkmark.seal.fill").foregroundStyle(.green)
             }
-            .help("Signature verified — key is registered to this author")
-        case .verifiedUntied:
+            .help("Signature verified against a remote identity (GitHub/GitLab/OpenPGP)")
+        case .localChecks(let name):
             HStack(spacing: 4) {
-                Text(signerName)
+                Text(name)
                 Image(systemName: "questionmark.circle").foregroundStyle(.orange)
             }
-            .help("Signature verifies, but the key isn't tied to any author yet (tie it in Authors)")
+            .help("Signature checks out, but only a local identity vouches for it — remote identities (Preferences → User) earn the green ✓")
         case .invalid:
             HStack(spacing: 4) {
                 Text(signerName)
-                Image(systemName: "xmark.seal.fill").foregroundStyle(.red)
+                Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.red)
             }
             .help("Signature does NOT authenticate — the content or key doesn't match")
         case .unsigned:

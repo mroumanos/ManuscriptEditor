@@ -24,160 +24,106 @@ struct OverviewView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 28) {
-                titleCard
-                sourceCard
+                summaryCard
                 journalsCard
             }
             .padding(28)
         }
     }
 
-    // MARK: - Title card
+    // MARK: - Summary card
 
-    /// Displays the manuscript title with an inline edit mode, plus the two
-    /// timestamps that matter: last saved (disk) and last synced (backend).
-    private var titleCard: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            if isEditingTitle {
-                TextField("Manuscript title", text: $draftTitle, onCommit: {
-                    store.updateTitle(draftTitle)
-                    isEditingTitle = false
-                })
-                .font(.title.weight(.semibold))
-                .textFieldStyle(.plain)
-                .onExitCommand { isEditingTitle = false }   // Escape cancels
-            } else {
-                HStack(alignment: .firstTextBaseline) {
-                    Text(m.title)
-                        .font(.title.weight(.semibold))
-                    Button {
-                        draftTitle = m.title
-                        isEditingTitle = true
-                    } label: {
-                        Image(systemName: "pencil")
-                            .foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.plain)
-                    .help("Edit title")
-                }
-            }
-
-            if !m.runningTitle.isEmpty {
-                Text("Running title: \(m.runningTitle)")
-                    .foregroundStyle(.secondary)
-                    .font(.subheadline)
-            }
-
-            HStack(spacing: 16) {
-                Label("Created \(m.createdAt.formatted(date: .abbreviated, time: .omitted))",
-                      systemImage: "calendar")
-                Label("Saved \(m.updatedAt.formatted(date: .abbreviated, time: .shortened)) (to disk)",
-                      systemImage: "internaldrive")
-                if let synced = m.lastSyncedAt {
-                    Label("Synced \(synced.formatted(date: .abbreviated, time: .shortened)) (to backend)",
-                          systemImage: "icloud")
-                } else {
-                    Label("Never synced to a backend", systemImage: "icloud.slash")
-                }
-            }
-            .font(.caption)
-            .foregroundStyle(.tertiary)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(20)
-        .background(.background.secondary, in: RoundedRectangle(cornerRadius: 10))
-    }
-
-    // MARK: - Source content card
-
-    /// The Source's key front matter, clearly annotated as Source (journal
-    /// cuts adapt these per journal) — with Authors / Abstract / Keywords as
-    /// labeled subsections.
-    private var sourceCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 8) {
-                Text("Summary")
-                    .font(.headline)
-                    .foregroundStyle(.secondary)
-                Text("Source")
-                    .font(.caption2.weight(.semibold))
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 2)
-                    .background(Color.accentColor.opacity(0.15), in: Capsule())
-                    .foregroundStyle(Color.accentColor)
-            }
+    /// The whole dashboard header in one card: editable title, the three
+    /// timestamps on their own lines, everyone who has edited (with
+    /// verification badges), and an editable description.
+    private var summaryCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Summary")
+                .font(.headline)
+                .foregroundStyle(.secondary)
 
             VStack(alignment: .leading, spacing: 16) {
+                // Title (modifiable, as before).
+                if isEditingTitle {
+                    TextField("Manuscript title", text: $draftTitle, onCommit: {
+                        store.updateTitle(draftTitle)
+                        isEditingTitle = false
+                    })
+                    .font(.title2.weight(.semibold))
+                    .textFieldStyle(.plain)
+                    .onExitCommand { isEditingTitle = false }   // Escape cancels
+                } else {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text(m.title)
+                            .font(.title2.weight(.semibold))
+                        Button {
+                            draftTitle = m.title
+                            isEditingTitle = true
+                        } label: {
+                            Image(systemName: "pencil")
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Edit title")
+                    }
+                }
+
+                // Timestamps, one per line.
+                VStack(alignment: .leading, spacing: 3) {
+                    timestampLine("Created", m.createdAt.formatted(date: .abbreviated, time: .omitted))
+                    timestampLine("Saved (local)", m.updatedAt.formatted(date: .abbreviated, time: .shortened))
+                    timestampLine("Saved (remote)",
+                                  m.lastSyncedAt?.formatted(date: .abbreviated, time: .shortened) ?? "never")
+                }
+
+                // Everyone who has stamped a version or written a note.
                 VStack(alignment: .leading, spacing: 6) {
-                    subsectionLabel("Authors")
-                    if m.authors.isEmpty {
-                        Text("No authors added yet.")
+                    subsectionLabel("Editors")
+                    if editors.isEmpty {
+                        Text("No edit activity recorded yet.")
                             .foregroundStyle(.tertiary)
                             .italic()
+                            .font(.callout)
                     } else {
-                        ForEach(m.authors.sorted { $0.order < $1.order }) { author in
-                            HStack(spacing: 8) {
-                                Text("\(author.order + 1).")
-                                    .foregroundStyle(.tertiary)
-                                    .frame(width: 24, alignment: .trailing)
-                                    .monospacedDigit()
-                                Text(author.displayName.isEmpty ? "(unnamed)" : author.displayName)
-                                    .fontWeight(author.isCorresponding ? .semibold : .regular)
-                                if author.isCorresponding {
-                                    Image(systemName: "envelope.badge")
-                                        .foregroundStyle(.blue)
-                                        .font(.caption)
-                                        .help("Corresponding author")
-                                }
-                                if !author.affiliations.filter({ !$0.isEmpty }).isEmpty {
-                                    Text("·").foregroundStyle(.tertiary)
-                                    Text(author.affiliations.filter { !$0.isEmpty }.joined(separator: "; "))
-                                        .foregroundStyle(.secondary)
-                                        .lineLimit(1)
-                                }
-                            }
+                        ForEach(editors) { editor in
+                            SignatureBadge(
+                                signerName: editor.name,
+                                signerKey: editor.key,
+                                message: editor.message,
+                                signature: editor.signature,
+                                authors: store.signatureAuthors
+                            )
                             .font(.subheadline)
                         }
                     }
                 }
 
+                // Modifiable description.
                 VStack(alignment: .leading, spacing: 6) {
-                    subsectionLabel("Abstract")
-                    if m.abstract.plain.isEmpty {
-                        Text("No abstract yet.")
-                            .foregroundStyle(.tertiary)
-                            .italic()
-                    } else {
-                        Text(m.abstract.plain)
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(6)
-                    }
-                }
-
-                VStack(alignment: .leading, spacing: 6) {
-                    subsectionLabel("Keywords")
-                    if m.keywords.isEmpty {
-                        Text("No keywords yet.")
-                            .foregroundStyle(.tertiary)
-                            .italic()
-                    } else {
-                        FlowLayout(spacing: 6) {
-                            ForEach(m.keywords, id: \.self) { kw in
-                                Text(kw)
-                                    .font(.callout)
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 4)
-                                    .background(.blue.opacity(0.12), in: Capsule())
-                                    .foregroundStyle(.blue)
-                            }
-                        }
-                    }
+                    subsectionLabel("Description")
+                    TextField("Describe this manuscript…", text: Binding(
+                        get: { m.about ?? "" },
+                        set: { store.updateAbout($0) }
+                    ), axis: .vertical)
+                    .textFieldStyle(.plain)
+                    .font(.callout)
+                    .lineLimit(2...8)
                 }
             }
-            .padding(14)
+            .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(.background.secondary, in: RoundedRectangle(cornerRadius: 8))
+            .background(.background.secondary, in: RoundedRectangle(cornerRadius: 10))
+        }
+    }
+
+    private func timestampLine(_ label: String, _ value: String) -> some View {
+        HStack(spacing: 6) {
+            Text("\(label):")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+            Text(value)
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
     }
 
@@ -186,6 +132,42 @@ struct OverviewView: View {
             .font(.caption2.weight(.semibold))
             .foregroundStyle(.tertiary)
             .kerning(0.5)
+    }
+
+    // MARK: - Editors (unique signers across stamps + notes)
+
+    private struct EditorEntry: Identifiable {
+        let id: String
+        let name: String
+        let key: String?
+        let message: String?
+        let signature: String?
+        let date: Date
+    }
+
+    /// One row per distinct signer (key, or name when unsigned), badged
+    /// against their most recent artifact.
+    private var editors: [EditorEntry] {
+        var latest: [String: EditorEntry] = [:]
+        for version in store.versions where !version.author.isEmpty {
+            let id = version.stampedByKey ?? "name:\(version.author)"
+            let entry = EditorEntry(
+                id: id, name: version.author, key: version.stampedByKey,
+                message: SigningService.stampMessage(
+                    id: version.id, createdAt: version.createdAt, author: version.author),
+                signature: version.stampSignature, date: version.createdAt)
+            if (latest[id]?.date ?? .distantPast) < entry.date { latest[id] = entry }
+        }
+        for note in m.notes where !note.author.isEmpty {
+            let id = note.authorKey ?? "name:\(note.author)"
+            let entry = EditorEntry(
+                id: id, name: note.author, key: note.authorKey,
+                message: SigningService.noteMessage(
+                    id: note.id, createdAt: note.createdAt, body: note.body),
+                signature: note.signature, date: note.createdAt)
+            if (latest[id]?.date ?? .distantPast) < entry.date { latest[id] = entry }
+        }
+        return latest.values.sorted { $0.date > $1.date }
     }
 
     // MARK: - Journals card

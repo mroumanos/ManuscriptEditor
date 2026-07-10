@@ -109,6 +109,9 @@ struct AccountsView: View {
                         }
                         .padding(.vertical, 3)
                         .tag(account.id)
+                        .contextMenu {
+                            Button("Delete Account", role: .destructive) { delete(account) }
+                        }
                     }
                 }
                 .listStyle(.plain)
@@ -149,7 +152,24 @@ struct AccountsView: View {
                 systemImage: "person.crop.circle.badge.plus",
                 description: Text("Add an account or select one to configure it.")
             )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+    }
+
+    /// Deletes an account of either flavor (Keychain secret included).
+    fileprivate func delete(_ account: AnyAccount) {
+        switch account {
+        case .backend(let a):
+            if let idx = appStore.backends.firstIndex(where: { $0.id == a.id }) {
+                appStore.deleteBackends(at: IndexSet([idx]))
+            }
+        case .ai(let a):
+            if let idx = appStore.aiServices.firstIndex(where: { $0.id == a.id }) {
+                KeychainService.deleteSecret(for: a.id)
+                appStore.deleteAIServices(at: IndexSet([idx]))
+            }
+        }
+        if selectedID == account.id { selectedID = nil }
     }
 }
 

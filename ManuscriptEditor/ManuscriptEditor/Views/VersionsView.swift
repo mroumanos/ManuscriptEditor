@@ -279,7 +279,7 @@ struct VersionsView: View {
                     signerKey: row.byKey,
                     message: row.byMessage,
                     signature: row.bySignature,
-                    authors: manuscript?.authors ?? []
+                    authors: store.signatureAuthors
                 )
             }
             .width(min: 120, ideal: 160)

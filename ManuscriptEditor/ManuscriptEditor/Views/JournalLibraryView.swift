@@ -60,6 +60,9 @@ struct JournalLibraryView: View {
                         }
                         .padding(.vertical, 2)
                         .tag(journal.id)
+                        .contextMenu {
+                            Button("Delete Journal", role: .destructive) { delete(journal) }
+                        }
                     }
                     .onDelete { offsets in
                         // Offsets are relative to the filtered list.
@@ -108,7 +111,15 @@ struct JournalLibraryView: View {
                 systemImage: "building.columns",
                 description: Text("Search the library and select a journal to see its details.")
             )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+    }
+
+    fileprivate func delete(_ journal: Journal) {
+        if let idx = appStore.journalLibrary.firstIndex(where: { $0.id == journal.id }) {
+            appStore.deleteLibraryJournals(at: IndexSet([idx]))
+        }
+        if selectedID == journal.id { selectedID = nil }
     }
 }
 
@@ -167,6 +178,11 @@ private struct LibraryJournalForm: View {
                     Text("Full requirement/outline editing happens inside a manuscript (journal settings, Export pane) — use \"Save to Journal Library\" there to bring refinements back here.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                    Button("Delete Journal from Library", role: .destructive) {
+                        if let idx = appStore.journalLibrary.firstIndex(where: { $0.id == journal.id }) {
+                            appStore.deleteLibraryJournals(at: IndexSet([idx]))
+                        }
+                    }
                 }
             }
             .formStyle(.grouped)

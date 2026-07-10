@@ -136,6 +136,7 @@ final class ManuscriptStore {
     // MARK: - Manuscript metadata
 
     func updateTitle(_ title: String)               { touch { $0.title = title } }
+    func updateAbout(_ text: String)                { touch { $0.about = text.isEmpty ? nil : text } }
     func updateRunningTitle(_ title: String)        { touch { $0.runningTitle = title } }
     func updateAbstract(_ abstract: RichText, ref: VersionRef = .source) { touch(ref) { $0.abstract = abstract } }
     func updateKeywords(_ keywords: [String], ref: VersionRef = .source) { touch(ref) { $0.keywords = keywords } }
@@ -587,6 +588,15 @@ final class ManuscriptStore {
     /// per-journal views; distinct from the manuscript-global `number`).
     func journalOrdinal(of version: ManuscriptVersion) -> Int {
         (versions(forJournal: version.journalID).firstIndex { $0.id == version.id } ?? 0) + 1
+    }
+
+    /// Authors from the Source **plus every version snapshot** — a key tied
+    /// while a journal tab was active lives in that snapshot's authors, and
+    /// badges must honor it everywhere ("check against available public keys").
+    var signatureAuthors: [Author] {
+        var out = manuscript?.authors ?? []
+        for version in versions { out += version.content.authors }
+        return out
     }
 
     // MARK: - Stamping (freeze the working head as a version)
