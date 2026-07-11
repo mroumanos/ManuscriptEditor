@@ -28,12 +28,16 @@ Intent: most time is spent here; it must be excellent and AI-optional.
 - AC: Prose editors are rich text (see §G). Word counts update live.
 - AC: Letter to Editor has a three-slot letterhead (left / center / right —
   each an optional uploaded image plus freeform text, laid out like a real
-  letterhead in editor, preview, and exports), body, and a signature block
-  with an optional **hand-drawn signature** (drawable pad with Reset; renders
-  above the typed signature in preview and exports), with a preview toggle.
-  Slot images accept PNG/JPEG/TIFF/HEIC/**SVG** (SVG bytes are kept as
-  vectors). The letter body's "/" additionally offers **Date** and
-  **Signature** snippets that insert as plain text.
+  letterhead in editor, preview, and exports), body, and a **drawn-only
+  signature** (drawable pad with Reset — no typed signature box), with a
+  preview toggle. Slot images accept PNG/JPEG/TIFF/HEIC/**SVG** (SVG bytes
+  are kept as vectors).
+- AC: The letter body's "/" offers **Date** and **Signature** as live
+  **references** — ⟦Date⟧/⟦Signature⟧ marker tokens (letter:// links in the
+  editor) that resolve in preview and every export: today's date at render
+  time, and the drawn signature image. With no ⟦Signature⟧ placed, the
+  drawing still closes the letter; LaTeX resolves the date and drops the
+  signature marker (source-only output).
 - AC: **Title pane** — first item in Content; edits the journal-facing
   **article title** (+ running title) per cut, so it can differ journal to
   journal. Exports print it, falling back to the **project name**

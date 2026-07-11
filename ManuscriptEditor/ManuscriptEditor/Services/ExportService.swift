@@ -79,8 +79,7 @@ private func letterheadBlock(_ letter: LetterToEditor, font: NSFont, width: CGFl
     return doc
 }
 
-/// The hand-drawn signature as an inline attachment (max 48 pt tall),
-/// rendered above the typed signature block.
+/// The hand-drawn signature as an inline attachment (max 48 pt tall).
 private func signatureImageBlock(_ data: Data?, font: NSFont) -> NSAttributedString? {
     guard let data, let image = NSImage(data: data), image.size.height > 0 else { return nil }
     let attachment = NSTextAttachment()
@@ -90,6 +89,34 @@ private func signatureImageBlock(_ data: Data?, font: NSFont) -> NSAttributedStr
     let out = NSMutableAttributedString(attributedString: NSAttributedString(attachment: attachment))
     out.append(NSAttributedString(string: "\n", attributes: [.font: font]))
     return out
+}
+
+/// Resolves the letter body's live tokens in place: ⟦Date⟧ → today's date,
+/// ⟦Signature⟧ → the drawn signature (removed when none is drawn).  Runs on
+/// the already-typeset body, so replacements inherit the marker's attributes.
+private func resolveLetterTokens(in body: NSMutableAttributedString, letter: LetterToEditor) {
+    func replace(_ marker: String, with replacement: ([NSAttributedString.Key: Any]) -> NSAttributedString) {
+        while true {
+            let range = (body.string as NSString).range(of: marker)
+            guard range.location != NSNotFound else { break }
+            let attrs = body.attributes(at: range.location, effectiveRange: nil)
+                .filter { $0.key != .link && $0.key != .toolTip }
+            body.replaceCharacters(in: range, with: replacement(attrs))
+        }
+    }
+    replace(LetterToken.date.marker) { attrs in
+        NSAttributedString(string: Date().formatted(date: .long, time: .omitted), attributes: attrs)
+    }
+    replace(LetterToken.signature.marker) { _ in
+        guard let data = letter.signatureImageData, let image = NSImage(data: data),
+              image.size.height > 0 else { return NSAttributedString(string: "") }
+        let attachment = NSTextAttachment()
+        attachment.image = image
+        let h = min(48, image.size.height)
+        attachment.bounds = CGRect(x: 0, y: 0,
+                                   width: image.size.width * (h / image.size.height), height: h)
+        return NSAttributedString(attachment: attachment)
+    }
 }
 
 
@@ -353,10 +380,14 @@ struct ExportService {
                         out += slotTex(letter.headerCenter, "\\centering") + "\\hfill\n"
                         out += slotTex(letter.headerRight, "\\raggedleft") + "\n\\par\\vspace{1em}\n"
                     }
-                    out += "\\section*{Cover Letter}\n\(tex(m.letterToEditor.body.plain))\n\n"
-                    if !m.letterToEditor.signature.isEmpty {
-                        out += "\\noindent \(tex(m.letterToEditor.signature))\n"
-                    }
+                    // Letter tokens: date resolves to text; the drawn
+                    // signature is image-only, so it can't ride in bare
+                    // LaTeX source — drop the marker.
+                    let bodyText = m.letterToEditor.body.plain
+                        .replacingOccurrences(of: LetterToken.date.marker,
+                                              with: Date().formatted(date: .long, time: .omitted))
+                        .replacingOccurrences(of: LetterToken.signature.marker, with: "")
+                    out += "\\section*{Cover Letter}\n\(tex(bodyText))\n\n"
                 }
             case .pageBreak:
                 out += "\\newpage\n"
@@ -453,12 +484,12 @@ struct ExportService {
                 doc.append(head)
             }
             doc.append(heading("Cover Letter"))
-            doc.append(rich(m.letterToEditor.body, refContext))
-            if let drawn = signatureImageBlock(m.letterToEditor.signatureImageData, font: bodyFont) {
+            let body = NSMutableAttributedString(attributedString: rich(m.letterToEditor.body, refContext))
+            resolveLetterTokens(in: body, letter: m.letterToEditor)
+            doc.append(body)
+            if !m.letterToEditor.body.plain.contains(LetterToken.signature.marker),
+               let drawn = signatureImageBlock(m.letterToEditor.signatureImageData, font: bodyFont) {
                 doc.append(drawn)
-            }
-            if !m.letterToEditor.signature.isEmpty {
-                doc.append(line(m.letterToEditor.signature, font: bodyFont, color: .secondaryLabelColor, spacingAfter: 2))
             }
         }
 
@@ -755,12 +786,13 @@ private struct OutlineBuilder {
                 doc.append(head)
             }
             doc.append(headingBlock(item.customTitle ?? "Cover Letter"))
-            doc.append(rich(m.letterToEditor.body, in: m))
-            if let drawn = signatureImageBlock(m.letterToEditor.signatureImageData, font: base) {
+            let body = NSMutableAttributedString(attributedString: rich(m.letterToEditor.body, in: m))
+            resolveLetterTokens(in: body, letter: m.letterToEditor)
+            doc.append(body)
+            // No ⟦Signature⟧ placed: the drawing still closes the letter.
+            if !m.letterToEditor.body.plain.contains(LetterToken.signature.marker),
+               let drawn = signatureImageBlock(m.letterToEditor.signatureImageData, font: base) {
                 doc.append(drawn)
-            }
-            if !m.letterToEditor.signature.isEmpty {
-                doc.append(line(m.letterToEditor.signature, font: base, color: .darkGray, after: 2))
             }
             return doc
         case .pageBreak:

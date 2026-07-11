@@ -104,21 +104,24 @@ struct RichEditor: View {
         }
 
         var out: [RefCandidate] = []
-        // Letter snippets first — the letter's most common inserts.
+        // Letter references first — live tokens that resolve in preview and
+        // export (⟦Date⟧ → today at render time, ⟦Signature⟧ → the drawing).
         if letterMode {
             let dateText = Date().formatted(date: .long, time: .omitted)
             if matches(["date", "today", dateText]) {
                 out.append(RefCandidate(kind: .bib, id: Self.dateSnippetID,
-                                        display: "Date • \(dateText)",
-                                        snippetText: dateText))
+                                        display: "Date • renders today's date (\(dateText))",
+                                        snippetText: LetterToken.date.marker,
+                                        tokenURL: LetterToken.date.url))
             }
-            let signature = m.letterToEditor.signature
-            if !signature.isEmpty, matches(["signature", signature]) {
-                let preview = signature.components(separatedBy: "\n")
-                    .first(where: { !$0.isEmpty }) ?? ""
+            if matches(["signature", "sign"]) {
+                let hasDrawn = m.letterToEditor.signatureImageData != nil
                 out.append(RefCandidate(kind: .bib, id: Self.signatureSnippetID,
-                                        display: "Signature • \(preview)",
-                                        snippetText: signature))
+                                        display: hasDrawn
+                                            ? "Signature • the drawn signature"
+                                            : "Signature • draw one in the Signature section first",
+                                        snippetText: LetterToken.signature.marker,
+                                        tokenURL: LetterToken.signature.url))
             }
         }
         for e in m.bibliography where !e.key.isEmpty {
@@ -180,9 +183,12 @@ struct RefCandidate {
     let display: String
     /// Sample image shown in the insert-kind menu (figures only).
     var thumbnail: NSImage? = nil
-    /// When set, accepting inserts this plain text directly — no token, no
-    /// insert-kind menu.  Used by the letter's Date/Signature snippets.
+    /// When set, accepting inserts this text directly — no reference token,
+    /// no insert-kind menu.  Used by the letter's Date/Signature references.
     var snippetText: String? = nil
+    /// When also set, the snippet text is inserted as a live letter token
+    /// (marker text carrying this letter:// link), resolved on export.
+    var tokenURL: URL? = nil
 }
 
 // MARK: - FormatBar (inline toolbar)
@@ -689,7 +695,11 @@ private struct RichTextRepresentable: NSViewRepresentable {
         /// Clicking a token opens its menu (citation style, remove) instead of
         /// following the link.
         func textView(_ textView: NSTextView, clickedOnLink link: Any, at charIndex: Int) -> Bool {
-            guard let url = link as? URL, let token = RefEngine.Token.parse(url) else { return false }
+            guard let url = link as? URL else { return false }
+            // Letter tokens (⟦Date⟧/⟦Signature⟧) are markers, not links —
+            // consume the click so AppKit doesn't try to open letter://.
+            if url.scheme == "letter" { return true }
+            guard let token = RefEngine.Token.parse(url) else { return false }
             (textView as? CitationTextView)?.showTokenMenu(for: token, at: charIndex)
             return true
         }
@@ -800,9 +810,13 @@ final class CitationTextView: NSTextView {
         }
 
         if accepted, let candidate = currentCandidates.first(where: { $0.display == word }) {
-            // Snippets (letter date/signature) paste plain text — no token.
+            // Letter references insert a live token; plain snippets paste text.
             if let snippet = candidate.snippetText {
-                insertPlainText(snippet, replacing: charRange)
+                if let url = candidate.tokenURL {
+                    insertLetterToken(snippet, url: url, replacing: charRange)
+                } else {
+                    insertPlainText(snippet, replacing: charRange)
+                }
                 return
             }
             switch candidate.kind {
@@ -819,6 +833,20 @@ final class CitationTextView: NSTextView {
             }
         }
         // Dismissed — nothing to restore; the text was never touched.
+    }
+
+    /// Replaces `range` (the "/query") with a letter token: marker text
+    /// carrying a letter:// link that preview/export resolve (date, drawn
+    /// signature).  Typing continues in normal attributes.
+    private func insertLetterToken(_ marker: String, url: URL, replacing range: NSRange) {
+        guard shouldChangeText(in: range, replacementString: marker) else { return }
+        var attrs = defaultTypingAttributes
+        attrs[.link] = url
+        attrs[.toolTip] = "Resolved on export"
+        textStorage?.replaceCharacters(in: range, with: NSAttributedString(string: marker, attributes: attrs))
+        setSelectedRange(NSRange(location: range.location + (marker as NSString).length, length: 0))
+        typingAttributes = defaultTypingAttributes
+        didChangeText()
     }
 
     /// Replaces `range` (the "/query") with plain text in the editor's

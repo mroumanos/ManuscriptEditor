@@ -110,10 +110,6 @@ struct LetterToEditorView: View {
                 }
 
                 Section("Signature") {
-                    TextEditor(text: $draft.signature)
-                        .font(.system(.callout, design: .monospaced))
-                        .frame(minHeight: 80)
-
                     if let data = draft.signatureImageData, let image = NSImage(data: data) {
                         HStack(spacing: 12) {
                             Image(nsImage: image)
@@ -137,6 +133,9 @@ struct LetterToEditorView: View {
                             Label("Draw Signature…", systemImage: "signature")
                         }
                     }
+                    Text("Type \"/\" in the letter body to place the signature (or today's date) — it renders in the preview and exports.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
             .formStyle(.grouped)
@@ -186,32 +185,30 @@ struct LetterToEditorView: View {
                     Divider()
                 }
 
-                // Body
+                // Body — the ⟦Date⟧/⟦Signature⟧ tokens resolve here just
+                // like on export: today's date and the drawn signature.
                 if draft.body.isEmpty {
                     Text("(letter body is empty)")
                         .foregroundStyle(.tertiary)
                         .italic()
                 } else {
-                    Text(draft.body.plain)
-                        .lineSpacing(4)
+                    let resolved = draft.body.plain.replacingOccurrences(
+                        of: LetterToken.date.marker,
+                        with: Date().formatted(date: .long, time: .omitted))
+                    let parts = resolved.components(separatedBy: LetterToken.signature.marker)
+                    ForEach(Array(parts.enumerated()), id: \.offset) { index, part in
+                        if index > 0 { signaturePreviewImage }
+                        if !part.isEmpty {
+                            Text(part).lineSpacing(4)
+                        }
+                    }
                 }
 
-                // Signature
-                if !draft.signature.isEmpty || draft.signatureImageData != nil {
+                // No token placed: the drawn signature still closes the letter.
+                if draft.signatureImageData != nil,
+                   !draft.body.plain.contains(LetterToken.signature.marker) {
                     Divider()
-                    if let data = draft.signatureImageData, let image = NSImage(data: data) {
-                        Image(nsImage: image)
-                            .resizable()
-                            .scaledToFit()
-                            .frame(maxHeight: 56)
-                            .padding(4)
-                            .background(Color.white, in: RoundedRectangle(cornerRadius: 4))
-                    }
-                    if !draft.signature.isEmpty {
-                        Text(draft.signature)
-                            .font(.system(.callout, design: .monospaced))
-                            .foregroundStyle(.secondary)
-                    }
+                    signaturePreviewImage
                 }
             }
             .padding(32)
@@ -223,11 +220,46 @@ struct LetterToEditorView: View {
 
     // MARK: - Helpers
 
+    @ViewBuilder
+    private var signaturePreviewImage: some View {
+        if let data = draft.signatureImageData, let image = NSImage(data: data) {
+            Image(nsImage: image)
+                .resizable()
+                .scaledToFit()
+                .frame(maxHeight: 56)
+                .padding(4)
+                .background(Color.white, in: RoundedRectangle(cornerRadius: 4))
+        } else {
+            Text("(no signature drawn)")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+                .italic()
+        }
+    }
+
     private func syncDraft() {
         if let letter = store.manuscript(for: versionRef)?.letterToEditor, letter != draft {
             draft = letter
         }
     }
+}
+
+// MARK: - LetterToken
+
+/// The letter body's live references, inserted by "/": stable marker text in
+/// the prose (carrying a letter:// link in the editor) that preview and
+/// export resolve — ⟦Date⟧ → today, ⟦Signature⟧ → the drawn signature.
+enum LetterToken: String, CaseIterable {
+    case date, signature
+
+    var marker: String {
+        switch self {
+        case .date:      return "⟦Date⟧"
+        case .signature: return "⟦Signature⟧"
+        }
+    }
+
+    var url: URL { URL(string: "letter://\(rawValue)")! }
 }
 
 // MARK: - HeaderSlotEditor

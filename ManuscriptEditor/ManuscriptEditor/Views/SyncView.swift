@@ -183,7 +183,7 @@ struct SyncView: View {
             sourceRow
             ForEach(flattenedTree, id: \.journal.id) { entry in
                 Divider()
-                journalRow(entry.journal, depth: entry.depth)
+                journalRow(entry.journal)
                     .padding(.leading, CGFloat(entry.depth) * indent + 10)
             }
         }
@@ -237,19 +237,15 @@ struct SyncView: View {
     }
 
     @ViewBuilder
-    private func journalRow(_ journal: Journal, depth: Int = 0) -> some View {
+    private func journalRow(_ journal: Journal) -> some View {
         let head = store.latestVersion(forJournal: journal.id)
         let source = store.syncSource(forJournal: journal.id)
 
         HStack(spacing: 12) {
-            // Curved branch arrows — one per nesting level under Source.
-            HStack(spacing: 1) {
-                ForEach(0..<(depth + 1), id: \.self) { _ in
-                    Image(systemName: "arrow.turn.down.right")
-                        .font(.footnote.weight(.semibold))
-                        .foregroundStyle(.tertiary)
-                }
-            }
+            // Curved branch arrow — the row's indent already conveys depth.
+            Image(systemName: "arrow.turn.down.right")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.tertiary)
 
             // The journal's configured icon (Preferences → Journals).
             Image(systemName: journalIcon(journal))
