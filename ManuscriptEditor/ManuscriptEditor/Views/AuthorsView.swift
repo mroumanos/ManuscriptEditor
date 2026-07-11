@@ -1,14 +1,16 @@
 // AuthorsView.swift
 //
-// Two-pane view for managing the manuscript's author list.
+// Two-pane view for managing the manuscript's author list and the
+// institution registry the authors reference.
 //
 // Layout (HSplitView):
-//   LEFT   — scrollable author list with drag-to-reorder and "Add Author" button
+//   LEFT   — author list (drag-to-reorder) + the Institutions section, with
+//            "Add Author" / "Add Institution" buttons beneath
 //   RIGHT  — `AuthorEditor` form for the selected author, or a placeholder
 //
-// Authors can be reordered by dragging rows up/down.  The underlying `order` field
-// is automatically re-numbered by the store after every move.
-// Rows can be deleted by swiping left on them (standard macOS List gesture).
+// Institutions are first-class: authors affiliate by REFERENCING registry
+// entries (checkboxes in the editor), and every author is required to
+// reference at least one — rows and the editor flag violations.
 
 import SwiftUI
 
@@ -28,20 +30,36 @@ struct AuthorsView: View {
         (store.manuscript(for: versionRef)?.authors ?? []).sorted { $0.order < $1.order }
     }
 
+    private var institutions: [Institution] {
+        store.manuscript(for: versionRef)?.institutions ?? []
+    }
+
     var body: some View {
-        if authors.isEmpty {
+        if authors.isEmpty && institutions.isEmpty {
             emptyState
         } else {
             HSplitView {
-                // MARK: Left — author list
+                // MARK: Left — authors + institution registry
                 VStack(spacing: 0) {
                     List(selection: $selectedID) {
-                        ForEach(authors) { author in
-                            authorRow(author).tag(author.id)
+                        Section("Authors") {
+                            ForEach(authors) { author in
+                                authorRow(author).tag(author.id)
+                            }
+                            .onMove { store.moveAuthors(from: $0, to: $1, ref: versionRef) }
                         }
-                        .onMove { store.moveAuthors(from: $0, to: $1, ref: versionRef) }
+                        Section("Institutions") {
+                            ForEach(institutions) { institution in
+                                institutionRow(institution)
+                            }
+                            if institutions.isEmpty {
+                                Text("None yet — authors must reference one.")
+                                    .font(.caption)
+                                    .foregroundStyle(.tertiary)
+                            }
+                        }
                     }
-                    .listStyle(.plain)
+                    .listStyle(.sidebar)
                     .scrollContentBackground(.hidden)
                     .background(Color(NSColor.windowBackgroundColor))
                     .onAppear { autoSelect() }
@@ -49,7 +67,7 @@ struct AuthorsView: View {
 
                     Divider()
 
-                    HStack {
+                    HStack(spacing: 4) {
                         Button {
                             store.addAuthor(ref: versionRef)
                             selectedID = store.manuscript(for: versionRef)?.authors.last?.id
@@ -57,7 +75,18 @@ struct AuthorsView: View {
                             Label("Add Author", systemImage: "plus")
                         }
                         .buttonStyle(.borderless)
-                        .padding(10)
+                        .padding(.vertical, 10)
+                        .padding(.leading, 10)
+
+                        Button {
+                            store.addInstitution(ref: versionRef)
+                        } label: {
+                            Label("Add Institution", systemImage: "building.columns")
+                        }
+                        .buttonStyle(.borderless)
+                        .padding(.vertical, 10)
+                        .help("Institutions are referenced by authors — every author needs at least one")
+
                         Spacer()
                         Text("\(authors.count) author\(authors.count == 1 ? "" : "s")")
                             .font(.caption)
@@ -66,14 +95,14 @@ struct AuthorsView: View {
                     }
                     .background(Color(NSColor.windowBackgroundColor))
                 }
-                .frame(minWidth: 200, idealWidth: 240, maxWidth: 300)
+                .frame(minWidth: 230, idealWidth: 270, maxWidth: 330)
                 .frame(maxHeight: .infinity)
                 .background(Color(NSColor.windowBackgroundColor))
 
                 // MARK: Right — author editor
                 if let id = selectedID,
                    let author = authors.first(where: { $0.id == id }) {
-                    AuthorEditor(author: author) { updated in
+                    AuthorEditor(author: author, institutions: institutions) { updated in
                         store.updateAuthor(updated, ref: versionRef)
                     }
                 } else {
@@ -90,14 +119,21 @@ struct AuthorsView: View {
                 .foregroundStyle(.tertiary)
             Text("No Authors Yet")
                 .font(.title3.weight(.semibold))
-            Text("Add authors to get started.")
+            Text("Add authors and the institutions they reference.")
                 .foregroundStyle(.secondary)
-            Button {
-                store.addAuthor(ref: versionRef)
-            } label: {
-                Label("Add Author", systemImage: "plus")
+            HStack {
+                Button {
+                    store.addAuthor(ref: versionRef)
+                } label: {
+                    Label("Add Author", systemImage: "plus")
+                }
+                .buttonStyle(.borderedProminent)
+                Button {
+                    store.addInstitution(ref: versionRef)
+                } label: {
+                    Label("Add Institution", systemImage: "building.columns")
+                }
             }
-            .buttonStyle(.borderedProminent)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -109,7 +145,8 @@ struct AuthorsView: View {
     }
 
     private func authorRow(_ author: Author) -> some View {
-        HStack(spacing: 8) {
+        let m = store.manuscript(for: versionRef)
+        return HStack(spacing: 8) {
             Image(systemName: "line.3.horizontal")
                 .foregroundStyle(.tertiary)
                 .font(.caption)
@@ -122,10 +159,15 @@ struct AuthorsView: View {
                             .font(.caption2)
                             .foregroundStyle(.blue)
                     }
+                    if let m, author.missingInstitution(in: m) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.caption2)
+                            .foregroundStyle(.orange)
+                            .help("No institution referenced — every author needs one")
+                    }
                 }
-                let affiliations = author.affiliations.filter { !$0.isEmpty }
-                if !affiliations.isEmpty {
-                    Text(affiliations.first!)
+                if let m, let first = author.affiliationNames(in: m).first {
+                    Text(first)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
@@ -146,6 +188,28 @@ struct AuthorsView: View {
         }
         .padding(.vertical, 2)
     }
+
+    /// One registry entry: name edited inline, delete strips references.
+    private func institutionRow(_ institution: Institution) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: "building.columns")
+                .foregroundStyle(.tertiary)
+                .font(.caption)
+            TextField("Institution name", text: Binding(
+                get: { institution.name },
+                set: { store.updateInstitution(Institution(id: institution.id, name: $0), ref: versionRef) }
+            ))
+            .textFieldStyle(.plain)
+            Button {
+                store.deleteInstitution(id: institution.id, ref: versionRef)
+            } label: {
+                Image(systemName: "xmark.circle.fill").foregroundStyle(.tertiary)
+            }
+            .buttonStyle(.plain)
+            .help("Remove institution (authors referencing it lose the reference)")
+        }
+        .padding(.vertical, 2)
+    }
 }
 
 // MARK: - AuthorEditor
@@ -158,17 +222,22 @@ struct AuthorsView: View {
 struct AuthorEditor: View {
     /// The author value as last saved in the store.
     let author: Author
+    /// The manuscript's institution registry (for the reference checkboxes).
+    let institutions: [Institution]
     /// Callback invoked whenever any field changes.
     let onChange: (Author) -> Void
 
     /// Mutable working copy of the author.
     @State private var draft: Author
 
-    init(author: Author, onChange: @escaping (Author) -> Void) {
+    init(author: Author, institutions: [Institution], onChange: @escaping (Author) -> Void) {
         self.author = author
+        self.institutions = institutions
         self.onChange = onChange
         _draft = State(initialValue: author)
     }
+
+    private var selectedInstitutions: Set<UUID> { Set(draft.institutionIDs ?? []) }
 
     var body: some View {
         ScrollView {
@@ -193,6 +262,36 @@ struct AuthorEditor: View {
                     }
                 }
 
+                Section("Institutions") {
+                    if institutions.isEmpty {
+                        Text("No institutions in the registry yet — use \"Add Institution\" under the author list first.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(institutions) { institution in
+                            Toggle(institution.name.isEmpty ? "(unnamed)" : institution.name,
+                                   isOn: Binding(
+                                get: { selectedInstitutions.contains(institution.id) },
+                                set: { on in
+                                    var ids = draft.institutionIDs ?? []
+                                    if on {
+                                        if !ids.contains(institution.id) { ids.append(institution.id) }
+                                    } else {
+                                        ids.removeAll { $0 == institution.id }
+                                    }
+                                    draft.institutionIDs = ids
+                                }
+                            ))
+                        }
+                    }
+                    if selectedInstitutions.isEmpty && draft.affiliations.allSatisfy(\.isEmpty) {
+                        Label("Required — reference at least one institution.",
+                              systemImage: "exclamationmark.triangle.fill")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    }
+                }
+
                 Section("Role") {
                     Toggle("Corresponding Author", isOn: $draft.isCorresponding)
                 }
@@ -206,6 +305,7 @@ struct AuthorEditor: View {
         .onChange(of: draft.email)           { _, _ in onChange(draft) }
         .onChange(of: draft.orcid)           { _, _ in onChange(draft) }
         .onChange(of: draft.affiliations)    { _, _ in onChange(draft) }
+        .onChange(of: draft.institutionIDs)  { _, _ in onChange(draft) }
         .onChange(of: draft.isCorresponding) { _, _ in onChange(draft) }
         // If the user clicks a different author row, reload from the new author.
         .onChange(of: author.id) { _, _ in draft = author }

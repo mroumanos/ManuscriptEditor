@@ -21,6 +21,14 @@ Intent: a manuscript is a folder the user owns.
 Intent: most time is spent here; it must be excellent and AI-optional.
 - Components: Authors, Abstract, Keywords, body Sections (add/reorder/rename/
   delete; custom types allowed), Figures, Tables, Bibliography, Letter to Editor.
+- AC: **Authors + institution registry.** "Add Institution" sits next to
+  "Add Author" (same pane); institutions are named inline and authors
+  affiliate by checking registry references in the editor — **required**:
+  an author with no institution reference is flagged (orange warning in the
+  row and editor). Deleting an institution strips its references. Authors
+  **drag-to-reorder** (offsets applied against the sorted list). Exports
+  resolve affiliation lines from the registry (legacy free-text still
+  honored).
 - AC: Each list view (Authors/Figures/Tables/Bibliography/Data) auto-selects the
   first item; an empty state offers a centered "Add …" action (no broken
   half-empty split).

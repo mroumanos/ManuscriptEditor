@@ -5,6 +5,17 @@
 
 import Foundation
 
+/// One entry in the manuscript's institution registry (managed alongside
+/// authors).  Authors affiliate by referencing these ids — a reference is
+/// required for every author.
+struct Institution: Codable, Identifiable, Sendable, Equatable {
+    var id: UUID
+    /// Institution name, e.g. "Harvard Medical School, Dept. of Genetics".
+    var name: String
+
+    static func empty() -> Institution { Institution(id: UUID(), name: "") }
+}
+
 /// All the information the app tracks for a single manuscript author.
 ///
 /// Most journal submission systems require names, institutional affiliations, contact
@@ -24,8 +35,13 @@ struct Author: Codable, Identifiable, Sendable {
     var email: String
 
     /// List of institutional affiliations (department + institution).
-    /// An author can have more than one (e.g. dual appointments).
+    /// Legacy free text — new files reference the manuscript's institution
+    /// registry via `institutionIDs` instead.
     var affiliations: [String]
+
+    /// References into `Manuscript.institutions` — the required way to
+    /// affiliate an author (every author must reference at least one).
+    var institutionIDs: [UUID]? = nil
 
     /// Whether this author is the one journals should contact for revisions.
     /// Typically shown with a star or envelope symbol in author lists.
@@ -45,6 +61,20 @@ struct Author: Codable, Identifiable, Sendable {
 
     /// "Last, First" — conventional format for reference lists and author lines.
     var displayName: String { lastName.isEmpty ? firstName : "\(lastName), \(firstName)" }
+
+    /// Resolved affiliation names: registry references when present,
+    /// otherwise the legacy free-text affiliations.
+    func affiliationNames(in m: Manuscript) -> [String] {
+        let resolved = (institutionIDs ?? []).compactMap { id in
+            m.institutions.first(where: { $0.id == id })?.name
+        }.filter { !$0.isEmpty }
+        return resolved.isEmpty ? affiliations.filter { !$0.isEmpty } : resolved
+    }
+
+    /// True when the author lacks the required institution reference.
+    func missingInstitution(in m: Manuscript) -> Bool {
+        affiliationNames(in: m).isEmpty
+    }
 
     // MARK: - Factory
 

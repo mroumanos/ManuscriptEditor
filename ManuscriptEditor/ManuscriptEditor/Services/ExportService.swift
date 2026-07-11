@@ -451,7 +451,7 @@ struct ExportService {
                 .joined(separator: ", ")
             doc.append(line(names, font: bodyFont, spacingAfter: 2))
             var seen = Set<String>()
-            for aff in authors.flatMap({ $0.affiliations }) where !aff.isEmpty && seen.insert(aff).inserted {
+            for aff in authors.flatMap({ $0.affiliationNames(in: m) }) where seen.insert(aff).inserted {
                 doc.append(line(aff, font: metaFont, color: .secondaryLabelColor, spacingAfter: 1))
             }
             doc.append(spacer())
@@ -728,7 +728,7 @@ private struct OutlineBuilder {
                 let names = authors.map { $0.fullName + ($0.isCorresponding ? "*" : "") }.joined(separator: ", ")
                 doc.append(line(names, font: base, after: 2))
                 var seen = Set<String>()
-                for aff in authors.flatMap({ $0.affiliations }) where !aff.isEmpty && seen.insert(aff).inserted {
+                for aff in authors.flatMap({ $0.affiliationNames(in: m) }) where seen.insert(aff).inserted {
                     doc.append(line(aff, font: meta, color: .darkGray, after: 1))
                 }
             }

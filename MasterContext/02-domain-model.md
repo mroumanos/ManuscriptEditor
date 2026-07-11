@@ -202,7 +202,12 @@ Notes are a first-class way to leave feedback for oneself or collaborators,
 
 ## Content components (within `ManuscriptContent`)
 
-- `Author`: name parts, email, ORCID, affiliations[], isCorresponding, order.
+- `Author`: name parts, email, ORCID, isCorresponding, order, and
+  `institutionIDs[]` — references into the manuscript-level
+  `institutions: [Institution]` registry (id + name, managed in the Authors
+  pane). **Every author must reference at least one institution** (rows and
+  the editor flag violations). Legacy free-text `affiliations[]` still decode
+  and display until registry references replace them.
 - `ManuscriptSection`: `id, type(SectionType), title, content(RichText), order,
   active(Bool)`; `wordCount` from `content.plain`. `SectionType`: introduction,
   methods, results, discussion, conclusion, acknowledgments, supplementary, custom.

@@ -126,6 +126,10 @@ struct Manuscript: Codable, Identifiable, Sendable {
     /// nil/empty falls back to the project title in exports.
     var articleTitle: String? = nil
 
+    /// The institution registry (managed in the Authors pane).  Authors
+    /// affiliate by referencing these ids; a reference is required.
+    var institutions: [Institution] = []
+
     /// Custom sidebar names for the fixed content panes, keyed by pane key
     /// ("figures", "tables", "bibliography", "letter").  Missing = default.
     var paneTitles: [String: String]? = nil
@@ -220,6 +224,7 @@ struct Manuscript: Codable, Identifiable, Sendable {
         lastSyncedAt  = try c.decodeIfPresent(Date.self,             forKey: .lastSyncedAt)
         about         = try c.decodeIfPresent(String.self,           forKey: .about)
         articleTitle  = try c.decodeIfPresent(String.self,           forKey: .articleTitle)
+        institutions  = try c.decodeIfPresent([Institution].self,    forKey: .institutions) ?? []
         paneTitles    = try c.decodeIfPresent([String: String].self, forKey: .paneTitles)
         hiddenPanes   = try c.decodeIfPresent([String].self,         forKey: .hiddenPanes)
     }

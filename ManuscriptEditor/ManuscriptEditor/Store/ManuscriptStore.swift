@@ -308,8 +308,40 @@ final class ManuscriptStore {
 
     func moveAuthors(from source: IndexSet, to destination: Int, ref: VersionRef = .source) {
         touch(ref) {
-            $0.authors.move(fromOffsets: source, toOffset: destination)
-            for i in $0.authors.indices { $0.authors[i].order = i }
+            // The offsets come from the SORTED list the view shows; applying
+            // them to the raw array scrambles rows whenever the two differ.
+            var sorted = $0.authors.sorted { $0.order < $1.order }
+            sorted.move(fromOffsets: source, toOffset: destination)
+            for i in sorted.indices { sorted[i].order = i }
+            $0.authors = sorted
+        }
+    }
+
+    // MARK: - Institutions (registry referenced by authors)
+
+    /// Appends a blank institution and returns its id (for focusing).
+    @discardableResult
+    func addInstitution(ref: VersionRef = .source) -> UUID {
+        let institution = Institution.empty()
+        touch(ref) { $0.institutions.append(institution) }
+        return institution.id
+    }
+
+    func updateInstitution(_ institution: Institution, ref: VersionRef = .source) {
+        touch(ref) { m in
+            if let idx = m.institutions.firstIndex(where: { $0.id == institution.id }) {
+                m.institutions[idx] = institution
+            }
+        }
+    }
+
+    /// Removes an institution and strips its reference from every author.
+    func deleteInstitution(id: UUID, ref: VersionRef = .source) {
+        touch(ref) { m in
+            m.institutions.removeAll { $0.id == id }
+            for i in m.authors.indices {
+                m.authors[i].institutionIDs?.removeAll { $0 == id }
+            }
         }
     }
 
