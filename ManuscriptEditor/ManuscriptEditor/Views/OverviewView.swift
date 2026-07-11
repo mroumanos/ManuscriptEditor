@@ -174,15 +174,22 @@ struct OverviewView: View {
         }
         // Live edits count too: before any stamp or note exists (a fresh
         // Source-only manuscript is the common case), the current user's
-        // ongoing editing still shows — unsigned until they stamp.
+        // ongoing editing still shows.  The entry is signed with their
+        // identity key on the spot, so the badge carries the real ✓/?
+        // verdict instead of falling to unsigned.
         let userName = SigningService.userName
         if !userName.isEmpty, m.updatedAt > m.createdAt.addingTimeInterval(1) {
             let id = SigningService.publicKeyBase64 ?? "name:\(userName)"
             let alreadyListed = latest[id] != nil || latest["name:\(userName)"] != nil
             if !alreadyListed {
+                let message = "editing:\(m.id.uuidString):\(userName)"
                 latest[id] = EditorEntry(
-                    id: id, name: userName, key: nil, type: nil,
-                    message: nil, signature: nil, date: m.updatedAt)
+                    id: id, name: userName,
+                    key: SigningService.publicKeyBase64,
+                    type: SigningService.effectiveIdentityType,
+                    message: message,
+                    signature: SigningService.sign(message),
+                    date: m.updatedAt)
             }
         }
         return latest.values.sorted { $0.date > $1.date }
