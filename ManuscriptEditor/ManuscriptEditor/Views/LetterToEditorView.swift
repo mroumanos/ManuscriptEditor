@@ -421,10 +421,26 @@ private struct SignaturePadSheet: View {
                 Button("Cancel") { isPresented = false }
                     .keyboardShortcut(.cancelAction)
                 Button("Save") {
+                    // Crop to the ink's bounding box — saving the whole pad
+                    // left blank margins around the strokes, so the signature
+                    // floated wherever it was drawn instead of sitting flush
+                    // left where it's placed.
+                    let points = strokes.flatMap { $0 }
+                    guard let firstX = points.map(\.x).min(),
+                          let firstY = points.map(\.y).min(),
+                          let lastX = points.map(\.x).max(),
+                          let lastY = points.map(\.y).max() else { return }
+                    let box = CGRect(x: firstX, y: firstY,
+                                     width: max(lastX - firstX, 1),
+                                     height: max(lastY - firstY, 1))
+                        .insetBy(dx: -6, dy: -6)
+                    let shifted = strokes.map { stroke in
+                        stroke.map { CGPoint(x: $0.x - box.minX, y: $0.y - box.minY) }
+                    }
                     let renderer = ImageRenderer(content:
-                        SignatureShape(strokes: strokes)
+                        SignatureShape(strokes: shifted)
                             .stroke(Color.black, style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
-                            .frame(width: padSize.width, height: padSize.height))
+                            .frame(width: box.width, height: box.height))
                     renderer.scale = 2
                     if let image = renderer.nsImage { onSave(image) }
                     isPresented = false
