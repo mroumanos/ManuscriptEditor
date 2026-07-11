@@ -50,7 +50,7 @@ struct AuthorsView: View {
                         }
                         Section("Institutions") {
                             ForEach(institutions) { institution in
-                                institutionRow(institution)
+                                institutionRow(institution).tag(institution.id)
                             }
                             if institutions.isEmpty {
                                 Text("None yet — authors must reference one.")
@@ -99,11 +99,19 @@ struct AuthorsView: View {
                 .frame(maxHeight: .infinity)
                 .background(Color(NSColor.windowBackgroundColor))
 
-                // MARK: Right — author editor
+                // MARK: Right — author or institution editor
                 if let id = selectedID,
                    let author = authors.first(where: { $0.id == id }) {
                     AuthorEditor(author: author, institutions: institutions) { updated in
                         store.updateAuthor(updated, ref: versionRef)
+                    }
+                } else if let id = selectedID,
+                          let institution = institutions.first(where: { $0.id == id }) {
+                    InstitutionEditor(
+                        institution: institution,
+                        referencingAuthors: authors.filter { ($0.institutionIDs ?? []).contains(id) }
+                    ) { updated in
+                        store.updateInstitution(updated, ref: versionRef)
                     }
                 } else {
                     Color.clear
@@ -139,8 +147,9 @@ struct AuthorsView: View {
     }
 
     private func autoSelect() {
-        if selectedID == nil || !authors.contains(where: { $0.id == selectedID }) {
-            selectedID = authors.first?.id
+        let known = authors.map(\.id) + institutions.map(\.id)
+        if selectedID == nil || !known.contains(where: { $0 == selectedID }) {
+            selectedID = authors.first?.id ?? institutions.first?.id
         }
     }
 
@@ -189,18 +198,17 @@ struct AuthorsView: View {
         .padding(.vertical, 2)
     }
 
-    /// One registry entry: name edited inline, delete strips references.
+    /// One registry entry — select it to edit the name in the right pane.
     private func institutionRow(_ institution: Institution) -> some View {
         HStack(spacing: 8) {
             Image(systemName: "building.columns")
                 .foregroundStyle(.tertiary)
                 .font(.caption)
-            TextField("Institution name", text: Binding(
-                get: { institution.name },
-                set: { store.updateInstitution(Institution(id: institution.id, name: $0), ref: versionRef) }
-            ))
-            .textFieldStyle(.plain)
+            Text(institution.name.isEmpty ? "(unnamed)" : institution.name)
+                .lineLimit(1)
+            Spacer()
             Button {
+                if selectedID == institution.id { selectedID = nil }
                 store.deleteInstitution(id: institution.id, ref: versionRef)
             } label: {
                 Image(systemName: "xmark.circle.fill").foregroundStyle(.tertiary)
@@ -209,6 +217,53 @@ struct AuthorsView: View {
             .help("Remove institution (authors referencing it lose the reference)")
         }
         .padding(.vertical, 2)
+    }
+}
+
+// MARK: - InstitutionEditor
+
+/// Right-pane form for a selected institution: the name lives here (not in
+/// the list row), plus which authors reference it.
+struct InstitutionEditor: View {
+    let institution: Institution
+    let referencingAuthors: [Author]
+    let onChange: (Institution) -> Void
+
+    @State private var draft: Institution
+
+    init(institution: Institution, referencingAuthors: [Author],
+         onChange: @escaping (Institution) -> Void) {
+        self.institution = institution
+        self.referencingAuthors = referencingAuthors
+        self.onChange = onChange
+        _draft = State(initialValue: institution)
+    }
+
+    var body: some View {
+        ScrollView {
+            Form {
+                Section("Institution") {
+                    TextField("Name (e.g. Harvard Medical School, Dept. of Genetics)",
+                              text: $draft.name)
+                }
+                Section("Referenced By") {
+                    if referencingAuthors.isEmpty {
+                        Text("No authors reference this institution yet — check it in an author's Institutions section.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(referencingAuthors) { author in
+                            Label(author.displayName.isEmpty ? "(unnamed)" : author.displayName,
+                                  systemImage: "person")
+                        }
+                    }
+                }
+            }
+            .formStyle(.grouped)
+            .padding(.bottom, 16)
+        }
+        .onChange(of: draft.name) { _, _ in onChange(draft) }
+        .onChange(of: institution.id) { _, _ in draft = institution }
     }
 }
 
