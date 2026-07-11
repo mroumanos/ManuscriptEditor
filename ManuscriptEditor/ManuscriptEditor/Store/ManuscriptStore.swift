@@ -55,6 +55,7 @@ final class ManuscriptStore {
     /// Creates a new manuscript in the default App Support location.
     func createNew() {
         manuscript = Manuscript.new()
+        if let m = manuscript { persistence.markOpened(id: m.id) }
         trySave()
     }
 
@@ -78,6 +79,7 @@ final class ManuscriptStore {
         manuscript = persistence.load(id: id).map(normalized)
         if let m = manuscript {
             resolveBookmarkIfNeeded(for: m)
+            persistence.markOpened(id: m.id)
         }
     }
 
@@ -102,6 +104,7 @@ final class ManuscriptStore {
             _ = folder.startAccessingSecurityScopedResource()
             persistence.setCustomFolder(folder, for: decoded.id)
             manuscript = normalized(decoded)
+            persistence.markOpened(id: decoded.id)
             trySave()
             return nil
         } catch {
@@ -1512,6 +1515,7 @@ final class ManuscriptStore {
         m.settings.remoteRepository = repository
         m.settings.remoteBranch = branch?.isEmpty == false ? branch : nil
         manuscript = m
+        persistence.markOpened(id: m.id)
         trySave()
         remoteStatus = nil
         remoteError = nil

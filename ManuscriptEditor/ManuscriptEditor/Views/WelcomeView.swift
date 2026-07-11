@@ -21,6 +21,8 @@ struct WelcomeView: View {
     /// Manuscript being renamed (context menu → Rename…).
     @State private var renaming: ManuscriptSummary?
     @State private var renameDraft = ""
+    /// Row under the pointer (hover highlight).
+    @State private var hoveredID: UUID?
 
     var body: some View {
         HStack(spacing: 0) {
@@ -140,7 +142,7 @@ struct WelcomeView: View {
                 Text(summary.title)
                     .font(.body)
                     .lineLimit(1)
-                Text("Created \(summary.createdAt.formatted(date: .abbreviated, time: .omitted))")
+                Text("Opened \(relative(summary.lastAccessedAt)) · Created \(summary.createdAt.formatted(date: .abbreviated, time: .omitted))")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Text(summary.location.path(percentEncoded: false))
@@ -182,6 +184,18 @@ struct WelcomeView: View {
             .buttonStyle(.plain)
             .help("Move this manuscript's folder to the Trash")
         }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 4)
+        // Hover highlight: makes the row under the pointer unmistakable.
+        .background(hoveredID == summary.id ? Color.primary.opacity(0.07) : .clear,
+                    in: RoundedRectangle(cornerRadius: 6))
+        .onHover { hovering in
+            if hovering {
+                hoveredID = summary.id
+            } else if hoveredID == summary.id {
+                hoveredID = nil
+            }
+        }
         .contextMenu {
             Button("Open") { store.open(id: summary.id) }
             Button("Rename…") {
@@ -200,6 +214,13 @@ struct WelcomeView: View {
     }
 
     private func refresh() {
-        recentManuscripts = store.listSaved()
+        recentManuscripts = store.listSaved()   // already most-recent first
+    }
+
+    /// "2 hours ago" / "yesterday" — compact recency for the row caption.
+    private func relative(_ date: Date) -> String {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .abbreviated
+        return formatter.localizedString(for: date, relativeTo: Date())
     }
 }

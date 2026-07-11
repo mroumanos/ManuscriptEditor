@@ -166,9 +166,24 @@ struct PersistenceService: Sendable {
             else { return nil }
             return ManuscriptSummary(id: m.id, title: m.title, updatedAt: m.updatedAt,
                                      createdAt: m.createdAt,
+                                     lastAccessedAt: max(lastOpenedAt(id: id) ?? .distantPast, m.updatedAt),
                                      location: manuscriptDirectory(for: id))
         }
-        .sorted { $0.updatedAt > $1.updatedAt }
+        .sorted { $0.lastAccessedAt > $1.lastAccessedAt }
+    }
+
+    // MARK: - Last-opened tracking (Welcome sorting)
+
+    /// Records that a manuscript was just opened in the app.
+    func markOpened(id: UUID) {
+        UserDefaults.standard.set(Date().timeIntervalSince1970,
+                                  forKey: "manuscriptOpenedAt_\(id.uuidString)")
+    }
+
+    /// When the manuscript was last opened here, or nil if never recorded.
+    func lastOpenedAt(id: UUID) -> Date? {
+        let t = UserDefaults.standard.double(forKey: "manuscriptOpenedAt_\(id.uuidString)")
+        return t > 0 ? Date(timeIntervalSince1970: t) : nil
     }
 
     // MARK: - Figure file management
@@ -200,6 +215,7 @@ struct PersistenceService: Sendable {
         existing.removeAll { $0 == id.uuidString }
         UserDefaults.standard.set(existing, forKey: "allManuscriptIDs")
         UserDefaults.standard.removeObject(forKey: "manuscriptFolder_\(id.uuidString)")
+        UserDefaults.standard.removeObject(forKey: "manuscriptOpenedAt_\(id.uuidString)")
     }
 
     private func addToKnownIDs(_ id: UUID) {
@@ -220,6 +236,9 @@ struct ManuscriptSummary: Identifiable {
     let title: String
     let updatedAt: Date
     let createdAt: Date
+    /// Most recent of "last opened here" and "last edited" — Welcome sorts
+    /// by this, so identical clones of one repo separate by recency.
+    let lastAccessedAt: Date
     /// Where the project lives (app data or a user folder).
     let location: URL
 }
