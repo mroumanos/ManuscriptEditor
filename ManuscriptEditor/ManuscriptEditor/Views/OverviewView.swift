@@ -17,17 +17,22 @@ struct OverviewView: View {
     /// Local copy of the title while the user is typing, before it is committed.
     @State private var draftTitle = ""
 
-    /// Force-unwrap is safe here because `OverviewView` is only shown when
-    /// `store.manuscript != nil` (enforced by `ContentView`).
-    private var m: Manuscript { store.manuscript! }
+    /// Placeholder-backed: ContentView only routes here with a manuscript
+    /// open, but closing to Welcome (File → Manage Manuscripts…) nils the
+    /// manuscript while this view is still on screen for one update pass —
+    /// a force-unwrap here crashed the app.
+    @State private var placeholder = Manuscript.new()
+    private var m: Manuscript { store.manuscript ?? placeholder }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 28) {
-                summaryCard
-                journalsCard
+        if store.manuscript != nil {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 28) {
+                    summaryCard
+                    journalsCard
+                }
+                .padding(28)
             }
-            .padding(28)
         }
     }
 

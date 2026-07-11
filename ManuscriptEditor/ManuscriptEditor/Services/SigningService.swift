@@ -437,17 +437,27 @@ enum SigningService {
         set { UserDefaults.standard.set(newValue, forKey: "userIdentityName") }
     }
 
+    /// In-memory key cache: the Keychain is read once per launch, not once
+    /// per signature.  Signing happens on every stamp/note AND on dashboard
+    /// renders — uncached, each read re-triggered the macOS permission
+    /// prompt whenever the app's code signature changed (new release
+    /// builds), which read as a prompt storm.
+    private static var cachedKey: P256.Signing.PrivateKey?
+
     /// Loads the private key, generating and storing one on first use.
     private static func privateKey() -> P256.Signing.PrivateKey? {
+        if let cachedKey { return cachedKey }
         if let stored = KeychainService.secret(for: keySlot),
            let data = Data(base64Encoded: stored),
            let key = try? P256.Signing.PrivateKey(rawRepresentation: data) {
+            cachedKey = key
             return key
         }
         let key = P256.Signing.PrivateKey()
         guard KeychainService.setSecret(key.rawRepresentation.base64EncodedString(), for: keySlot) else {
             return nil
         }
+        cachedKey = key
         return key
     }
 
@@ -461,6 +471,7 @@ enum SigningService {
     /// User → Regenerate).  Old signatures then verify against authors only
     /// if the old public key was already tied to one.
     static func regenerateKey() {
+        cachedKey = nil
         KeychainService.deleteSecret(for: keySlot)
         _ = publicKeyBase64
     }

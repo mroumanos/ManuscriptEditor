@@ -1522,7 +1522,10 @@ final class ManuscriptStore {
             appStore.updateBackend(account)
             Task {
                 do {
-                    let files = try await gitHubService.pull(config: config)
+                    // Content lives on the SOURCE branch (main is just the
+                    // README) — pull from there unless the user named one.
+                    let pullConfig = config.with(branch: m.settings.remoteBranch ?? "source")
+                    let files = try await gitHubService.pull(config: pullConfig)
                     let dir = persistence.manuscriptDirectory(for: m.id)
                     for file in files where file.path != "manuscript.json" {
                         let dest = dir.appendingPathComponent(file.path)
@@ -1535,10 +1538,12 @@ final class ManuscriptStore {
                         decoder.dateDecodingStrategy = .iso8601
                         var decoded = try decoder.decode(Manuscript.self, from: json.data)
                         decoded.id = m.id
+                        decoded.folderBookmark = nil   // the uploader's Mac, not ours
                         decoded.settings.activeBackendID = accountID
                         decoded.settings.remoteRepository = repository
                         decoded.settings.remoteBranch = m.settings.remoteBranch
                         manuscript = normalized(decoded)
+                        trySave()
                         markSynced()
                     }
                     remoteStatus = "Loaded from \(config.owner)/\(config.repo)@\(config.branch)"
@@ -1608,7 +1613,11 @@ final class ManuscriptStore {
 
             Task {
                 do {
-                    let files = try await gitHubService.pull(config: config)
+                    // Content lives on the SOURCE branch (main is just the
+                    // README) — pull from there unless the user named one.
+                    let pullConfig = config.with(
+                        branch: current.settings.remoteBranch ?? "source")
+                    let files = try await gitHubService.pull(config: pullConfig)
                     let dir = persistence.manuscriptDirectory(for: current.id)
                     for file in files where file.path != "manuscript.json" {
                         let dest = dir.appendingPathComponent(file.path)

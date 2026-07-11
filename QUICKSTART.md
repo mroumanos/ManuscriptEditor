@@ -21,6 +21,13 @@ make edits, create a journal version, and export a submission package.
 The app opens on the **Welcome screen** — your project manager. No account or
 login is needed for the app itself; everything stays on your Mac.
 
+> **If macOS asks "ManuscriptEditor wants to use your confidential
+> information stored in the keychain"**: click **Always Allow** (not
+> "Allow"). This is the app reading the token and signing key *it stored
+> for you* — macOS re-asks whenever an app is updated, and "Allow" only
+> approves a single read, which is why clicking it makes the dialog come
+> back. "Always Allow" answers once per item, permanently.
+
 ## 2. Connect GitHub (personal access token)
 
 The app pulls and pushes manuscripts through your GitHub account using a
@@ -28,14 +35,18 @@ The app pulls and pushes manuscripts through your GitHub account using a
 
 **Create the token (on github.com):**
 
-1. Go to **github.com → your profile picture → Settings**.
-2. Bottom of the left sidebar: **Developer settings**.
-3. **Personal access tokens → Fine-grained tokens → Generate new token.**
-4. Name it "Manuscript Editor", set an expiration you're comfortable with.
-5. **Repository access:** "Only select repositories" → pick the test
+1. Go to **github.com → your profile picture → Settings → Credentials →
+   Fine-grained personal access tokens → Generate new token**.
+   (On some accounts the path is Settings → Developer settings →
+   Personal access tokens → Fine-grained tokens.)
+2. Name it "Manuscript Editor", set an expiration you're comfortable with.
+3. **Repository access:** "Only select repositories" → pick the test
    manuscript repository you were invited to.
-6. **Permissions → Repository permissions → Contents → Read and write.**
-7. **Generate token** and **copy it** (you won't see it again).
+4. **Permissions → Repository permissions:**
+   - **Contents → Read and write** (pull and push the manuscript)
+   - **Administration → Read and write** (only needed if you'll create new
+     repositories from inside the app — harmless to include)
+5. **Generate token** and **copy it** (you won't see it again).
 
 **Add it to the app:**
 
