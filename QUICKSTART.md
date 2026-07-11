@@ -14,8 +14,9 @@ make edits, create a journal version, and export a submission package.
 1. Download `ManuscriptEditor-<version>.dmg` from the **Releases** page of this
    repository.
 2. Open the downloaded file and drag **Manuscript Editor** onto **Applications**.
-3. First launch only: **right-click the app → Open → Open**. (The app isn't
-   signed with an Apple developer certificate yet, so macOS asks once.)
+3. If macOS warns on first launch that it "could not verify" the app:
+   **System Settings → Privacy & Security → scroll down → Open Anyway**
+   (one time only). Notarized builds open with no warning at all.
 
 The app opens on the **Welcome screen** — your project manager. No account or
 login is needed for the app itself; everything stays on your Mac.

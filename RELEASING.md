@@ -27,13 +27,22 @@ gh release create v0.1.0 dist/ManuscriptEditor-0.1.0.dmg \
 
 Or upload the dmg manually: repository → Releases → "Draft a new release".
 
-## Signing & notarization (current status: unsigned)
+## Signing & notarization
 
-Release builds are currently ad-hoc signed; downloaders must right-click →
-Open the first launch (Gatekeeper). For frictionless distribution later:
+Release builds are signed with the **Developer ID Application** certificate
+(Michael Roumanos, team `M72QBAW2TT`) with hardened runtime + timestamp; the
+dmg is signed too. For zero-friction downloads, also notarize:
 
-1. Enroll in the Apple Developer Program.
-2. Sign with a Developer ID Application certificate
-   (`CODE_SIGN_IDENTITY="Developer ID Application"` in the script).
-3. Notarize: `xcrun notarytool submit dist/….dmg --keychain-profile <profile> --wait`
-   then staple: `xcrun stapler staple ManuscriptEditor.app`.
+1. One-time: store notary credentials (uses an Apple ID app-specific
+   password from appleid.apple.com):
+
+   ```
+   xcrun notarytool store-credentials ManuscriptEditor \
+     --apple-id <appleid email> --team-id M72QBAW2TT
+   ```
+
+2. Every release: `NOTARY_PROFILE=ManuscriptEditor ./scripts/make-release.sh <version>`
+   — the script submits, waits, and staples the dmg automatically.
+
+Un-notarized signed builds still open, but macOS asks the user to approve
+the first launch in System Settings → Privacy & Security.
