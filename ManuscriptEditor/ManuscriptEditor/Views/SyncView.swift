@@ -29,6 +29,8 @@ struct SyncView: View {
     @State private var pendingSync: Journal?
     /// Journal awaiting the delete confirmation (context menu).
     @State private var pendingDelete: Journal?
+    /// Lineage row under the pointer — interactive rows highlight on hover.
+    @State private var hoveredJournalID: UUID?
     @State private var showAddJournal = false
 
     private var journals: [Journal] { store.manuscript?.journals ?? [] }
@@ -278,6 +280,16 @@ struct SyncView: View {
         .padding(.horizontal, 12)
         .frame(height: rowHeight)
         .contentShape(Rectangle())
+        // Hover highlight: signals the row itself is interactive
+        // (right-click for Delete Journal…), matching the Welcome list.
+        .background(hoveredJournalID == journal.id ? Color.primary.opacity(0.06) : .clear)
+        .onHover { hovering in
+            if hovering {
+                hoveredJournalID = journal.id
+            } else if hoveredJournalID == journal.id {
+                hoveredJournalID = nil
+            }
+        }
         .contextMenu {
             Button("Delete Journal…", role: .destructive) { pendingDelete = journal }
         }

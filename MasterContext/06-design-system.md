@@ -161,6 +161,11 @@ vertically centered on each line; blank lines are numbered too.
 
 ## Tone & polish checklist (treat violations as bugs)
 
+- **Interactive rows react to hover.** Anything the pointer can act on —
+  click, double-click, or right-click (Welcome manuscripts, Sync lineage
+  journals, list rows with context menus) — shows a subtle highlight on
+  hover (`Color.primary.opacity(~0.06)`, rounded where the row is
+  free-standing). No reaction = reads as static text.
 - Nothing floats as a translucent card on a dark/light background.
 - No detail view sets its own navigation title (only the manuscript name shows).
 - The "Source" comparison tab sits at the very top and never shifts down.
