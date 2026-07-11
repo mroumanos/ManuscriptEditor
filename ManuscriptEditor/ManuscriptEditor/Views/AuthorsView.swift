@@ -243,7 +243,7 @@ struct InstitutionEditor: View {
         ScrollView {
             Form {
                 Section("Institution") {
-                    TextField("Name (e.g. Harvard Medical School, Dept. of Genetics)",
+                    TextField("Display Name",
                               text: $draft.name)
                 }
                 Section("Referenced By") {

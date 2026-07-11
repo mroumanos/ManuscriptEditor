@@ -49,8 +49,15 @@ struct LetterToEditorView: View {
         VStack(spacing: 0) {
             toolbar
             Divider()
+            // Preview rides BESIDE the input (live, same window), never
+            // replacing it — edits reflect immediately on the right.
             if showPreview {
-                previewPanel
+                HSplitView {
+                    editorPanel
+                        .frame(minWidth: 380)
+                    previewPanel
+                        .frame(minWidth: 320)
+                }
             } else {
                 editorPanel
             }
@@ -222,7 +229,7 @@ struct LetterToEditorView: View {
 
     @ViewBuilder
     private var signaturePreviewImage: some View {
-        if let data = draft.signatureImageData, let image = NSImage(data: data) {
+        if let data = draft.signatureImageData, let image = NSImage(data: data)?.trimmedTransparentMargins() {
             Image(nsImage: image)
                 .resizable()
                 .scaledToFit()
@@ -485,6 +492,50 @@ private struct SignatureCanvas: View {
                         current = []
                     }
             )
+    }
+}
+
+// MARK: - NSImage transparent-margin trim
+
+extension NSImage {
+    /// The image cropped to its non-transparent pixels — heals signatures
+    /// saved before ink-cropping existed, whose blank pad margins made the
+    /// ink float toward the center instead of sitting flush left.
+    func trimmedTransparentMargins() -> NSImage {
+        guard let cg = cgImage(forProposedRect: nil, context: nil, hints: nil) else { return self }
+        let width = cg.width, height = cg.height
+        guard width > 0, height > 0,
+              let ctx = CGContext(data: nil, width: width, height: height,
+                                  bitsPerComponent: 8, bytesPerRow: width,
+                                  space: CGColorSpaceCreateDeviceGray(),
+                                  bitmapInfo: CGImageAlphaInfo.alphaOnly.rawValue)
+        else { return self }
+        ctx.draw(cg, in: CGRect(x: 0, y: 0, width: width, height: height))
+        guard let data = ctx.data else { return self }
+        let alpha = data.bindMemory(to: UInt8.self, capacity: width * height)
+        var minX = width, maxX = -1, minY = height, maxY = -1
+        for y in 0..<height {
+            for x in 0..<width where alpha[y * width + x] > 8 {
+                if x < minX { minX = x }
+                if x > maxX { maxX = x }
+                if y < minY { minY = y }
+                if y > maxY { maxY = y }
+            }
+        }
+        // Fully opaque (no alpha channel in practice) or fully empty, or
+        // already tight: nothing to trim.
+        guard maxX >= minX, maxY >= minY,
+              minX > 0 || minY > 0 || maxX < width - 1 || maxY < height - 1,
+              let cropped = cg.cropping(to: CGRect(x: minX, y: minY,
+                                                   width: maxX - minX + 1,
+                                                   height: maxY - minY + 1))
+        else { return self }
+        // Keep the point-size scale of the original (2× pad renders).
+        let scaleX = size.width / CGFloat(width)
+        let scaleY = size.height / CGFloat(height)
+        return NSImage(cgImage: cropped,
+                       size: NSSize(width: CGFloat(cropped.width) * scaleX,
+                                    height: CGFloat(cropped.height) * scaleY))
     }
 }
 

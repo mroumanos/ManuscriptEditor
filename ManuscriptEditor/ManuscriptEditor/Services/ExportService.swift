@@ -80,9 +80,11 @@ private func letterheadBlock(_ letter: LetterToEditor, font: NSFont, width: CGFl
 }
 
 /// The hand-drawn signature as an inline attachment (max 48 pt tall),
-/// pinned hard left — never centered like figures are.
+/// pinned hard left — never centered like figures are.  Transparent pad
+/// margins are trimmed so the ink itself starts at the left edge.
 private func signatureImageBlock(_ data: Data?, font: NSFont) -> NSAttributedString? {
-    guard let data, let image = NSImage(data: data), image.size.height > 0 else { return nil }
+    guard let data, let raw = NSImage(data: data), raw.size.height > 0 else { return nil }
+    let image = raw.trimmedTransparentMargins()
     let attachment = NSTextAttachment()
     attachment.image = image
     let h = min(48, image.size.height)
@@ -112,8 +114,9 @@ private func resolveLetterTokens(in body: NSMutableAttributedString, letter: Let
         NSAttributedString(string: Date().formatted(date: .long, time: .omitted), attributes: attrs)
     }
     replace(LetterToken.signature.marker) { attrs in
-        guard let data = letter.signatureImageData, let image = NSImage(data: data),
-              image.size.height > 0 else { return NSAttributedString(string: "") }
+        guard let data = letter.signatureImageData, let raw = NSImage(data: data),
+              raw.size.height > 0 else { return NSAttributedString(string: "") }
+        let image = raw.trimmedTransparentMargins()
         let attachment = NSTextAttachment()
         attachment.image = image
         let h = min(48, image.size.height)
