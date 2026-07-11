@@ -543,17 +543,22 @@ struct ToolbarBanner: View {
     var body: some View {
         Group {
             if let banner = store.banner {
-                Label(banner.message,
-                      systemImage: banner.kind == .success ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
-                    .font(.caption.weight(.medium))
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .foregroundStyle(banner.kind == .success ? Color.green : .red)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 4)
-                    .background((banner.kind == .success ? Color.green : .red).opacity(0.12), in: Capsule())
-                    .help(banner.message)
-                    .transition(.opacity)
+                // Explicit icon + text: toolbars collapse `Label`s to their
+                // icon, which swallowed the message.
+                HStack(spacing: 6) {
+                    Image(systemName: banner.kind == .success
+                          ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
+                    Text(banner.message)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                }
+                .font(.caption.weight(.medium))
+                .foregroundStyle(banner.kind == .success ? Color.green : .red)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
+                .background((banner.kind == .success ? Color.green : .red).opacity(0.12), in: Capsule())
+                .help(banner.message)
+                .transition(.opacity)
             }
         }
         .frame(maxWidth: 480)
