@@ -262,21 +262,32 @@ struct SyncView: View {
         .frame(height: rowHeight)
     }
 
-    /// Small inline chip showing which upstream version the head hangs from.
+    /// Small inline chip naming the exact upstream version this journal's
+    /// head was derived from at its last sync/cut — numbered the same way
+    /// the rows are (stamps are v1…vN; an un-stamped working head is
+    /// "latest", never a number).
     @ViewBuilder
     private func edgeBadge(for head: ManuscriptVersion?) -> some View {
         if let head, let pid = head.parentID,
            let parent = store.versions.first(where: { $0.id == pid }) {
-            let label = parent.sourceStamp == true
-                ? "S\(store.sourceOrdinal(of: parent))"
-                : "v\(store.journalOrdinal(of: parent))"
+            let label: String = {
+                if parent.sourceStamp == true {
+                    return "Source v\(store.sourceOrdinal(of: parent))"
+                }
+                let name = store.manuscript?.journals
+                    .first(where: { $0.id == parent.journalID })?.name ?? "upstream"
+                // Chain-final = the upstream's working head (a pre-stamp-rule
+                // edge): show "latest", matching how the rows label it.
+                let isWorkingHead = store.versions(forJournal: parent.journalID).last?.id == parent.id
+                return isWorkingHead ? "\(name) latest" : "\(name) v\(store.journalOrdinal(of: parent))"
+            }()
             Text("from \(label)")
                 .font(.caption2.weight(.semibold).monospacedDigit())
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 6).padding(.vertical, 1)
                 .background(Capsule().fill(Color(NSColor.windowBackgroundColor)))
                 .overlay(Capsule().strokeBorder(.primary.opacity(0.25), lineWidth: 1))
-                .help("Derived from \(parent.sourceStamp == true ? "Source stamp" : "upstream version") \(label)")
+                .help("This journal's working content was derived from \(label) at its last sync or cut")
         }
     }
 
