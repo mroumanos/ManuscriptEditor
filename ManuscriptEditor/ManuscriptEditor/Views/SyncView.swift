@@ -170,8 +170,7 @@ struct SyncView: View {
             sourceRow
             ForEach(flattenedTree, id: \.journal.id) { entry in
                 Divider()
-                journalRow(entry.journal)
-                    .padding(.leading, CGFloat(entry.depth) * indent + 10)
+                journalRow(entry.journal, depth: entry.depth)
             }
         }
         .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
@@ -224,7 +223,7 @@ struct SyncView: View {
     }
 
     @ViewBuilder
-    private func journalRow(_ journal: Journal) -> some View {
+    private func journalRow(_ journal: Journal, depth: Int = 0) -> some View {
         let head = store.latestVersion(forJournal: journal.id)
         let source = store.syncSource(forJournal: journal.id)
 
@@ -277,7 +276,10 @@ struct SyncView: View {
                 .help("Fast-forward \(journal.name) from \(source?.upstreamName ?? "upstream")")
             }
         }
-        .padding(.horizontal, 12)
+        // Indent INSIDE the row (before the background) so the hover tint
+        // spans the whole container width, not just the tabbed remainder.
+        .padding(.leading, CGFloat(depth) * indent + 22)
+        .padding(.trailing, 12)
         .frame(height: rowHeight)
         .contentShape(Rectangle())
         // Hover highlight: signals the row itself is interactive
