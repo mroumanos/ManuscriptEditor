@@ -213,12 +213,30 @@ struct TableEditor: View {
                     TextEditor(text: $draft.footnotes)
                         .frame(minHeight: 40)
                         .font(.callout)
+                    Text("Exports as a \"Note.\" paragraph beneath the table.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Section("Export Formatting") {
+                    Toggle("Open sides (horizontal rules only — journal style)", isOn: Binding(
+                        get: { draft.openSides ?? false },
+                        set: { draft.openSides = $0 ? true : nil }
+                    ))
+                    Toggle("Alternate row shading", isOn: Binding(
+                        get: { draft.alternateShading ?? false },
+                        set: { draft.alternateShading = $0 ? true : nil }
+                    ))
+                    Text("Off = a fully boxed grid. Values wrap inside their cells either way.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
                 dataSourceSection
             }
             .formStyle(.grouped)
             .frame(minHeight: 200)
         }
+        .onChange(of: draft.openSides)        { _, _ in store.updateTable(draft, ref: versionRef) }
+        .onChange(of: draft.alternateShading) { _, _ in store.updateTable(draft, ref: versionRef) }
         .onChange(of: draft.content)      { _, _ in store.updateTable(draft, ref: versionRef) }
         .onChange(of: draft.title)        { _, _ in store.updateTable(draft, ref: versionRef) }
         .onChange(of: draft.caption)      { _, _ in store.updateTable(draft, ref: versionRef) }
@@ -255,7 +273,9 @@ struct TableEditor: View {
     // MARK: - Data source section
 
     private var csvAssets: [DataAsset] {
-        (store.manuscript(for: versionRef)?.dataAssets ?? []).filter { $0.type == .csv }
+        // Data is global: every journal reads the shared Data repository —
+        // only the view on it (SQL, formatting) is journal-specific.
+        (store.manuscript?.dataAssets ?? []).filter { $0.type == .csv }
     }
 
     @ViewBuilder

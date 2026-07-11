@@ -46,6 +46,9 @@ struct RichEditor: View {
     /// Which version's bibliography/figures/tables feed the "/" reference
     /// autocomplete and token numbering.
     var versionRef: VersionRef = .source
+    /// Letter-to-editor context: "/" additionally offers Date and Signature
+    /// snippets (inserted as plain text).
+    var letterMode: Bool = false
 
     @AppStorage(EditorPrefs.fontKey)        private var family = EditorPrefs.defaultFont
     @AppStorage(EditorPrefs.fontSizeKey)    private var size = EditorPrefs.defaultFontSize
@@ -101,6 +104,23 @@ struct RichEditor: View {
         }
 
         var out: [RefCandidate] = []
+        // Letter snippets first — the letter's most common inserts.
+        if letterMode {
+            let dateText = Date().formatted(date: .long, time: .omitted)
+            if matches(["date", "today", dateText]) {
+                out.append(RefCandidate(kind: .bib, id: Self.dateSnippetID,
+                                        display: "Date • \(dateText)",
+                                        snippetText: dateText))
+            }
+            let signature = m.letterToEditor.signature
+            if !signature.isEmpty, matches(["signature", signature]) {
+                let preview = signature.components(separatedBy: "\n")
+                    .first(where: { !$0.isEmpty }) ?? ""
+                out.append(RefCandidate(kind: .bib, id: Self.signatureSnippetID,
+                                        display: "Signature • \(preview)",
+                                        snippetText: signature))
+            }
+        }
         for e in m.bibliography where !e.key.isEmpty {
             guard matches(["reference", e.key, e.title, e.authorsFormatted, e.journal ?? ""]) else { continue }
             out.append(RefCandidate(
@@ -126,6 +146,10 @@ struct RichEditor: View {
         }
         return out
     }
+
+    /// Stable ids for the letter snippet rows (never resolved as references).
+    private static let dateSnippetID      = UUID(uuidString: "51674E00-0000-4000-8000-00000000000D")!
+    private static let signatureSnippetID = UUID(uuidString: "51674E00-0000-4000-8000-00000000000E")!
 
     /// A small sample image of the figure for the insert menu.
     private static let thumbnailCache = NSCache<NSUUID, NSImage>()
@@ -156,6 +180,9 @@ struct RefCandidate {
     let display: String
     /// Sample image shown in the insert-kind menu (figures only).
     var thumbnail: NSImage? = nil
+    /// When set, accepting inserts this plain text directly — no token, no
+    /// insert-kind menu.  Used by the letter's Date/Signature snippets.
+    var snippetText: String? = nil
 }
 
 // MARK: - FormatBar (inline toolbar)
@@ -773,6 +800,11 @@ final class CitationTextView: NSTextView {
         }
 
         if accepted, let candidate = currentCandidates.first(where: { $0.display == word }) {
+            // Snippets (letter date/signature) paste plain text — no token.
+            if let snippet = candidate.snippetText {
+                insertPlainText(snippet, replacing: charRange)
+                return
+            }
             switch candidate.kind {
             case .bib:
                 let token = RefEngine.Token(kind: .bib, targetID: candidate.id, style: .numeric)
@@ -787,6 +819,18 @@ final class CitationTextView: NSTextView {
             }
         }
         // Dismissed — nothing to restore; the text was never touched.
+    }
+
+    /// Replaces `range` (the "/query") with plain text in the editor's
+    /// default typing attributes — used by the letter's snippet candidates.
+    private func insertPlainText(_ text: String, replacing range: NSRange) {
+        guard shouldChangeText(in: range, replacementString: text) else { return }
+        textStorage?.replaceCharacters(
+            in: range,
+            with: NSAttributedString(string: text, attributes: defaultTypingAttributes))
+        setSelectedRange(NSRange(location: range.location + (text as NSString).length, length: 0))
+        typingAttributes = defaultTypingAttributes
+        didChangeText()
     }
 
     /// The candidate + range awaiting a Reference/Placement choice.

@@ -92,6 +92,14 @@ private func signatureImageBlock(_ data: Data?, font: NSFont) -> NSAttributedStr
     return out
 }
 
+
+/// The journal-facing title: the article title when set, else project name.
+private func displayTitle(_ m: Manuscript) -> String {
+    let article = (m.articleTitle ?? "").trimmingCharacters(in: .whitespaces)
+    if !article.isEmpty { return article }
+    return m.title.isEmpty ? "Untitled Manuscript" : m.title
+}
+
 struct ExportService {
 
     // MARK: - Format
@@ -244,6 +252,7 @@ struct ExportService {
                               chartImage: ((Figure) -> NSImage?)? = nil,
                               tableData: ((ManuscriptTable) -> QueryResult?)? = nil) -> [NSAttributedString] {
         let builder = OutlineBuilder(format: document.format, refContext: refContext,
+                                     fileType: document.fileType,
                                      figureURL: figureURL, chartImage: chartImage, tableData: tableData)
         var segments: [NSAttributedString] = []
         var current = NSMutableAttributedString()
@@ -293,7 +302,7 @@ struct ExportService {
             }
             switch item.kind {
             case .titlePage:
-                out += "\\title{\(tex(m.title))}\n"
+                out += "\\title{\(tex(displayTitle(m)))}\n"
                 let authors = m.authors.sorted { $0.order < $1.order }.map { tex($0.fullName) }
                 out += "\\author{\(authors.joined(separator: " \\and "))}\n\\date{}\n\\maketitle\n"
             case .abstract:
@@ -387,7 +396,7 @@ struct ExportService {
         // final numbering (then stripped of in-app link/tooltip/bold chrome).
         let refContext = RefEngine.context(for: m)
 
-        doc.append(line(m.title.isEmpty ? "Untitled Manuscript" : m.title, font: titleFont, spacingAfter: 8))
+        doc.append(line(displayTitle(m), font: titleFont, spacingAfter: 8))
         if !m.runningTitle.isEmpty {
             doc.append(line("Running title: \(m.runningTitle)", font: metaFont, color: .secondaryLabelColor, spacingAfter: 8))
         }
@@ -615,6 +624,10 @@ private enum ExportAttr {
 private struct OutlineBuilder {
     let format: ExportDocumentFormat
     let refContext: RefEngine.Context
+    /// Output file type — tables build differently per target: drawn grids
+    /// for the PDF path (CoreText has no table layout), NSTextTable for the
+    /// attributed writers (real Word/RTF tables).
+    var fileType: ExportFileType? = nil
     /// Resolves a figure's image file for inline placement rendering.
     var figureURL: ((Figure) -> URL?)? = nil
     /// Renders a data-linked figure's chart (SQL + chart type) to an image.
@@ -626,7 +639,8 @@ private struct OutlineBuilder {
     /// stamps the line-number attribute when its effective format asks for it.
     func block(for item: ExportItem, content m: Manuscript) -> NSAttributedString? {
         let effective = effectiveFormat(for: item)
-        let builder = OutlineBuilder(format: effective, refContext: refContext, figureURL: figureURL, chartImage: chartImage, tableData: tableData)
+        let builder = OutlineBuilder(format: effective, refContext: refContext, fileType: fileType,
+                                     figureURL: figureURL, chartImage: chartImage, tableData: tableData)
         guard let rendered = builder.renderBlock(item, content: m) else { return nil }
         guard effective.lineNumbers else { return rendered }
         let out = NSMutableAttributedString(attributedString: rendered)
@@ -662,7 +676,7 @@ private struct OutlineBuilder {
         switch item.kind {
         case .titlePage:
             let doc = NSMutableAttributedString()
-            doc.append(line(m.title.isEmpty ? "Untitled Manuscript" : m.title, font: title, after: 8))
+            doc.append(line(displayTitle(m), font: title, after: 8))
             if !m.runningTitle.isEmpty {
                 doc.append(line("Running title: \(m.runningTitle)", font: meta, color: .darkGray, after: 8))
             }
@@ -717,13 +731,12 @@ private struct OutlineBuilder {
             for t in tables {
                 doc.append(line("Table \(refContext.tables[t.id]?.number ?? t.number). \(t.title)",
                                 font: NSFontManager.shared.convert(base, toHaveTrait: .boldFontMask), after: 2))
-                if let result = tableData?(t), !result.columns.isEmpty {
-                    // Data-linked: the SQL result IS the table.
-                    doc.append(queryTableBlock(result))
-                } else if !t.content.isEmpty {
-                    doc.append(line(t.content, font: .monospacedSystemFont(ofSize: format.fontSize - 1, weight: .regular), after: 4))
+                doc.append(tableBody(t))
+                if !t.caption.isEmpty { doc.append(line(t.caption, font: meta, color: .darkGray, after: 2)) }
+                if !t.footnotes.isEmpty {
+                    doc.append(line("Note. \(t.footnotes)", font: meta, color: .darkGray, after: 8))
                 }
-                if !t.caption.isEmpty { doc.append(line(t.caption, font: meta, color: .darkGray, after: 8)) }
+                doc.append(spacer())
             }
             return doc
         case .references:
@@ -858,63 +871,282 @@ private struct OutlineBuilder {
         return out
     }
 
-    /// A SQL result laid out as a clean text table: document font, columns at
-    /// minimum width (widest cell + padding), header bold with a rule, whole
-    /// block centered in the text column.  Tab stops keep it working across
-    /// PDF (CoreText) and DOCX/RTF alike.
-    private func queryTableBlock(_ result: QueryResult) -> NSAttributedString {
-        let cellFont = NSFont(descriptor: base.fontDescriptor, size: max(9, format.fontSize - 1)) ?? base
+    // MARK: Table construction
+    //
+    // A table exports as a REAL table with boundaries that wrap the values:
+    //   PDF       — a drawn grid (CoreText has no table layout): measured
+    //               columns, wrapped cells, rules/shading per the table's
+    //               formatting, page-height-aware chunks.
+    //   DOCX/RTF  — NSTextTable cells, so Word/Pages get a native table.
+    // Sources: the SQL result for data-linked tables, else parsed pipe rows.
+
+    /// The rows of a table: SQL result (data-linked) or parsed pipe syntax.
+    private func tableGrid(_ t: ManuscriptTable) -> (columns: [String], rows: [[String]])? {
+        if let result = tableData?(t), !result.columns.isEmpty {
+            return (result.columns, result.rows)
+        }
+        return Self.pipeRows(t.content)
+    }
+
+    /// The table body block for `t`, in the right construction for the
+    /// output type; plain mono text only when nothing parses as a table.
+    func tableBody(_ t: ManuscriptTable) -> NSAttributedString {
+        guard let grid = tableGrid(t), !grid.columns.isEmpty else {
+            return t.content.isEmpty ? NSAttributedString()
+                : line(t.content, font: .monospacedSystemFont(ofSize: format.fontSize - 1, weight: .regular), after: 4)
+        }
+        // Normalize row widths; keep runaway result sets bounded.
+        let capped = grid.rows.prefix(200).map { row in
+            grid.columns.indices.map { $0 < row.count ? row[$0] : "" }
+        }
+        let out = NSMutableAttributedString()
+        if fileType == .pdf {
+            out.append(drawnTableBlock(columns: grid.columns, rows: Array(capped), table: t))
+        } else {
+            out.append(textTableBlock(columns: grid.columns, rows: Array(capped), table: t))
+        }
+        if grid.rows.count > 200 {
+            out.append(line("… \(grid.rows.count - 200) more rows (see data)", font: meta, color: .darkGray, after: 4))
+        }
+        return out
+    }
+
+    /// Markdown pipe rows → (header, data rows); nil when it isn't a table.
+    static func pipeRows(_ content: String) -> (columns: [String], rows: [[String]])? {
+        let lines = content.replacingOccurrences(of: "\r\n", with: "\n")
+            .components(separatedBy: "\n")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { $0.contains("|") }
+        let rows: [[String]] = lines.compactMap { lineText in
+            var l = lineText
+            if l.hasPrefix("|") { l.removeFirst() }
+            if l.hasSuffix("|") { l.removeLast() }
+            let cells = l.components(separatedBy: "|").map { $0.trimmingCharacters(in: .whitespaces) }
+            // Skip the |---|---| separator row.
+            let isRule = cells.allSatisfy { cell in cell.allSatisfy { "-:".contains($0) } }
+                && cells.contains { $0.contains("-") }
+            return isRule ? nil : cells
+        }
+        guard let header = rows.first, header.count >= 2 else { return nil }
+        return (header, Array(rows.dropFirst()))
+    }
+
+    /// Width available to a table (one text column of the page).
+    private var tableWidth: CGFloat {
+        let content: CGFloat = 612 - format.marginInches * 144
+        return format.twoColumn ? (content - 18) / 2 : content
+    }
+
+    private var tableCellFont: NSFont {
+        NSFont(descriptor: base.fontDescriptor, size: max(9, format.fontSize - 1)) ?? base
+    }
+
+    /// Column widths as fractions of the table width: natural (widest cell)
+    /// widths, capped so one long column can't starve the rest, normalized.
+    private func columnFractions(columns: [String], rows: [[String]]) -> [CGFloat] {
+        let cellFont = tableCellFont
         let headerFont = NSFontManager.shared.convert(cellFont, toHaveTrait: .boldFontMask)
-        let maxCell = 38   // keep runaway values from destroying the layout
-
-        func clip(_ value: String) -> String {
-            value.count > maxCell ? String(value.prefix(maxCell - 1)) + "…" : value
-        }
-
-        // Minimum column widths: widest content + a little padding.
-        var widths = result.columns.map { clip($0).size(withAttributes: [.font: headerFont]).width }
-        for row in result.rows {
-            for (index, value) in row.enumerated() where index < widths.count {
-                widths[index] = max(widths[index], clip(value).size(withAttributes: [.font: cellFont]).width)
+        var naturals: [CGFloat] = columns.indices.map { i in
+            var w = (columns[i] as NSString).size(withAttributes: [.font: headerFont]).width
+            for row in rows {
+                w = max(w, (row[i] as NSString).size(withAttributes: [.font: cellFont]).width)
             }
+            return min(max(w + 12, 34), tableWidth * 0.55)
         }
-        widths = widths.map { min($0 + 14, 220) }
+        let total = naturals.reduce(0, +)
+        if total <= 0 { naturals = naturals.map { _ in 1 } }
+        let sum = naturals.reduce(0, +)
+        return naturals.map { $0 / sum }
+    }
 
-        let textWidth: CGFloat = 612 - format.marginInches * 144
-        let total = widths.reduce(0, +)
-        let indent = max(0, (textWidth - total) / 2)   // center the block
+    /// DOCX/RTF: a native NSTextTable — bordered cells that wrap values.
+    private func textTableBlock(columns: [String], rows: [[String]], table t: ManuscriptTable) -> NSAttributedString {
+        let cellFont = tableCellFont
+        let headerFont = NSFontManager.shared.convert(cellFont, toHaveTrait: .boldFontMask)
+        let open = t.openSides ?? false
+        let shade = t.alternateShading ?? false
+        let fractions = columnFractions(columns: columns, rows: rows)
+        let lastRow = rows.count   // header is row 0
 
-        let style = NSMutableParagraphStyle()
-        style.tabStops = []
-        var x = indent
-        for width in widths {
-            x += width
-            style.tabStops.append(NSTextTab(textAlignment: .left, location: x))
-        }
-        style.firstLineHeadIndent = indent
-        style.headIndent = indent
-        style.lineHeightMultiple = 1.1
-        style.paragraphSpacing = 1
+        let table = NSTextTable()
+        table.numberOfColumns = columns.count
+        table.setContentWidth(100, type: .percentageValueType)
 
-        func rowString(_ cells: [String], font: NSFont) -> NSAttributedString {
-            let padded = cells.map(clip).joined(separator: "\t")
-            return NSAttributedString(string: padded + "\n", attributes: [
-                .font: font,
-                .paragraphStyle: style,
+        let out = NSMutableAttributedString()
+        func appendCell(_ text: String, row: Int, col: Int) {
+            let block = NSTextTableBlock(table: table, startingRow: row, rowSpan: 1,
+                                         startingColumn: col, columnSpan: 1)
+            block.setValue(fractions[col] * 100, type: .percentageValueType, for: .width)
+            block.setWidth(4, type: .absoluteValueType, for: .padding)
+            block.setBorderColor(.black)
+            if open {
+                // Journal style: horizontal rules only.
+                block.setWidth(0, type: .absoluteValueType, for: .border)
+                if row == 0 {
+                    block.setWidth(1, type: .absoluteValueType, for: .border, edge: .minY)
+                    block.setWidth(0.75, type: .absoluteValueType, for: .border, edge: .maxY)
+                }
+                if row == lastRow {
+                    block.setWidth(1, type: .absoluteValueType, for: .border, edge: .maxY)
+                }
+            } else {
+                block.setWidth(0.5, type: .absoluteValueType, for: .border)
+            }
+            if row == 0 {
+                if !open { block.backgroundColor = NSColor(white: 0.92, alpha: 1) }
+            } else if shade, row % 2 == 1 {
+                block.backgroundColor = NSColor(white: 0.955, alpha: 1)
+            }
+            let style = NSMutableParagraphStyle()
+            style.textBlocks = [block]
+            out.append(NSAttributedString(string: text + "\n", attributes: [
+                .font: row == 0 ? headerFont : cellFont,
                 .foregroundColor: NSColor.black,
-            ])
+                .paragraphStyle: style,
+            ]))
+        }
+
+        for (col, name) in columns.enumerated() { appendCell(name, row: 0, col: col) }
+        for (r, row) in rows.enumerated() {
+            for (col, value) in row.enumerated() { appendCell(value, row: r + 1, col: col) }
+        }
+        out.append(NSAttributedString(string: "\n", attributes: [.font: base]))
+        return out
+    }
+
+    /// PDF: the grid drawn into image chunks (vector text isn't available in
+    /// the CoreText paginator) — measured columns, wrapped cells, rules and
+    /// shading per the table's formatting, split so chunks fit a page.
+    private func drawnTableBlock(columns: [String], rows: [[String]], table t: ManuscriptTable) -> NSAttributedString {
+        let cellFont = tableCellFont
+        let headerFont = NSFontManager.shared.convert(cellFont, toHaveTrait: .boldFontMask)
+        let open = t.openSides ?? false
+        let shade = t.alternateShading ?? false
+        let width = tableWidth
+        let pad: CGFloat = 5
+        let widths = columnFractions(columns: columns, rows: rows).map { $0 * width }
+
+        func cellHeight(_ text: String, columnWidth: CGFloat, font: NSFont) -> CGFloat {
+            guard !text.isEmpty else { return ceil(font.ascender - font.descender) }
+            let bounds = (text as NSString).boundingRect(
+                with: NSSize(width: columnWidth - pad * 2, height: .greatestFiniteMagnitude),
+                options: [.usesLineFragmentOrigin, .usesFontLeading],
+                attributes: [.font: font])
+            return ceil(bounds.height)
+        }
+        let headerHeight = columns.indices
+            .map { cellHeight(columns[$0], columnWidth: widths[$0], font: headerFont) }
+            .max()! + pad * 2
+        let rowHeights = rows.map { row in
+            columns.indices.map { cellHeight(row[$0], columnWidth: widths[$0], font: cellFont) }
+                .max()! + pad * 2
+        }
+
+        // Chunk rows so each image (header repeated) fits within a page.
+        let maxChunkHeight: CGFloat = 620
+        var chunks: [[Int]] = []
+        var current: [Int] = []
+        var height = headerHeight
+        for (i, h) in rowHeights.enumerated() {
+            if !current.isEmpty, height + h > maxChunkHeight {
+                chunks.append(current)
+                current = []
+                height = headerHeight
+            }
+            current.append(i)
+            height += h
+        }
+        if !current.isEmpty { chunks.append(current) }
+
+        func drawChunk(_ indices: [Int]) -> NSImage {
+            let heights = [headerHeight] + indices.map { rowHeights[$0] }
+            let totalHeight = heights.reduce(0, +)
+            let size = NSSize(width: width, height: totalHeight)
+            return NSImage(size: size, flipped: true) { _ in
+                NSColor.white.setFill()
+                NSRect(origin: .zero, size: size).fill()
+
+                // Backgrounds first.
+                var y: CGFloat = 0
+                for (rowIndex, rowHeight) in heights.enumerated() {
+                    defer { y += rowHeight }
+                    if rowIndex == 0 {
+                        if !open {
+                            NSColor(white: 0.92, alpha: 1).setFill()
+                            NSRect(x: 0, y: y, width: width, height: rowHeight).fill()
+                        }
+                    } else if shade, indices[rowIndex - 1] % 2 == 1 {
+                        NSColor(white: 0.955, alpha: 1).setFill()
+                        NSRect(x: 0, y: y, width: width, height: rowHeight).fill()
+                    }
+                }
+
+                // Cell text, wrapped inside its column.
+                y = 0
+                for (rowIndex, rowHeight) in heights.enumerated() {
+                    let cells = rowIndex == 0 ? columns : rows[indices[rowIndex - 1]]
+                    let font = rowIndex == 0 ? headerFont : cellFont
+                    var x: CGFloat = 0
+                    for (col, columnWidth) in widths.enumerated() where col < cells.count {
+                        (cells[col] as NSString).draw(
+                            in: NSRect(x: x + pad, y: y + pad,
+                                       width: columnWidth - pad * 2, height: rowHeight - pad * 2),
+                            withAttributes: [.font: font, .foregroundColor: NSColor.black])
+                        x += columnWidth
+                    }
+                    y += rowHeight
+                }
+
+                // Rules.
+                NSColor.black.setStroke()
+                func hLine(_ atY: CGFloat, _ lineWidth: CGFloat) {
+                    let path = NSBezierPath()
+                    path.lineWidth = lineWidth
+                    path.move(to: NSPoint(x: 0, y: atY))
+                    path.line(to: NSPoint(x: width, y: atY))
+                    path.stroke()
+                }
+                var boundaries: [CGFloat] = [0]
+                var acc: CGFloat = 0
+                for h in heights { acc += h; boundaries.append(acc) }
+                if open {
+                    hLine(0.5, 1.2)                                  // top rule
+                    hLine(boundaries[1], 0.9)                        // header rule
+                    hLine(totalHeight - 0.5, 1.2)                    // bottom rule
+                    if !shade {
+                        for b in boundaries.dropFirst(2).dropLast() { hLine(b, 0.4) }
+                    }
+                } else {
+                    for b in boundaries { hLine(min(max(b, 0.4), totalHeight - 0.4), 0.6) }
+                    var xs: [CGFloat] = [0]
+                    var xAcc: CGFloat = 0
+                    for w in widths { xAcc += w; xs.append(xAcc) }
+                    for xb in xs {
+                        let path = NSBezierPath()
+                        path.lineWidth = 0.6
+                        let x = min(max(xb, 0.4), width - 0.4)
+                        path.move(to: NSPoint(x: x, y: 0))
+                        path.line(to: NSPoint(x: x, y: totalHeight))
+                        path.stroke()
+                    }
+                }
+                return true
+            }
         }
 
         let out = NSMutableAttributedString()
-        out.append(rowString(result.columns, font: headerFont))
-        out.append(rowString(result.columns.map { _ in "—" }, font: cellFont))
-        for row in result.rows.prefix(200) {
-            out.append(rowString(row, font: cellFont))
+        for chunk in chunks {
+            let image = drawChunk(chunk)
+            let attachment = NSTextAttachment()
+            attachment.image = image
+            attachment.bounds = CGRect(origin: .zero, size: image.size)
+            let style = NSMutableParagraphStyle()
+            style.paragraphSpacing = 4
+            let block = NSMutableAttributedString(attributedString: NSAttributedString(attachment: attachment))
+            block.addAttribute(.paragraphStyle, value: style, range: NSRange(location: 0, length: block.length))
+            block.append(NSAttributedString(string: "\n", attributes: [.font: base]))
+            out.append(block)
         }
-        if result.rows.count > 200 {
-            out.append(line("… \(result.rows.count - 200) more rows (see data)", font: meta, color: .darkGray, after: 4))
-        }
-        out.append(NSAttributedString(string: "\n", attributes: [.font: base]))
         return out
     }
 
@@ -961,13 +1193,12 @@ private struct OutlineBuilder {
             }
             let number = refContext.tables[table.id]?.number ?? table.number
             out.append(line("Table \(number). \(table.title)", font: meta, color: .darkGray, after: 2))
-            if let result = tableData?(table), !result.columns.isEmpty {
-                out.append(queryTableBlock(result))
-            } else if !table.content.isEmpty {
-                out.append(line(table.content, font: base, after: 2))
-            }
+            out.append(tableBody(table))
             if !table.caption.isEmpty {
-                out.append(line(table.caption, font: meta, color: .darkGray, after: 6))
+                out.append(line(table.caption, font: meta, color: .darkGray, after: 2))
+            }
+            if !table.footnotes.isEmpty {
+                out.append(line("Note. \(table.footnotes)", font: meta, color: .darkGray, after: 6))
             }
         default:
             break
@@ -1003,7 +1234,12 @@ private struct PDFPaginator {
         let columnWidth = (contentRect.width - gap * CGFloat(columns - 1)) / CGFloat(columns)
 
         var lineNumber = 1
-        for segment in segments where segment.length > 0 {
+        for raw in segments where raw.length > 0 {
+            // CoreText ignores NSTextAttachment: without run delegates the
+            // layout collapses images (charts, letterheads, signatures,
+            // table grids) to nothing.  Reserve their space here and draw
+            // them ourselves after each frame.
+            let segment = withAttachmentDelegates(raw)
             let framesetter = CTFramesetterCreateWithAttributedString(segment)
             var location = 0
             while location < segment.length {
@@ -1015,6 +1251,7 @@ private struct PDFPaginator {
                         framesetter, CFRange(location: location, length: 0),
                         CGPath(rect: rect, transform: nil), nil)
                     CTFrameDraw(frame, ctx)
+                    drawAttachments(frame, frameRect: rect, context: ctx)
                     drawLineNumbers(frame, segment: segment, columnRect: rect,
                                     context: ctx, next: &lineNumber)
                     let visible = CTFrameGetVisibleStringRange(frame)
@@ -1026,6 +1263,68 @@ private struct PDFPaginator {
         }
         ctx.closePDF()
         return data as Data
+    }
+
+    /// Sizing box handed to each attachment's CTRunDelegate.
+    private final class AttachmentBox {
+        let size: CGSize
+        init(size: CGSize) { self.size = size }
+    }
+
+    /// Wraps every NSTextAttachment run in a CTRunDelegate so CoreText
+    /// reserves the image's bounds during layout.
+    private func withAttachmentDelegates(_ input: NSAttributedString) -> NSAttributedString {
+        let out = NSMutableAttributedString(attributedString: input)
+        input.enumerateAttribute(.attachment, in: NSRange(location: 0, length: input.length)) { value, range, _ in
+            guard let attachment = value as? NSTextAttachment else { return }
+            var size = attachment.bounds.size
+            if size == .zero { size = attachment.image?.size ?? .zero }
+            guard size.width > 0, size.height > 0 else { return }
+            var callbacks = CTRunDelegateCallbacks(
+                version: kCTRunDelegateCurrentVersion,
+                dealloc: { Unmanaged<AttachmentBox>.fromOpaque($0).release() },
+                getAscent: { Unmanaged<AttachmentBox>.fromOpaque($0).takeUnretainedValue().size.height },
+                getDescent: { _ in 0 },
+                getWidth: { Unmanaged<AttachmentBox>.fromOpaque($0).takeUnretainedValue().size.width })
+            let box = AttachmentBox(size: size)
+            if let delegate = CTRunDelegateCreate(&callbacks, Unmanaged.passRetained(box).toOpaque()) {
+                out.addAttribute(NSAttributedString.Key(kCTRunDelegateAttributeName as String),
+                                 value: delegate, range: range)
+            }
+        }
+        return out
+    }
+
+    /// Draws attachment images at their laid-out positions (run delegates
+    /// only reserve space; the pixels are ours to paint).
+    private func drawAttachments(_ frame: CTFrame, frameRect: CGRect, context: CGContext) {
+        guard let lines = CTFrameGetLines(frame) as? [CTLine], !lines.isEmpty else { return }
+        var origins = [CGPoint](repeating: .zero, count: lines.count)
+        CTFrameGetLineOrigins(frame, CFRange(location: 0, length: 0), &origins)
+        for (line, origin) in zip(lines, origins) {
+            guard let runs = CTLineGetGlyphRuns(line) as? [CTRun] else { continue }
+            for run in runs {
+                let attrs = CTRunGetAttributes(run) as NSDictionary
+                guard let attachment = attrs[NSAttributedString.Key.attachment] as? NSTextAttachment,
+                      let image = attachment.image else { continue }
+                var size = attachment.bounds.size
+                if size == .zero { size = image.size }
+                guard size.width > 0, size.height > 0 else { continue }
+                let xOffset = CTLineGetOffsetForStringIndex(
+                    line, CTRunGetStringRange(run).location, nil)
+                let rect = CGRect(x: frameRect.minX + origin.x + xOffset,
+                                  y: frameRect.minY + origin.y,
+                                  width: size.width, height: size.height)
+                // Rasterize at 3× so drawn tables/handler-backed images stay
+                // crisp in print (bitmap-backed images just return their rep).
+                let zoom = NSAffineTransform()
+                zoom.scale(by: 3)
+                if let cg = image.cgImage(forProposedRect: nil, context: nil,
+                                          hints: [.ctm: zoom]) {
+                    context.draw(cg, in: rect)
+                }
+            }
+        }
     }
 
     /// Continuous line numbers in the margin left of each column — only for

@@ -98,38 +98,52 @@ struct SyncView: View {
 
     private var savingCard: some View {
         let m = store.manuscript
+        // Equal-width columns so the two Save buttons sit evenly.
         return HStack(spacing: 16) {
             VStack(alignment: .leading, spacing: 3) {
                 Button {
-                    store.trySave()
+                    store.trySave()   // always writes the file, dirty or not
+                    if let error = store.saveError {
+                        showError("Local save failed: \(error)")
+                    } else {
+                        showSuccess("Saved to disk at \((store.lastSaved ?? Date()).formatted(date: .omitted, time: .standard)).")
+                    }
                 } label: {
                     Label("Save (Local)", systemImage: "internaldrive")
                 }
-                Text(m.map { "Edited \($0.updatedAt.formatted(date: .abbreviated, time: .shortened))" } ?? "—")
+                Text(store.lastSaved.map { "Saved \($0.formatted(date: .abbreviated, time: .shortened))" }
+                     ?? m.map { "Edited \($0.updatedAt.formatted(date: .abbreviated, time: .shortened))" } ?? "—")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
+            .frame(width: 250, alignment: .leading)
 
             Divider().frame(height: 40)
 
             VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 8) {
-                    Button {
-                        store.saveToRemote(appStore: appStore)
-                    } label: {
-                        Label("Save (Remote)", systemImage: "icloud.and.arrow.up")
-                    }
-                    .disabled(store.isRemoteBusy)
+                Button {
+                    store.saveToRemote(appStore: appStore)
+                } label: {
+                    Label("Save (Remote)", systemImage: "icloud.and.arrow.up")
                 }
+                .disabled(store.isRemoteBusy)
                 Text(m?.lastSyncedAt.map { "Synced \($0.formatted(date: .abbreviated, time: .shortened))" }
                      ?? "Never synced — configure a backend in Manuscript → Backend")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
+            .frame(width: 250, alignment: .leading)
 
             Spacer()
 
             if store.isRemoteBusy { ProgressView().controlSize(.small) }
+        }
+        // The push completes asynchronously — banner it like a sync.
+        .onChange(of: store.remoteStatus) { _, new in
+            if let new { showSuccess("Successfully saved to remote — \(new).") }
+        }
+        .onChange(of: store.remoteError) { _, new in
+            if let new { showError("Remote save failed: \(new)") }
         }
         .padding(14)
         .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
@@ -161,18 +175,25 @@ struct SyncView: View {
         return out
     }
 
-    /// Parent/child blocks contiguous: no vertical gap, children tabbed on
-    /// the left with right edges aligned to the parent's.
+    /// One connected container — the tree reads like a dropdown unfolding
+    /// from Source: uniform row heights, children indented (narrower), rows
+    /// separated by hairlines instead of being distinct boxes.
     private var lineageTree: some View {
-        VStack(alignment: .trailing, spacing: 1) {
+        VStack(spacing: 0) {
             sourceRow
             ForEach(flattenedTree, id: \.journal.id) { entry in
+                Divider()
                 journalRow(entry.journal)
-                    .frame(width: cardWidth - CGFloat(entry.depth + 1) * indent)
+                    .padding(.leading, CGFloat(entry.depth + 1) * indent)
             }
         }
-        .frame(width: cardWidth, alignment: .trailing)
+        .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
+        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.separator, lineWidth: 1))
+        .frame(width: cardWidth)
     }
+
+    /// Uniform row height across Source and journal rows.
+    private let rowHeight: CGFloat = 66
 
     // MARK: Source (root) row
 
@@ -182,7 +203,7 @@ struct SyncView: View {
             Image(systemName: "doc.text")
                 .font(.title3)
                 .foregroundStyle(Color.accentColor)
-                .frame(width: 52, height: 52)
+                .frame(width: 40, height: 40)
                 .background(Circle().fill(Color.accentColor.opacity(0.1)))
                 .overlay(Circle().strokeBorder(Color.accentColor.opacity(0.8), lineWidth: 1.5))
             VStack(alignment: .leading, spacing: 2) {
@@ -192,30 +213,27 @@ struct SyncView: View {
                         .font(.caption.weight(.semibold).monospacedDigit())
                         .foregroundStyle(.secondary)
                 }
-                Text("Original source of manuscript content."
-                     + (store.sourceHasUnstampedChanges
-                        ? " Has edits since its last stamp — stamp it in the Versions tab before journals sync from it."
-                        : ""))
+                Text("Last edited \(store.manuscript?.updatedAt.formatted(date: .abbreviated, time: .shortened) ?? "—")")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
             Spacer()
         }
-        .padding(14)
-        .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
-        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.separator, lineWidth: 1))
-        .frame(width: cardWidth)
+        .padding(.horizontal, 14)
+        .frame(height: rowHeight)
     }
 
     // MARK: Journal rows
 
-    /// Whether syncing this journal requires stamping its upstream first.
-    private func upstreamNeedsStamp(_ journal: Journal) -> Bool {
-        guard let source = store.syncSource(forJournal: journal.id) else { return false }
-        if let upstreamID = source.upstreamJournalID {
-            return store.headHasUnstampedChanges(journalID: upstreamID)
+    /// The journal's lineage icon — configured per journal in the app
+    /// settings library (falls back to the manuscript's own copy, then "?").
+    private func journalIcon(_ journal: Journal) -> String {
+        let name = appStore.journalLibrary.first(where: { $0.name == journal.name })?.icon
+            ?? journal.icon
+        if let name, NSImage(systemSymbolName: name, accessibilityDescription: nil) != nil {
+            return name
         }
-        return store.sourceHasUnstampedChanges
+        return "questionmark"
     }
 
     @ViewBuilder
@@ -224,19 +242,24 @@ struct SyncView: View {
         let source = store.syncSource(forJournal: journal.id)
 
         HStack(spacing: 12) {
-            // Edge badge: which upstream version the head hangs from.
-            edgeBadge(for: head)
+            // The journal's configured icon (Preferences → Journals).
+            Image(systemName: journalIcon(journal))
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .frame(width: 32, height: 32)
+                .background(Circle().fill(Color(NSColor.windowBackgroundColor)))
+                .overlay(Circle().strokeBorder(.primary.opacity(0.35), lineWidth: 1))
 
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 8) {
                     Text(journal.name).font(.headline)
-                    if let head {
+                    if head != nil {
                         let count = store.versions(forJournal: journal.id).count
                         Text(count > 1 ? "v\(count - 1) / latest" : "latest")
                             .font(.caption.weight(.semibold).monospacedDigit())
                             .foregroundStyle(.secondary)
-                        let _ = head   // silence unused in release analysis
                     }
+                    edgeBadge(for: head)
                 }
                 statusLine(journal, head: head, source: source)
             }
@@ -262,12 +285,11 @@ struct SyncView: View {
                 .help("Fast-forward \(journal.name) from \(source?.upstreamName ?? "upstream")")
             }
         }
-        .padding(12)
-        .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
-        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(.separator, lineWidth: 1))
+        .padding(.horizontal, 12)
+        .frame(height: rowHeight)
     }
 
-    /// The small circle showing which upstream version the head hangs from.
+    /// Small inline chip showing which upstream version the head hangs from.
     @ViewBuilder
     private func edgeBadge(for head: ManuscriptVersion?) -> some View {
         if let head, let pid = head.parentID,
@@ -275,64 +297,38 @@ struct SyncView: View {
             let label = parent.sourceStamp == true
                 ? "S\(store.sourceOrdinal(of: parent))"
                 : "v\(store.journalOrdinal(of: parent))"
-            Text(label)
-                .font(.caption.weight(.bold).monospacedDigit())
-                .frame(width: 36, height: 36)
-                .background(Circle().fill(Color(NSColor.windowBackgroundColor)))
-                .overlay(Circle().strokeBorder(.primary.opacity(0.45), lineWidth: 1.25))
+            Text("from \(label)")
+                .font(.caption2.weight(.semibold).monospacedDigit())
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 6).padding(.vertical, 1)
+                .background(Capsule().fill(Color(NSColor.windowBackgroundColor)))
+                .overlay(Capsule().strokeBorder(.primary.opacity(0.25), lineWidth: 1))
                 .help("Derived from \(parent.sourceStamp == true ? "Source stamp" : "upstream version") \(label)")
-        } else if head != nil {
-            Image(systemName: "doc.text")
-                .frame(width: 36, height: 36)
-                .background(Circle().fill(Color(NSColor.windowBackgroundColor)))
-                .overlay(Circle().strokeBorder(.primary.opacity(0.45), lineWidth: 1.25))
-                .help("Cut from the live Source")
-        } else {
-            Text("—")
-                .frame(width: 36, height: 36)
-                .foregroundStyle(.tertiary)
         }
     }
 
-    /// Drift status: current / upstream moved / upstream itself stale.
+    /// Status caption: last synced · last edited, plus the actionable
+    /// fast-forward hint when the upstream has a newer stamp.
     @ViewBuilder
     private func statusLine(_ journal: Journal, head: ManuscriptVersion?,
                             source: (upstreamJournalID: UUID?, upstreamName: String, targetVersion: ManuscriptVersion?)?) -> some View {
-        if head == nil {
-            Text("No versions yet — Add Journal creates one automatically; older journals can sync to start.")
+        if let head {
+            let synced = store.lastSynced(journalID: journal.id)
+                .map { $0.formatted(date: .abbreviated, time: .shortened) } ?? "never"
+            let edited = head.content.updatedAt.formatted(date: .abbreviated, time: .shortened)
+            Text("Last synced \(synced) · Last edited \(edited)")
                 .font(.caption)
-                .foregroundStyle(.tertiary)
-        } else if let source {
-            let behindStamp = source.targetVersion.map { $0.id != head?.parentID } ?? false
-            if behindStamp {
+                .foregroundStyle(.secondary)
+            if let source, source.targetVersion.map({ $0.id != head.parentID }) ?? false {
                 Label("\(source.upstreamName) has moved — fast-forward available",
                       systemImage: "arrow.triangle.2.circlepath")
                     .font(.caption)
                     .foregroundStyle(.blue)
-            } else if upstreamNeedsStamp(journal) {
-                // Current with the last stamp; the upstream just has newer
-                // unstamped edits.  Calm note, not an alarm.
-                VStack(alignment: .leading, spacing: 2) {
-                    Label("Up to date with \(source.upstreamName)'s last stamp",
-                          systemImage: "checkmark.circle")
-                        .font(.caption)
-                        .foregroundStyle(.green)
-                    Text("\(source.upstreamName) has newer edits — stamp \(source.upstreamName) in its Versions tab, then Sync to pull them.")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-            } else if let upstreamID = source.upstreamJournalID,
-                      store.syncSource(forJournal: upstreamID)?.targetVersion?.id
-                        != store.latestVersion(forJournal: upstreamID)?.parentID {
-                Label("Up to date with \(source.upstreamName), but \(source.upstreamName) is behind its own upstream — sync it first",
-                      systemImage: "exclamationmark.arrow.triangle.2.circlepath")
-                    .font(.caption)
-                    .foregroundStyle(.orange)
-            } else {
-                Label("Up to date with \(source.upstreamName)", systemImage: "checkmark.circle")
-                    .font(.caption)
-                    .foregroundStyle(.green)
             }
+        } else {
+            Text("No versions yet — Add Journal creates one automatically; older journals can sync to start.")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
         }
     }
 
@@ -348,7 +344,8 @@ struct SyncView: View {
         } else {
             message += "\n\nNo AI is connected — this is a straight copy."
         }
-        if let target = source?.targetVersion, !upstreamNeedsStamp(journal) {
+        // The precheck already guaranteed the upstream stamp is current.
+        if let target = source?.targetVersion {
             let when = target.sourceSnapshotDate.formatted(date: .abbreviated, time: .omitted)
             let label = target.sourceStamp == true
                 ? "Source v\(store.sourceOrdinal(of: target))"

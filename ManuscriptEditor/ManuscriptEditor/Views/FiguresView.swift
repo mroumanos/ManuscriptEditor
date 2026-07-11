@@ -332,7 +332,9 @@ struct FigureEditor: View {
     // MARK: - Data source section
 
     private var csvAssets: [DataAsset] {
-        (store.manuscript(for: versionRef)?.dataAssets ?? []).filter { $0.type == .csv }
+        // Data is global: every journal reads the shared Data repository —
+        // only the view on it (SQL, formatting) is journal-specific.
+        (store.manuscript?.dataAssets ?? []).filter { $0.type == .csv }
     }
 
     @ViewBuilder

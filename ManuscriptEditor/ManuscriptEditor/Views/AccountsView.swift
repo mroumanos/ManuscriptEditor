@@ -106,6 +106,14 @@ struct AccountsView: View {
                                     .font(.caption).foregroundStyle(.secondary)
                             }
                             Spacer()
+                            Button {
+                                delete(account)
+                            } label: {
+                                Image(systemName: "minus.circle.fill")
+                                    .foregroundStyle(.red)
+                            }
+                            .buttonStyle(.plain)
+                            .help("Remove this account (its Keychain secret included)")
                         }
                         .padding(.vertical, 3)
                         .tag(account.id)
@@ -324,13 +332,6 @@ struct BackendAccountForm: View {
                     Text(draft.provider.description)
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    Button(role: .destructive) {
-                        if let idx = appStore.backends.firstIndex(where: { $0.id == account.id }) {
-                            appStore.deleteBackends(at: IndexSet([idx]))
-                        }
-                    } label: {
-                        Text("Remove Account").foregroundStyle(.red)
-                    }
                 }
             }
             .formStyle(.grouped)
@@ -391,14 +392,6 @@ struct AIAccountForm: View {
                     Text(draft.provider.description)
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    Button(role: .destructive) {
-                        if let idx = appStore.aiServices.firstIndex(where: { $0.id == account.id }) {
-                            KeychainService.deleteSecret(for: account.id)
-                            appStore.deleteAIServices(at: IndexSet([idx]))
-                        }
-                    } label: {
-                        Text("Remove Account").foregroundStyle(.red)
-                    }
                 }
             }
             .formStyle(.grouped)

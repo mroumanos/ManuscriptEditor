@@ -146,6 +146,20 @@ private struct LibraryJournalForm: View {
                         set: { draft.country = $0.isEmpty ? nil : $0 }
                     ))
                     TextField("Submission URL", text: $draft.submissionURL)
+                    // Lineage icon: any SF Symbol name; "?" when unset.
+                    HStack(spacing: 10) {
+                        TextField("Icon (SF Symbol name)", text: Binding(
+                            get: { draft.icon ?? "" },
+                            set: { draft.icon = $0.isEmpty ? nil : $0 }
+                        ))
+                        Image(systemName: draft.icon.flatMap {
+                            NSImage(systemSymbolName: $0, accessibilityDescription: nil) != nil ? $0 : nil
+                        } ?? "questionmark")
+                            .font(.title3)
+                            .foregroundStyle(.secondary)
+                            .frame(width: 28)
+                            .help("Shown for this journal in the sync lineage")
+                    }
                 }
 
                 Section("Requirements") {
@@ -191,6 +205,7 @@ private struct LibraryJournalForm: View {
         .onChange(of: draft.publisher)     { _, _ in appStore.upsertLibraryJournal(draft) }
         .onChange(of: draft.country)       { _, _ in appStore.upsertLibraryJournal(draft) }
         .onChange(of: draft.submissionURL) { _, _ in appStore.upsertLibraryJournal(draft) }
+        .onChange(of: draft.icon)          { _, _ in appStore.upsertLibraryJournal(draft) }
         .onChange(of: draft.requirements.maxBodyWords)     { _, _ in appStore.upsertLibraryJournal(draft) }
         .onChange(of: draft.requirements.maxAbstractWords) { _, _ in appStore.upsertLibraryJournal(draft) }
         .onChange(of: draft.requirements.maxFigures)       { _, _ in appStore.upsertLibraryJournal(draft) }

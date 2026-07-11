@@ -216,7 +216,17 @@ Notes are a first-class way to leave feedback for oneself or collaborators,
 - `Figure`: `number, title, caption, altText, fileName?` + optional binding
   `dataAssetID?, chartType?(.line/.bar/.histogram), chartQuery?`.
 - `ManuscriptTable`: `number, title, caption, footnotes, content(Markdown)` +
-  optional `dataAssetID?, dataQuery?`.
+  optional `dataAssetID?, dataQuery?` + export formatting `openSides?`
+  (horizontal rules only) and `alternateShading?`; `footnotes` export as a
+  "Note." paragraph beneath the table.
+- `Manuscript` additions: `articleTitle?` (journal-facing title, versioned per
+  cut — the project name stays in `title`), `paneTitles?`/`hiddenPanes?`
+  (sidebar rename/hide of the fixed Figures/Tables/Bibliography/Letter panes).
+- `Journal.icon?`: SF Symbol shown in the sync lineage ("?" when unset),
+  configured in the app-settings Journals library.
+- **Data is global**: every journal (Source included) reads the one Data
+  repository; only the *view* on it — SQL + formatting on figures/tables — is
+  versioned content. `dataAssets` are excluded from sync content checksums.
 - `BibEntry`: key, type, authors[], title, year, journal/volume/issue/pages, doi,
   url, note; `authorsFormatted`. **Zotero linkage (refinement):** an optional
   `zoteroKey` links an entry to a local Zotero item so it can be re-synced

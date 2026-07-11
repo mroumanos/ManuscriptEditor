@@ -46,6 +46,14 @@ struct ManuscriptCommands: Commands {
             Button("Open Manuscript (Remote)…") {
                 NotificationCenter.default.post(name: .newManuscriptRemote, object: nil)
             }
+
+            Divider()
+
+            // Curate the known-manuscripts list: register existing project
+            // folders, rename titles, drop entries, or trash whole projects.
+            Button("Manage Manuscripts…") {
+                NotificationCenter.default.post(name: .manageManuscripts, object: nil)
+            }
         }
 
         // Saving lives under File: local = to the manuscript folder on disk,
@@ -98,6 +106,8 @@ extension Notification.Name {
     static let newManuscript  = Notification.Name("ManuscriptEditor.newManuscript")
     /// Posted when the user chooses File → Open Manuscript (Local)… (⌘O).
     static let openManuscriptLocal = Notification.Name("ManuscriptEditor.openManuscriptLocal")
+    /// File → Manage Manuscripts… (curate the known-projects list).
+    static let manageManuscripts = Notification.Name("ManuscriptEditor.manageManuscripts")
     /// Posted when the user chooses File → Open Manuscript (Remote)….
     static let newManuscriptRemote = Notification.Name("ManuscriptEditor.newManuscriptRemote")
     /// Posted when the user chooses File → Save (Local) (⌘S).

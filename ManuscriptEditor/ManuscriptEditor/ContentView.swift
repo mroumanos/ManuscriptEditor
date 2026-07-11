@@ -40,6 +40,7 @@ enum SidebarItem: Hashable {
     case manuscriptAI
 
     // ── Content ─────────────────────────────────────────────────────────────
+    case title
     case authors
     case abstract
     case keywords
@@ -52,7 +53,7 @@ enum SidebarItem: Hashable {
     /// Content items are editable prose/component views.
     var isContent: Bool {
         switch self {
-        case .authors, .abstract, .keywords, .section,
+        case .title, .authors, .abstract, .keywords, .section,
              .figures, .tables, .bibliography, .letterToEditor:
             return true
         case .overview, .sync, .checks, .export, .data, .versions,
@@ -80,6 +81,7 @@ enum SidebarItem: Hashable {
         case .versions:           return "versions"
         case .manuscriptBackend:  return "settings"      // keeps old note anchors
         case .manuscriptAI:       return "settings-ai"
+        case .title:              return "title"
         case .authors:            return "authors"
         case .abstract:           return "abstract"
         case .keywords:           return "keywords"
@@ -144,6 +146,8 @@ struct ContentView: View {
     @State private var pendingNew: PendingNew?
     /// Drives the Open Manuscript (Remote) sheet.
     @State private var showingNewRemote = false
+    /// Drives File → Manage Manuscripts….
+    @State private var showingManage = false
     /// Open/Export project failures (bad folder, zip error).
     @State private var projectError: String?
 
@@ -236,6 +240,9 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: .saveManuscript)) { _ in
             store.trySave()
         }
+        .onReceive(NotificationCenter.default.publisher(for: .manageManuscripts)) { _ in
+            showingManage = true
+        }
         .onReceive(NotificationCenter.default.publisher(for: .exportManuscript)) { _ in
             if store.manuscript != nil { showingExport = true }
         }
@@ -301,6 +308,9 @@ struct ContentView: View {
                 activeTab = .source
                 compareTabs = [.source]
             }
+        }
+        .sheet(isPresented: $showingManage) {
+            ManageManuscriptsSheet(isPresented: $showingManage)
         }
     }
 
@@ -454,6 +464,7 @@ struct ContentView: View {
     @ViewBuilder
     private func contentView(for item: SidebarItem, ref: VersionRef) -> some View {
         switch item {
+        case .title:             TitleView(versionRef: ref)
         case .authors:           AuthorsView(versionRef: ref)
         case .abstract:          AbstractView(versionRef: ref)
         case .keywords:          KeywordsView(versionRef: ref)
@@ -535,6 +546,7 @@ struct DetailRouter: View {
         case .versions:             VersionsView()
         case .manuscriptBackend:    ManuscriptBackendView()
         case .manuscriptAI:         ManuscriptAIView()
+        case .title:                TitleView()
         case .authors:              AuthorsView()
         case .abstract:             AbstractView()
         case .keywords:             KeywordsView()

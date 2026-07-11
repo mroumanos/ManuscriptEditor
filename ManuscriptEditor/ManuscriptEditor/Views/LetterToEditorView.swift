@@ -164,7 +164,8 @@ struct LetterToEditorView: View {
             .padding([.horizontal, .top], 16)
             .padding(.bottom, 8)
             Divider()
-            RichEditor(value: $draft.body, placeholder: "Dear Editor,…", versionRef: versionRef)
+            RichEditor(value: $draft.body, placeholder: "Dear Editor,…",
+                       versionRef: versionRef, letterMode: true)
         }
     }
 
@@ -309,15 +310,21 @@ private struct HeaderSlotEditor: View {
         }
     }
 
-    /// Picks an image file and stores it (downscaled) in the slot.  Logos are
-    /// embedded in manuscript.json, so large photos are capped at 1000 px.
+    /// Picks an image file and stores it in the slot.  SVGs keep their raw
+    /// vector bytes (they scale cleanly in previews and exports); raster
+    /// images are downscaled — logos embed in manuscript.json, so large
+    /// photos are capped at 1000 px.
     private func chooseImage() {
         let panel = NSOpenPanel()
-        panel.allowedContentTypes = [.png, .jpeg, .tiff, .heic]
+        panel.allowedContentTypes = [.png, .jpeg, .tiff, .heic, .svg]
         panel.allowsMultipleSelection = false
-        guard panel.runModal() == .OK, let url = panel.url,
-              let image = NSImage(contentsOf: url) else { return }
-        slot.imageData = image.pngData(maxDimension: 1000)
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        if url.pathExtension.lowercased() == "svg",
+           let data = try? Data(contentsOf: url), NSImage(data: data) != nil {
+            slot.imageData = data
+        } else if let image = NSImage(contentsOf: url) {
+            slot.imageData = image.pngData(maxDimension: 1000)
+        }
     }
 }
 

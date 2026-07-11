@@ -43,6 +43,10 @@ struct Journal: Codable, Identifiable, Sendable {
     /// settings Journals library.  Optional for backward compatibility.
     var country: String? = nil
 
+    /// SF Symbol shown for this journal in the sync lineage (configured in
+    /// the app-settings Journals library).  nil renders as a question mark.
+    var icon: String? = nil
+
     /// This journal's export outline (documents, ordering, page breaks,
     /// format, file types).  `nil` means "not customized yet" — the Export
     /// pane shows `ExportConfig.standard` until the user edits it.

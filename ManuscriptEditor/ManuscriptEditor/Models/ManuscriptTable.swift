@@ -41,6 +41,15 @@ struct ManuscriptTable: Codable, Identifiable, Sendable {
     /// SQL SELECT query run against the linked DataAsset to populate table rows.
     var dataQuery: String?
 
+    // MARK: - Export formatting (optional — older files keep decoding)
+
+    /// Journal style: horizontal rules only (open left/right sides) instead
+    /// of a fully boxed grid.
+    var openSides: Bool? = nil
+
+    /// Light shading on alternating data rows.
+    var alternateShading: Bool? = nil
+
     // MARK: - Factory
 
     /// A blank table with a starter template already in `content`.

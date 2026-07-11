@@ -194,6 +194,56 @@ final class ManuscriptStore {
         return nil
     }
 
+    /// Registers an existing project folder in the known list **without**
+    /// opening it (Manage Manuscripts → Add).  Returns an error, or nil.
+    func addKnown(folder: URL) -> String? {
+        let json = folder.appendingPathComponent("manuscript.json")
+        guard FileManager.default.fileExists(atPath: json.path) else {
+            return "That folder doesn't contain a manuscript.json — pick a project folder created or exported by Manuscript Editor."
+        }
+        do {
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            let decoded = try decoder.decode(Manuscript.self, from: Data(contentsOf: json))
+            persistence.setCustomFolder(folder, for: decoded.id)
+            return nil
+        } catch {
+            return "Couldn't read manuscript.json: \(error.localizedDescription)"
+        }
+    }
+
+    /// Drops a manuscript from the known list without touching its files
+    /// (Manage Manuscripts → Remove from List).
+    func forgetManuscript(id: UUID) {
+        persistence.forget(id: id)
+        if UserDefaults.standard.string(forKey: "lastOpenedManuscriptID") == id.uuidString {
+            UserDefaults.standard.removeObject(forKey: "lastOpenedManuscriptID")
+        }
+    }
+
+    /// Renames a manuscript's project title in place, open or not.
+    /// Returns an error message, or nil.
+    func renameManuscript(id: UUID, to title: String) -> String? {
+        guard !title.isEmpty else { return nil }
+        if manuscript?.id == id {
+            updateTitle(title)
+            trySave()
+            return nil
+        }
+        let json = persistence.manuscriptDirectory(for: id).appendingPathComponent("manuscript.json")
+        do {
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            var m = try decoder.decode(Manuscript.self, from: Data(contentsOf: json))
+            m.title = title
+            m.updatedAt = Date()
+            try persistence.save(m)
+            return nil
+        } catch {
+            return "Couldn't rename: \(error.localizedDescription)"
+        }
+    }
+
     // MARK: - Persistence
 
     func trySave() {
@@ -211,7 +261,38 @@ final class ManuscriptStore {
 
     func updateTitle(_ title: String)               { touch { $0.title = title } }
     func updateAbout(_ text: String)                { touch { $0.about = text.isEmpty ? nil : text } }
-    func updateRunningTitle(_ title: String)        { touch { $0.runningTitle = title } }
+    func updateRunningTitle(_ title: String, ref: VersionRef = .source) { touch(ref) { $0.runningTitle = title } }
+    /// The journal-facing article title — versioned content (Title pane).
+    func updateArticleTitle(_ title: String, ref: VersionRef = .source) {
+        touch(ref) { $0.articleTitle = title.isEmpty ? nil : title }
+    }
+
+    // MARK: - Fixed content panes (rename/hide)
+
+    /// The display name of a fixed pane ("figures", "tables", …).
+    func paneTitle(_ key: String, default def: String) -> String {
+        manuscript?.paneTitles?[key] ?? def
+    }
+
+    func renamePane(_ key: String, to title: String) {
+        touch {
+            var titles = $0.paneTitles ?? [:]
+            titles[key] = title.isEmpty ? nil : title
+            $0.paneTitles = titles.isEmpty ? nil : titles
+        }
+    }
+
+    func isPaneHidden(_ key: String) -> Bool {
+        manuscript?.hiddenPanes?.contains(key) ?? false
+    }
+
+    func setPaneHidden(_ key: String, hidden: Bool) {
+        touch {
+            var keys = Set($0.hiddenPanes ?? [])
+            if hidden { keys.insert(key) } else { keys.remove(key) }
+            $0.hiddenPanes = keys.isEmpty ? nil : keys.sorted()
+        }
+    }
     func updateAbstract(_ abstract: RichText, ref: VersionRef = .source) { touch(ref) { $0.abstract = abstract } }
     func updateKeywords(_ keywords: [String], ref: VersionRef = .source) { touch(ref) { $0.keywords = keywords } }
 
@@ -665,6 +746,20 @@ final class ManuscriptStore {
         (versions(forJournal: version.journalID).firstIndex { $0.id == version.id } ?? 0) + 1
     }
 
+    /// When content last crossed this journal's upstream edge — the creation
+    /// date of its newest head whose parent lives in another chain (the
+    /// original cut counts).  nil = never synced.
+    func lastSynced(journalID: UUID) -> Date? {
+        for v in versions(forJournal: journalID).reversed() {
+            guard let pid = v.parentID else { return v.createdAt }   // cut from live Source
+            if let parent = versions.first(where: { $0.id == pid }),
+               parent.journalID != journalID {
+                return v.createdAt
+            }
+        }
+        return nil
+    }
+
     // MARK: - Stamping (freeze the working head as a version)
 
     /// Signs a freshly-cut version with the user's identity key.
@@ -688,6 +783,9 @@ final class ManuscriptStore {
         normalized.updatedAt = .distantPast
         normalized.lastSyncedAt = nil
         normalized.versions = []
+        // Data is global (shared by every journal) — the asset list isn't
+        // per-version content, so it can't count as content drift.
+        normalized.dataAssets = []
         let encoder = JSONEncoder()
         encoder.outputFormatting = .sortedKeys
         guard let data = try? encoder.encode(normalized) else { return m.id.uuidString }

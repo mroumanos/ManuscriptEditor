@@ -31,24 +31,18 @@ struct UserIdentityView: View {
     @State private var testResult: Result<String, Error>?
     /// Local gpg keyring contents (nil = gpg unavailable/blocked).
     @State private var localKeys: [SigningService.GPGKey]?
-    /// Dropdown selection (fingerprint).
-    @State private var selectedFingerprint: String?
-
-    /// The type currently signing changes: the selected remote type once its
-    /// key verifies, otherwise Local (mirrors effectiveIdentityType).
-    private var signingType: IdentityType {
-        (type != .local && remoteVerified) ? type : .local
-    }
+    /// Dropdown selection (fingerprint) — seeded from the saved key so the
+    /// choice survives closing and reopening the settings window.
+    @State private var selectedFingerprint: String? = SigningService.identityGPGFingerprint
 
     var body: some View {
         Form {
             Section("Identity") {
-                // The checkmark marks the type that actually signs changes:
-                // a remote type earns it only once its key verifies, until
-                // then Local carries it (matching effectiveIdentityType).
+                // The checkmark follows the selection directly — clicking a
+                // type selects it; whether it's *verified* is the seal's job.
                 Picker("Type", selection: $type) {
                     ForEach(IdentityType.allCases) { t in
-                        Text(t == signingType ? "✓ \(t.label)" : t.label).tag(t)
+                        Text(t == type ? "✓ \(t.label)" : t.label).tag(t)
                     }
                 }
                 .pickerStyle(.segmented)

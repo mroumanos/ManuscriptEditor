@@ -31,6 +31,18 @@ Intent: most time is spent here; it must be excellent and AI-optional.
   letterhead in editor, preview, and exports), body, and a signature block
   with an optional **hand-drawn signature** (drawable pad with Reset; renders
   above the typed signature in preview and exports), with a preview toggle.
+  Slot images accept PNG/JPEG/TIFF/HEIC/**SVG** (SVG bytes are kept as
+  vectors). The letter body's "/" additionally offers **Date** and
+  **Signature** snippets that insert as plain text.
+- AC: **Title pane** — first item in Content; edits the journal-facing
+  **article title** (+ running title) per cut, so it can differ journal to
+  journal. Exports print it, falling back to the **project name**
+  (`Manuscript.title`), which names the folder/Welcome entry and is managed
+  via **File → Manage Manuscripts…** (add existing project folders, rename
+  titles, remove entries list-only, or trash whole projects).
+- AC: The fixed Figures/Tables/Bibliography/Letter panes support right-click
+  **Rename…** and **Remove from Sidebar** (restore from the dimmed "Show …"
+  rows at the bottom of the Content list).
 - AC: **Custom sections with per-journal activation.** Add sections from an
   inline "＋ Add Section" row at the **bottom of the section list** (not a toolbar
   button); titles are kept **unique**. A new section is **created for every
@@ -134,6 +146,14 @@ propagate by explicit, individual fast-forwards.
   an upstream whose latest differs from its own last stamp **refuses to
   sync** with a red banner directing the user to stamp A in its Versions tab
   first — lineage edges always hang from frozen versions. **Never recursive.**
+- AC: Journal rows show **"Last synced X · Last edited Y"** (Source: last
+  edited only) instead of persistent "up to date" badges; the blue "upstream
+  has moved — fast-forward available" hint remains. The lineage renders as
+  **one connected container** — children as indented, same-height rows under
+  their parent (dropdown style) — and each journal shows its **icon** (an SF
+  Symbol configured in the app-settings Journals library; "?" when unset).
+  **Save (Local)** always writes to disk and confirms via the green banner;
+  **Save (Remote)** banners its async result the same way.
   Example: `Source@v2 → NEJM@v1`; Source edited to `v3`; Sync NEJM ⇒ `NEJM@v2` and
   edge `Source@v3 → NEJM@v2`.
 - AC: **Rollback** restores the prior edge and **soft-archives** the newer
@@ -383,7 +403,16 @@ just a rendered blob.
   outline document; figure image files are copied in whenever a document
   includes the figures block, so the package is self-contained.
 - AC: Figures/tables render from their data binding (source + SQL) or uploaded
-  image.
+  image. The PDF paginator draws **NSTextAttachment images itself** (CoreText
+  ignores attachments — CTRunDelegates reserve their bounds and a post-frame
+  pass paints them at 3×), so charts/letterheads/signatures appear in PDF.
+- AC: **Tables export as real tables** — boundaries that wrap the contained
+  values. PDF gets a measured **drawn grid** (wrapped cells, page-height-aware
+  chunks with the header repeated); DOCX/RTF get a native **NSTextTable**.
+  Sources: the SQL result for data-linked tables, else parsed Markdown pipe
+  rows. Per-table formatting (Tables editor → Export Formatting): **open
+  sides** (horizontal rules only, journal style) vs a fully boxed grid, and
+  **alternate row shading**; `footnotes` print as a "Note." paragraph beneath.
 - AC: Export uses the journal's **working head** (its latest version; Source
   exports the live manuscript). The user picks the destination folder; on
   completion, reveal the package in Finder.

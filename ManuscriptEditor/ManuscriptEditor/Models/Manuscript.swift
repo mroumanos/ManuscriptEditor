@@ -121,6 +121,19 @@ struct Manuscript: Codable, Identifiable, Sendable {
     /// Free-text project description, editable on the Overview dashboard.
     var about: String? = nil
 
+    /// The article's title as submitted — journal-facing **content** (each
+    /// cut can carry its own), distinct from the project name in `title`.
+    /// nil/empty falls back to the project title in exports.
+    var articleTitle: String? = nil
+
+    /// Custom sidebar names for the fixed content panes, keyed by pane key
+    /// ("figures", "tables", "bibliography", "letter").  Missing = default.
+    var paneTitles: [String: String]? = nil
+
+    /// Fixed content panes removed from the sidebar (same keys) —
+    /// restorable from the sidebar's hidden-panes rows.
+    var hiddenPanes: [String]? = nil
+
     // MARK: - Factory
 
     /// Creates a brand-new, empty manuscript with the standard set of body sections
@@ -202,6 +215,13 @@ struct Manuscript: Codable, Identifiable, Sendable {
         sourceExportConfig = try c.decodeIfPresent(ExportConfig.self,   forKey: .sourceExportConfig)
         createdAt     = try c.decode(Date.self,                  forKey: .createdAt)
         updatedAt     = try c.decode(Date.self,                  forKey: .updatedAt)
+        // Default-valued fields still need explicit decoding here — a custom
+        // init(from:) that skips them silently resets them on every reload.
+        lastSyncedAt  = try c.decodeIfPresent(Date.self,             forKey: .lastSyncedAt)
+        about         = try c.decodeIfPresent(String.self,           forKey: .about)
+        articleTitle  = try c.decodeIfPresent(String.self,           forKey: .articleTitle)
+        paneTitles    = try c.decodeIfPresent([String: String].self, forKey: .paneTitles)
+        hiddenPanes   = try c.decodeIfPresent([String].self,         forKey: .hiddenPanes)
     }
 
     // MARK: - Computed word counts

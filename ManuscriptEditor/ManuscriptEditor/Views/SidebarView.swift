@@ -34,6 +34,8 @@ struct SidebarView: View {
     /// Renaming lives here since the pane headers no longer carry a title field.
     @State private var renamingSectionID: UUID?
     @State private var renameDraft = ""
+    /// Fixed pane ("figures"/"tables"/…) being renamed via the context menu.
+    @State private var renamingPaneKey: String?
 
     private var manuscript: Manuscript? { store.manuscript }
 
@@ -154,9 +156,29 @@ struct SidebarView: View {
 
     // MARK: - Content section
 
+    /// The fixed content panes: key (persistence), default name, icon, item.
+    private var fixedPanes: [(key: String, name: String, icon: String, item: SidebarItem)] {
+        [("figures",      "Figures (\(active?.figures.count ?? 0))",           "photo.on.rectangle.angled", .figures),
+         ("tables",       "Tables (\(active?.tables.count ?? 0))",             "tablecells",                .tables),
+         ("bibliography", "Bibliography (\(active?.bibliography.count ?? 0))", "books.vertical",            .bibliography),
+         ("letter",       "Letter to Editor",                                  "envelope",                  .letterToEditor)]
+    }
+
+    /// Default (count-free) name of a fixed pane, for rename prompts.
+    private func defaultPaneName(_ key: String) -> String {
+        switch key {
+        case "figures": return "Figures"
+        case "tables": return "Tables"
+        case "bibliography": return "Bibliography"
+        default: return "Letter to Editor"
+        }
+    }
+
     @ViewBuilder
     private var contentSection: some View {
         Section("Content") {
+            Label("Title", systemImage: "textformat")
+                .tag(SidebarItem.title)
             Label("Authors (\(active?.authors.count ?? 0))", systemImage: "person.2")
                 .tag(SidebarItem.authors)
             Label("Abstract", systemImage: "text.quote")
@@ -165,18 +187,64 @@ struct SidebarView: View {
                 .tag(SidebarItem.keywords)
             bodySection
 
-            Label("Figures (\(active?.figures.count ?? 0))",    systemImage: "photo.on.rectangle.angled")
-                .tag(SidebarItem.figures)
-            Label("Tables (\(active?.tables.count ?? 0))",      systemImage: "tablecells")
-                .tag(SidebarItem.tables)
-            Label("Bibliography (\(active?.bibliography.count ?? 0))", systemImage: "books.vertical")
-                .tag(SidebarItem.bibliography)
-            Label("Letter to Editor", systemImage: "envelope")
-                .tag(SidebarItem.letterToEditor)
+            ForEach(fixedPanes, id: \.key) { pane in
+                if !store.isPaneHidden(pane.key) {
+                    fixedPaneRow(pane)
+                }
+            }
 
             // Inline "add section" row at the very bottom of the Content list.
             addSectionRow
+
+            // Removed panes come back from here.
+            ForEach(fixedPanes, id: \.key) { pane in
+                if store.isPaneHidden(pane.key) {
+                    Button {
+                        store.setPaneHidden(pane.key, hidden: false)
+                    } label: {
+                        Label("Show \(store.paneTitle(pane.key, default: defaultPaneName(pane.key)))",
+                              systemImage: "eye.slash")
+                            .foregroundStyle(.tertiary)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Restore this pane to the sidebar")
+                }
+            }
         }
+    }
+
+    /// A fixed pane row with rename/remove context actions (mirrors sections).
+    private func fixedPaneRow(_ pane: (key: String, name: String, icon: String, item: SidebarItem)) -> some View {
+        // A custom name replaces the default, keeping the count suffix.
+        let custom = store.manuscript?.paneTitles?[pane.key]
+        let display = custom.map { name in
+            pane.name.contains("(") ? "\(name) (\(pane.name.split(separator: "(").last?.dropLast() ?? ""))" : name
+        } ?? pane.name
+        return Label(display, systemImage: pane.icon)
+            .tag(pane.item)
+            .contextMenu {
+                Button("Rename…") {
+                    renameDraft = custom ?? defaultPaneName(pane.key)
+                    renamingPaneKey = pane.key
+                }
+                Button("Remove from Sidebar", role: .destructive) {
+                    if selection == pane.item { selection = .overview }
+                    store.setPaneHidden(pane.key, hidden: true)
+                }
+            }
+            .alert("Rename Pane", isPresented: Binding(
+                get: { renamingPaneKey == pane.key },
+                set: { if !$0 { renamingPaneKey = nil } }
+            )) {
+                TextField("Name", text: $renameDraft)
+                Button("Rename") {
+                    store.renamePane(pane.key, to: renameDraft == defaultPaneName(pane.key) ? "" : renameDraft)
+                    renamingPaneKey = nil
+                }
+                Button("Cancel", role: .cancel) { renamingPaneKey = nil }
+            } message: {
+                Text("Renames this pane in the sidebar. Its contents are untouched.")
+            }
     }
 
     @ViewBuilder
