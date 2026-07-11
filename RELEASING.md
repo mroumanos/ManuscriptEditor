@@ -9,7 +9,8 @@ How a distribution build is produced and published to GitHub Releases.
 ```
 
 This runs an `xcodebuild` Release build and produces
-`dist/ManuscriptEditor-0.1.0.zip` containing `ManuscriptEditor.app`.
+`dist/ManuscriptEditor-0.1.0.dmg` — a drag-to-Applications disk image
+(the app plus an `/Applications` symlink in the mounted window).
 
 The script does **not** commit or publish anything; `dist/` is gitignored —
 binaries ship via GitHub Releases, never inside the repo.
@@ -19,12 +20,12 @@ binaries ship via GitHub Releases, never inside the repo.
 With the [GitHub CLI](https://cli.github.com) (`brew install gh`, `gh auth login`):
 
 ```
-gh release create v0.1.0 dist/ManuscriptEditor-0.1.0.zip \
+gh release create v0.1.0 dist/ManuscriptEditor-0.1.0.dmg \
   --title "Manuscript Editor 0.1.0" \
-  --notes "Changes in this release…"
+  --notes-file dist/RELEASE_NOTES.md
 ```
 
-Or upload the zip manually: repository → Releases → "Draft a new release".
+Or upload the dmg manually: repository → Releases → "Draft a new release".
 
 ## Signing & notarization (current status: unsigned)
 
@@ -34,5 +35,5 @@ Open the first launch (Gatekeeper). For frictionless distribution later:
 1. Enroll in the Apple Developer Program.
 2. Sign with a Developer ID Application certificate
    (`CODE_SIGN_IDENTITY="Developer ID Application"` in the script).
-3. Notarize: `xcrun notarytool submit dist/….zip --keychain-profile <profile> --wait`
+3. Notarize: `xcrun notarytool submit dist/….dmg --keychain-profile <profile> --wait`
    then staple: `xcrun stapler staple ManuscriptEditor.app`.

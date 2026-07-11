@@ -212,9 +212,9 @@ struct LetterToEditorView: View {
                 }
             }
             .padding(32)
-            .frame(maxWidth: 680)
+            .frame(maxWidth: 680, alignment: .leading)
         }
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(nsColor: .textBackgroundColor))
     }
 
@@ -229,6 +229,7 @@ struct LetterToEditorView: View {
                 .frame(maxHeight: 56)
                 .padding(4)
                 .background(Color.white, in: RoundedRectangle(cornerRadius: 4))
+                .frame(maxWidth: .infinity, alignment: .leading)
         } else {
             Text("(no signature drawn)")
                 .font(.caption)

@@ -79,7 +79,8 @@ private func letterheadBlock(_ letter: LetterToEditor, font: NSFont, width: CGFl
     return doc
 }
 
-/// The hand-drawn signature as an inline attachment (max 48 pt tall).
+/// The hand-drawn signature as an inline attachment (max 48 pt tall),
+/// pinned hard left — never centered like figures are.
 private func signatureImageBlock(_ data: Data?, font: NSFont) -> NSAttributedString? {
     guard let data, let image = NSImage(data: data), image.size.height > 0 else { return nil }
     let attachment = NSTextAttachment()
@@ -87,6 +88,9 @@ private func signatureImageBlock(_ data: Data?, font: NSFont) -> NSAttributedStr
     let h = min(48, image.size.height)
     attachment.bounds = CGRect(x: 0, y: 0, width: image.size.width * (h / image.size.height), height: h)
     let out = NSMutableAttributedString(attributedString: NSAttributedString(attachment: attachment))
+    let style = NSMutableParagraphStyle()
+    style.alignment = .left
+    out.addAttribute(.paragraphStyle, value: style, range: NSRange(location: 0, length: out.length))
     out.append(NSAttributedString(string: "\n", attributes: [.font: font]))
     return out
 }
@@ -115,13 +119,14 @@ private func resolveLetterTokens(in body: NSMutableAttributedString, letter: Let
         let h = min(48, image.size.height)
         attachment.bounds = CGRect(x: 0, y: 0,
                                    width: image.size.width * (h / image.size.height), height: h)
-        // The image keeps the marker's paragraph formatting — left justified
-        // (or however the text around it is set), never re-centered.
+        // Pinned hard left: keep the marker's indents/spacing but force the
+        // alignment — inherited styles kept sneaking in centered.
         let out = NSMutableAttributedString(attributedString: NSAttributedString(attachment: attachment))
-        if let style = attrs[.paragraphStyle] {
-            out.addAttribute(.paragraphStyle, value: style,
-                             range: NSRange(location: 0, length: out.length))
-        }
+        let style = ((attrs[.paragraphStyle] as? NSParagraphStyle)?.mutableCopy()
+                     as? NSMutableParagraphStyle) ?? NSMutableParagraphStyle()
+        style.alignment = .left
+        out.addAttribute(.paragraphStyle, value: style,
+                         range: NSRange(location: 0, length: out.length))
         return out
     }
 }
