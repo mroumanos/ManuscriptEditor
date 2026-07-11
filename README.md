@@ -19,6 +19,12 @@ and a complete export package per journal.
 - **No account, no cloud, no telemetry.** Manuscripts are folders on your disk.
   Storage backends and AI services are optional bring-your-own integrations.
 
+## Testing the app
+
+New tester? **[QUICKSTART.md](QUICKSTART.md)** walks through everything in
+~15 minutes: install, GitHub token + identity setup, opening the shared test
+manuscript, editing/syncing, journal cuts and comparison, and exporting.
+
 ## Documentation
 
 The complete product and engineering documentation lives in
@@ -30,7 +36,7 @@ standards.
 ## Distributions
 
 Compiled builds are published on this repository's
-[Releases](../../releases) page as zipped `.app` bundles. Requirements:
+[Releases](../../releases) page as drag-to-install `.dmg` images. Requirements:
 macOS 26 (Tahoe) or later. Release binaries are currently unsigned — see
 [RELEASING.md](RELEASING.md) for how they are produced.
 
