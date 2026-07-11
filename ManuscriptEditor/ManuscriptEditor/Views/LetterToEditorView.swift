@@ -160,8 +160,6 @@ struct LetterToEditorView: View {
     private var bodyEditor: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
-                Text("Letter Body")
-                    .font(.headline)
                 Spacer()
                 Text("\(WordCountService.count(draft.body.plain)) words")
                     .font(.caption)
