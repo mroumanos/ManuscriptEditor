@@ -190,6 +190,18 @@ struct GitHubBackendService {
         return String(commitSHA.prefix(7))
     }
 
+    // MARK: - Branch deletion
+
+    /// Deletes the config's branch ref (journal removal).  A branch that's
+    /// already gone counts as success.
+    func deleteBranch(config: Config) async throws {
+        do {
+            _ = try await request("DELETE", "git/refs/heads/\(config.branch)", config: config, body: nil)
+        } catch GitHubBackendError.http(let code, _) where code == 404 || code == 422 {
+            // 404/422: no such ref — nothing to delete.
+        }
+    }
+
     // MARK: - Pull
 
     /// Paths (exact or directory prefixes) this app owns in the repository.

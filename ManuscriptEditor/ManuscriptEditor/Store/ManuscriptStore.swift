@@ -1334,6 +1334,45 @@ final class ManuscriptStore {
     // recording true merge parents is a documented refinement.
 
     /// Branch name for a journal ("journal-nejm").
+    /// Deletes a journal: its tab, its whole version chain, and — when a
+    /// remote is configured — its journal-* snapshot branch (best effort;
+    /// the local delete never waits on the network).  Refused when another
+    /// journal's versions hang from this chain, mirroring rollback's rule:
+    /// lineage edges must never dangle.  Returns an error message, or nil.
+    func deleteJournal(id: UUID, appStore: AppStore) -> String? {
+        guard let m = manuscript,
+              let journal = m.journals.first(where: { $0.id == id }) else { return nil }
+
+        let chainIDs = Set(versions(forJournal: id).map(\.id))
+        if let dependent = m.versions.first(where: { v in
+               v.journalID != id && v.parentID.map(chainIDs.contains) == true
+           }),
+           let child = m.journals.first(where: { $0.id == dependent.journalID }) {
+            return "\(journal.name) has journals derived from it (\(child.name)) — delete those first, or re-sync them from another upstream."
+        }
+
+        let branch = branchName(for: journal)
+        touch {
+            $0.journals.removeAll { $0.id == id }
+            $0.versions.removeAll { $0.journalID == id }
+        }
+
+        // Remote snapshot branch: removed asynchronously, result bannered.
+        if let (_, config) = try? remoteConfig(appStore) {
+            Task {
+                do {
+                    try await gitHubService.deleteBranch(config: config.with(branch: branch))
+                    showBanner(.success, "Deleted \(journal.name) — including its \(branch) branch on the remote.")
+                } catch {
+                    showBanner(.error, "\(journal.name) was deleted locally, but removing the \(branch) branch failed: \(error.localizedDescription)")
+                }
+            }
+        } else {
+            showBanner(.success, "Deleted \(journal.name).")
+        }
+        return nil
+    }
+
     private func branchName(for journal: Journal) -> String {
         let slug = journal.name.lowercased()
             .map { $0.isLetter || $0.isNumber ? $0 : "-" }

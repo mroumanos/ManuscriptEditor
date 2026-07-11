@@ -27,6 +27,8 @@ struct SyncView: View {
 
     /// Journal awaiting the sync confirmation itself.
     @State private var pendingSync: Journal?
+    /// Journal awaiting the delete confirmation (context menu).
+    @State private var pendingDelete: Journal?
     @State private var showAddJournal = false
 
     private var journals: [Journal] { store.manuscript?.journals ?? [] }
@@ -65,6 +67,21 @@ struct SyncView: View {
         // (Reached only after the checksum precheck says the edge is ready.)
         .alert(item: $pendingSync) { journal in
             syncAlert(journal)
+        }
+        .alert(item: $pendingDelete) { journal in
+            Alert(
+                title: Text("Delete \(journal.name)?"),
+                message: Text("Removes the journal's tab and its whole version history from this manuscript"
+                              + (store.manuscript?.settings.remoteRepository != nil
+                                 ? ", and deletes its snapshot branch on the remote." : ".")
+                              + " Source and other journals are untouched. This cannot be undone."),
+                primaryButton: .destructive(Text("Delete")) {
+                    if let error = store.deleteJournal(id: journal.id, appStore: appStore) {
+                        showError(error)
+                    }
+                },
+                secondaryButton: .cancel()
+            )
         }
     }
 
@@ -260,6 +277,10 @@ struct SyncView: View {
         }
         .padding(.horizontal, 12)
         .frame(height: rowHeight)
+        .contentShape(Rectangle())
+        .contextMenu {
+            Button("Delete Journal…", role: .destructive) { pendingDelete = journal }
+        }
     }
 
     /// Small inline chip naming the exact upstream version this journal's
