@@ -199,6 +199,12 @@ struct ContentView: View {
                 }
                 // The window title is the manuscript's name (not the app name).
                 .navigationTitle(windowTitle)
+                // Title-bar chrome: notification banner centered, save status
+                // in the otherwise-empty top-right corner.
+                .toolbar {
+                    ToolbarItem(placement: .principal) { ToolbarBanner() }
+                    ToolbarItem(placement: .primaryAction) { SaveStatusIndicator() }
+                }
             } else {
                 WelcomeView(onNewManuscript: createInAppData,
                             onOpenLocal: openLocalFolder,
@@ -238,6 +244,11 @@ struct ContentView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .saveManuscript)) { _ in
             store.trySave()
+            if let error = store.saveError {
+                store.showBanner(.error, "Local save failed: \(error)")
+            } else if store.manuscript != nil {
+                store.showBanner(.success, "Saved to disk at \((store.lastSaved ?? Date()).formatted(date: .omitted, time: .standard)).")
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: .manageManuscripts)) { _ in
             // Manage = the Welcome screen: save + close the current
@@ -271,15 +282,7 @@ struct ContentView: View {
         } message: {
             Text(projectError ?? "")
         }
-        // Remote failures are loud (alert); successes stay quiet (sidebar line).
-        .alert("Remote Sync Failed", isPresented: Binding(
-            get: { store.remoteError != nil },
-            set: { if !$0 { store.remoteError = nil } }
-        )) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(store.remoteError ?? "")
-        }
+        // Remote successes AND failures surface in the toolbar banner.
         .sheet(isPresented: $showingExport) {
             ExportSheet()
         }
@@ -526,6 +529,65 @@ struct ContentView: View {
         tabMode   = .active
         activeTab = .source
         compareTabs = [.source]
+    }
+}
+
+// MARK: - Toolbar chrome
+
+/// The reusable notification slot centered in the title bar: sync results,
+/// save confirmations, and future messages — green success / red failure,
+/// auto-dismissing (see `ManuscriptStore.showBanner`).
+struct ToolbarBanner: View {
+    @Environment(ManuscriptStore.self) private var store
+
+    var body: some View {
+        Group {
+            if let banner = store.banner {
+                Label(banner.message,
+                      systemImage: banner.kind == .success ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
+                    .font(.caption.weight(.medium))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .foregroundStyle(banner.kind == .success ? Color.green : .red)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background((banner.kind == .success ? Color.green : .red).opacity(0.12), in: Capsule())
+                    .help(banner.message)
+                    .transition(.opacity)
+            }
+        }
+        .frame(maxWidth: 480)
+        .animation(.easeInOut(duration: 0.2), value: store.banner?.message)
+    }
+}
+
+/// Top-right corner: when the manuscript was last saved locally and last
+/// pushed to its remote ("N/A" when no backend is configured).
+struct SaveStatusIndicator: View {
+    @Environment(ManuscriptStore.self) private var store
+
+    private func time(_ date: Date?) -> String {
+        guard let date else { return "—" }
+        return Calendar.current.isDateInToday(date)
+            ? date.formatted(date: .omitted, time: .shortened)
+            : date.formatted(date: .abbreviated, time: .shortened)
+    }
+
+    var body: some View {
+        if let m = store.manuscript {
+            let local = time(store.lastSaved ?? m.updatedAt)
+            let remote = m.settings.activeBackendID == nil ? "N/A" : time(m.lastSyncedAt)
+            HStack(spacing: 5) {
+                Image(systemName: "internaldrive")
+                Text(local)
+                Text("/").foregroundStyle(.tertiary)
+                Image(systemName: "icloud")
+                Text(remote)
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .help("Last saved — locally \(local) · remote \(remote == "N/A" ? "not configured" : remote)")
+        }
     }
 }
 

@@ -1201,10 +1201,31 @@ final class ManuscriptStore {
 
     /// Transient success line ("Pushed to owner/repo@main (ab12cd3)").
     var remoteStatus: String?
-    /// Last remote failure, surfaced as an alert by ContentView.
+    /// Last remote failure (also bannered).
     var remoteError: String?
     /// True while a push/pull is in flight (disables re-entry).
     var isRemoteBusy = false
+
+    // MARK: - Toolbar banner (global transient notifications)
+    //
+    // One reusable notification slot rendered centered in the window
+    // toolbar — sync results, save confirmations, and whatever comes next.
+
+    enum BannerKind { case success, error }
+
+    /// The banner currently showing, or nil.  Auto-dismisses.
+    var banner: (kind: BannerKind, message: String)?
+    private var bannerTask: Task<Void, Never>?
+
+    func showBanner(_ kind: BannerKind, _ message: String) {
+        banner = (kind, message)
+        bannerTask?.cancel()
+        bannerTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(kind == .error ? 8 : 6))
+            guard !Task.isCancelled else { return }
+            self?.banner = nil
+        }
+    }
 
     private let gitHubService = GitHubBackendService()
 
@@ -1367,12 +1388,14 @@ final class ManuscriptStore {
                             config: config.with(branch: branch))
                     }
                     remoteStatus = "Pushed to \(config.owner)/\(config.repo) — source@\(sha), \(snapshots.count) journal branch\(snapshots.count == 1 ? "" : "es")"
+                    showBanner(.success, "Successfully saved to remote — \(remoteStatus ?? "")")
                     markSynced()
                     account.isConnected = true
                     account.syncStatus = .available
                     account.lastErrorMessage = nil
                 } catch {
                     remoteError = error.localizedDescription
+                    showBanner(.error, "Remote sync failed: \(error.localizedDescription)")
                     account.syncStatus = .error
                     account.lastErrorMessage = error.localizedDescription
                 }
@@ -1381,6 +1404,7 @@ final class ManuscriptStore {
             }
         } catch {
             remoteError = error.localizedDescription
+            showBanner(.error, "Remote sync failed: \(error.localizedDescription)")
         }
     }
 
@@ -1420,6 +1444,7 @@ final class ManuscriptStore {
                         message: "Save \(title) from Manuscript Editor",
                         config: config)
                     remoteStatus = "Created \(repo.fullName) and pushed"
+                    showBanner(.success, "Created \(repo.fullName) and pushed.")
                     markSynced()
                     account.isConnected = true
                     account.syncStatus = .available
@@ -1429,6 +1454,7 @@ final class ManuscriptStore {
                     onDone(repo.htmlURL)
                 } catch {
                     remoteError = error.localizedDescription
+                    showBanner(.error, "Remote sync failed: \(error.localizedDescription)")
                     account.syncStatus = .error
                     account.lastErrorMessage = error.localizedDescription
                     appStore.updateBackend(account)
@@ -1438,6 +1464,7 @@ final class ManuscriptStore {
             }
         } catch {
             remoteError = error.localizedDescription
+            showBanner(.error, "Remote sync failed: \(error.localizedDescription)")
             onDone(nil)
         }
     }
@@ -1483,6 +1510,7 @@ final class ManuscriptStore {
                         markSynced()
                     }
                     remoteStatus = "Loaded from \(config.owner)/\(config.repo)@\(config.branch)"
+                    showBanner(.success, "Loaded from \(config.owner)/\(config.repo)@\(config.branch).")
                     account.isConnected = true
                     account.syncStatus = .available
                     account.lastErrorMessage = nil
@@ -1497,6 +1525,7 @@ final class ManuscriptStore {
             }
         } catch {
             remoteError = error.localizedDescription
+            showBanner(.error, "Remote sync failed: \(error.localizedDescription)")
         }
     }
 
@@ -1573,6 +1602,7 @@ final class ManuscriptStore {
                     account.lastErrorMessage = nil
                 } catch {
                     remoteError = error.localizedDescription
+                    showBanner(.error, "Remote sync failed: \(error.localizedDescription)")
                     account.syncStatus = .error
                     account.lastErrorMessage = error.localizedDescription
                 }
@@ -1581,6 +1611,7 @@ final class ManuscriptStore {
             }
         } catch {
             remoteError = error.localizedDescription
+            showBanner(.error, "Remote sync failed: \(error.localizedDescription)")
         }
     }
 

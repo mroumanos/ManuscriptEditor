@@ -162,8 +162,14 @@ propagate by explicit, individual fast-forwards.
   their parent (dropdown style), each prefixed with **curved branch arrows
   (↳), one per nesting level** — and each journal shows its **icon** (an SF
   Symbol configured in the app-settings Journals library; "?" when unset).
-  **Save (Local)** always writes to disk and confirms via the green banner;
-  **Save (Remote)** banners its async result the same way.
+- AC: **Title-bar chrome.** The center of the window toolbar is a reusable
+  **notification banner** slot (`ManuscriptStore.showBanner` — green success
+  / red failure, auto-dismissing): all sync messages, save confirmations,
+  and remote push/pull results surface there (no inline banners in the Sync
+  pane; no blocking remote-error alert). The top-right shows the **save
+  status**: last local save time and last remote push ("N/A" when no backend
+  is configured). **Save (Local)** always writes to disk and banners;
+  **Save (Remote)** banners its async result.
   Example: `Source@v2 → NEJM@v1`; Source edited to `v3`; Sync NEJM ⇒ `NEJM@v2` and
   edge `Source@v3 → NEJM@v2`.
 - AC: **Rollback** restores the prior edge and **soft-archives** the newer

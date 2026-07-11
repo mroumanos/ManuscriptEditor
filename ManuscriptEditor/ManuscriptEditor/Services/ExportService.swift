@@ -107,7 +107,7 @@ private func resolveLetterTokens(in body: NSMutableAttributedString, letter: Let
     replace(LetterToken.date.marker) { attrs in
         NSAttributedString(string: Date().formatted(date: .long, time: .omitted), attributes: attrs)
     }
-    replace(LetterToken.signature.marker) { _ in
+    replace(LetterToken.signature.marker) { attrs in
         guard let data = letter.signatureImageData, let image = NSImage(data: data),
               image.size.height > 0 else { return NSAttributedString(string: "") }
         let attachment = NSTextAttachment()
@@ -115,7 +115,14 @@ private func resolveLetterTokens(in body: NSMutableAttributedString, letter: Let
         let h = min(48, image.size.height)
         attachment.bounds = CGRect(x: 0, y: 0,
                                    width: image.size.width * (h / image.size.height), height: h)
-        return NSAttributedString(attachment: attachment)
+        // The image keeps the marker's paragraph formatting — left justified
+        // (or however the text around it is set), never re-centered.
+        let out = NSMutableAttributedString(attributedString: NSAttributedString(attachment: attachment))
+        if let style = attrs[.paragraphStyle] {
+            out.addAttribute(.paragraphStyle, value: style,
+                             range: NSRange(location: 0, length: out.length))
+        }
+        return out
     }
 }
 

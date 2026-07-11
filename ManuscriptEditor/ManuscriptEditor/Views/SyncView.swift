@@ -28,12 +28,6 @@ struct SyncView: View {
     /// Journal awaiting the sync confirmation itself.
     @State private var pendingSync: Journal?
     @State private var showAddJournal = false
-    /// Transient "successfully synced" confirmation (auto-dismisses).
-    @State private var successMessage: String?
-    @State private var successTask: Task<Void, Never>?
-    /// Transient sync-refused message (auto-dismisses).
-    @State private var errorMessage: String?
-    @State private var errorTask: Task<Void, Never>?
 
     private var journals: [Journal] { store.manuscript?.journals ?? [] }
     private let cardWidth: CGFloat = 640
@@ -43,26 +37,6 @@ struct SyncView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 Text("Sync").font(.title2.weight(.semibold))
-
-                if let successMessage {
-                    Label(successMessage, systemImage: "checkmark.circle.fill")
-                        .font(.callout.weight(.medium))
-                        .foregroundStyle(.green)
-                        .padding(10)
-                        .frame(maxWidth: cardWidth, alignment: .leading)
-                        .background(Color.green.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
-                        .transition(.opacity)
-                }
-
-                if let errorMessage {
-                    Label(errorMessage, systemImage: "exclamationmark.circle.fill")
-                        .font(.callout.weight(.medium))
-                        .foregroundStyle(.red)
-                        .padding(10)
-                        .frame(maxWidth: cardWidth, alignment: .leading)
-                        .background(Color.red.opacity(0.1), in: RoundedRectangle(cornerRadius: 8))
-                        .transition(.opacity)
-                }
 
                 savingCard
 
@@ -138,13 +112,7 @@ struct SyncView: View {
 
             if store.isRemoteBusy { ProgressView().controlSize(.small) }
         }
-        // The push completes asynchronously — banner it like a sync.
-        .onChange(of: store.remoteStatus) { _, new in
-            if let new { showSuccess("Successfully saved to remote — \(new).") }
-        }
-        .onChange(of: store.remoteError) { _, new in
-            if let new { showError("Remote save failed: \(new)") }
-        }
+        // Remote pushes banner their own result from the store.
         .padding(14)
         .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
         .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.separator, lineWidth: 1))
@@ -376,25 +344,9 @@ struct SyncView: View {
         showSuccess("Successfully synced \(journal.name) from \(from) — now at v\(ordinal) / latest.")
     }
 
-    private func showSuccess(_ message: String) {
-        withAnimation { successMessage = message; errorMessage = nil }
-        successTask?.cancel()
-        successTask = Task {
-            try? await Task.sleep(for: .seconds(6))
-            guard !Task.isCancelled else { return }
-            withAnimation { successMessage = nil }
-        }
-    }
-
-    private func showError(_ message: String) {
-        withAnimation { errorMessage = message; successMessage = nil }
-        errorTask?.cancel()
-        errorTask = Task {
-            try? await Task.sleep(for: .seconds(8))
-            guard !Task.isCancelled else { return }
-            withAnimation { errorMessage = nil }
-        }
-    }
+    // Sync messages live in the window-toolbar banner (shared app-wide).
+    private func showSuccess(_ message: String) { store.showBanner(.success, message) }
+    private func showError(_ message: String)   { store.showBanner(.error, message) }
 
     /// "Source v3" / "NEJM v2" — what the fresh head was derived from.
     private func syncedFromLabel(of version: ManuscriptVersion) -> String {
