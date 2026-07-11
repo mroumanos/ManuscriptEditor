@@ -123,20 +123,24 @@ struct GitHubBackendService {
     // MARK: - Push
 
     /// Pushes `files` as a single commit; returns the new commit's short SHA.
-    func push(files: [File], message: String, config: Config) async throws -> String {
+    /// `attempt` guards the single self-retry on ref races (see step 5).
+    func push(files: [File], message: String, config: Config, attempt: Int = 0) async throws -> String {
         // 1. Base commit (nil on a brand-new branch/empty repository).
-        var base = try await branchHead(config: config)
+        var (base, repoEmpty) = try await branchState(config: config)
 
         // A completely empty repository rejects the whole Git Data API with
         // 409 "Git Repository is empty." — bootstrap the initial commit
         // through the Contents API, then continue normally on top of it.
-        if base == nil, let first = files.first {
+        // (Only for the EMPTY-repo case: a merely missing branch on a repo
+        // with commits proceeds as a rootless commit + ref creation — the
+        // Contents API can't write to a branch that doesn't exist.)
+        if repoEmpty, let first = files.first {
             _ = try await request("PUT", "contents/\(first.path)", config: config, body: [
                 "message": "Initialize manuscript",
                 "content": first.data.base64EncodedString(),
                 "branch": config.branch,
             ])
-            base = try await branchHead(config: config)
+            (base, _) = try await branchState(config: config)
         }
 
         // 2. One blob per file.
@@ -168,13 +172,20 @@ struct GitHubBackendService {
             throw GitHubBackendError.badResponse("commit returned no sha")
         }
 
-        // 5. Move (or create) the branch ref.
-        if base != nil {
-            _ = try await request("PATCH", "git/refs/heads/\(config.branch)", config: config,
-                                  body: ["sha": commitSHA])
-        } else {
-            _ = try await request("POST", "git/refs", config: config,
-                                  body: ["ref": "refs/heads/\(config.branch)", "sha": commitSHA])
+        // 5. Move (or create) the branch ref.  A 422 here means the branch
+        //    moved (not a fast forward) or appeared (reference already
+        //    exists) after we read it — GitHub reads can lag right after a
+        //    repository/branch is created.  Rebuild once on the fresh head.
+        do {
+            if base != nil {
+                _ = try await request("PATCH", "git/refs/heads/\(config.branch)", config: config,
+                                      body: ["sha": commitSHA])
+            } else {
+                _ = try await request("POST", "git/refs", config: config,
+                                      body: ["ref": "refs/heads/\(config.branch)", "sha": commitSHA])
+            }
+        } catch GitHubBackendError.http(let code, _) where code == 422 && attempt == 0 {
+            return try await push(files: files, message: message, config: config, attempt: 1)
         }
         return String(commitSHA.prefix(7))
     }
@@ -217,6 +228,14 @@ struct GitHubBackendService {
 
     /// The branch's current commit + tree, or nil when the branch/repo is empty.
     private func branchHead(config: Config) async throws -> (commitSHA: String, treeSHA: String)? {
+        try await branchState(config: config).head
+    }
+
+    /// Like `branchHead`, but distinguishes a missing BRANCH (repo has
+    /// commits elsewhere) from a commitless REPOSITORY — the two need
+    /// different bootstrapping.
+    private func branchState(config: Config) async throws
+        -> (head: (commitSHA: String, treeSHA: String)?, repoEmpty: Bool) {
         do {
             let ref: [String: Any] = try await get("git/ref/heads/\(config.branch)", config: config)
             guard let object = ref["object"] as? [String: Any],
@@ -228,10 +247,11 @@ struct GitHubBackendService {
                   let treeSHA = tree["sha"] as? String else {
                 throw GitHubBackendError.badResponse("commit missing tree sha")
             }
-            return (commitSHA, treeSHA)
-        } catch GitHubBackendError.http(let code, _) where code == 404 || code == 409 {
-            // 404: branch doesn't exist; 409: repository has no commits at all.
-            return nil
+            return ((commitSHA, treeSHA), false)
+        } catch GitHubBackendError.http(let code, _) where code == 404 {
+            return (nil, false)   // branch doesn't exist; repo has commits
+        } catch GitHubBackendError.http(let code, _) where code == 409 {
+            return (nil, true)    // repository has no commits at all
         }
     }
 
