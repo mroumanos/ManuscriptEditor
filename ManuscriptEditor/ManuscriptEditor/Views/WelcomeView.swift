@@ -18,6 +18,9 @@ struct WelcomeView: View {
     /// Manuscript awaiting delete confirmation.
     @State private var pendingDelete: ManuscriptSummary?
     @State private var deleteError: String?
+    /// Manuscript being renamed (context menu → Rename…).
+    @State private var renaming: ManuscriptSummary?
+    @State private var renameDraft = ""
 
     var body: some View {
         HStack(spacing: 0) {
@@ -113,45 +116,84 @@ struct WelcomeView: View {
         } message: {
             Text(deleteError ?? "")
         }
+        .alert("Rename Manuscript", isPresented: Binding(
+            get: { renaming != nil },
+            set: { if !$0 { renaming = nil } }
+        )) {
+            TextField("Title", text: $renameDraft)
+            Button("Rename") {
+                if let summary = renaming {
+                    deleteError = store.renameManuscript(id: summary.id, to: renameDraft)
+                    refresh()
+                }
+                renaming = nil
+            }
+            Button("Cancel", role: .cancel) { renaming = nil }
+        } message: {
+            Text("Renames the project (Welcome list and window title). The article title per journal lives in the Title pane.")
+        }
     }
 
     private func row(_ summary: ManuscriptSummary) -> some View {
         HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(summary.title)
+                    .font(.body)
+                    .lineLimit(1)
+                Text("Created \(summary.createdAt.formatted(date: .abbreviated, time: .omitted))")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text(summary.location.path(percentEncoded: false))
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+            .contentShape(Rectangle())
+            .onTapGesture(count: 2) { store.open(id: summary.id) }
+
+            Spacer()
+
             Button {
                 store.open(id: summary.id)
             } label: {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(summary.title)
-                        .font(.body)
-                        .lineLimit(1)
-                    Text("Created \(summary.createdAt.formatted(date: .abbreviated, time: .omitted))")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Text(summary.location.path(percentEncoded: false))
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                }
-                .contentShape(Rectangle())
+                Image(systemName: "pencil")
+                    .foregroundStyle(.secondary)
             }
             .buttonStyle(.plain)
+            .help("Open this manuscript for editing (or double-click the row)")
 
-            Spacer()
+            Button {
+                store.forgetManuscript(id: summary.id)
+                refresh()
+            } label: {
+                Image(systemName: "minus.circle")
+                    .foregroundStyle(.orange)
+            }
+            .buttonStyle(.plain)
+            .help("Remove from this list — the files stay on disk")
 
             Button {
                 pendingDelete = summary
             } label: {
                 Image(systemName: "trash")
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(.red)
             }
             .buttonStyle(.plain)
             .help("Move this manuscript's folder to the Trash")
         }
         .contextMenu {
             Button("Open") { store.open(id: summary.id) }
+            Button("Rename…") {
+                renameDraft = summary.title
+                renaming = summary
+            }
             Button("Reveal in Finder") {
                 NSWorkspace.shared.activateFileViewerSelecting([summary.location])
+            }
+            Button("Remove from List") {
+                store.forgetManuscript(id: summary.id)
+                refresh()
             }
             Button("Delete…", role: .destructive) { pendingDelete = summary }
         }

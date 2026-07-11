@@ -49,8 +49,10 @@ struct ManuscriptCommands: Commands {
 
             Divider()
 
-            // Curate the known-manuscripts list: register existing project
-            // folders, rename titles, drop entries, or trash whole projects.
+            // Saves + closes the current manuscript and returns to the
+            // Welcome screen — the project manager (open / rename / remove
+            // from list / trash).  Closing first guarantees you never trash
+            // the project you're loaded on.
             Button("Manage Manuscripts…") {
                 NotificationCenter.default.post(name: .manageManuscripts, object: nil)
             }

@@ -146,8 +146,6 @@ struct ContentView: View {
     @State private var pendingNew: PendingNew?
     /// Drives the Open Manuscript (Remote) sheet.
     @State private var showingNewRemote = false
-    /// Drives File → Manage Manuscripts….
-    @State private var showingManage = false
     /// Open/Export project failures (bad folder, zip error).
     @State private var projectError: String?
 
@@ -210,7 +208,8 @@ struct ContentView: View {
         }
         .textSelection(.disabled)
         .onAppear {
-            store.loadMostRecent()
+            // The app always launches on the Welcome screen (the project
+            // manager) — manuscripts open from there, never automatically.
             appStore.load()
             SigningService.debugProbe()   // container-side keyring trace
         }
@@ -241,7 +240,10 @@ struct ContentView: View {
             store.trySave()
         }
         .onReceive(NotificationCenter.default.publisher(for: .manageManuscripts)) { _ in
-            showingManage = true
+            // Manage = the Welcome screen: save + close the current
+            // manuscript so nothing you're loaded on can be deleted.
+            store.closeToWelcome()
+            resetWorkspace()
         }
         .onReceive(NotificationCenter.default.publisher(for: .exportManuscript)) { _ in
             if store.manuscript != nil { showingExport = true }
@@ -308,9 +310,6 @@ struct ContentView: View {
                 activeTab = .source
                 compareTabs = [.source]
             }
-        }
-        .sheet(isPresented: $showingManage) {
-            ManageManuscriptsSheet(isPresented: $showingManage)
         }
     }
 

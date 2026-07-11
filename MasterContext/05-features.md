@@ -37,9 +37,14 @@ Intent: most time is spent here; it must be excellent and AI-optional.
 - AC: **Title pane** — first item in Content; edits the journal-facing
   **article title** (+ running title) per cut, so it can differ journal to
   journal. Exports print it, falling back to the **project name**
-  (`Manuscript.title`), which names the folder/Welcome entry and is managed
-  via **File → Manage Manuscripts…** (add existing project folders, rename
-  titles, remove entries list-only, or trash whole projects).
+  (`Manuscript.title`), which names the folder/Welcome entry.
+- AC: **The app always launches on the Welcome screen** (the project
+  manager) — nothing auto-opens. Rows open on **double-click or the pencil
+  button**; the orange **⊖ removes the entry from recent memory** (files
+  stay); the red **trash deletes** (folder → Trash, confirmed); right-click
+  adds Rename…/Reveal in Finder. **File → Manage Manuscripts…** saves +
+  closes the current manuscript and returns to Welcome — so the project
+  you're loaded on can never be trashed.
 - AC: The fixed Figures/Tables/Bibliography/Letter panes support right-click
   **Rename…** and **Remove from Sidebar** (restore from the dimmed "Show …"
   rows at the bottom of the Content list).
@@ -150,7 +155,8 @@ propagate by explicit, individual fast-forwards.
   edited only) instead of persistent "up to date" badges; the blue "upstream
   has moved — fast-forward available" hint remains. The lineage renders as
   **one connected container** — children as indented, same-height rows under
-  their parent (dropdown style) — and each journal shows its **icon** (an SF
+  their parent (dropdown style), each prefixed with **curved branch arrows
+  (↳), one per nesting level** — and each journal shows its **icon** (an SF
   Symbol configured in the app-settings Journals library; "?" when unset).
   **Save (Local)** always writes to disk and confirms via the green banner;
   **Save (Remote)** banners its async result the same way.

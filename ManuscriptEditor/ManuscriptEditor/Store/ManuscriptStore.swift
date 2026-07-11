@@ -43,6 +43,15 @@ final class ManuscriptStore {
         }
     }
 
+    /// Saves and closes the current manuscript so the Welcome screen (the
+    /// project manager) shows — File → Manage Manuscripts… lands here, which
+    /// also guarantees you never trash the project you're working in.
+    func closeToWelcome() {
+        trySave()
+        manuscript = nil
+        UserDefaults.standard.removeObject(forKey: "lastOpenedManuscriptID")
+    }
+
     /// Creates a new manuscript in the default App Support location.
     func createNew() {
         manuscript = Manuscript.new()
@@ -192,24 +201,6 @@ final class ManuscriptStore {
         }
         if manuscript?.id == id { manuscript = nil }
         return nil
-    }
-
-    /// Registers an existing project folder in the known list **without**
-    /// opening it (Manage Manuscripts → Add).  Returns an error, or nil.
-    func addKnown(folder: URL) -> String? {
-        let json = folder.appendingPathComponent("manuscript.json")
-        guard FileManager.default.fileExists(atPath: json.path) else {
-            return "That folder doesn't contain a manuscript.json — pick a project folder created or exported by Manuscript Editor."
-        }
-        do {
-            let decoder = JSONDecoder()
-            decoder.dateDecodingStrategy = .iso8601
-            let decoded = try decoder.decode(Manuscript.self, from: Data(contentsOf: json))
-            persistence.setCustomFolder(folder, for: decoded.id)
-            return nil
-        } catch {
-            return "Couldn't read manuscript.json: \(error.localizedDescription)"
-        }
     }
 
     /// Drops a manuscript from the known list without touching its files
