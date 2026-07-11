@@ -80,7 +80,9 @@ struct OverviewView: View {
                 VStack(alignment: .leading, spacing: 6) {
                     subsectionLabel("Editors")
                     if editors.isEmpty {
-                        Text("No edit activity recorded yet.")
+                        Text(m.updatedAt > m.createdAt.addingTimeInterval(1)
+                             ? "Edited locally — set your name in Preferences → User to appear here."
+                             : "No edit activity recorded yet.")
                             .foregroundStyle(.tertiary)
                             .italic()
                             .font(.callout)
@@ -169,6 +171,19 @@ struct OverviewView: View {
                     id: note.id, createdAt: note.createdAt, body: note.body),
                 signature: note.signature, date: note.createdAt)
             if (latest[id]?.date ?? .distantPast) < entry.date { latest[id] = entry }
+        }
+        // Live edits count too: before any stamp or note exists (a fresh
+        // Source-only manuscript is the common case), the current user's
+        // ongoing editing still shows — unsigned until they stamp.
+        let userName = SigningService.userName
+        if !userName.isEmpty, m.updatedAt > m.createdAt.addingTimeInterval(1) {
+            let id = SigningService.publicKeyBase64 ?? "name:\(userName)"
+            let alreadyListed = latest[id] != nil || latest["name:\(userName)"] != nil
+            if !alreadyListed {
+                latest[id] = EditorEntry(
+                    id: id, name: userName, key: nil, type: nil,
+                    message: nil, signature: nil, date: m.updatedAt)
+            }
         }
         return latest.values.sorted { $0.date > $1.date }
     }
