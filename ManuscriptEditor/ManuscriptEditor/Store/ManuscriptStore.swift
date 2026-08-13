@@ -63,7 +63,7 @@ final class ManuscriptStore {
         let key = name ?? "Change"
         let now = Date()
         if let last = lastUndoContext, last.name == key, um.canUndo,
-           now.timeIntervalSince(last.at) < 1.5 {
+           now.timeIntervalSince(last.at) < UndoTuning.snapshotCoalescePause {
             lastUndoContext = (key, now)
             return
         }

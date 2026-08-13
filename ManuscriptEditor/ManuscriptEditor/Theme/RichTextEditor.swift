@@ -36,6 +36,21 @@ enum EditorLayout {
     static var leftInset: CGFloat { gutterWidth + textInset }
 }
 
+// MARK: - Undo tuning
+
+enum UndoTuning {
+    /// Typing pause after which the editors break AppKit's undo coalescing,
+    /// so each burst is its own ⌘Z step.  There is no platform standard —
+    /// AppKit's default is to coalesce an unbroken run forever; word
+    /// processors pick ~0.5–2 s.  Smaller = finer-grained undo.
+    static let typingChunkPause: Duration = .seconds(1)
+
+    /// Same idea one tier up: per-keystroke draft commits (TextFields and
+    /// PlainTextEditors committing on every change) register at most one
+    /// document snapshot per burst; a pause this long starts a new one.
+    static let snapshotCoalescePause: TimeInterval = 1.5
+}
+
 // MARK: - RichEditor (SwiftUI entry point)
 
 struct RichEditor: View {
@@ -656,11 +671,11 @@ private struct RichTextRepresentable: NSViewRepresentable {
 
         /// AppKit merges an unbroken typing run into ONE "Undo Typing" entry;
         /// without an explicit break, ⌘Z after a long burst reverts all of it.
-        /// Breaking on a ~1s pause turns each burst into its own undo step.
+        /// Breaking on a pause turns each burst into its own undo step.
         private func scheduleCoalescingBreak(_ textView: NSTextView) {
             coalescingBreakTask?.cancel()
             coalescingBreakTask = Task { @MainActor [weak textView] in
-                try? await Task.sleep(for: .seconds(1))
+                try? await Task.sleep(for: UndoTuning.typingChunkPause)
                 guard !Task.isCancelled else { return }
                 textView?.breakUndoCoalescing()
             }

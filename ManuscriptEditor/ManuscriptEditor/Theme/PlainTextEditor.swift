@@ -95,10 +95,10 @@ struct PlainTextEditor: NSViewRepresentable {
             guard let textView = notification.object as? NSTextView else { return }
             parent.text = textView.string
             // AppKit merges an unbroken typing run into one undo entry; break
-            // on a ~1s pause so each burst is its own ⌘Z step.
+            // on a pause so each burst is its own ⌘Z step.
             coalescingBreakTask?.cancel()
             coalescingBreakTask = Task { @MainActor [weak textView] in
-                try? await Task.sleep(for: .seconds(1))
+                try? await Task.sleep(for: UndoTuning.typingChunkPause)
                 guard !Task.isCancelled else { return }
                 textView?.breakUndoCoalescing()
             }
