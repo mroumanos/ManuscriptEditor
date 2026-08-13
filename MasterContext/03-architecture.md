@@ -80,6 +80,30 @@ A default `NSTextView` on macOS 26 is TextKit 2, whose TextKit-1 `layoutManager`
 is `nil`, which silently breaks the line-number gutter. See
 [`08-engineering-standards.md`](08-engineering-standards.md#known-platform-gotchas).
 
+## Undo (two tiers, split by entry lifetime)
+
+The rule: an undo entry may only reference things that outlive it.
+
+- **Document tier** — `ManuscriptStore.touch()` snapshots the pre-mutation
+  `Manuscript` (a COW value type, so snapshots cost only the delta) and
+  registers a restore with the key window's undo manager
+  (`store.activeUndoManager`, wired in `ContentView`). Entries target the
+  store, never a view. This makes structural/destructive operations —
+  deleted sections, figures, tables, references, journals, deactivation —
+  undoable via ⌘Z, with named Edit-menu entries. Per-keystroke draft commits
+  coalesce (~1.5 s window); rich-editor content commits register nothing
+  (`undoable: false`) because their undo lives in the editor tier. History
+  resets whenever `manuscript` is replaced wholesale (open/new/close), and
+  `restoreSnapshot` refuses cross-manuscript-id restores. Undo never performs
+  external effects (no network); a restored journal's remote branch is simply
+  recreated on the next remote save.
+- **Editor tier** — every text surface (`RichTextRepresentable`,
+  `PlainTextEditor`) owns a scoped `UndoManager` via `undoManager(for:)`,
+  cleared on dismantle and on programmatic reloads. Typing undo dies with its
+  view — that containment is what fixed the issue-#8 ⌘Z crash. Never use raw
+  SwiftUI `TextEditor` (gotcha #10 in
+  [`08-engineering-standards.md`](08-engineering-standards.md#known-platform-gotchas)).
+
 ## Phase boundaries
 
 Build **Phase I and Phase II**; stub **Phase III**. Full detail in

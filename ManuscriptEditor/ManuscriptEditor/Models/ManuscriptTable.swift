@@ -7,7 +7,7 @@
 import Foundation
 
 /// Metadata and content for a single manuscript table.
-struct ManuscriptTable: Codable, Identifiable, Sendable {
+struct ManuscriptTable: Codable, Identifiable, Sendable, Equatable {
 
     /// Stable unique identifier.
     var id: UUID

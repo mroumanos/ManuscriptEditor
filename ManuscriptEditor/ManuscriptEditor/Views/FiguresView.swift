@@ -257,7 +257,12 @@ struct FigureEditor: View {
                 refreshChart(debounced: true)
             }
         }
-        .onChange(of: figure.id) { _, _ in draft = figure; refreshChart() }
+        .onChange(of: figure) { _, new in
+            // External change (selection switch or document undo).
+            guard new != draft else { return }
+            draft = new
+            refreshChart()
+        }
         .onAppear                { refreshChart() }
         .fileImporter(isPresented: $isImporting, allowedContentTypes: [.image]) { result in
             if case .success(let url) = result {

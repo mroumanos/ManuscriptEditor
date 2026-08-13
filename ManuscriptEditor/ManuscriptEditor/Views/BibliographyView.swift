@@ -338,9 +338,11 @@ struct BibEntryEditor: View {
         .onChange(of: draft.doi)        { _, _ in store.updateBibEntry(draft, ref: versionRef) }
         .onChange(of: draft.url)        { _, _ in store.updateBibEntry(draft, ref: versionRef) }
         .onChange(of: draft.note)       { _, _ in store.updateBibEntry(draft, ref: versionRef) }
-        .onChange(of: entry.id)         { _, _ in
-            draft = entry
-            authorsText = entry.authors.joined(separator: "\n")
+        .onChange(of: entry)            { _, new in
+            // External change (selection switch or document undo).
+            guard new != draft else { return }
+            draft = new
+            authorsText = new.authors.joined(separator: "\n")
         }
     }
 

@@ -122,6 +122,8 @@ enum TabViewMode: String, CaseIterable {
 struct ContentView: View {
     @Environment(ManuscriptStore.self) private var store
     @Environment(AppStore.self)        private var appStore
+    @Environment(\.undoManager)        private var windowUndoManager
+    @Environment(\.controlActiveState) private var controlActiveState
 
     @State private var selection: SidebarItem? = .overview
 
@@ -178,6 +180,13 @@ struct ContentView: View {
 
     var body: some View {
         dialogLayer(notificationLayer(splitView))
+            // Document-level undo (store snapshots) registers with the key
+            // window's manager so ⌘Z routes there whenever no text view
+            // claims it first.
+            .onAppear { store.activeUndoManager = windowUndoManager }
+            .onChange(of: controlActiveState) { _, state in
+                if state == .key { store.activeUndoManager = windowUndoManager }
+            }
     }
 
     private var splitView: some View {

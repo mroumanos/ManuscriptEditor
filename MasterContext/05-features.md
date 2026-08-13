@@ -299,6 +299,13 @@ Intent: clean, modern, capable prose editing.
   layout); persisted (`editorWrapWidth`).
 - AC: Typography (font family/size/line-spacing) is user-configurable and shared
   across editors.
+- AC: **Undo is two-tier** (details in
+  [`03-architecture.md`](03-architecture.md#undo-two-tiers-split-by-entry-lifetime)).
+  Typing undo is scoped to each text surface. **Document undo** covers model
+  mutations: an accidentally deleted section, figure, table, reference, or
+  journal — and a deactivation — is recovered with ⌘Z, with a named Edit-menu
+  entry ("Undo Delete Table"), for at least 50 steps within the session.
+  Undo never performs network operations.
 - Visual references (the formatting bar shown is the longer-term target — see
   [`06-design-system.md`](06-design-system.md#visual-references) for which controls
   are Phase I vs later):

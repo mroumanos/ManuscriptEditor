@@ -263,7 +263,10 @@ struct InstitutionEditor: View {
             .padding(.bottom, 16)
         }
         .onChange(of: draft.name) { _, _ in onChange(draft) }
-        .onChange(of: institution.id) { _, _ in draft = institution }
+        .onChange(of: institution) { _, new in
+            guard new != draft else { return }
+            draft = new
+        }
     }
 }
 
@@ -363,7 +366,11 @@ struct AuthorEditor: View {
         .onChange(of: draft.institutionIDs)  { _, _ in onChange(draft) }
         .onChange(of: draft.isCorresponding) { _, _ in onChange(draft) }
         // If the user clicks a different author row, reload from the new author.
-        .onChange(of: author.id) { _, _ in draft = author }
+        .onChange(of: author) { _, new in
+            // External change (selection switch or document undo).
+            guard new != draft else { return }
+            draft = new
+        }
     }
 
 }

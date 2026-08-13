@@ -31,12 +31,74 @@ final class ManuscriptStore {
     let persistence = PersistenceService()
     let dataService = DataService()
 
+    // MARK: - Undo (document level)
+    //
+    // Every model mutation funnels through `touch`, which snapshots the
+    // pre-mutation `Manuscript` and registers a restore with the key window's
+    // undo manager.  `Manuscript` is a value type with copy-on-write arrays,
+    // so a snapshot shares storage with the live value and costs only the
+    // delta.  Entries target the store (app lifetime), never a view, so they
+    // cannot dangle — text-view *typing* deliberately stays out of this
+    // manager, in each editor's scoped one (see PlainTextEditor and the
+    // engineering-standards gotcha from issue #8).
+
+    /// The key window's undo manager.  Registrations follow the active window
+    /// so ⌘Z lands here whenever a text view doesn't claim it first.
+    /// Not observable state — mutated from view-update paths.
+    @ObservationIgnored weak var activeUndoManager: UndoManager? {
+        didSet { activeUndoManager?.levelsOfUndo = 50 }
+    }
+
+    /// Context of the last registration — coalesces the per-keystroke commits
+    /// of draft-based forms (they call `touch` on every character) into one
+    /// snapshot per burst.
+    @ObservationIgnored private var lastUndoContext: (name: String, at: Date)?
+
+    /// Registers `before` as the undo state for the mutation just applied.
+    private func registerUndo(_ before: Manuscript, name: String?) {
+        guard let um = activeUndoManager, !um.isUndoing, !um.isRedoing else { return }
+        // One snapshot per typing burst: the burst's first snapshot already
+        // restores the pre-burst state, so followers within the window add
+        // nothing but stack noise.
+        let key = name ?? "Change"
+        let now = Date()
+        if let last = lastUndoContext, last.name == key, um.canUndo,
+           now.timeIntervalSince(last.at) < 1.5 {
+            lastUndoContext = (key, now)
+            return
+        }
+        lastUndoContext = (key, now)
+        um.registerUndo(withTarget: self) { $0.restoreSnapshot(before) }
+        if let name { um.setActionName(name) }
+    }
+
+    /// Applies an undo/redo snapshot.  Registering the current state first
+    /// lets NSUndoManager flip the entry onto the redo stack automatically.
+    private func restoreSnapshot(_ snapshot: Manuscript) {
+        // Entries can outlive a manuscript switch (another window's manager);
+        // restoring across ids would clobber the open manuscript with the
+        // previous one's data.
+        guard let current = manuscript, current.id == snapshot.id else { return }
+        lastUndoContext = nil
+        activeUndoManager?.registerUndo(withTarget: self) { $0.restoreSnapshot(current) }
+        manuscript = snapshot
+        trySave()
+    }
+
+    /// Drops document undo history — called whenever `manuscript` is replaced
+    /// wholesale (open/new/close/delete) rather than mutated.
+    private func resetUndoHistory() {
+        lastUndoContext = nil
+        activeUndoManager?.removeAllActions(withTarget: self)
+    }
+
     // MARK: - Lifecycle
 
     func loadMostRecent() {
         guard let idString = UserDefaults.standard.string(forKey: "lastOpenedManuscriptID"),
               let id = UUID(uuidString: idString)
         else { return }
+        resetUndoHistory()
         manuscript = persistence.load(id: id).map(normalized)
         if let m = manuscript {
             resolveBookmarkIfNeeded(for: m)
@@ -48,12 +110,14 @@ final class ManuscriptStore {
     /// also guarantees you never trash the project you're working in.
     func closeToWelcome() {
         trySave()
+        resetUndoHistory()
         manuscript = nil
         UserDefaults.standard.removeObject(forKey: "lastOpenedManuscriptID")
     }
 
     /// Creates a new manuscript in the default App Support location.
     func createNew() {
+        resetUndoHistory()
         manuscript = Manuscript.new()
         if let m = manuscript { persistence.markOpened(id: m.id) }
         trySave()
@@ -70,12 +134,14 @@ final class ManuscriptStore {
         ) {
             m.folderBookmark = bookmark
         }
+        resetUndoHistory()
         manuscript = m
         persistence.setCustomFolder(folderURL, for: m.id)
         trySave()
     }
 
     func open(id: UUID) {
+        resetUndoHistory()
         manuscript = persistence.load(id: id).map(normalized)
         if let m = manuscript {
             resolveBookmarkIfNeeded(for: m)
@@ -103,6 +169,7 @@ final class ManuscriptStore {
             }
             _ = folder.startAccessingSecurityScopedResource()
             persistence.setCustomFolder(folder, for: decoded.id)
+            resetUndoHistory()
             manuscript = normalized(decoded)
             persistence.markOpened(id: decoded.id)
             trySave()
@@ -202,7 +269,7 @@ final class ManuscriptStore {
         if UserDefaults.standard.string(forKey: "lastOpenedManuscriptID") == id.uuidString {
             UserDefaults.standard.removeObject(forKey: "lastOpenedManuscriptID")
         }
-        if manuscript?.id == id { manuscript = nil }
+        if manuscript?.id == id { resetUndoHistory(); manuscript = nil }
         return nil
     }
 
@@ -287,7 +354,7 @@ final class ManuscriptStore {
             $0.hiddenPanes = keys.isEmpty ? nil : keys.sorted()
         }
     }
-    func updateAbstract(_ abstract: RichText, ref: VersionRef = .source) { touch(ref) { $0.abstract = abstract } }
+    func updateAbstract(_ abstract: RichText, ref: VersionRef = .source) { touch(ref, undoable: false) { $0.abstract = abstract } }
     func updateKeywords(_ keywords: [String], ref: VersionRef = .source) { touch(ref) { $0.keywords = keywords } }
 
     // MARK: - Authors
@@ -297,13 +364,13 @@ final class ManuscriptStore {
     }
 
     func updateAuthor(_ author: Author, ref: VersionRef = .source) {
-        touch(ref) { m in
+        touch(ref, undoAction: "Edit Author") { m in
             if let idx = m.authors.firstIndex(where: { $0.id == author.id }) { m.authors[idx] = author }
         }
     }
 
     func deleteAuthors(at offsets: IndexSet, ref: VersionRef = .source) {
-        touch(ref) {
+        touch(ref, undoAction: "Delete Author") {
             $0.authors.remove(atOffsets: offsets)
             for i in $0.authors.indices { $0.authors[i].order = i }
         }
@@ -331,7 +398,7 @@ final class ManuscriptStore {
     }
 
     func updateInstitution(_ institution: Institution, ref: VersionRef = .source) {
-        touch(ref) { m in
+        touch(ref, undoAction: "Edit Institution") { m in
             if let idx = m.institutions.firstIndex(where: { $0.id == institution.id }) {
                 m.institutions[idx] = institution
             }
@@ -340,7 +407,7 @@ final class ManuscriptStore {
 
     /// Removes an institution and strips its reference from every author.
     func deleteInstitution(id: UUID, ref: VersionRef = .source) {
-        touch(ref) { m in
+        touch(ref, undoAction: "Delete Institution") { m in
             m.institutions.removeAll { $0.id == id }
             for i in m.authors.indices {
                 m.authors[i].institutionIDs?.removeAll { $0 == id }
@@ -412,7 +479,7 @@ final class ManuscriptStore {
     /// **preserved** so reactivating restores the text — Checks/Export filter on
     /// the `active` flag, never on emptiness, so nothing leaks while it's off.
     func setSectionActive(_ active: Bool, id: UUID, ref: VersionRef) {
-        touch(ref) { m in
+        touch(ref, undoAction: active ? "Activate Section" : "Deactivate Section") { m in
             if let i = m.sections.firstIndex(where: { $0.id == id }) {
                 m.sections[i].active = active
             }
@@ -421,14 +488,14 @@ final class ManuscriptStore {
 
     /// Edits one version's copy of a section (content etc.).
     func updateSection(_ section: ManuscriptSection, ref: VersionRef = .source) {
-        touch(ref) { m in
+        touch(ref, undoable: false) { m in
             if let idx = m.sections.firstIndex(where: { $0.id == section.id }) { m.sections[idx] = section }
         }
     }
 
     /// Deletes a section everywhere (Source + all versions).
     func deleteSection(id: UUID) {
-        touch { m in
+        touch(undoAction: "Delete Section") { m in
             m.sections.removeAll { $0.id == id }
             for i in m.sections.indices { m.sections[i].order = i }
             for v in m.versions.indices {
@@ -441,7 +508,7 @@ final class ManuscriptStore {
     func deleteSections(at offsets: IndexSet) {
         let sorted = (manuscript?.sections ?? []).sorted { $0.order < $1.order }
         let ids = offsets.compactMap { sorted.indices.contains($0) ? sorted[$0].id : nil }
-        touch { m in
+        touch(undoAction: "Delete Section") { m in
             for id in ids {
                 m.sections.removeAll { $0.id == id }
                 for v in m.versions.indices { m.versions[v].content.sections.removeAll { $0.id == id } }
@@ -484,7 +551,7 @@ final class ManuscriptStore {
     }
 
     func updateFigure(_ figure: Figure, ref: VersionRef = .source) {
-        touch(ref) { m in
+        touch(ref, undoAction: "Edit Figure") { m in
             if let idx = m.figures.firstIndex(where: { $0.id == figure.id }) { m.figures[idx] = figure }
         }
     }
@@ -498,7 +565,7 @@ final class ManuscriptStore {
     }
 
     func deleteFigures(at offsets: IndexSet, ref: VersionRef = .source) {
-        touch(ref) { $0.figures.remove(atOffsets: offsets) }
+        touch(ref, undoAction: "Delete Figure") { $0.figures.remove(atOffsets: offsets) }
     }
 
     func figureURL(for figure: Figure) -> URL? {
@@ -519,13 +586,13 @@ final class ManuscriptStore {
     }
 
     func updateTable(_ table: ManuscriptTable, ref: VersionRef = .source) {
-        touch(ref) { m in
+        touch(ref, undoAction: "Edit Table") { m in
             if let idx = m.tables.firstIndex(where: { $0.id == table.id }) { m.tables[idx] = table }
         }
     }
 
     func deleteTables(at offsets: IndexSet, ref: VersionRef = .source) {
-        touch(ref) { $0.tables.remove(atOffsets: offsets) }
+        touch(ref, undoAction: "Delete Table") { $0.tables.remove(atOffsets: offsets) }
     }
 
     // MARK: - Data Assets
@@ -562,7 +629,7 @@ final class ManuscriptStore {
     }
 
     func deleteDataAssets(at offsets: IndexSet) {
-        touch { $0.dataAssets.remove(atOffsets: offsets) }
+        touch(undoAction: "Delete Data Asset") { $0.dataAssets.remove(atOffsets: offsets) }
     }
 
     /// Returns the data directory URL for the current manuscript.
@@ -599,13 +666,13 @@ final class ManuscriptStore {
     }
 
     func updateBibEntry(_ entry: BibEntry, ref: VersionRef = .source) {
-        touch(ref) { m in
+        touch(ref, undoAction: "Edit Reference") { m in
             if let idx = m.bibliography.firstIndex(where: { $0.id == entry.id }) { m.bibliography[idx] = entry }
         }
     }
 
     func deleteBibEntries(at offsets: IndexSet, ref: VersionRef = .source) {
-        touch(ref) { $0.bibliography.remove(atOffsets: offsets) }
+        touch(ref, undoAction: "Delete Reference") { $0.bibliography.remove(atOffsets: offsets) }
     }
 
     /// Manual drag-reorder of the (flat) bibliography list.
@@ -635,7 +702,7 @@ final class ManuscriptStore {
     // MARK: - Letter to editor
 
     func updateLetterToEditor(_ letter: LetterToEditor, ref: VersionRef = .source) {
-        touch(ref) { $0.letterToEditor = letter }
+        touch(ref, undoable: false) { $0.letterToEditor = letter }
     }
 
     // MARK: - Notes
@@ -709,7 +776,7 @@ final class ManuscriptStore {
     }
 
     func deleteJournals(at offsets: IndexSet) {
-        touch { $0.journals.remove(atOffsets: offsets) }
+        touch(undoAction: "Delete Journal") { $0.journals.remove(atOffsets: offsets) }
     }
 
     // MARK: - Export outlines
@@ -1194,7 +1261,7 @@ final class ManuscriptStore {
     @discardableResult
     func deleteVersion(id: UUID) -> Bool {
         guard isLeafVersion(id) else { return false }
-        touch { $0.versions.removeAll { $0.id == id } }
+        touch(undoAction: "Delete Version") { $0.versions.removeAll { $0.id == id } }
         return true
     }
 
@@ -1554,6 +1621,7 @@ final class ManuscriptStore {
         m.settings.activeBackendID = accountID
         m.settings.remoteRepository = repository
         m.settings.remoteBranch = branch?.isEmpty == false ? branch : nil
+        resetUndoHistory()
         manuscript = m
         persistence.markOpened(id: m.id)
         trySave()
@@ -1708,8 +1776,16 @@ final class ManuscriptStore {
     /// Routing all edits through here lets the content editors stay agnostic:
     /// they pass their `VersionRef` and the same array logic edits whichever
     /// manuscript that tab represents.
-    private func touch(_ ref: VersionRef = .source, _ mutation: (inout Manuscript) -> Void) {
+    ///
+    /// `undoAction` names the entry in the Edit menu; `undoable: false` is for
+    /// the rich-text editors' per-keystroke content commits, whose undo lives
+    /// in the editor's own scoped manager instead.
+    private func touch(_ ref: VersionRef = .source,
+                       undoAction: String? = nil,
+                       undoable: Bool = true,
+                       _ mutation: (inout Manuscript) -> Void) {
         guard var m = manuscript else { return }
+        let before = m
         switch ref {
         case .source:
             mutation(&m)
@@ -1726,6 +1802,7 @@ final class ManuscriptStore {
         m.updatedAt = Date()
         manuscript = m
         trySave()
+        if undoable { registerUndo(before, name: undoAction) }
     }
 
     /// Attempts to resolve a security-scoped bookmark stored on the manuscript

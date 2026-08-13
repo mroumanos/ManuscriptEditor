@@ -20,7 +20,7 @@ struct Institution: Codable, Identifiable, Sendable, Equatable {
 ///
 /// Most journal submission systems require names, institutional affiliations, contact
 /// email, and ORCID identifiers.  This struct captures all of those.
-struct Author: Codable, Identifiable, Sendable {
+struct Author: Codable, Identifiable, Sendable, Equatable {
 
     /// Stable unique identifier.  Used by SwiftUI's `ForEach` to track rows efficiently.
     var id: UUID

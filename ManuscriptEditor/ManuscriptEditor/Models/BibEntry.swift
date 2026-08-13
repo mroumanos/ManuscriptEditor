@@ -24,7 +24,7 @@ enum BibEntryType: String, Codable, CaseIterable, Sendable {
 /// Field names follow BibTeX conventions so the data can be exported to `.bib` files
 /// in Phase 2.  Only `id`, `key`, `type`, `authors`, and `title` are always required;
 /// all other fields are optional because not every publication type needs them.
-struct BibEntry: Codable, Identifiable, Sendable {
+struct BibEntry: Codable, Identifiable, Sendable, Equatable {
 
     /// Stable unique identifier used to track the entry across saves.
     var id: UUID

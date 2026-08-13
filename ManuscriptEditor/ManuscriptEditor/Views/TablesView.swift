@@ -243,7 +243,13 @@ struct TableEditor: View {
         .onChange(of: draft.number)       { _, _ in store.updateTable(draft, ref: versionRef) }
         .onChange(of: draft.dataAssetID)  { _, _ in store.updateTable(draft, ref: versionRef); refreshPreview() }
         .onChange(of: draft.dataQuery)    { _, _ in store.updateTable(draft, ref: versionRef); refreshPreview(debounced: true) }
-        .onChange(of: table.id)           { _, _ in draft = table; refreshPreview() }
+        .onChange(of: table) { _, new in
+            // External change (selection switch or document undo) — the form's
+            // own commits arrive back equal to the draft and are skipped.
+            guard new != draft else { return }
+            draft = new
+            refreshPreview()
+        }
         .onAppear                         { refreshPreview() }
     }
 
