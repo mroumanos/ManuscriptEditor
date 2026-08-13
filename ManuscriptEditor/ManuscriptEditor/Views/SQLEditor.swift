@@ -12,14 +12,15 @@ struct SQLEditor: View {
     var minHeight: CGFloat = 64
 
     /// Amber-on-black terminal palette.
-    private let ink = Color(red: 1.0, green: 0.62, blue: 0.25)
+    private let ink = NSColor(red: 1.0, green: 0.62, blue: 0.25, alpha: 1)
 
     var body: some View {
-        TextEditor(text: $text)
-            .font(.system(.callout, design: .monospaced))
-            .foregroundStyle(ink)
-            .tint(ink)
-            .scrollContentBackground(.hidden)
+        PlainTextEditor(text: $text,
+                        font: .monospacedSystemFont(ofSize: NSFont.preferredFont(forTextStyle: .callout).pointSize,
+                                                    weight: .regular),
+                        textColor: ink,
+                        insertionColor: ink,
+                        smartSubstitutions: false)
             .padding(8)
             .frame(minHeight: minHeight)
             .background(Color.black, in: RoundedRectangle(cornerRadius: 8))
@@ -27,6 +28,5 @@ struct SQLEditor: View {
                 RoundedRectangle(cornerRadius: 8)
                     .strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
             )
-            .autocorrectionDisabled()
     }
 }

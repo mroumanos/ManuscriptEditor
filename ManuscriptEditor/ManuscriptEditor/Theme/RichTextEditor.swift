@@ -515,6 +515,12 @@ private struct RichTextRepresentable: NSViewRepresentable {
         }
     }
 
+    static func dismantleNSView(_ scrollView: NSScrollView, coordinator: Coordinator) {
+        // The undo manager dies with the coordinator, but clear it eagerly so
+        // nothing can pop an entry mid-teardown.
+        coordinator.editorUndoManager.removeAllActions()
+    }
+
     // MARK: Coordinator
 
     final class Coordinator: NSObject, NSTextViewDelegate {
@@ -531,7 +537,16 @@ private struct RichTextRepresentable: NSViewRepresentable {
         /// commit; guards the reload-from-binding path against clobbering.
         var hasPendingCommit = false
 
+        /// Undo history scoped to this editor instance.  The text view
+        /// registers its typing operations here (via `undoManager(for:)`)
+        /// instead of the window's long-lived manager, so entries can never
+        /// outlive the text view they target — the window manager's stale
+        /// entries were crashing ⌘Z (issue #8).
+        let editorUndoManager = UndoManager()
+
         init(_ parent: RichTextRepresentable) { self.parent = parent }
+
+        func undoManager(for view: NSTextView) -> UndoManager? { editorUndoManager }
 
         deinit { observers.forEach { NotificationCenter.default.removeObserver($0) } }
 
@@ -564,6 +579,10 @@ private struct RichTextRepresentable: NSViewRepresentable {
         /// Loads `value`: RTF when present, else plain text with default attributes.
         func load(_ value: RichText, into textView: NSTextView, baseFont: NSFont, lineHeightMultiple: Double) {
             guard let storage = textView.textStorage else { return }
+            // A programmatic reload replaces the content wholesale (section
+            // switch, external restore); undoing across it would replay old
+            // operations against the new text's ranges.
+            editorUndoManager.removeAllActions()
             if let rtf = value.rtf,
                let attributed = NSAttributedString(rtf: rtf, documentAttributes: nil) {
                 storage.setAttributedString(attributed)

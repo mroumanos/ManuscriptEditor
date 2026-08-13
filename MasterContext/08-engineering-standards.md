@@ -78,7 +78,17 @@ xcodebuild -scheme ManuscriptEditor -destination 'platform=macOS' build
    `"\n"` case — a character-level parser silently swallows every Windows/Excel
    line break (the CSV importer once globbed whole files into one giant row this
    way). Normalize `\r\n` → `\n` before parsing, or iterate unicode scalars.
-10. **The app runs UNSANDBOXED** (`ENABLE_APP_SANDBOX = NO`) — deliberately.
+10. **Text-view undo must be scoped to the view's lifetime.** `NSUndoManager`
+    holds action targets *unretained*; an `NSTextView` (including the one
+    backing SwiftUI's `TextEditor`) registers typing operations into the
+    window's long-lived undo manager, and when the view is destroyed (row
+    deleted, pane switched, identity churn) ⌘Z dispatches
+    `_undoRedoTextOperation:` into freed memory (the issue-#8 crash). Every
+    text surface must use a manager owned by its coordinator (delegate
+    `undoManager(for:)`), cleared on `dismantleNSView` and on programmatic
+    content reloads. **Never use raw SwiftUI `TextEditor`** — use
+    `PlainTextEditor` (Theme/), which exists precisely for this.
+11. **The app runs UNSANDBOXED** (`ENABLE_APP_SANDBOX = NO`) — deliberately.
     The sandbox blocked two must-haves: reading `/opt/homebrew` (so `gpg` was
     unreachable for the local-keyring dropdown) and reading `~/.gnupg` (grants
     don't inherit to child processes). Do not re-enable it casually: sandboxed

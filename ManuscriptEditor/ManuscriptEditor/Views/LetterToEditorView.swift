@@ -277,11 +277,11 @@ private struct HeaderSlotEditor: View {
     let alignment: HorizontalAlignment
     @Binding var slot: LetterHeaderSlot
 
-    private var textAlignment: TextAlignment {
+    private var textAlignment: NSTextAlignment {
         switch alignment {
         case .center:   return .center
-        case .trailing: return .trailing
-        default:        return .leading
+        case .trailing: return .right
+        default:        return .left
         }
     }
 
@@ -322,9 +322,7 @@ private struct HeaderSlotEditor: View {
                 .frame(maxWidth: .infinity, alignment: .center)
             }
 
-            TextEditor(text: $slot.text)
-                .font(.callout)
-                .multilineTextAlignment(textAlignment)
+            PlainTextEditor(text: $slot.text, alignment: textAlignment)
                 .frame(minHeight: 54, maxHeight: 72)
                 .overlay(alignment: .topLeading) {
                     if slot.text.isEmpty {

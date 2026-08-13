@@ -188,8 +188,9 @@ struct TableEditor: View {
                     }
                 } else {
                     // Monospaced font makes pipe-table columns easier to align visually.
-                    TextEditor(text: $draft.content)
-                        .font(.system(.body, design: .monospaced))
+                    PlainTextEditor(text: $draft.content,
+                                    font: .monospacedSystemFont(ofSize: NSFont.systemFontSize, weight: .regular),
+                                    smartSubstitutions: false)
                         .padding(12)
                 }
             }
@@ -205,14 +206,12 @@ struct TableEditor: View {
                     TextField("Title", text: $draft.title)
                 }
                 Section("Caption") {
-                    TextEditor(text: $draft.caption)
+                    PlainTextEditor(text: $draft.caption)
                         .frame(minHeight: 60)
-                        .font(.callout)
                 }
                 Section("Footnotes") {
-                    TextEditor(text: $draft.footnotes)
+                    PlainTextEditor(text: $draft.footnotes)
                         .frame(minHeight: 40)
-                        .font(.callout)
                     Text("Exports as a \"Note.\" paragraph beneath the table.")
                         .font(.caption)
                         .foregroundStyle(.secondary)

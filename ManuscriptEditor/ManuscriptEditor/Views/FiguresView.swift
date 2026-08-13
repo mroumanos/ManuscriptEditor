@@ -238,9 +238,8 @@ struct FigureEditor: View {
                         TextField("Alt text (accessibility)", text: $draft.altText)
                     }
                     Section("Caption") {
-                        TextEditor(text: $draft.caption)
+                        PlainTextEditor(text: $draft.caption)
                             .frame(minHeight: 80)
-                            .font(.callout)
                     }
                     dataSourceSection
                 }

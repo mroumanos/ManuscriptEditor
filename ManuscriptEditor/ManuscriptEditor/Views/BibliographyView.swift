@@ -290,8 +290,7 @@ struct BibEntryEditor: View {
 
                 // One author per line, "Last, First" format.
                 Section("Authors (one per line, Last, First format)") {
-                    TextEditor(text: $authorsText)
-                        .font(.callout)
+                    PlainTextEditor(text: $authorsText)
                         .frame(minHeight: 80)
                         .onChange(of: authorsText) { _, new in
                             draft.authors = new.components(separatedBy: "\n")
@@ -318,9 +317,8 @@ struct BibEntryEditor: View {
                 }
 
                 Section("Notes") {
-                    TextEditor(text: optionalBinding(\.note))
+                    PlainTextEditor(text: optionalBinding(\.note))
                         .frame(minHeight: 50)
-                        .font(.callout)
                 }
                 }
                 .disabled(isReadOnly)   // Zotero entries are read-only
