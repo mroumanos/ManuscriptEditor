@@ -202,7 +202,9 @@ Notes are a first-class way to leave feedback for oneself or collaborators,
 
 ## Content components (within `ManuscriptContent`)
 
-- `Author`: name parts, email, ORCID, isCorresponding, order, and
+- `Author`: name parts (first/middle/last + optional honorific `namePrefix`,
+  `degrees` appended to exported bylines, postal `address`; all optional,
+  decodeIfPresent), email, ORCID, isCorresponding, order, and
   `institutionIDs[]` — references into the manuscript-level
   `institutions: [Institution]` registry (id + name, managed in the Authors
   pane). **Every author must reference at least one institution** (rows and

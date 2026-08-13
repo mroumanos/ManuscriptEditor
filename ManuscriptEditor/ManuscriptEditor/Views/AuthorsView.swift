@@ -297,16 +297,30 @@ struct AuthorEditor: View {
 
     private var selectedInstitutions: Set<UUID> { Set(draft.institutionIDs ?? []) }
 
+    /// Bridges an optional model field to a TextField; empty text stores nil
+    /// so untouched fields stay absent from manuscript.json.
+    private func optionalField(_ keyPath: WritableKeyPath<Author, String?>) -> Binding<String> {
+        Binding(
+            get: { draft[keyPath: keyPath] ?? "" },
+            set: { draft[keyPath: keyPath] = $0.isEmpty ? nil : $0 }
+        )
+    }
+
     var body: some View {
         ScrollView {
             Form {
                 Section("Name") {
+                    TextField("Title (Dr., Prof.)", text: optionalField(\.namePrefix))
                     TextField("First name", text: $draft.firstName)
+                    TextField("Middle name / initials", text: optionalField(\.middleName))
                     TextField("Last name",  text: $draft.lastName)
+                    TextField("Degrees (MD, PhD)", text: optionalField(\.degrees))
                 }
 
                 Section("Contact") {
                     TextField("Email address", text: $draft.email)
+                    TextField("Address", text: optionalField(\.address), axis: .vertical)
+                        .lineLimit(2...4)
                     HStack(spacing: 8) {
                         TextField("ORCID", text: $draft.orcid)
                         // Once an iD is entered, link straight to the ORCID record.
@@ -360,6 +374,10 @@ struct AuthorEditor: View {
         // Push every field change back to the store immediately.
         .onChange(of: draft.firstName)       { _, _ in onChange(draft) }
         .onChange(of: draft.lastName)        { _, _ in onChange(draft) }
+        .onChange(of: draft.middleName)      { _, _ in onChange(draft) }
+        .onChange(of: draft.namePrefix)      { _, _ in onChange(draft) }
+        .onChange(of: draft.degrees)         { _, _ in onChange(draft) }
+        .onChange(of: draft.address)         { _, _ in onChange(draft) }
         .onChange(of: draft.email)           { _, _ in onChange(draft) }
         .onChange(of: draft.orcid)           { _, _ in onChange(draft) }
         .onChange(of: draft.affiliations)    { _, _ in onChange(draft) }

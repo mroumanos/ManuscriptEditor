@@ -31,6 +31,20 @@ struct Author: Codable, Identifiable, Sendable, Equatable {
     /// Author's family / last name.
     var lastName: String
 
+    /// Middle name or initials ("M.", "van der").  Optional; decodes as nil
+    /// from files written before Aug 2026 (issue #16).
+    var middleName: String? = nil
+
+    /// Honorific / title ("Dr.", "Prof.") — stored for correspondence; not
+    /// printed in exported bylines.
+    var namePrefix: String? = nil
+
+    /// Academic degrees ("MD, PhD") — appended to the exported byline.
+    var degrees: String? = nil
+
+    /// Postal address — required by some journals for the corresponding author.
+    var address: String? = nil
+
     /// Contact email address — required for the corresponding author.
     var email: String
 
@@ -56,8 +70,20 @@ struct Author: Codable, Identifiable, Sendable, Equatable {
 
     // MARK: - Computed
 
-    /// "First Last" — used in export and overview display.
-    var fullName: String { "\(firstName) \(lastName)".trimmingCharacters(in: .whitespaces) }
+    /// "First Middle Last" — used in export and overview display.
+    var fullName: String {
+        [firstName, middleName ?? "", lastName]
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+            .trimmingCharacters(in: .whitespaces)
+    }
+
+    /// Byline for exported documents: full name plus degrees ("Jane Q. Doe,
+    /// MD, PhD").  The honorific prefix is deliberately excluded.
+    var exportName: String {
+        let d = (degrees ?? "").trimmingCharacters(in: .whitespaces)
+        return d.isEmpty ? fullName : "\(fullName), \(d)"
+    }
 
     /// "Last, First" — conventional format for reference lists and author lines.
     var displayName: String { lastName.isEmpty ? firstName : "\(lastName), \(firstName)" }
