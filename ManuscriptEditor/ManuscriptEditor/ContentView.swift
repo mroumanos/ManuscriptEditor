@@ -31,7 +31,7 @@ import UniformTypeIdentifiers
 enum SidebarItem: Hashable {
     // ── Manuscript ──────────────────────────────────────────────────────────
     case overview
-    case sync
+    case log
     case checks
     case export
     case data
@@ -56,7 +56,7 @@ enum SidebarItem: Hashable {
         case .title, .authors, .abstract, .keywords, .section,
              .figures, .tables, .bibliography, .letterToEditor:
             return true
-        case .overview, .sync, .checks, .export, .data, .versions,
+        case .overview, .log, .checks, .export, .data, .versions,
              .manuscriptBackend, .manuscriptAI:
             return false
         }
@@ -74,7 +74,7 @@ enum SidebarItem: Hashable {
     var notesKey: String {
         switch self {
         case .overview:           return "overview"
-        case .sync:               return "sync"
+        case .log:                return "log"
         case .checks:             return "checks"
         case .export:             return "export"
         case .data:               return "data"
@@ -637,7 +637,7 @@ struct DetailRouter: View {
     var body: some View {
         switch selection {
         case .overview, .none:      OverviewView()
-        case .sync:                 SyncView()
+        case .log:                  LogView()
         case .checks:               ChecksView()
         case .export:               ExportView()
         case .data:                 DataView()

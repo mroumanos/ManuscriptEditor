@@ -22,7 +22,9 @@ final class ManuscriptStore {
 
     // MARK: - State
 
-    var manuscript: Manuscript?
+    var manuscript: Manuscript? {
+        didSet { if oldValue?.id != manuscript?.id { loadLog() } }
+    }
     var lastSaved: Date?
     var saveError: String?
 
@@ -973,6 +975,8 @@ final class ManuscriptStore {
             author: SigningService.userName
         ))
         touch { $0.versions.append(next) }
+        let name = m.journals.first { $0.id == journalID }?.name ?? "journal"
+        log(.info, "Stamped \(name) v\(journalOrdinal(of: head))")
         NotificationCenter.default.post(
             name: .journalHeadChanged, object: nil,
             userInfo: ["old": head.id, "new": next.id])
@@ -994,6 +998,7 @@ final class ManuscriptStore {
         ))
         stamp.sourceStamp = true
         touch { $0.versions.append(stamp) }
+        log(.info, "Stamped Source v\(sourceStamps.count)")
         return stamp
     }
 
@@ -1048,6 +1053,7 @@ final class ManuscriptStore {
                 m.letterToEditor = content.letterToEditor
                 m.versions.removeAll { v in dropped.contains { $0.id == v.id } }
             }
+            log(.info, "Rolled Source back to v\(sourceOrdinal(of: version))")
             return nil
         }
         guard let journalID = version.journalID else { return "Only journal versions can be rolled back." }
@@ -1064,6 +1070,8 @@ final class ManuscriptStore {
                 name: .journalHeadChanged, object: nil,
                 userInfo: ["old": oldHead.id, "new": version.id])
         }
+        let name = manuscript?.journals.first { $0.id == journalID }?.name ?? "journal"
+        log(.info, "Rolled \(name) back to v\(journalOrdinal(of: version))")
         return nil
     }
 
@@ -1320,7 +1328,47 @@ final class ManuscriptStore {
     var banner: (kind: BannerKind, message: String)?
     private var bannerTask: Task<Void, Never>?
 
+    // MARK: - Activity log (Log pane)
+
+    /// Newest-first user-visible events; persisted to log.json beside
+    /// manuscript.json.  Autosaves are deliberately never logged.
+    var activityLog: [LogEntry] = []
+
+    func log(_ kind: LogEntry.Kind, _ message: String, detail: String? = nil) {
+        activityLog.insert(LogEntry(kind: kind, message: message, detail: detail), at: 0)
+        if activityLog.count > 500 { activityLog.removeLast(activityLog.count - 500) }
+        persistLog()
+    }
+
+    func clearLog() {
+        activityLog = []
+        persistLog()
+    }
+
+    private func logURL(for id: UUID) -> URL {
+        persistence.manuscriptDirectory(for: id).appendingPathComponent("log.json")
+    }
+
+    private func persistLog() {
+        guard let id = manuscript?.id else { return }
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        try? encoder.encode(activityLog).write(to: logURL(for: id), options: .atomic)
+    }
+
+    private func loadLog() {
+        activityLog = []
+        guard let id = manuscript?.id else { return }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        if let data = try? Data(contentsOf: logURL(for: id)),
+           let entries = try? decoder.decode([LogEntry].self, from: data) {
+            activityLog = entries
+        }
+    }
+
     func showBanner(_ kind: BannerKind, _ message: String) {
+        log(kind == .success ? .success : .error, message)
         banner = (kind, message)
         bannerTask?.cancel()
         bannerTask = Task { [weak self] in

@@ -13,8 +13,12 @@ Two sections, plus a bottom utility bar:
 **Manuscript** (manuscript-level, single-pane)
 - Overview
 - Data (N)
-- Sync     ← the flow-of-content hub: Save (Local/Remote), sync between
-             journals (a plain **Sync** button; a drifted upstream first raises
+- Log      ← the activity history: every banner (success/error), manual
+             save, stamp, rollback, sync, journal add/delete — full messages,
+             never truncated.  (Replaced the Sync pane, Aug 2026: journals &
+             lineage moved to Overview, save buttons to the Overview summary.)
+             Sync between journals lives on the Overview lineage rows
+             (a drifted upstream first raises
              its own stamp prompt — declining cancels — and the sync prompt
              states whether a connected AI may modify the copy), and Add Journal (from = Source/journal; to = a profile
              from the app-settings journal library)
@@ -62,7 +66,7 @@ least the Source tab always exists.
 ## The journal tab bar (top of the detail area)
 
 Tabs **load automatically** — Source plus every journal, in manuscript order —
-and are never opened/closed by hand (adding a journal in Sync adds its tab).
+and are never opened/closed by hand (adding a journal in Overview adds its tab).
 Tab identity is the **journal**, always resolving to its current working head.
 
 - **Browser-style chips**: icon + journal name; the shown tab(s) sit on a
@@ -77,7 +81,7 @@ Tab identity is the **journal**, always resolving to its current working head.
 - **Side-by-side for comparable items.** Comparable = the **Content** items
   **plus Checks, Versions, and Export**. When a comparable item is selected AND
   ≥1 tab is open, the detail splits into one pane per open journal. For the
-  remaining manuscript-level items (Overview/Data/Sync/Settings) the tabs are
+  remaining manuscript-level items (Overview/Data/Log/Settings) the tabs are
   irrelevant and a single pane renders against Source.
 - **Checks renders per-journal and live.** With Source + NEJM open and **Checks**
   selected, each pane shows that journal's requirement checklist evaluated against
@@ -105,15 +109,15 @@ Tab identity is the **journal**, always resolving to its current working head.
 | Editor font / size / line spacing | Preferences → Editor |
 | This manuscript's backend account / local folder / remote repo (create + link) | **Manuscript → Backend** sidebar item |
 | This manuscript's AI service | **Manuscript → AI** sidebar item |
-| Save (Local) ⌘S / Save (Remote) ⇧⌘S | **File menu** + the **Sync** pane (loading an existing remote = New Manuscript (Remote)… — no separate Load command) |
-| Add journals (from → to); sync between journals; lineage tree | **Manuscript → Sync** pane |
+| Save (Local) ⌘S / Save (Remote) ⇧⌘S | **File menu** + the **Overview** summary buttons (loading an existing remote = New Manuscript (Remote)… — no separate Load command) |
+| Add journals (from → to); sync between journals; lineage tree | **Manuscript → Overview** (Journals & Lineage card) |
 | Stamp Version / Roll Back; per-journal version table | **Journal → Versions** pane (per tab) |
 | Journal requirements editing; save profile to library | **Journal → Checks** pane (per tab) |
 | Notes & feedback on content | notes button in pane headers (signed) |
 | Import CSV/images; SQL; charts | **Data** sidebar item |
 | New (app data) ⌘N / Open (Local)… ⌘O in-place / Open (Remote)… clone / Export Project zip ⌘E | **File menu** (all warn about unsynced work first) |
 
-## Lineage (Sync pane)
+## Lineage (Overview — Journals & Lineage card)
 
 The lineage renders as a **contiguous nested tree**: Source at the root, each
 journal's card attached directly beneath its upstream — tabbed on the left,

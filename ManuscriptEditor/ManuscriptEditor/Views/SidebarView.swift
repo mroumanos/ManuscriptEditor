@@ -129,8 +129,8 @@ struct SidebarView: View {
                 .tag(SidebarItem.data)
             // Sync is manuscript-level: saving (local/remote), syncing
             // between journals, and adding journals.
-            Label("Sync", systemImage: "arrow.triangle.2.circlepath")
-                .tag(SidebarItem.sync)
+            Label("Log", systemImage: "list.bullet.rectangle")
+                .tag(SidebarItem.log)
             // Manuscript-scoped settings, split by concern; app-wide settings
             // stay in Preferences (gear below).
             Label("Backend", systemImage: "externaldrive.connected.to.line.below")

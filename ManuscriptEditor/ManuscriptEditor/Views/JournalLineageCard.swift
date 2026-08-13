@@ -1,17 +1,16 @@
-// SyncView.swift
+// JournalLineageCard.swift
 //
-// The "Sync" pane (Manuscript section) — the manuscript's flow-of-content hub.
-// Three jobs live here:
+// The Journals & Lineage card, embedded in Overview (the Sync pane it grew
+// out of was retired Aug 2026 — its saving buttons live in the Overview
+// summary and its history in the Log pane).  Two jobs:
 //
-//   1. SAVING   — Save (Local) writes to the manuscript folder on disk;
-//                 Save (Remote) pushes to the active backend account.
-//   2. SYNCING  — fast-forward any journal from its upstream.  Every sync
+//   1. SYNCING  — fast-forward any journal from its upstream.  Every sync
 //                 edge A→B is checksum-verified first: identical latest
 //                 contents short-circuit to an "already in sync" banner, and
 //                 an upstream whose latest drifted from its own last stamp
 //                 refuses to sync until it's stamped (Versions tab) — lineage
 //                 always hangs from frozen versions.
-//   3. ADDING   — cut a new journal: FROM any journal (or Source), TO a
+//   2. ADDING   — cut a new journal: FROM any journal (or Source), TO a
 //                 journal profile from the app-settings library (or custom).
 //                 The new journal appears in the lineage and gets a tab
 //                 automatically.
@@ -21,7 +20,7 @@
 
 import SwiftUI
 
-struct SyncView: View {
+struct JournalLineageCard: View {
     @Environment(ManuscriptStore.self) private var store
     @Environment(AppStore.self)        private var appStore
 
@@ -38,14 +37,11 @@ struct SyncView: View {
     private let indent: CGFloat = 28
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                Text("Sync").font(.title2.weight(.semibold))
-
-                savingCard
-
+            VStack(alignment: .leading, spacing: 12) {
                 HStack {
-                    Text("Journals & Lineage").font(.headline)
+                    Text("Journals & Lineage")
+                        .font(.headline)
+                        .foregroundStyle(.secondary)
                     Spacer()
                     Button {
                         showAddJournal = true
@@ -56,11 +52,6 @@ struct SyncView: View {
                 .frame(maxWidth: cardWidth)
 
                 lineageTree
-
-                Spacer(minLength: 0)
-            }
-            .padding(24)
-            .frame(maxWidth: .infinity, alignment: .topLeading)
         }
         .sheet(isPresented: $showAddJournal) {
             AddJournalSheet(isPresented: $showAddJournal)
@@ -85,57 +76,6 @@ struct SyncView: View {
                 secondaryButton: .cancel()
             )
         }
-    }
-
-    // MARK: - 1. Saving
-
-    private var savingCard: some View {
-        let m = store.manuscript
-        // Equal-width columns so the two Save buttons sit evenly.
-        return HStack(spacing: 16) {
-            VStack(alignment: .leading, spacing: 3) {
-                Button {
-                    store.trySave()   // always writes the file, dirty or not
-                    if let error = store.saveError {
-                        showError("Local save failed: \(error)")
-                    } else {
-                        showSuccess("Saved to disk at \((store.lastSaved ?? Date()).formatted(date: .omitted, time: .standard)).")
-                    }
-                } label: {
-                    Label("Save (Local)", systemImage: "internaldrive")
-                }
-                Text(store.lastSaved.map { "Saved \($0.formatted(date: .abbreviated, time: .shortened))" }
-                     ?? m.map { "Edited \($0.updatedAt.formatted(date: .abbreviated, time: .shortened))" } ?? "—")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-            .frame(width: 250, alignment: .leading)
-
-            Divider().frame(height: 40)
-
-            VStack(alignment: .leading, spacing: 3) {
-                Button {
-                    store.saveToRemote(appStore: appStore)
-                } label: {
-                    Label("Save (Remote)", systemImage: "icloud.and.arrow.up")
-                }
-                .disabled(store.isRemoteBusy)
-                Text(m?.lastSyncedAt.map { "Synced \($0.formatted(date: .abbreviated, time: .shortened))" }
-                     ?? "Never synced — configure a backend in Manuscript → Backend")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-            .frame(width: 250, alignment: .leading)
-
-            Spacer()
-
-            if store.isRemoteBusy { ProgressView().controlSize(.small) }
-        }
-        // Remote pushes banner their own result from the store.
-        .padding(14)
-        .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
-        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.separator, lineWidth: 1))
-        .frame(maxWidth: cardWidth)
     }
 
     // MARK: - 2/3. Lineage tree
@@ -195,7 +135,7 @@ struct SyncView: View {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 8) {
                     Text("Source").font(.headline)
-                    Text(stamps > 0 ? "v\(stamps) / latest" : "latest")
+                    Text("v\(stamps)")
                         .font(.caption.weight(.semibold).monospacedDigit())
                         .foregroundStyle(.secondary)
                 }
@@ -246,7 +186,7 @@ struct SyncView: View {
                     Text(journal.name).font(.headline)
                     if head != nil {
                         let count = store.versions(forJournal: journal.id).count
-                        Text(count > 1 ? "v\(count - 1) / latest" : "latest")
+                        Text("v\(count - 1)")
                             .font(.caption.weight(.semibold).monospacedDigit())
                             .foregroundStyle(.secondary)
                     }

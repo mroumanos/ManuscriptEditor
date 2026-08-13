@@ -11,6 +11,7 @@ import SwiftUI
 /// Dashboard view showing manuscript metadata at a glance.
 struct OverviewView: View {
     @Environment(ManuscriptStore.self) private var store
+    @Environment(AppStore.self)        private var appStore
 
     /// Whether the title is in edit mode (TextField vs display Text).
     @State private var isEditingTitle = false
@@ -29,7 +30,7 @@ struct OverviewView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 28) {
                     summaryCard
-                    journalsCard
+                    JournalLineageCard()
                 }
                 .padding(28)
             }
@@ -79,6 +80,28 @@ struct OverviewView: View {
                     timestampLine("Saved (local)", m.updatedAt.formatted(date: .abbreviated, time: .shortened))
                     timestampLine("Saved (remote)",
                                   m.lastSyncedAt?.formatted(date: .abbreviated, time: .shortened) ?? "never")
+                    // The Sync pane's save buttons, compacted (Aug 2026).
+                    HStack(spacing: 10) {
+                        Button {
+                            store.trySave()
+                            if let error = store.saveError {
+                                store.showBanner(.error, "Local save failed: \(error)")
+                            } else {
+                                store.showBanner(.success, "Saved to disk at \((store.lastSaved ?? Date()).formatted(date: .omitted, time: .standard)).")
+                            }
+                        } label: {
+                            Label("Save", systemImage: "internaldrive")
+                        }
+                        Button {
+                            store.saveToRemote(appStore: appStore)
+                        } label: {
+                            Label("Save Remote", systemImage: "icloud.and.arrow.up")
+                        }
+                        .disabled(store.isRemoteBusy)
+                        if store.isRemoteBusy { ProgressView().controlSize(.small) }
+                    }
+                    .controlSize(.small)
+                    .padding(.top, 6)
                 }
 
                 // Everyone who has stamped a version or written a note.
@@ -200,64 +223,6 @@ struct OverviewView: View {
         return latest.values.sorted { $0.date > $1.date }
     }
 
-    // MARK: - Journals card
-
-    /// One row per journal — Source included and annotated — showing its
-    /// version position ("v2 / latest") and when it was last edited.
-    private var journalsCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Journals")
-                .font(.headline)
-                .foregroundStyle(.secondary)
-
-            VStack(spacing: 0) {
-                journalRow(
-                    name: "Source", isSource: true,
-                    versionText: m.versions.filter { $0.sourceStamp == true }.isEmpty
-                        ? "latest"
-                        : "v\(store.sourceStamps.count) / latest",
-                    lastEdited: m.updatedAt)
-                Divider()
-                ForEach(Array(m.journals.enumerated()), id: \.element.id) { index, journal in
-                    let chain = store.versions(forJournal: journal.id)
-                    journalRow(
-                        name: journal.name, isSource: false,
-                        versionText: chain.count > 1 ? "v\(chain.count - 1) / latest" : "latest",
-                        lastEdited: chain.last?.content.updatedAt ?? journal.createdAt)
-                    if index < m.journals.count - 1 { Divider() }
-                }
-            }
-            .background(.background.secondary, in: RoundedRectangle(cornerRadius: 10))
-        }
-    }
-
-    private func journalRow(name: String, isSource: Bool,
-                            versionText: String, lastEdited: Date) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: isSource ? "doc.text" : "building.columns")
-                .foregroundStyle(.secondary)
-                .frame(width: 20)
-            Text(name).fontWeight(.semibold)
-            if isSource {
-                Text("Source")
-                    .font(.caption2.weight(.semibold))
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 2)
-                    .background(Color.accentColor.opacity(0.15), in: Capsule())
-                    .foregroundStyle(Color.accentColor)
-            }
-
-            Spacer()
-
-            Text(versionText)
-                .font(.callout.weight(.medium).monospacedDigit())
-            Text("edited \(lastEdited.formatted(date: .abbreviated, time: .omitted)) (last edited)")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-    }
 }
 
 // MARK: - FlowLayout
