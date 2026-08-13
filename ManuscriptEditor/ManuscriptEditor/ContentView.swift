@@ -212,7 +212,9 @@ struct ContentView: View {
                 // in the otherwise-empty top-right corner.
                 .toolbar {
                     ToolbarItem(placement: .principal) { ToolbarBanner() }
+                    // Plain text in the title bar — no liquid-glass bubble.
                     ToolbarItem(placement: .primaryAction) { SaveStatusIndicator() }
+                        .sharedBackgroundVisibility(.hidden)
                 }
             } else {
                 WelcomeView(onNewManuscript: createInAppData,
@@ -580,27 +582,47 @@ struct ToolbarBanner: View {
 struct SaveStatusIndicator: View {
     @Environment(ManuscriptStore.self) private var store
 
+    /// Full date + time for both timestamps (the local one used to drop the
+    /// date when it was today, which read as a different format from remote).
     private func time(_ date: Date?) -> String {
         guard let date else { return "—" }
-        return Calendar.current.isDateInToday(date)
-            ? date.formatted(date: .omitted, time: .shortened)
-            : date.formatted(date: .abbreviated, time: .shortened)
+        return date.formatted(date: .abbreviated, time: .shortened)
+    }
+
+    /// " (2d 4h 12m ago)"-style suffix; "<1 min ago" under a minute.
+    private func ago(_ date: Date?, now: Date) -> String {
+        guard let date else { return "" }
+        let seconds = max(0, now.timeIntervalSince(date))
+        guard seconds >= 60 else { return " (<1 min ago)" }
+        let minutes = Int(seconds / 60)
+        let d = minutes / 1440, h = (minutes % 1440) / 60, m = minutes % 60
+        var parts: [String] = []
+        if d > 0 { parts.append("\(d)d") }
+        if h > 0 { parts.append("\(h)h") }
+        if m > 0 { parts.append("\(m)m") }
+        return " (\(parts.joined(separator: " ")) ago)"
     }
 
     var body: some View {
         if let m = store.manuscript {
-            let local = time(store.lastSaved ?? m.updatedAt)
-            let remote = m.settings.activeBackendID == nil ? "N/A" : time(m.lastSyncedAt)
-            HStack(spacing: 5) {
-                Image(systemName: "internaldrive")
-                Text(local)
-                Text("/").foregroundStyle(.tertiary)
-                Image(systemName: "icloud")
-                Text(remote)
+            // The "ago" suffixes drift; re-render once a minute.
+            TimelineView(.periodic(from: .now, by: 60)) { context in
+                let localDate = store.lastSaved ?? m.updatedAt
+                let local = time(localDate) + ago(localDate, now: context.date)
+                let remote = m.settings.activeBackendID == nil
+                    ? "N/A"
+                    : time(m.lastSyncedAt) + ago(m.lastSyncedAt, now: context.date)
+                HStack(spacing: 5) {
+                    Image(systemName: "internaldrive")
+                    Text(local)
+                    Text("/").foregroundStyle(.tertiary)
+                    Image(systemName: "icloud")
+                    Text(remote)
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .help("Last saved — locally \(local) · remote \(remote == "N/A" ? "not configured" : remote)")
             }
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            .help("Last saved — locally \(local) · remote \(remote == "N/A" ? "not configured" : remote)")
         }
     }
 }
