@@ -86,7 +86,7 @@ struct OverviewView: View {
                     subsectionLabel("Editors")
                     if editors.isEmpty {
                         Text(m.updatedAt > m.createdAt.addingTimeInterval(1)
-                             ? "Edited locally — set your name in Preferences → User to appear here."
+                             ? "Edited locally — set your name in Settings → User to appear here."
                              : "No edit activity recorded yet.")
                             .foregroundStyle(.tertiary)
                             .italic()

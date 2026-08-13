@@ -233,7 +233,7 @@ struct SyncView: View {
                 .font(.footnote.weight(.semibold))
                 .foregroundStyle(.tertiary)
 
-            // The journal's configured icon (Preferences → Journals).
+            // The journal's configured icon (Settings → Journals).
             Image(systemName: journalIcon(journal))
                 .font(.callout)
                 .foregroundStyle(.secondary)
@@ -410,7 +410,7 @@ struct SyncView: View {
 // MARK: - AddJournalSheet
 
 /// Cut a new journal: FROM Source or any journal, TO a profile from the
-/// global journal library (Preferences → Journals) or a custom name.
+/// global journal library (Settings → Journals) or a custom name.
 struct AddJournalSheet: View {
     @Environment(ManuscriptStore.self) private var store
     @Environment(AppStore.self)        private var appStore
@@ -454,7 +454,7 @@ struct AddJournalSheet: View {
                     .textFieldStyle(.roundedBorder)
             }
 
-            Text("The new journal is cut from the FROM journal's latest stamped version (stamping it first if needed), appears in the lineage, and gets its own tab. Manage reusable journal profiles in Preferences → Journals.")
+            Text("The new journal is cut from the FROM journal's latest stamped version (stamping it first if needed), appears in the lineage, and gets its own tab. Manage reusable journal profiles in Settings → Journals.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)

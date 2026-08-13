@@ -34,7 +34,7 @@ enum GitHubBackendError: LocalizedError {
         case .notConfigured(let m): return m
         case .http(let code, let m):
             switch code {
-            case 401: return "GitHub rejected the token (401). Check the personal access token in Preferences → Backend."
+            case 401: return "GitHub rejected the token (401). Check the personal access token in Settings → Backend."
             case 404: return "Repository or branch not found (404). Check the \"owner/name\" repository and that the token can access it."
             default:  return "GitHub request failed (\(code)): \(m)"
             }
@@ -76,7 +76,7 @@ struct GitHubBackendService {
                 throw GitHubBackendError.notConfigured("Set the repository as \"owner/name\" in Manuscript → Backend (or create one there).")
             }
             guard let token = KeychainService.secret(for: account.id), !token.isEmpty else {
-                throw GitHubBackendError.notConfigured("No personal access token stored for \"\(account.displayName)\". Add one in Preferences → Accounts.")
+                throw GitHubBackendError.notConfigured("No personal access token stored for \"\(account.displayName)\". Add one in Settings → Accounts.")
             }
             let effectiveBranch = branch ?? account.branch
             return Config(owner: parts[0], repo: parts[1],

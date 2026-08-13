@@ -292,7 +292,7 @@ struct SaveToJournalLibrarySheet: View {
                     .textFieldStyle(.roundedBorder)
             }
 
-            Text("Stores this journal's requirements and export outline as a reusable profile — available in Preferences → Journals and when adding a journal to any manuscript.")
+            Text("Stores this journal's requirements and export outline as a reusable profile — available in Settings → Journals and when adding a journal to any manuscript.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)

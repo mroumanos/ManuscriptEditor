@@ -1340,7 +1340,7 @@ final class ManuscriptStore {
         guard let backendID = m.settings.activeBackendID,
               let account = appStore.backends.first(where: { $0.id == backendID })
         else {
-            throw GitHubBackendError.notConfigured("This manuscript has no active backend. Pick one in Manuscript → Settings (add accounts in Preferences → Backend).")
+            throw GitHubBackendError.notConfigured("This manuscript has no active backend. Pick one in Manuscript → Settings (add accounts in Settings → Backend).")
         }
         return account
     }
@@ -1565,7 +1565,7 @@ final class ManuscriptStore {
                 throw GitHubBackendError.notConfigured("The active account is \(account.provider.rawValue) — repository creation currently supports GitHub.")
             }
             guard let token = KeychainService.secret(for: account.id), !token.isEmpty else {
-                throw GitHubBackendError.notConfigured("No personal access token stored for \"\(account.displayName)\". Add one in Preferences → Accounts.")
+                throw GitHubBackendError.notConfigured("No personal access token stored for \"\(account.displayName)\". Add one in Settings → Accounts.")
             }
             let files = try gatherRemoteFiles()
             let title = manuscript?.title ?? "manuscript"

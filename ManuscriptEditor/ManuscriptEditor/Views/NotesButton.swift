@@ -126,7 +126,7 @@ struct NotesButton: View {
     private func addNote() {
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
-        // Author = the app-wide user identity (Preferences → User); the store
+        // Author = the app-wide user identity (Settings → User); the store
         // signs the note with the identity key.
         store.addNote(versionKey: versionKey, itemKey: itemKey,
                       author: SigningService.userName, body: text)

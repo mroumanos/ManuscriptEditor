@@ -1,6 +1,6 @@
 // UserIdentityView.swift
 //
-// Preferences → User: the identity that attributes manuscript activity.
+// Settings → User: the identity that attributes manuscript activity.
 //
 // Four identity types:
 //   Local   — freeform name; the app's auto-generated signing key is all

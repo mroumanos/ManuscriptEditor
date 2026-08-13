@@ -43,7 +43,7 @@ struct NewRemoteManuscriptSheet: View {
             Text("Open Manuscript (Remote)").font(.headline)
 
             if accounts.isEmpty {
-                Text("No Git-hosting accounts configured yet. Add a GitHub account in Preferences → Accounts (⌘,) first.")
+                Text("No Git-hosting accounts configured yet. Add a GitHub account in Settings → Accounts (⌘,) first.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             } else {

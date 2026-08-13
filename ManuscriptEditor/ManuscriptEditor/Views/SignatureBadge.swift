@@ -57,7 +57,7 @@ struct SignatureBadge: View {
                 Text(signerName)
                 Image(systemName: "questionmark.circle").foregroundStyle(.orange)
             }
-            .help("Signature checks out, but a local identity can't prove who the editor is — remote identities (Preferences → User) earn the green ✓")
+            .help("Signature checks out, but a local identity can't prove who the editor is — remote identities (Settings → User) earn the green ✓")
         case .invalid:
             HStack(spacing: 4) {
                 Text(signerName)

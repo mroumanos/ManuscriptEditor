@@ -79,7 +79,7 @@ struct ManuscriptBackendView: View {
                     }
                 }
                 if backendAccounts.isEmpty {
-                    Text("Add accounts in Preferences → Accounts (⌘,).")
+                    Text("Add accounts in Settings → Accounts (⌘,).")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -225,7 +225,7 @@ struct ManuscriptAIView: View {
                     }
                 }
                 if appStore.aiServices.isEmpty {
-                    Text("Add AI accounts in Preferences → Accounts (⌘,).")
+                    Text("Add AI accounts in Settings → Accounts (⌘,).")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

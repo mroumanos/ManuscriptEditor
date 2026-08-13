@@ -1,6 +1,6 @@
 // JournalLibraryView.swift
 //
-// Preferences → Journals: the global journal library.  Search reusable
+// Settings → Journals: the global journal library.  Search reusable
 // journal profiles and inspect their details (name, country, publisher, how
 // many requirements they carry, whether they bundle an export outline).
 // Entries come from the built-in presets, "Save to Journal Library" in a
