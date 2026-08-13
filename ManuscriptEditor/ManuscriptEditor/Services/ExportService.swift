@@ -747,7 +747,7 @@ private struct OutlineBuilder {
         case .abstract:
             guard !m.abstract.isEmpty else { return nil }
             let doc = NSMutableAttributedString()
-            if item.titleShown { doc.append(headingBlock(item.customTitle ?? "Abstract")) }
+            if item.titleShown { doc.append(headingBlock(item.customTitle ?? "Abstract", style: item.effectiveHeadingStyle)) }
             doc.append(rich(m.abstract, in: m))
             return doc
         case .keywords:
@@ -760,7 +760,7 @@ private struct OutlineBuilder {
                   let section = m.sections.first(where: { $0.id == id }),
                   section.active, !section.content.isEmpty else { return nil }
             let doc = NSMutableAttributedString()
-            if item.titleShown { doc.append(headingBlock(item.customTitle ?? section.title)) }
+            if item.titleShown { doc.append(headingBlock(item.customTitle ?? section.title, style: item.effectiveHeadingStyle)) }
             doc.append(rich(section.content, in: m))
             return doc
         case .figures:
@@ -770,7 +770,7 @@ private struct OutlineBuilder {
             }
             guard !figures.isEmpty else { return nil }
             let doc = NSMutableAttributedString()
-            if item.titleShown { doc.append(headingBlock(item.customTitle ?? "Figures")) }
+            if item.titleShown { doc.append(headingBlock(item.customTitle ?? "Figures", style: item.effectiveHeadingStyle)) }
             for f in figures {
                 if let image = figureImage(f) {
                     doc.append(attachmentBlock(image))
@@ -786,7 +786,7 @@ private struct OutlineBuilder {
             }
             guard !tables.isEmpty else { return nil }
             let doc = NSMutableAttributedString()
-            if item.titleShown { doc.append(headingBlock(item.customTitle ?? "Tables")) }
+            if item.titleShown { doc.append(headingBlock(item.customTitle ?? "Tables", style: item.effectiveHeadingStyle)) }
             for t in tables {
                 doc.append(line("Table \(refContext.tables[t.id]?.number ?? t.number). \(t.title)",
                                 font: NSFontManager.shared.convert(base, toHaveTrait: .boldFontMask), after: 2))
@@ -801,7 +801,7 @@ private struct OutlineBuilder {
         case .references:
             guard !m.bibliography.isEmpty else { return nil }
             let doc = NSMutableAttributedString()
-            if item.titleShown { doc.append(headingBlock(item.customTitle ?? "References")) }
+            if item.titleShown { doc.append(headingBlock(item.customTitle ?? "References", style: item.effectiveHeadingStyle)) }
             for (i, entry) in m.bibliography.enumerated() {
                 doc.append(line("\(i + 1). \(RefEngine.fullReference(entry))", font: base, after: 4))
             }
@@ -814,7 +814,7 @@ private struct OutlineBuilder {
                                           width: 612 - format.marginInches * 144) {
                 doc.append(head)
             }
-            if item.titleShown { doc.append(headingBlock(item.customTitle ?? "Cover Letter")) }
+            if item.titleShown { doc.append(headingBlock(item.customTitle ?? "Cover Letter", style: item.effectiveHeadingStyle)) }
             let body = NSMutableAttributedString(attributedString: rich(m.letterToEditor.body, in: m))
             resolveLetterTokens(in: body, letter: m.letterToEditor)
             doc.append(body)
@@ -838,11 +838,26 @@ private struct OutlineBuilder {
         return first.uppercased() + raw.dropFirst()
     }
 
-    /// A section title with a blank line before and after it.
-    private func headingBlock(_ raw: String) -> NSAttributedString {
+    /// A section title with a blank line before and after it, styled per the
+    /// item's heading format (bold/underline/centered/size).
+    private func headingBlock(_ raw: String,
+                              style: ExportItem.HeadingStyle = .init()) -> NSAttributedString {
+        let font = scaled(style.sizeDelta, bold: style.bold)
         let out = NSMutableAttributedString()
         out.append(NSAttributedString(string: "\n", attributes: [.font: base]))
-        out.append(line(headingText(raw), font: heading, before: 0, after: 0))
+        let text = NSMutableAttributedString(attributedString:
+            line(headingText(raw), font: font, before: 0, after: 0))
+        let full = NSRange(location: 0, length: text.length)
+        if style.underline {
+            text.addAttribute(.underlineStyle,
+                              value: NSUnderlineStyle.single.rawValue, range: full)
+        }
+        if style.centered, let para = (text.attribute(.paragraphStyle, at: 0, effectiveRange: nil)
+                as? NSParagraphStyle)?.mutableCopy() as? NSMutableParagraphStyle {
+            para.alignment = .center
+            text.addAttribute(.paragraphStyle, value: para, range: full)
+        }
+        out.append(text)
         out.append(NSAttributedString(string: "\n", attributes: [.font: base]))
         return out
     }

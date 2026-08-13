@@ -192,6 +192,20 @@ struct ExportItem: Codable, Identifiable, Sendable, Equatable {
         set { showTitle = newValue }
     }
 
+    /// Formatting for the printed heading (bold/underline/centered/size),
+    /// edited inline in the Export card when the heading is shown.  Stored
+    /// optional for backward-compatible decoding; nil = the default look.
+    struct HeadingStyle: Codable, Sendable, Equatable {
+        var bold: Bool = true
+        var underline: Bool = false
+        var centered: Bool = false
+        /// Point-size delta over the document body font: 0 (S), 2 (M), 5 (L).
+        var sizeDelta: Double = 2
+    }
+    var headingStyle: HeadingStyle? = nil
+
+    var effectiveHeadingStyle: HeadingStyle { headingStyle ?? HeadingStyle() }
+
     /// Per-item typography override (font/size/spacing/line numbers).
     /// nil = inherit the document's format.  Margins and columns are page
     /// geometry and always come from the document.

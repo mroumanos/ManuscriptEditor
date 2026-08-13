@@ -424,9 +424,11 @@ private struct ExportDocumentCard: View {
                             .font(.caption)
                     }
                     .buttonStyle(.plain)
-                    .help(item.titleShown
-                          ? "Heading is printed in the export — click to hide"
-                          : "Heading is hidden in the export — click to print it")
+                    .help("Include heading in the export")
+                    // Heading format, revealed while the heading is included.
+                    if item.titleShown {
+                        headingStyleControls(item, index: index)
+                    }
                 }
                 Spacer(minLength: 4)
                 formatColumns(item, index: index)
@@ -459,6 +461,51 @@ private struct ExportDocumentCard: View {
                     onChange(doc)
                 }
             }
+        }
+    }
+
+    /// Bold / underline / center / size for the printed heading, shown only
+    /// while its "H" toggle is on.
+    private func headingStyleControls(_ item: ExportItem, index: Int) -> some View {
+        let style = item.effectiveHeadingStyle
+        func mutate(_ change: @escaping (inout ExportItem.HeadingStyle) -> Void) {
+            var doc = document
+            guard doc.items.indices.contains(index) else { return }
+            var s = doc.items[index].effectiveHeadingStyle
+            change(&s)
+            doc.items[index].headingStyle = s
+            onChange(doc)
+        }
+        func toggle(_ symbol: String, _ active: Bool, _ help: String,
+                    _ change: @escaping (inout ExportItem.HeadingStyle) -> Void) -> some View {
+            Button { mutate(change) } label: {
+                Image(systemName: symbol)
+                    .font(.caption)
+                    .foregroundStyle(active ? Color.accentColor : Color(nsColor: .tertiaryLabelColor))
+            }
+            .buttonStyle(.plain)
+            .help(help)
+        }
+        return HStack(spacing: 3) {
+            toggle("bold", style.bold, "Bold heading") { $0.bold.toggle() }
+            toggle("underline", style.underline, "Underlined heading") { $0.underline.toggle() }
+            toggle("text.aligncenter", style.centered, "Centered heading") { $0.centered.toggle() }
+            Menu {
+                ForEach([("Small", 0.0), ("Medium", 2.0), ("Large", 5.0)], id: \.0) { name, delta in
+                    Button {
+                        mutate { $0.sizeDelta = delta }
+                    } label: {
+                        style.sizeDelta == delta ? Text("✓ \(name)") : Text(name)
+                    }
+                }
+            } label: {
+                Image(systemName: "textformat.size")
+                    .font(.caption)
+                    .foregroundStyle(Color(nsColor: .tertiaryLabelColor))
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .help("Heading size")
         }
     }
 
