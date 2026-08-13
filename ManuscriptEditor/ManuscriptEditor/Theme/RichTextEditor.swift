@@ -90,6 +90,8 @@ struct RichEditor: View {
                     lineHeightMultiple: lineSpacing,
                     wrapWidth: CGFloat(wrapWidth),
                     candidates: refCandidates,
+                    zoteroKeys: existingZoteroKeys,
+                    addZoteroEntry: addZoteroEntry,
                     refContext: store.refContext(for: versionRef) ?? RefEngine.Context()
                 )
                 if value.isEmpty {
@@ -139,12 +141,14 @@ struct RichEditor: View {
                                         tokenURL: LetterToken.signature.url))
             }
         }
-        for e in m.bibliography where !e.key.isEmpty {
+        // Every entry is referencable — a missing citation key must not hide
+        // it from the menu (DOI-imported entries start keyless; issue #12).
+        for e in m.bibliography {
             guard matches(["reference", e.key, e.title, e.authorsFormatted, e.journal ?? ""]) else { continue }
-            out.append(RefCandidate(
-                kind: .bib, id: e.id,
-                display: "Ref • \(e.key) — \(e.title.isEmpty ? "(no title)" : e.title)"
-            ))
+            let label = e.key.isEmpty
+                ? (e.title.isEmpty ? "(untitled reference)" : e.title)
+                : "\(e.key) — \(e.title.isEmpty ? "(no title)" : e.title)"
+            out.append(RefCandidate(kind: .bib, id: e.id, display: "Ref • \(label)"))
         }
         // Figures/tables get ONE row each; accepting opens a small menu at the
         // caret to choose Reference vs Placement (with a figure thumbnail).
@@ -168,6 +172,21 @@ struct RichEditor: View {
     /// Stable ids for the letter snippet rows (never resolved as references).
     private static let dateSnippetID      = UUID(uuidString: "51674E00-0000-4000-8000-00000000000D")!
     private static let signatureSnippetID = UUID(uuidString: "51674E00-0000-4000-8000-00000000000E")!
+
+    // MARK: - Zotero quick-cite ("/" menu)
+
+    /// Zotero keys already in this version's bibliography — those items appear
+    /// as normal "Ref •" rows, so the Zotero section only offers new ones.
+    private func existingZoteroKeys() -> Set<String> {
+        Set((store.manuscript(for: versionRef)?.bibliography ?? []).compactMap(\.zoteroKey))
+    }
+
+    /// Accepting a Zotero row: add the entry to the bibliography (no-op when
+    /// its zoteroKey is already there) and return the entry id for the token.
+    private func addZoteroEntry(_ item: ZoteroItem) -> UUID? {
+        store.addBibEntry(ZoteroService().bibEntry(from: item), ref: versionRef)
+        return store.manuscript(for: versionRef)?.bibliography.first { $0.zoteroKey == item.key }?.id
+    }
 
     /// A small sample image of the figure for the insert menu.
     private static let thumbnailCache = NSCache<NSUUID, NSImage>()
@@ -204,6 +223,9 @@ struct RefCandidate {
     /// When also set, the snippet text is inserted as a live letter token
     /// (marker text carrying this letter:// link), resolved on export.
     var tokenURL: URL? = nil
+    /// A Zotero library item not yet in the bibliography: accepting adds it
+    /// (via the editor's `addZoteroEntry`) and cites the new entry.
+    var zoteroItem: ZoteroItem? = nil
 }
 
 // MARK: - FormatBar (inline toolbar)
@@ -447,6 +469,11 @@ private struct RichTextRepresentable: NSViewRepresentable {
     let wrapWidth: CGFloat
     /// Returns referencable items for a "/" query.
     let candidates: (String) -> [RefCandidate]
+    /// Zotero keys already in the bibliography (their items are hidden from
+    /// the menu's Zotero section — they show as "Ref •" rows instead).
+    let zoteroKeys: () -> Set<String>
+    /// Adds a Zotero item to the bibliography and returns the entry id.
+    let addZoteroEntry: (ZoteroItem) -> UUID?
     /// Snapshot of numbering + entry details that token rendering depends on.
     let refContext: RefEngine.Context
 
@@ -467,6 +494,7 @@ private struct RichTextRepresentable: NSViewRepresentable {
         let textView = CitationTextView(frame: .zero, textContainer: container)
         textView.delegate = context.coordinator
         textView.refContext = refContext
+        textView.addZoteroEntry = addZoteroEntry
         textView.isRichText = true
         textView.allowsUndo = true
         textView.isAutomaticQuoteSubstitutionEnabled = false
@@ -509,6 +537,7 @@ private struct RichTextRepresentable: NSViewRepresentable {
         context.coordinator.parent = self
         controller.textView = textView
         (textView as? CitationTextView)?.refContext = refContext
+        (textView as? CitationTextView)?.addZoteroEntry = addZoteroEntry
 
         // Apply wrap-width changes.
         if let container = textView.textContainer, container.size.width != wrapWidth {
@@ -562,6 +591,56 @@ private struct RichTextRepresentable: NSViewRepresentable {
         init(_ parent: RichTextRepresentable) { self.parent = parent }
 
         func undoManager(for view: NSTextView) -> UndoManager? { editorUndoManager }
+
+        // MARK: Zotero quick-cite
+
+        /// Fetched Zotero results per lowercased query.  Failures aren't
+        /// cached (Zotero may launch mid-session); a backoff stops hammering
+        /// a closed port on every keystroke.
+        private var zoteroCache: [String: [ZoteroItem]] = [:]
+        private var zoteroFetch: Task<Void, Never>?
+        private var zoteroLastFailure: Date?
+
+        /// Rows shown for a "/" query: local candidates (bibliography,
+        /// figures, tables, letter snippets) plus a Zotero section of library
+        /// items not yet in the bibliography.  Cold cache kicks a debounced
+        /// fetch that refreshes the open list when results land.
+        func combinedCandidates(_ query: String, for tv: CitationTextView) -> [RefCandidate] {
+            var out = parent.candidates(query)
+            let key = query.lowercased().trimmingCharacters(in: .whitespaces)
+            if let items = zoteroCache[key] {
+                let existing = parent.zoteroKeys()
+                out += items.lazy.filter { !existing.contains($0.key) }.prefix(8).map { item in
+                    let authors = item.creators.first.map { $0.formatted } ?? ""
+                    let bits = [authors, item.date.isEmpty ? "" : "(\(item.date.prefix(4)))",
+                                item.title.isEmpty ? "(no title)" : item.title]
+                        .filter { !$0.isEmpty }
+                    return RefCandidate(kind: .bib, id: UUID(),
+                                        display: "Zotero • " + bits.joined(separator: " "),
+                                        zoteroItem: item)
+                }
+            } else {
+                scheduleZoteroFetch(key, for: tv)
+            }
+            return out
+        }
+
+        private func scheduleZoteroFetch(_ query: String, for tv: CitationTextView) {
+            if let last = zoteroLastFailure, Date().timeIntervalSince(last) < 30 { return }
+            zoteroFetch?.cancel()
+            zoteroFetch = Task { @MainActor [weak self, weak tv] in
+                try? await Task.sleep(for: .milliseconds(250))
+                guard !Task.isCancelled else { return }
+                do {
+                    let items = try await ZoteroService().fetchItems(matching: query, limit: 20)
+                    guard let self, !Task.isCancelled else { return }
+                    self.zoteroCache[query] = items
+                    tv?.refreshCompletionIfActive(query: query)
+                } catch {
+                    self?.zoteroLastFailure = Date()
+                }
+            }
+        }
 
         deinit { observers.forEach { NotificationCenter.default.removeObserver($0) } }
 
@@ -701,14 +780,16 @@ private struct RichTextRepresentable: NSViewRepresentable {
             // Reference autocomplete: while the caret sits in a "/query",
             // (re)open the native completion list so it live-filters as you
             // type — but only when something actually matches, so a stray "/"
-            // in prose doesn't pop an empty menu.
+            // in prose doesn't pop an empty menu.  An Escape-dismissed query
+            // stays closed (the "/" is just text) until Tab re-opens it.
             if let tv = textView as? CitationTextView,
                !tv.isHandlingCompletion,
-               let range = tv.refQueryRange() {
+               let range = tv.refQueryRange(),
+               tv.allowsAutoComplete(at: range.location) {
                 let ns = textView.string as NSString
                 let query = ns.substring(with: NSRange(location: range.location + 1,
                                                        length: range.length - 1))
-                if !parent.candidates(query).isEmpty {
+                if !combinedCandidates(query, for: tv).isEmpty {
                     tv.complete(nil)
                 }
             }
@@ -736,7 +817,7 @@ private struct RichTextRepresentable: NSViewRepresentable {
             else { return words }
             let query = ns.substring(with: NSRange(location: charRange.location + 1,
                                                    length: charRange.length - 1))
-            let candidates = parent.candidates(query)
+            let candidates = combinedCandidates(query, for: tv)
             tv.currentCandidates = candidates
             index?.pointee = candidates.isEmpty ? -1 : 0   // top match ready for Tab/Return
             return candidates.map(\.display)
@@ -783,6 +864,46 @@ final class CitationTextView: NSTextView {
     /// True while a completion session is being processed; used to stop
     /// `textDidChange` from re-triggering `complete(nil)` recursively.
     private(set) var isHandlingCompletion = false
+
+    /// Adds a Zotero item to the bibliography and returns the entry id —
+    /// wired by the representable (the store lives up in SwiftUI).
+    var addZoteroEntry: ((ZoteroItem) -> UUID?)?
+
+    /// "/" location the user dismissed with Escape.  While set, typing in
+    /// that query doesn't re-open the list — the "/" reads as normal text
+    /// (issue #14).  Cleared when the caret leaves the query or Tab re-opens.
+    var suppressedSlashLocation: Int?
+
+    /// Whether the auto-complete may (re)open for the query at `location`.
+    /// A different location is a new "/" session, which also clears an old
+    /// suppression.
+    func allowsAutoComplete(at location: Int) -> Bool {
+        if suppressedSlashLocation == location { return false }
+        suppressedSlashLocation = nil
+        return true
+    }
+
+    /// Re-opens the list after an async (Zotero) result lands, but only if
+    /// the caret still sits in the same query and it wasn't Escape-dismissed.
+    func refreshCompletionIfActive(query: String) {
+        guard let range = refQueryRange(), allowsAutoComplete(at: range.location) else { return }
+        let ns = string as NSString
+        let current = ns.substring(with: NSRange(location: range.location + 1,
+                                                 length: range.length - 1))
+        guard current.lowercased().trimmingCharacters(in: .whitespaces) == query else { return }
+        complete(nil)
+    }
+
+    /// Tab inside a "/query" opens (or re-opens after Escape) the reference
+    /// list — arrows then navigate it.  Elsewhere Tab stays a tab.
+    override func insertTab(_ sender: Any?) {
+        if refQueryRange() != nil {
+            suppressedSlashLocation = nil
+            complete(nil)
+            return
+        }
+        super.insertTab(sender)
+    }
 
     /// Token the context menu is currently acting on.
     private var menuToken: (token: RefEngine.Token, range: NSRange)?
@@ -859,7 +980,22 @@ final class CitationTextView: NSTextView {
         default:                    accepted = false
         }
 
+        // Escape leaves the "/query" as typed AND remembers it, so continued
+        // typing doesn't re-pop the list — the "/" is just prose now (#14).
+        if NSTextMovement(rawValue: movement) == .cancel {
+            suppressedSlashLocation = charRange.location
+        }
+
         if accepted, let candidate = currentCandidates.first(where: { $0.display == word }) {
+            // A Zotero row: add the entry to the bibliography (deduped by
+            // zoteroKey in the store), then cite it like any bib entry.
+            if let item = candidate.zoteroItem {
+                if let id = addZoteroEntry?(item) {
+                    insertToken(RefEngine.Token(kind: .bib, targetID: id, style: .numeric),
+                                replacing: charRange)
+                }
+                return
+            }
             // Letter references insert a live token; plain snippets paste text.
             if let snippet = candidate.snippetText {
                 if let url = candidate.tokenURL {

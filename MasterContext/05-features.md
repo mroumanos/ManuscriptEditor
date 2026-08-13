@@ -494,10 +494,20 @@ ordered by use. `RefEngine` (Services/) is the single home for this logic.
 **Trigger & insertion**
 - AC: Typing **`/`** at a word boundary in any rich text box (abstract,
   sections, letter) opens a live dropdown with categorized candidates —
-  **bibliography references** ("Ref • Key — Title"), **figures**
-  ("Figure 2 — Title"), and **tables**; further typing filters by key, title,
-  authors, journal, or category word ("figure", "table"). `/` mid-word
-  ("and/or", DOIs, URLs) does not trigger; no matches → no dropdown.
+  **bibliography references** ("Ref • Key — Title"; keyless entries appear by
+  title), **figures** ("Figure 2 — Title"), **tables**, and a **Zotero
+  section** ("Zotero • Author (Year) Title") of library items not yet in the
+  bibliography; further typing filters by key, title, authors, journal, or
+  category word ("figure", "table"). `/` mid-word ("and/or", DOIs, URLs) does
+  not trigger; no matches → no dropdown.
+- AC: **Accepting a Zotero row cites-while-you-write**: the item is added to
+  this version's bibliography (deduped by `zoteroKey`) and cited in place as a
+  normal token. Zotero results load async (debounced, cached per query, 30 s
+  backoff when Zotero isn't running — the menu silently shows local rows only).
+- AC: **A literal "/" stays typeable.** "/" followed by a space is prose
+  (never triggers). **Escape** closes the dropdown *and keeps it closed* for
+  that "/" — continued typing is normal text. **Tab** inside a "/query"
+  (re)opens the list; arrows navigate, Return/Tab/click accepts.
 - AC: Accepting (Return/Tab, or click) inserts a **formatted token** —
   default **`[1]`** numeric for citations, "Figure 2"/"Table 1" for
   cross-references — **in the editor's default format (no bolding, italics, or
