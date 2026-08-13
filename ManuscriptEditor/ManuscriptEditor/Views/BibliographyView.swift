@@ -302,7 +302,7 @@ struct BibEntryEditor: View {
                 Section("Publication Details") {
                     TextField("Title", text: $draft.title)
                     LabeledContent("Year") {
-                        TextField("Year", value: $draft.year, format: .number)
+                        TextField("Year", value: $draft.year, format: .number.grouping(.never))
                             .multilineTextAlignment(.trailing)
                     }
                     TextField("Journal / Publisher",   text: optionalBinding(\.journal))
