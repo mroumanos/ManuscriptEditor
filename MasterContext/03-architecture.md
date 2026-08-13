@@ -100,7 +100,10 @@ The rule: an undo entry may only reference things that outlive it.
 - **Editor tier** — every text surface (`RichTextRepresentable`,
   `PlainTextEditor`) owns a scoped `UndoManager` via `undoManager(for:)`,
   cleared on dismantle and on programmatic reloads. Typing undo dies with its
-  view — that containment is what fixed the issue-#8 ⌘Z crash. Never use raw
+  view — that containment is what fixed the issue-#8 ⌘Z crash. AppKit
+  coalesces an unbroken typing run into one undo entry, so both editors call
+  `breakUndoCoalescing()` after a ~1 s pause — each typing burst is its own
+  ⌘Z step instead of "undo everything I wrote". Never use raw
   SwiftUI `TextEditor` (gotcha #10 in
   [`08-engineering-standards.md`](08-engineering-standards.md#known-platform-gotchas)).
 

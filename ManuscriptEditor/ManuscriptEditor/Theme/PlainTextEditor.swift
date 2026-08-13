@@ -88,9 +88,20 @@ struct PlainTextEditor: NSViewRepresentable {
 
         func undoManager(for view: NSTextView) -> UndoManager? { scopedUndoManager }
 
+        /// Pending pause-detection for undo chunking.
+        private var coalescingBreakTask: Task<Void, Never>?
+
         func textDidChange(_ notification: Notification) {
             guard let textView = notification.object as? NSTextView else { return }
             parent.text = textView.string
+            // AppKit merges an unbroken typing run into one undo entry; break
+            // on a ~1s pause so each burst is its own ⌘Z step.
+            coalescingBreakTask?.cancel()
+            coalescingBreakTask = Task { @MainActor [weak textView] in
+                try? await Task.sleep(for: .seconds(1))
+                guard !Task.isCancelled else { return }
+                textView?.breakUndoCoalescing()
+            }
         }
     }
 }

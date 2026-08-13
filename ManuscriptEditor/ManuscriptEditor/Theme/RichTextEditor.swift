@@ -651,6 +651,21 @@ private struct RichTextRepresentable: NSViewRepresentable {
             }
         }
 
+        /// Pending pause-detection for undo chunking.
+        private var coalescingBreakTask: Task<Void, Never>?
+
+        /// AppKit merges an unbroken typing run into ONE "Undo Typing" entry;
+        /// without an explicit break, ⌘Z after a long burst reverts all of it.
+        /// Breaking on a ~1s pause turns each burst into its own undo step.
+        private func scheduleCoalescingBreak(_ textView: NSTextView) {
+            coalescingBreakTask?.cancel()
+            coalescingBreakTask = Task { @MainActor [weak textView] in
+                try? await Task.sleep(for: .seconds(1))
+                guard !Task.isCancelled else { return }
+                textView?.breakUndoCoalescing()
+            }
+        }
+
         /// The single place the binding learns about text-view content: plain
         /// mirror, RTF archive, and the extracted reference-token list.
         func pushValue(from textView: NSTextView) {
@@ -666,6 +681,7 @@ private struct RichTextRepresentable: NSViewRepresentable {
             hasPendingCommit = false     // superseded by this direct edit
             pushValue(from: textView)
             ruler?.needsDisplay = true
+            scheduleCoalescingBreak(textView)
 
             // Reference autocomplete: while the caret sits in a "/query",
             // (re)open the native completion list so it live-filters as you
