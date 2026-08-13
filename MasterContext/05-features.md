@@ -493,21 +493,26 @@ ordered by use. `RefEngine` (Services/) is the single home for this logic.
 
 **Trigger & insertion**
 - AC: Typing **`/`** at a word boundary in any rich text box (abstract,
-  sections, letter) opens a live dropdown with categorized candidates —
-  **bibliography references** ("Ref • Key — Title"; keyless entries appear by
-  title), **figures** ("Figure 2 — Title"), **tables**, and a **Zotero
-  section** ("Zotero • Author (Year) Title") of library items not yet in the
-  bibliography; further typing filters by key, title, authors, journal, or
-  category word ("figure", "table"). `/` mid-word ("and/or", DOIs, URLs) does
-  not trigger; no matches → no dropdown.
+  sections, letter) opens the **reference picker panel** (`ReferencePicker`,
+  Theme/) under the caret: a **search box on top, focused automatically** —
+  typing (spaces included) lands there, not in the prose — over an
+  **icon-tagged list** of every referencable thing: bibliography entries
+  (books icon; keyless entries appear by title), figures, tables, and a
+  **Zotero section** ("z" icon) of library items not yet in the bibliography.
+  The search filters across every source's text fields (key, title, authors,
+  journal, caption). `/` mid-word ("and/or", DOIs, URLs) does not trigger.
+- AC: **↑/↓ navigate** the list without leaving the search box; **Tab,
+  Return, or a click accepts** the selected row. Accepting replaces just the
+  "/" with the token (figures/tables then offer Reference vs Placement at the
+  caret).
 - AC: **Accepting a Zotero row cites-while-you-write**: the item is added to
   this version's bibliography (deduped by `zoteroKey`) and cited in place as a
   normal token. Zotero results load async (debounced, cached per query, 30 s
-  backoff when Zotero isn't running — the menu silently shows local rows only).
-- AC: **A literal "/" stays typeable.** "/" followed by a space is prose
-  (never triggers). **Escape** closes the dropdown *and keeps it closed* for
-  that "/" — continued typing is normal text. **Tab** inside a "/query"
-  (re)opens the list; arrows navigate, Return/Tab/click accepts.
+  backoff when Zotero isn't running — the panel silently shows local rows only).
+- AC: **Only Escape makes the "/" plain text.** The trigger is the "/"
+  *keystroke*, not text state — so a dismissed slash can never re-arm, not
+  even by backspacing back to it; it must be retyped. Clicking away also
+  closes the panel and leaves the slash as typed.
 - AC: Accepting (Return/Tab, or click) inserts a **formatted token** —
   default **`[1]`** numeric for citations, "Figure 2"/"Table 1" for
   cross-references — **in the editor's default format (no bolding, italics, or

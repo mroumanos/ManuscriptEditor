@@ -127,18 +127,20 @@ struct RichEditor: View {
             let dateText = Date().formatted(date: .long, time: .omitted)
             if matches(["date", "today", dateText]) {
                 out.append(RefCandidate(kind: .bib, id: Self.dateSnippetID,
-                                        display: "Date • renders today's date (\(dateText))",
+                                        display: "Date — renders today's date (\(dateText))",
                                         snippetText: LetterToken.date.marker,
-                                        tokenURL: LetterToken.date.url))
+                                        tokenURL: LetterToken.date.url,
+                                        iconName: "calendar"))
             }
             if matches(["signature", "sign"]) {
                 let hasDrawn = m.letterToEditor.signatureImageData != nil
                 out.append(RefCandidate(kind: .bib, id: Self.signatureSnippetID,
                                         display: hasDrawn
-                                            ? "Signature • the drawn signature"
-                                            : "Signature • draw one in the Signature section first",
+                                            ? "Signature — the drawn signature"
+                                            : "Signature — draw one in the Signature section first",
                                         snippetText: LetterToken.signature.marker,
-                                        tokenURL: LetterToken.signature.url))
+                                        tokenURL: LetterToken.signature.url,
+                                        iconName: "signature"))
             }
         }
         // Every entry is referencable — a missing citation key must not hide
@@ -148,7 +150,7 @@ struct RichEditor: View {
             let label = e.key.isEmpty
                 ? (e.title.isEmpty ? "(untitled reference)" : e.title)
                 : "\(e.key) — \(e.title.isEmpty ? "(no title)" : e.title)"
-            out.append(RefCandidate(kind: .bib, id: e.id, display: "Ref • \(label)"))
+            out.append(RefCandidate(kind: .bib, id: e.id, display: label))
         }
         // Figures/tables get ONE row each; accepting opens a small menu at the
         // caret to choose Reference vs Placement (with a figure thumbnail).
@@ -226,6 +228,19 @@ struct RefCandidate {
     /// A Zotero library item not yet in the bibliography: accepting adds it
     /// (via the editor's `addZoteroEntry`) and cites the new entry.
     var zoteroItem: ZoteroItem? = nil
+    /// SF Symbol override (letter snippets); nil derives from the kind.
+    var iconName: String? = nil
+
+    /// The category icon shown before the row in the picker.
+    var icon: String {
+        if let iconName { return iconName }
+        if zoteroItem != nil { return "z.square" }
+        switch kind {
+        case .figure: return "photo.on.rectangle.angled"
+        case .table:  return "tablecells"
+        default:      return "books.vertical"
+        }
+    }
 }
 
 // MARK: - FormatBar (inline toolbar)
@@ -563,6 +578,7 @@ private struct RichTextRepresentable: NSViewRepresentable {
         // The undo manager dies with the coordinator, but clear it eagerly so
         // nothing can pop an entry mid-teardown.
         coordinator.editorUndoManager.removeAllActions()
+        (scrollView.documentView as? CitationTextView)?.closeReferencePicker()
     }
 
     // MARK: Coordinator
@@ -616,7 +632,7 @@ private struct RichTextRepresentable: NSViewRepresentable {
                                 item.title.isEmpty ? "(no title)" : item.title]
                         .filter { !$0.isEmpty }
                     return RefCandidate(kind: .bib, id: UUID(),
-                                        display: "Zotero • " + bits.joined(separator: " "),
+                                        display: bits.joined(separator: " "),
                                         zoteroItem: item)
                 }
             } else {
@@ -635,7 +651,7 @@ private struct RichTextRepresentable: NSViewRepresentable {
                     let items = try await ZoteroService().fetchItems(matching: query, limit: 20)
                     guard let self, !Task.isCancelled else { return }
                     self.zoteroCache[query] = items
-                    tv?.refreshCompletionIfActive(query: query)
+                    tv?.zoteroResultsArrived(for: query)
                 } catch {
                     self?.zoteroLastFailure = Date()
                 }
@@ -777,22 +793,6 @@ private struct RichTextRepresentable: NSViewRepresentable {
             ruler?.needsDisplay = true
             scheduleCoalescingBreak(textView)
 
-            // Reference autocomplete: while the caret sits in a "/query",
-            // (re)open the native completion list so it live-filters as you
-            // type — but only when something actually matches, so a stray "/"
-            // in prose doesn't pop an empty menu.  An Escape-dismissed query
-            // stays closed (the "/" is just text) until Tab re-opens it.
-            if let tv = textView as? CitationTextView,
-               !tv.isHandlingCompletion,
-               let range = tv.refQueryRange(),
-               tv.allowsAutoComplete(at: range.location) {
-                let ns = textView.string as NSString
-                let query = ns.substring(with: NSRange(location: range.location + 1,
-                                                       length: range.length - 1))
-                if !combinedCandidates(query, for: tv).isEmpty {
-                    tv.complete(nil)
-                }
-            }
         }
 
         /// Keep tokens closed: when the caret lands right after one, NSTextView
@@ -801,27 +801,6 @@ private struct RichTextRepresentable: NSViewRepresentable {
             (notification.object as? CitationTextView)?.sanitizeTypingAttributes()
         }
 
-        // MARK: Reference completion (NSTextViewDelegate)
-
-        /// Supplies the completion list for a "/" session: bibliography
-        /// entries, figures, and tables matching the typed query.
-        func textView(_ textView: NSTextView,
-                      completions words: [String],
-                      forPartialWordRange charRange: NSRange,
-                      indexOfSelectedItem index: UnsafeMutablePointer<Int>?) -> [String] {
-            guard let tv = textView as? CitationTextView else { return words }
-            let ns = textView.string as NSString
-            guard charRange.length >= 1,
-                  charRange.location < ns.length,
-                  ns.substring(with: NSRange(location: charRange.location, length: 1)) == "/"
-            else { return words }
-            let query = ns.substring(with: NSRange(location: charRange.location + 1,
-                                                   length: charRange.length - 1))
-            let candidates = combinedCandidates(query, for: tv)
-            tv.currentCandidates = candidates
-            index?.pointee = candidates.isEmpty ? -1 : 0   // top match ready for Tab/Return
-            return candidates.map(\.display)
-        }
 
         /// Clicking a token opens its menu (citation style, remove) instead of
         /// following the link.
@@ -851,9 +830,6 @@ private struct RichTextRepresentable: NSViewRepresentable {
 /// its citation style or remove it.
 final class CitationTextView: NSTextView {
 
-    /// Candidates backing the currently displayed completion list.
-    var currentCandidates: [RefCandidate] = []
-
     /// Current numbering + entry details, refreshed by `updateNSView`.
     var refContext = RefEngine.Context()
 
@@ -861,49 +837,9 @@ final class CitationTextView: NSTextView {
     /// token so continued typing isn't linked to it.
     var defaultTypingAttributes: [NSAttributedString.Key: Any] = [:]
 
-    /// True while a completion session is being processed; used to stop
-    /// `textDidChange` from re-triggering `complete(nil)` recursively.
-    private(set) var isHandlingCompletion = false
-
     /// Adds a Zotero item to the bibliography and returns the entry id —
     /// wired by the representable (the store lives up in SwiftUI).
     var addZoteroEntry: ((ZoteroItem) -> UUID?)?
-
-    /// "/" location the user dismissed with Escape.  While set, typing in
-    /// that query doesn't re-open the list — the "/" reads as normal text
-    /// (issue #14).  Cleared when the caret leaves the query or Tab re-opens.
-    var suppressedSlashLocation: Int?
-
-    /// Whether the auto-complete may (re)open for the query at `location`.
-    /// A different location is a new "/" session, which also clears an old
-    /// suppression.
-    func allowsAutoComplete(at location: Int) -> Bool {
-        if suppressedSlashLocation == location { return false }
-        suppressedSlashLocation = nil
-        return true
-    }
-
-    /// Re-opens the list after an async (Zotero) result lands, but only if
-    /// the caret still sits in the same query and it wasn't Escape-dismissed.
-    func refreshCompletionIfActive(query: String) {
-        guard let range = refQueryRange(), allowsAutoComplete(at: range.location) else { return }
-        let ns = string as NSString
-        let current = ns.substring(with: NSRange(location: range.location + 1,
-                                                 length: range.length - 1))
-        guard current.lowercased().trimmingCharacters(in: .whitespaces) == query else { return }
-        complete(nil)
-    }
-
-    /// Tab inside a "/query" opens (or re-opens after Escape) the reference
-    /// list — arrows then navigate it.  Elsewhere Tab stays a tab.
-    override func insertTab(_ sender: Any?) {
-        if refQueryRange() != nil {
-            suppressedSlashLocation = nil
-            complete(nil)
-            return
-        }
-        super.insertTab(sender)
-    }
 
     /// Token the context menu is currently acting on.
     private var menuToken: (token: RefEngine.Token, range: NSRange)?
@@ -914,111 +850,101 @@ final class CitationTextView: NSTextView {
     private var hoverWork: DispatchWorkItem?
     private var hoverTrackingArea: NSTrackingArea?
 
-    /// The "/…caret" range of an in-progress reference query, or nil when the
-    /// caret isn't in one.  The "/" must sit at a word boundary (start of the
-    /// text or after whitespace) so "and/or", dates, and URLs don't trigger;
-    /// the query may contain spaces (titles) but stops at a newline and is
-    /// capped so a stray "/" can't swallow a whole paragraph.
-    func refQueryRange() -> NSRange? {
+    // MARK: "/" reference picker
+
+    /// The open "/" picker panel, if any.
+    private var referencePicker: ReferencePicker?
+
+    /// Typing "/" at a word boundary is the ONLY trigger for the picker —
+    /// an *event*, not a text state.  After Escape the "/" is ordinary
+    /// prose, and backspacing to it later can never re-open the panel; the
+    /// slash must be retyped (Jul 2026 interaction contract).
+    override func insertText(_ insertString: Any, replacementRange: NSRange) {
+        super.insertText(insertString, replacementRange: replacementRange)
+        guard (insertString as? String) == "/" else { return }
         let ns = string as NSString
-        let caret = selectedRange().location
-        guard caret <= ns.length, caret > 0 else { return nil }
-        var i = caret - 1
-        var scanned = 0
-        while i >= 0 && scanned <= 60 {
-            let ch = ns.character(at: i)
-            if ch == 0x2F {                                            // "/"
-                let atBoundary = i == 0 || isSpace(ns.character(at: i - 1))
-                guard atBoundary else { return nil }
-                // A query can't *start* with whitespace ("/ " is prose).
-                if caret > i + 1, isSpace(ns.character(at: i + 1)) { return nil }
-                return NSRange(location: i, length: caret - i)
+        let slash = selectedRange().location - 1
+        guard slash >= 0, slash < ns.length, ns.character(at: slash) == 0x2F,
+              slash == 0 || isSpace(ns.character(at: slash - 1)) else { return }
+        openReferencePicker(slashLocation: slash)
+    }
+
+    private func openReferencePicker(slashLocation: Int) {
+        closeReferencePicker()
+        guard let parentWindow = window,
+              let coordinator = delegate as? RichTextRepresentable.Coordinator else { return }
+        let picker = ReferencePicker(
+            provideCandidates: { [weak self, weak coordinator] query in
+                guard let self, let coordinator else { return [] }
+                return coordinator.combinedCandidates(query, for: self)
+            },
+            onAccept: { [weak self] candidate in
+                guard let self else { return }
+                self.referencePicker = nil
+                self.window?.makeFirstResponder(self)
+                self.acceptCandidate(candidate, slashLocation: slashLocation)
+            },
+            onDismiss: { [weak self] refocus in
+                guard let self else { return }
+                self.referencePicker = nil
+                if refocus { self.window?.makeFirstResponder(self) }
+            })
+        referencePicker = picker
+        let caretRect = firstRect(forCharacterRange: NSRange(location: slashLocation, length: 1),
+                                  actualRange: nil)
+        picker.show(nearCaret: caretRect, parent: parentWindow)
+    }
+
+    func closeReferencePicker() {
+        referencePicker?.close()
+        referencePicker = nil
+    }
+
+    /// Async Zotero results landed — refresh the open picker's list.
+    func zoteroResultsArrived(for query: String) {
+        referencePicker?.refreshIfCurrent(query: query)
+    }
+
+    /// Inserts the chosen candidate over the single "/" that opened the
+    /// picker (the search query lives in the panel, never in the document).
+    private func acceptCandidate(_ candidate: RefCandidate, slashLocation: Int) {
+        let ns = string as NSString
+        guard slashLocation < ns.length, ns.character(at: slashLocation) == 0x2F else { return }
+        let range = NSRange(location: slashLocation, length: 1)
+
+        // A Zotero row: add the entry to the bibliography (deduped by
+        // zoteroKey in the store), then cite it like any bib entry.
+        if let item = candidate.zoteroItem {
+            if let id = addZoteroEntry?(item) {
+                insertToken(RefEngine.Token(kind: .bib, targetID: id, style: .numeric),
+                            replacing: range)
             }
-            if ch == 0x0A { return nil }                               // newline
-            i -= 1
-            scanned += 1
+            return
         }
-        return nil
+        // Letter references insert a live token; plain snippets paste text.
+        if let snippet = candidate.snippetText {
+            if let url = candidate.tokenURL {
+                insertLetterToken(snippet, url: url, replacing: range)
+            } else {
+                insertPlainText(snippet, replacing: range)
+            }
+            return
+        }
+        switch candidate.kind {
+        case .bib:
+            insertToken(RefEngine.Token(kind: .bib, targetID: candidate.id, style: .numeric),
+                        replacing: range)
+        default:
+            // Figures/tables: a caret menu chooses Reference vs Placement.
+            // Deferred a tick so the panel finishes tearing down first.
+            DispatchQueue.main.async { [weak self] in
+                self?.showInsertKindMenu(for: candidate, replacing: range)
+            }
+        }
     }
 
     private func isSpace(_ ch: unichar) -> Bool {
         ch == 0x20 || ch == 0x0A || ch == 0x09 || ch == 0xA0
-    }
-
-    override var rangeForUserCompletion: NSRange {
-        refQueryRange() ?? super.rangeForUserCompletion
-    }
-
-    override func insertCompletion(_ word: String,
-                                   forPartialWordRange charRange: NSRange,
-                                   movement: Int,
-                                   isFinal flag: Bool) {
-        let ns = string as NSString
-        let isRefSession = charRange.length >= 1
-            && charRange.location < ns.length
-            && ns.substring(with: NSRange(location: charRange.location, length: 1)) == "/"
-        guard isRefSession else {
-            super.insertCompletion(word, forPartialWordRange: charRange, movement: movement, isFinal: flag)
-            return
-        }
-
-        isHandlingCompletion = true
-        defer { isHandlingCompletion = false }
-
-        // While arrowing through the list (isFinal == false) do nothing: the
-        // default behavior would paste the long display string into the text
-        // as a preview — and once it has, the "/" test above can no longer
-        // recognize the session on the accepting call.  The "/query" stays
-        // visible until a definitive choice is made (Xcode-style).
-        guard flag else { return }
-
-        // Accept on Return, Tab, or a click on a list item (`.other`);
-        // Escape / focus loss arrive as `.cancel` and leave the text as typed.
-        let accepted: Bool
-        switch NSTextMovement(rawValue: movement) {
-        case .return, .tab, .other: accepted = true
-        default:                    accepted = false
-        }
-
-        // Escape leaves the "/query" as typed AND remembers it, so continued
-        // typing doesn't re-pop the list — the "/" is just prose now (#14).
-        if NSTextMovement(rawValue: movement) == .cancel {
-            suppressedSlashLocation = charRange.location
-        }
-
-        if accepted, let candidate = currentCandidates.first(where: { $0.display == word }) {
-            // A Zotero row: add the entry to the bibliography (deduped by
-            // zoteroKey in the store), then cite it like any bib entry.
-            if let item = candidate.zoteroItem {
-                if let id = addZoteroEntry?(item) {
-                    insertToken(RefEngine.Token(kind: .bib, targetID: id, style: .numeric),
-                                replacing: charRange)
-                }
-                return
-            }
-            // Letter references insert a live token; plain snippets paste text.
-            if let snippet = candidate.snippetText {
-                if let url = candidate.tokenURL {
-                    insertLetterToken(snippet, url: url, replacing: charRange)
-                } else {
-                    insertPlainText(snippet, replacing: charRange)
-                }
-                return
-            }
-            switch candidate.kind {
-            case .bib:
-                let token = RefEngine.Token(kind: .bib, targetID: candidate.id, style: .numeric)
-                insertToken(token, replacing: charRange)
-            default:
-                // Figures/tables: one dropdown row, then a caret menu chooses
-                // Reference vs Placement.  Deferred a tick so the completion
-                // window finishes tearing down first.
-                DispatchQueue.main.async { [weak self] in
-                    self?.showInsertKindMenu(for: candidate, replacing: charRange)
-                }
-            }
-        }
-        // Dismissed — nothing to restore; the text was never touched.
     }
 
     /// Replaces `range` (the "/query") with a letter token: marker text
