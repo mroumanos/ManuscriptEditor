@@ -70,15 +70,20 @@ struct ZoteroItem: Identifiable, Sendable {
 
 struct ZoteroService {
 
-    private let base = URL(string: "http://127.0.0.1:23119/api/users/0/items")!
+    /// `/items/top` returns only top-level bibliographic items — child
+    /// attachments ("Full Text PDF") and notes never appear, regardless of
+    /// how the local server interprets `itemType` filters.
+    private let base = URL(string: "http://127.0.0.1:23119/api/users/0/items/top")!
 
     /// Fetches library items, optionally filtered by a search string. Excludes
     /// attachments and notes (top-level bibliographic items only).
     func fetchItems(matching query: String = "", limit: Int = 100) async throws -> [ZoteroItem] {
         var components = URLComponents(url: base, resolvingAgainstBaseURL: false)!
+        // No itemType filter param: Zotero's local server ignores the
+        // negation syntax (verified Aug 2026 — attachments leaked into the
+        // "/" picker as "Full Text PDF").  Exclusion happens in decodeItems.
         var items = [
             URLQueryItem(name: "format", value: "json"),
-            URLQueryItem(name: "itemType", value: "-attachment || note"),
             URLQueryItem(name: "limit", value: String(limit)),
             URLQueryItem(name: "sort", value: "dateModified"),
         ]
@@ -134,9 +139,14 @@ struct ZoteroService {
         guard let array = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
             throw ZoteroError.badResponse
         }
+        // Belt and suspenders on top of `/items/top`: standalone notes ARE
+        // top-level, and a server that ignores our query params could still
+        // hand back attachments — neither is a citable reference.
+        let excluded: Set<String> = ["attachment", "note", "annotation"]
         return array.compactMap { obj in
             let key = (obj["key"] as? String) ?? ""
             guard let d = obj["data"] as? [String: Any] else { return nil }
+            if let type = d["itemType"] as? String, excluded.contains(type) { return nil }
             let creators: [ZoteroItem.Creator] = (d["creators"] as? [[String: Any]] ?? []).map {
                 ZoteroItem.Creator(
                     firstName: ($0["firstName"] as? String) ?? "",
