@@ -42,11 +42,13 @@ final class ReferencePicker: NSObject {
     /// bottom-left growing up when the caret sits near the screen bottom).
     private var anchor: NSPoint = .zero
     private var opensUpward = false
+    /// Screen-space budget for the list, fixed at show() time: every row
+    /// renders without scrolling until the panel would run off the screen.
+    private var maxListHeight: CGFloat = 300
 
     private static let width: CGFloat = 420
     private static let rowHeight: CGFloat = 24
     private static let searchHeight: CGFloat = 28
-    private static let maxRows = 10
 
     init(provideCandidates: @escaping (String) -> [RefCandidate],
          onAccept: @escaping (RefCandidate) -> Void,
@@ -87,6 +89,10 @@ final class ReferencePicker: NSObject {
         searchField.sendsWholeSearchString = false
 
         tableView.headerView = nil
+        // .plain keeps row heights exactly `rowHeight` — the default inset
+        // style pads every row, which made a one-row list tall enough to
+        // scroll inside its computed frame.
+        tableView.style = .plain
         tableView.rowHeight = Self.rowHeight
         tableView.intercellSpacing = NSSize(width: 0, height: 0)
         tableView.backgroundColor = .clear
@@ -100,6 +106,8 @@ final class ReferencePicker: NSObject {
         scrollView.documentView = tableView
         scrollView.hasVerticalScroller = true
         scrollView.autohidesScrollers = true
+        scrollView.automaticallyAdjustsContentInsets = false
+        scrollView.contentInsets = NSEdgeInsetsZero
         scrollView.drawsBackground = false
 
         emptyLabel.font = .systemFont(ofSize: 12)
@@ -118,8 +126,12 @@ final class ReferencePicker: NSObject {
 
     func show(nearCaret caretScreenRect: NSRect, parent: NSWindow) {
         let visible = (parent.screen ?? NSScreen.main)?.visibleFrame ?? .zero
-        let maxHeight = Self.searchHeight + CGFloat(Self.maxRows) * Self.rowHeight + 20
-        opensUpward = caretScreenRect.minY - visible.minY < maxHeight + 12
+        // Open toward the roomier side, and let the list use all of it.
+        let spaceBelow = caretScreenRect.minY - visible.minY - 12
+        let spaceAbove = visible.maxY - caretScreenRect.maxY - 12
+        opensUpward = spaceBelow < min(spaceAbove, Self.rowHeight * 8)
+        let available = opensUpward ? spaceAbove : spaceBelow
+        maxListHeight = max(Self.rowHeight * 3, available - Self.searchHeight - 24)
         anchor = opensUpward
             ? NSPoint(x: caretScreenRect.minX, y: caretScreenRect.maxY + 6)
             : NSPoint(x: caretScreenRect.minX, y: caretScreenRect.minY - 6)
@@ -169,8 +181,11 @@ final class ReferencePicker: NSObject {
     }
 
     private func relayout() {
-        let rows = min(candidates.count, Self.maxRows)
-        let listHeight = candidates.isEmpty ? 32 : CGFloat(rows) * Self.rowHeight + 6
+        // Exact content height: every row visible, scrolling only when the
+        // screen genuinely runs out.
+        let spacing = tableView.intercellSpacing.height
+        let fullList = CGFloat(candidates.count) * (Self.rowHeight + spacing) + 4
+        let listHeight = candidates.isEmpty ? 32 : min(fullList, maxListHeight)
         let height = Self.searchHeight + 12 + listHeight + 6
         let originY = opensUpward ? anchor.y : anchor.y - height
         panel.setFrame(NSRect(x: anchor.x, y: originY, width: Self.width, height: height),
