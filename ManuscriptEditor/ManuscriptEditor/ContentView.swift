@@ -211,8 +211,9 @@ struct ContentView: View {
                 // Title-bar chrome: notification banner centered, save status
                 // in the otherwise-empty top-right corner.
                 .toolbar {
+                    // Plain text in the title bar — no liquid-glass bubbles.
                     ToolbarItem(placement: .principal) { ToolbarBanner() }
-                    // Plain text in the title bar — no liquid-glass bubble.
+                        .sharedBackgroundVisibility(.hidden)
                     ToolbarItem(placement: .primaryAction) { SaveStatusIndicator() }
                         .sharedBackgroundVisibility(.hidden)
                 }
