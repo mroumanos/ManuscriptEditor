@@ -418,7 +418,11 @@ just a rendered blob.
   every row showing the item's *effective* format; changing any value creates
   that item's override (`ExportItem.format`; right-click → "Reset Formatting to
   Document"). Click the **item name to rename its exported heading**
-  (export-level `customTitle`; empty reverts). Margins/columns remain
+  (export-level `customTitle`; empty reverts). Each row's **"H" toggle
+  shows/hides the printed heading** (`ExportItem.showTitle`; content always
+  exports — only the title toggles). Default: every kind prints its heading
+  **except the cover letter**, which exports as a real letter with no
+  "Cover Letter" label (Jul 2026 beta feedback). Margins/columns remain
   document-level (page geometry). PDF line numbering follows the per-item
   effective format (attribute-driven); LaTeX emits
   `\linenumbers`/`\nolinenumbers` transitions.

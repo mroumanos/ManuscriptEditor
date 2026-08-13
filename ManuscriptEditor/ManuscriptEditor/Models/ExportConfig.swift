@@ -179,6 +179,19 @@ struct ExportItem: Codable, Identifiable, Sendable, Equatable {
     /// rename the underlying manuscript section.  nil = the default title.
     var customTitle: String? = nil
 
+    /// Whether this item's heading is printed in the exported document
+    /// (toggle in the Export card).  Stored optional for backward-compatible
+    /// decoding; nil = the kind's default — every kind prints its heading
+    /// except the cover letter: a real letter to an editor doesn't carry a
+    /// "Cover Letter" label (Jul 2026 beta feedback).
+    var showTitle: Bool? = nil
+
+    /// Resolved show/hide for the printed heading.
+    var titleShown: Bool {
+        get { showTitle ?? (kind != .coverLetter) }
+        set { showTitle = newValue }
+    }
+
     /// Per-item typography override (font/size/spacing/line numbers).
     /// nil = inherit the document's format.  Margins and columns are page
     /// geometry and always come from the document.

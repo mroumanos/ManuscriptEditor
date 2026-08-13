@@ -108,7 +108,7 @@ enum SigningService {
     // MARK: - Local GPG keyring (best effort)
 
     /// The App Sandbox blocks ~/.gnupg by default; the user can grant access
-    /// once via an open panel (Preferences → User) and we keep a
+    /// once via an open panel (Settings → User) and we keep a
     /// security-scoped bookmark, passing the folder to gpg as --homedir.
     static func grantGnupgAccess(_ url: URL) {
         if let bookmark = try? url.bookmarkData(
@@ -427,7 +427,7 @@ enum SigningService {
     }
 
     /// The user-facing signer name.  Defaults to the macOS account's full
-    /// name; editable in Preferences → User.
+    /// name; editable in Settings → User.
     static var userName: String {
         get {
             UserDefaults.standard.string(forKey: "userIdentityName").flatMap {

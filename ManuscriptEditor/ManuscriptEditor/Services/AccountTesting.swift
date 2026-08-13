@@ -1,6 +1,6 @@
 // AccountTesting.swift
 //
-// "Test Connection" for every account type in Preferences → Accounts.
+// "Test Connection" for every account type in Settings → Accounts.
 // Each test makes the cheapest authenticated call the provider offers and
 // returns a human-readable success line ("Connected as mroumanos") or throws
 // a user-actionable error.  Tokens/keys come from the Keychain, keyed by the

@@ -1,6 +1,6 @@
 // AccountsView.swift
 //
-// Preferences → Accounts: every external account in one panel — storage
+// Settings → Accounts: every external account in one panel — storage
 // backends (GitHub, GitLab, Office 365, …) and AI services (Claude, OpenAI,
 // Gemini, Ollama).  Each account stores its credential in the **Keychain**
 // (keyed by account id) and offers **Test Connection** to verify it.

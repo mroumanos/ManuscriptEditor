@@ -353,13 +353,17 @@ struct ExportService {
                 }
             case .keywords:
                 if !m.keywords.isEmpty {
-                    out += "\\noindent\\textbf{Keywords:} \(tex(m.keywords.joined(separator: ", ")))\n\n"
+                    let label = item.titleShown ? "\\textbf{\(tex(latexHeading(item.customTitle ?? "Keywords"))):} " : ""
+                    out += "\\noindent\(label)\(tex(m.keywords.joined(separator: ", ")))\n\n"
                 }
             case .section:
                 if let id = item.sectionID,
                    let section = m.sections.first(where: { $0.id == id }),
                    section.active, !section.content.isEmpty {
-                    out += "\\section{\(tex(latexHeading(item.customTitle ?? section.title)))}\n\(tex(section.content.plain))\n\n"
+                    if item.titleShown {
+                        out += "\\section{\(tex(latexHeading(item.customTitle ?? section.title)))}\n"
+                    }
+                    out += "\(tex(section.content.plain))\n\n"
                 }
             case .figures:
                 for fig in m.figures.sorted(by: { $0.number < $1.number }) {
@@ -402,7 +406,10 @@ struct ExportService {
                         .replacingOccurrences(of: LetterToken.date.marker,
                                               with: Date().formatted(date: .long, time: .omitted))
                         .replacingOccurrences(of: LetterToken.signature.marker, with: "")
-                    out += "\\section*{Cover Letter}\n\(tex(bodyText))\n\n"
+                    if item.titleShown {
+                        out += "\\section*{\(tex(latexHeading(item.customTitle ?? "Cover Letter")))}\n"
+                    }
+                    out += "\(tex(bodyText))\n\n"
                 }
             case .pageBreak:
                 out += "\\newpage\n"
@@ -498,7 +505,7 @@ struct ExportService {
             if let head = letterheadBlock(m.letterToEditor, font: bodyFont, width: 468) {
                 doc.append(head)
             }
-            doc.append(heading("Cover Letter"))
+            // No printed "Cover Letter" label — a real letter doesn't carry one.
             let body = NSMutableAttributedString(attributedString: rich(m.letterToEditor.body, refContext))
             resolveLetterTokens(in: body, letter: m.letterToEditor)
             doc.append(body)
@@ -739,17 +746,21 @@ private struct OutlineBuilder {
             return doc
         case .abstract:
             guard !m.abstract.isEmpty else { return nil }
-            let doc = NSMutableAttributedString(attributedString: headingBlock(item.customTitle ?? "Abstract"))
+            let doc = NSMutableAttributedString()
+            if item.titleShown { doc.append(headingBlock(item.customTitle ?? "Abstract")) }
             doc.append(rich(m.abstract, in: m))
             return doc
         case .keywords:
             guard !m.keywords.isEmpty else { return nil }
-            return line("\(headingText(item.customTitle ?? "Keywords")): " + m.keywords.joined(separator: ", "), font: meta, color: .darkGray, after: 10)
+            let list = m.keywords.joined(separator: ", ")
+            let text = item.titleShown ? "\(headingText(item.customTitle ?? "Keywords")): " + list : list
+            return line(text, font: meta, color: .darkGray, after: 10)
         case .section:
             guard let id = item.sectionID,
                   let section = m.sections.first(where: { $0.id == id }),
                   section.active, !section.content.isEmpty else { return nil }
-            let doc = NSMutableAttributedString(attributedString: headingBlock(item.customTitle ?? section.title))
+            let doc = NSMutableAttributedString()
+            if item.titleShown { doc.append(headingBlock(item.customTitle ?? section.title)) }
             doc.append(rich(section.content, in: m))
             return doc
         case .figures:
@@ -758,7 +769,8 @@ private struct OutlineBuilder {
                 (refContext.figures[$0.id]?.number ?? $0.number) < (refContext.figures[$1.id]?.number ?? $1.number)
             }
             guard !figures.isEmpty else { return nil }
-            let doc = NSMutableAttributedString(attributedString: headingBlock(item.customTitle ?? "Figures"))
+            let doc = NSMutableAttributedString()
+            if item.titleShown { doc.append(headingBlock(item.customTitle ?? "Figures")) }
             for f in figures {
                 if let image = figureImage(f) {
                     doc.append(attachmentBlock(image))
@@ -773,7 +785,8 @@ private struct OutlineBuilder {
                 (refContext.tables[$0.id]?.number ?? $0.number) < (refContext.tables[$1.id]?.number ?? $1.number)
             }
             guard !tables.isEmpty else { return nil }
-            let doc = NSMutableAttributedString(attributedString: headingBlock(item.customTitle ?? "Tables"))
+            let doc = NSMutableAttributedString()
+            if item.titleShown { doc.append(headingBlock(item.customTitle ?? "Tables")) }
             for t in tables {
                 doc.append(line("Table \(refContext.tables[t.id]?.number ?? t.number). \(t.title)",
                                 font: NSFontManager.shared.convert(base, toHaveTrait: .boldFontMask), after: 2))
@@ -787,7 +800,8 @@ private struct OutlineBuilder {
             return doc
         case .references:
             guard !m.bibliography.isEmpty else { return nil }
-            let doc = NSMutableAttributedString(attributedString: headingBlock(item.customTitle ?? "References"))
+            let doc = NSMutableAttributedString()
+            if item.titleShown { doc.append(headingBlock(item.customTitle ?? "References")) }
             for (i, entry) in m.bibliography.enumerated() {
                 doc.append(line("\(i + 1). \(RefEngine.fullReference(entry))", font: base, after: 4))
             }
@@ -800,7 +814,7 @@ private struct OutlineBuilder {
                                           width: 612 - format.marginInches * 144) {
                 doc.append(head)
             }
-            doc.append(headingBlock(item.customTitle ?? "Cover Letter"))
+            if item.titleShown { doc.append(headingBlock(item.customTitle ?? "Cover Letter")) }
             let body = NSMutableAttributedString(attributedString: rich(m.letterToEditor.body, in: m))
             resolveLetterTokens(in: body, letter: m.letterToEditor)
             doc.append(body)

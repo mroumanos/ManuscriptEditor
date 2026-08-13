@@ -408,6 +408,26 @@ private struct ExportDocumentCard: View {
                 TextField(item.title(in: content), text: titleBinding(index))
                     .textFieldStyle(.plain)
                     .font(.callout)
+                    .foregroundStyle(item.titleShown ? .primary : .tertiary)
+                // Print/hide this item's heading in the export.  The content
+                // always exports; only the printed title toggles ("H" ≠ the
+                // remove ✕, which drops the whole item).
+                if item.kind != .titlePage {
+                    Button {
+                        var doc = document
+                        guard doc.items.indices.contains(index) else { return }
+                        doc.items[index].titleShown.toggle()
+                        onChange(doc)
+                    } label: {
+                        Image(systemName: item.titleShown ? "h.square.fill" : "h.square")
+                            .foregroundStyle(item.titleShown ? Color.accentColor : Color(nsColor: .tertiaryLabelColor))
+                            .font(.caption)
+                    }
+                    .buttonStyle(.plain)
+                    .help(item.titleShown
+                          ? "Heading is printed in the export — click to hide"
+                          : "Heading is hidden in the export — click to print it")
+                }
                 Spacer(minLength: 4)
                 formatColumns(item, index: index)
             }
