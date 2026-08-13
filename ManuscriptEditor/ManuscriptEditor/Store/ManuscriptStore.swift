@@ -407,13 +407,14 @@ final class ManuscriptStore {
         }
     }
 
-    /// Activates / deactivates a section for one version.  Deactivating empties
-    /// its content (it becomes uneditable and excluded from Checks and Export).
+    /// Activates / deactivates a section for one version.  A deactivated section
+    /// is uneditable and excluded from Checks and Export, but its content is
+    /// **preserved** so reactivating restores the text — Checks/Export filter on
+    /// the `active` flag, never on emptiness, so nothing leaks while it's off.
     func setSectionActive(_ active: Bool, id: UUID, ref: VersionRef) {
         touch(ref) { m in
             if let i = m.sections.firstIndex(where: { $0.id == id }) {
                 m.sections[i].active = active
-                if !active { m.sections[i].content = RichText() }
             }
         }
     }

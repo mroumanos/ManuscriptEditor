@@ -231,9 +231,11 @@ struct Manuscript: Codable, Identifiable, Sendable {
 
     // MARK: - Computed word counts
 
-    /// Total word count across all body sections (excludes the abstract).
+    /// Total word count across active body sections (excludes the abstract).
+    /// Deactivated sections keep their content but are hidden from the journal,
+    /// so their words must not count against word-limit checks.
     var bodyWordCount: Int {
-        sections.reduce(0) { $0 + $1.wordCount }
+        sections.reduce(0) { $0 + ($1.active ? $1.wordCount : 0) }
     }
 
     /// Word count of just the abstract.

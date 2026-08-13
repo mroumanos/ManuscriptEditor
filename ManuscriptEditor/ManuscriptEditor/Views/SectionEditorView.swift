@@ -74,7 +74,7 @@ struct SectionEditorView: View {
                 .foregroundStyle(.tertiary)
             Text("“\(title)” is off for this journal")
                 .font(.title3.weight(.semibold))
-            Text("Deactivated sections are empty and excluded from Checks and Export.\nUse the eye toggle above to activate it here.")
+            Text("Deactivated sections are excluded from Checks and Export.\nYour text is kept — use the eye toggle above to bring it back.")
                 .font(.callout)
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)

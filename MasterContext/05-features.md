@@ -65,8 +65,9 @@ Intent: most time is spent here; it must be excellent and AI-optional.
   button); titles are kept **unique**. A new section is **created for every
   journal** (shared structure). Each journal can **deactivate** a section it
   doesn't use via the eye toggle in that section's pane header — deactivated ⇒
-  **empty, uneditable, and excluded from Checks and Export** (e.g. keep a
-  Disclosure section active only for NEJM). Renaming, reordering, and deleting
+  **uneditable and excluded from Checks and Export, with content preserved**
+  (e.g. keep a Disclosure section active only for NEJM); reactivating restores
+  the text exactly as it was. Renaming, reordering, and deleting
   apply everywhere; content is per-journal. A section absent from an older cut
   shows a clean "Not included in this version" state (no broken rendering).
 

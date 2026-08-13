@@ -215,9 +215,11 @@ Notes are a first-class way to leave feedback for oneself or collaborators,
   version**. What differs per version is its **content** and its **`active`**
   flag. Adding/deleting/reordering/renaming applies everywhere (titles kept
   unique); a version can **deactivate** a section (e.g. a journal that doesn't
-  want a Disclosure) — deactivated ⇒ empty, uneditable, and **excluded from
-  Checks and Export**. New sections are added from an inline row at the bottom of
-  the section list.
+  want a Disclosure) — deactivated ⇒ uneditable and **excluded from Checks and
+  Export**, but its content is **preserved** and returns on reactivation
+  (exclusion is driven by the `active` flag, never by emptying content — see the
+  Jul 2026 beta data-loss report). New sections are added from an inline row at
+  the bottom of the section list.
 - `Figure`: `number, title, caption, altText, fileName?` + optional binding
   `dataAssetID?, chartType?(.line/.bar/.histogram), chartQuery?`.
 - `ManuscriptTable`: `number, title, caption, footnotes, content(Markdown)` +
