@@ -499,22 +499,15 @@ private struct ExportDocumentCard: View {
             }
             .buttonStyle(.plain)
             .help("Print the heading in ALL CAPS")
-            Menu {
-                ForEach([("Small", 0.0), ("Medium", 2.0), ("Large", 5.0)], id: \.0) { name, delta in
-                    Button {
-                        mutate { $0.sizeDelta = delta }
-                    } label: {
-                        style.sizeDelta == delta ? Text("✓ \(name)") : Text(name)
-                    }
-                }
-            } label: {
-                Image(systemName: "textformat.size")
-                    .font(.caption)
-                    .foregroundStyle(Color(nsColor: .tertiaryLabelColor))
-            }
-            .menuStyle(.borderlessButton)
-            .fixedSize()
-            .help("Heading size")
+            TextField("", value: Binding(
+                get: { style.pointSize ?? (document.format.fontSize + style.sizeDelta) },
+                set: { newValue in mutate { $0.pointSize = min(max(newValue, 6), 99) } }
+            ), format: .number.precision(.fractionLength(0...1)))
+                .textFieldStyle(.roundedBorder)
+                .controlSize(.small)
+                .multilineTextAlignment(.trailing)
+                .frame(width: 44)
+                .help("Heading size")
         }
     }
 
@@ -530,12 +523,14 @@ private struct ExportDocumentCard: View {
             }
             .frame(width: colFont)
 
-            Picker("", selection: fmtBinding(index, \.fontSize)) {
-                ForEach([10.0, 11, 12, 14], id: \.self) { size in
-                    Text("\(Int(size))").tag(size)
-                }
-            }
-            .frame(width: colSize)
+            TextField("", value: Binding(
+                get: { item.format?.fontSize ?? document.format.fontSize },
+                set: { newValue in fmtBinding(index, \.fontSize).wrappedValue = min(max(newValue, 6), 99) }
+            ), format: .number.precision(.fractionLength(0...1)))
+                .textFieldStyle(.roundedBorder)
+                .controlSize(.small)
+                .multilineTextAlignment(.trailing)
+                .frame(width: colSize)
 
             Picker("", selection: fmtBinding(index, \.lineSpacing)) {
                 Text("1×").tag(1.0)

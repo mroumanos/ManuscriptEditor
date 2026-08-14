@@ -203,7 +203,10 @@ struct ExportItem: Codable, Identifiable, Sendable, Equatable {
         /// decoding of already-saved styles.
         var allCaps: Bool? = nil
         /// Point-size delta over the document body font: 0 (S), 2 (M), 5 (L).
+        /// Superseded by `pointSize` when that is set.
         var sizeDelta: Double = 2
+        /// Absolute heading size in points (typed entry); nil = body + delta.
+        var pointSize: Double? = nil
     }
     var headingStyle: HeadingStyle? = nil
 

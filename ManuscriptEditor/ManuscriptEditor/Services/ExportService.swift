@@ -842,7 +842,14 @@ private struct OutlineBuilder {
     /// item's heading format (bold/underline/centered/size).
     private func headingBlock(_ raw: String,
                               style: ExportItem.HeadingStyle = .init()) -> NSAttributedString {
-        let font = scaled(style.sizeDelta, bold: style.bold)
+        let font: NSFont
+        if let pt = style.pointSize {
+            var sized = NSFont(descriptor: base.fontDescriptor, size: pt) ?? base
+            if style.bold { sized = NSFontManager.shared.convert(sized, toHaveTrait: .boldFontMask) }
+            font = sized
+        } else {
+            font = scaled(style.sizeDelta, bold: style.bold)
+        }
         let out = NSMutableAttributedString()
         out.append(NSAttributedString(string: "\n", attributes: [.font: base]))
         let heading = style.allCaps == true ? raw.uppercased() : headingText(raw)
