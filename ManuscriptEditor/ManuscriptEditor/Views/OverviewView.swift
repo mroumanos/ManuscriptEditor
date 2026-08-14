@@ -30,7 +30,7 @@ struct OverviewView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 28) {
                     summaryCard
-                    backendCard
+                    settingsCard
                     JournalLineageCard()
                 }
                 .padding(28)
@@ -38,44 +38,100 @@ struct OverviewView: View {
         }
     }
 
-    // MARK: - Backend & AI card
+    // MARK: - Settings card
 
-    /// Saving plus everything that used to live in the Backend and AI
-    /// sidebar tabs (removed Aug 2026): local folder, backend account,
-    /// remote repo/branch, and the AI service selector.
-    private var backendCard: some View {
+    /// One line each for the manuscript's local folder, backend account, and
+    /// AI service (the retired Backend/AI tabs, compacted — Aug 2026).
+    struct PendingMove: Identifiable { let url: URL; var id: String { url.path } }
+    @State private var pendingMove: PendingMove?
+
+    private var settingsBinding: Binding<ManuscriptSettings> {
+        Binding(get: { store.manuscript?.settings ?? .empty() },
+                set: { store.updateManuscriptSettings($0) })
+    }
+
+    /// Optional-string setting → TextField binding ("" stores nil).
+    private func optionalSetting(_ keyPath: WritableKeyPath<ManuscriptSettings, String?>) -> Binding<String> {
+        Binding(get: { store.manuscript?.settings[keyPath: keyPath] ?? "" },
+                set: { var st = store.manuscript?.settings ?? .empty()
+                       st[keyPath: keyPath] = $0.isEmpty ? nil : $0
+                       store.updateManuscriptSettings(st) })
+    }
+
+    private func saveLine(_ label: String, lastSaved: String, action: @escaping () -> Void) -> some View {
+        HStack(spacing: 6) {
+            Text(label)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(width: 76, alignment: .leading)
+            Button("Save", action: action)
+                .controlSize(.small)
+                .disabled(label == "Remote" && store.isRemoteBusy)
+            Text("(last saved \(lastSaved))")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+        }
+    }
+
+    private var settingsCard: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text("Saving & Backend")
-                    .font(.headline)
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Button {
-                    store.trySave()
-                    if let error = store.saveError {
-                        store.showBanner(.error, "Local save failed: \(error)")
-                    } else {
-                        store.showBanner(.success, "Saved to disk at \((store.lastSaved ?? Date()).formatted(date: .omitted, time: .standard)).")
+            Text("Settings")
+                .font(.headline)
+                .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 8) {
+                    Text("Local").font(.caption).foregroundStyle(.secondary).frame(width: 60, alignment: .leading)
+                    if let dir = store.manuscript.map({ store.persistence.manuscriptDirectory(for: $0.id) }) {
+                        Button {
+                            let panel = NSOpenPanel()
+                            panel.canChooseFiles = false
+                            panel.canChooseDirectories = true
+                            panel.directoryURL = dir.deletingLastPathComponent()
+                            panel.prompt = "Move Here"
+                            if panel.runModal() == .OK, let url = panel.url { pendingMove = PendingMove(url: url) }
+                        } label: {
+                            Label(dir.lastPathComponent, systemImage: "folder")
+                                .lineLimit(1).truncationMode(.middle)
+                        }
+                        .controlSize(.small)
+                        .help("The manuscript folder — click to move it")
                     }
-                } label: {
-                    Label("Save", systemImage: "internaldrive")
                 }
-                Button {
-                    store.saveToRemote(appStore: appStore)
-                } label: {
-                    Label("Save Remote", systemImage: "icloud.and.arrow.up")
+                HStack(spacing: 8) {
+                    Text("Remote").font(.caption).foregroundStyle(.secondary).frame(width: 60, alignment: .leading)
+                    Picker("", selection: settingsBinding.activeBackendID) {
+                        Text("None").tag(Optional<UUID>.none)
+                        ForEach(appStore.backends.filter { $0.provider == .github || $0.provider == .gitlab }) {
+                            Text($0.displayName).tag(Optional($0.id))
+                        }
+                    }
+                    .labelsHidden().frame(width: 240)
                 }
-                .disabled(store.isRemoteBusy)
-                if store.isRemoteBusy { ProgressView().controlSize(.small) }
+                HStack(spacing: 8) {
+                    Text("AI").font(.caption).foregroundStyle(.secondary).frame(width: 60, alignment: .leading)
+                    Picker("", selection: settingsBinding.activeAIServiceID) {
+                        Text("None").tag(Optional<UUID>.none)
+                        ForEach(appStore.aiServices) {
+                            Text("\($0.displayName) (\($0.provider.rawValue))").tag(Optional($0.id))
+                        }
+                    }
+                    .labelsHidden().frame(width: 240)
+                }
             }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(.background.secondary, in: RoundedRectangle(cornerRadius: 10))
             .frame(maxWidth: 640)
-
-            ManuscriptBackendView()
-                .frame(height: 420)
-                .frame(maxWidth: 640)
-            ManuscriptAIView()
-                .frame(height: 170)
-                .frame(maxWidth: 640)
+        }
+        .alert(item: $pendingMove) { pending in
+            Alert(title: Text("Move manuscript to \"\(pending.url.lastPathComponent)\"?"),
+                  message: Text("The whole manuscript folder moves there; nothing is copied."),
+                  primaryButton: .default(Text("Move")) {
+                      if let error = store.moveManuscriptFolder(to: pending.url) {
+                          store.showBanner(.error, error)
+                      }
+                  },
+                  secondaryButton: .cancel())
         }
     }
 
@@ -119,9 +175,32 @@ struct OverviewView: View {
                 // Timestamps, one per line.
                 VStack(alignment: .leading, spacing: 3) {
                     timestampLine("Created", m.createdAt.formatted(date: .abbreviated, time: .omitted))
-                    timestampLine("Saved (local)", m.updatedAt.formatted(date: .abbreviated, time: .shortened))
-                    timestampLine("Saved (remote)",
-                                  m.lastSyncedAt?.formatted(date: .abbreviated, time: .shortened) ?? "never")
+                    saveLine("Local", lastSaved: m.updatedAt.formatted(date: .abbreviated, time: .shortened)) {
+                        store.trySave()
+                        if let error = store.saveError {
+                            store.showBanner(.error, "Local save failed: \(error)")
+                        } else {
+                            store.showBanner(.success, "Saved to disk at \((store.lastSaved ?? Date()).formatted(date: .omitted, time: .standard)).")
+                        }
+                    }
+                    saveLine("Remote", lastSaved: m.lastSyncedAt?.formatted(date: .abbreviated, time: .shortened) ?? "never") {
+                        store.saveToRemote(appStore: appStore)
+                    }
+                    HStack(spacing: 6) {
+                        Text("Repository")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .frame(width: 76, alignment: .leading)
+                        TextField("owner/name", text: optionalSetting(\.remoteRepository))
+                            .textFieldStyle(.roundedBorder)
+                            .controlSize(.small)
+                            .frame(width: 200)
+                        TextField("branch", text: optionalSetting(\.remoteBranch))
+                            .textFieldStyle(.roundedBorder)
+                            .controlSize(.small)
+                            .frame(width: 110)
+                        if store.isRemoteBusy { ProgressView().controlSize(.small) }
+                    }
                 }
 
                 // Everyone who has stamped a version or written a note.
@@ -163,6 +242,7 @@ struct OverviewView: View {
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(.background.secondary, in: RoundedRectangle(cornerRadius: 10))
+            .frame(maxWidth: 640)
         }
     }
 
