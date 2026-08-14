@@ -487,6 +487,9 @@ private struct ExportDocumentCard: View {
             .help(help)
         }
         return HStack(spacing: 3) {
+            toggle("bold", style.bold, "Bold heading") { $0.bold.toggle() }
+            toggle("underline", style.underline, "Underlined heading") { $0.underline.toggle() }
+            toggle("text.aligncenter", style.centered, "Centered heading") { $0.centered.toggle() }
             Button {
                 mutate { $0.allCaps = ($0.allCaps == true) ? false : true }
             } label: {
