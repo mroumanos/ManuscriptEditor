@@ -356,7 +356,7 @@ final class ManuscriptStore {
             $0.hiddenPanes = keys.isEmpty ? nil : keys.sorted()
         }
     }
-    func updateAbstract(_ abstract: RichText, ref: VersionRef = .source) { logActivity("Edited Abstract", ref: ref); touch(ref, undoable: false) { $0.abstract = abstract } }
+    func updateAbstract(_ abstract: RichText, ref: VersionRef = .source) { touch(ref, undoable: false) { $0.abstract = abstract } }
     func updateKeywords(_ keywords: [String], ref: VersionRef = .source) { touch(ref, undoAction: "Edit Keywords") { $0.keywords = keywords } }
 
     // MARK: - Authors
@@ -490,7 +490,6 @@ final class ManuscriptStore {
 
     /// Edits one version's copy of a section (content etc.).
     func updateSection(_ section: ManuscriptSection, ref: VersionRef = .source) {
-        logActivity("Edited \(section.title)", ref: ref)
         touch(ref, undoable: false) { m in
             if let idx = m.sections.firstIndex(where: { $0.id == section.id }) { m.sections[idx] = section }
         }
@@ -705,7 +704,6 @@ final class ManuscriptStore {
     // MARK: - Letter to editor
 
     func updateLetterToEditor(_ letter: LetterToEditor, ref: VersionRef = .source) {
-        logActivity("Edited Letter to Editor", ref: ref)
         touch(ref, undoable: false) { $0.letterToEditor = letter }
     }
 
@@ -1511,6 +1509,69 @@ final class ManuscriptStore {
         log(.info, action, context: refName(ref))
     }
 
+    // MARK: - Changelog (diff vs last stamped baseline)
+
+    struct ChangeItem: Identifiable {
+        let id = UUID()
+        let context: String   // "Source" or journal name
+        let item: String      // "Introduction", "Authors", …
+        let change: String    // Added / Removed / Renamed / Modified
+    }
+
+    /// What differs between each journal's current content and its last
+    /// stamped version (the state a remote push carries) — a readable diff,
+    /// not an event trail.
+    func changelog() -> [ChangeItem] {
+        guard let m = manuscript else { return [] }
+        var out: [ChangeItem] = []
+        if let base = latestSourceStamp { out += diff(base.content, m, context: "Source") }
+        else { out.append(ChangeItem(context: "Source", item: "Everything", change: "Not yet stamped")) }
+        for journal in m.journals {
+            let chain = versions(forJournal: journal.id)
+            guard let head = chain.last else { continue }
+            if chain.count > 1 {
+                out += diff(chain[chain.count - 2].content, head.content, context: journal.name)
+            }
+        }
+        return out
+    }
+
+    private func diff(_ base: Manuscript, _ current: Manuscript, context: String) -> [ChangeItem] {
+        var out: [ChangeItem] = []
+        func add(_ item: String, _ change: String) {
+            out.append(ChangeItem(context: context, item: item, change: change))
+        }
+        if base.title != current.title { add("Project Title", "Modified") }
+        if base.abstract.plain != current.abstract.plain { add("Abstract", "Modified") }
+        if base.keywords != current.keywords { add("Keywords", "Modified") }
+        if base.letterToEditor.body.plain != current.letterToEditor.body.plain { add("Letter to Editor", "Modified") }
+        let baseSecs = Dictionary(uniqueKeysWithValues: base.sections.map { ($0.id, $0) })
+        for s in current.sections {
+            guard let b = baseSecs[s.id] else { add(s.title, "Added"); continue }
+            if b.title != s.title { add("\(b.title) → \(s.title)", "Renamed") }
+            if b.content.plain != s.content.plain { add(s.title, "Modified") }
+        }
+        for b in base.sections where !current.sections.contains(where: { $0.id == b.id }) {
+            add(b.title, "Removed")
+        }
+        func diffList<T: Identifiable>(_ label: String, _ old: [T], _ new: [T],
+                                       changed: (T, T) -> Bool, name: (T) -> String) {
+            let olds = Dictionary(uniqueKeysWithValues: old.map { ($0.id, $0) })
+            for n in new {
+                guard let o = olds[n.id] else { add("\(label): \(name(n))", "Added"); continue }
+                if changed(o, n) { add("\(label): \(name(n))", "Modified") }
+            }
+            for o in old where !new.contains(where: { $0.id == o.id }) {
+                add("\(label): \(name(o))", "Removed")
+            }
+        }
+        diffList("Author", base.authors, current.authors, changed: { $0 != $1 }, name: { $0.fullName.isEmpty ? "(unnamed)" : $0.fullName })
+        diffList("Figure", base.figures, current.figures, changed: { $0 != $1 }, name: { $0.title.isEmpty ? "untitled" : $0.title })
+        diffList("Table", base.tables, current.tables, changed: { $0 != $1 }, name: { $0.title.isEmpty ? "untitled" : $0.title })
+        diffList("Reference", base.bibliography, current.bibliography, changed: { $0 != $1 }, name: { $0.key.isEmpty ? $0.title : $0.key })
+        return out
+    }
+
     private func loadLog() {
         activityLog = []
         guard let id = manuscript?.id else { return }
@@ -2006,8 +2067,6 @@ final class ManuscriptStore {
         manuscript = m
         trySave()
         if undoable { registerUndo(before, name: undoAction) }
-        // Named mutations feed the activity log (who/where/what).
-        if let action = undoAction { logActivity(action, ref: ref) }
     }
 
     /// Attempts to resolve a security-scoped bookmark stored on the manuscript

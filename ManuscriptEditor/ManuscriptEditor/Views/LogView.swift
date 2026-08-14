@@ -19,7 +19,7 @@ struct LogView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 HStack {
-                    Text("Log").font(.title2.weight(.semibold))
+                    Text("Changelog").font(.title2.weight(.semibold))
                     Spacer()
                     if !store.activityLog.isEmpty {
                         Button("Clear Log") { store.clearLog() }
@@ -27,6 +27,37 @@ struct LogView: View {
                     }
                 }
 
+                let changes = store.changelog()
+                if changes.isEmpty {
+                    Text("No changes since the last stamped versions.")
+                        .font(.callout).foregroundStyle(.secondary)
+                } else {
+                    VStack(spacing: 0) {
+                        ForEach(changes) { change in
+                            HStack(spacing: 10) {
+                                Text(change.context)
+                                    .font(.caption2.weight(.semibold))
+                                    .padding(.horizontal, 6).padding(.vertical, 2)
+                                    .background(Color.accentColor.opacity(0.12), in: Capsule())
+                                    .foregroundStyle(Color.accentColor)
+                                    .frame(width: 110, alignment: .leading)
+                                Text(change.item).font(.callout)
+                                Spacer()
+                                Text(change.change)
+                                    .font(.caption.weight(.medium))
+                                    .foregroundStyle(change.change == "Removed" ? .red : .secondary)
+                                Text(SigningService.userName)
+                                    .font(.caption2).foregroundStyle(.tertiary)
+                            }
+                            .padding(.horizontal, 12).padding(.vertical, 7)
+                            if change.id != changes.last?.id { Divider().padding(.leading, 12) }
+                        }
+                    }
+                    .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
+                    .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.separator, lineWidth: 1))
+                }
+
+                DisclosureGroup("Event history (saves, syncs, errors)") {
                 if store.activityLog.isEmpty {
                     emptyState
                 } else {
@@ -42,6 +73,8 @@ struct LogView: View {
                                 in: RoundedRectangle(cornerRadius: 10))
                     .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.separator, lineWidth: 1))
                 }
+                }
+                .font(.callout)
 
                 Spacer(minLength: 0)
             }
