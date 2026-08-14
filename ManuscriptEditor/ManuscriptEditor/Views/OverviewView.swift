@@ -244,6 +244,18 @@ struct OverviewView: View {
                         if store.isRemoteBusy { ProgressView().controlSize(.small) }
                     }
                 }
+                // On its own node — a second alert(item:) on a view that
+                // already has one never fires (macOS).
+                .alert(item: $pendingLoad) { which in
+                    Alert(
+                        title: Text(which == .local ? "Load from the local save?" : "Load from the remote?"),
+                        message: Text("This replaces the current content with the last \(which.rawValue) save. Anything not saved there is overwritten."),
+                        primaryButton: .destructive(Text("Load")) {
+                            if which == .local { store.reloadFromDisk() }
+                            else { store.loadFromRemote(appStore: appStore) }
+                        },
+                        secondaryButton: .cancel())
+                }
 
                 // Everyone who has stamped a version or written a note.
                 VStack(alignment: .leading, spacing: 6) {
