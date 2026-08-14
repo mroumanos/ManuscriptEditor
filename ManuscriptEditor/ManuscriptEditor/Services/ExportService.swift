@@ -845,8 +845,9 @@ private struct OutlineBuilder {
         let font = scaled(style.sizeDelta, bold: style.bold)
         let out = NSMutableAttributedString()
         out.append(NSAttributedString(string: "\n", attributes: [.font: base]))
+        let heading = style.allCaps == true ? raw.uppercased() : headingText(raw)
         let text = NSMutableAttributedString(attributedString:
-            line(headingText(raw), font: font, before: 0, after: 0))
+            line(heading, font: font, before: 0, after: 0))
         let full = NSRange(location: 0, length: text.length)
         if style.underline {
             text.addAttribute(.underlineStyle,

@@ -199,6 +199,9 @@ struct ExportItem: Codable, Identifiable, Sendable, Equatable {
         var bold: Bool = true
         var underline: Bool = false
         var centered: Bool = false
+        /// Print the heading in ALL CAPS.  Optional for backward-compatible
+        /// decoding of already-saved styles.
+        var allCaps: Bool? = nil
         /// Point-size delta over the document body font: 0 (S), 2 (M), 5 (L).
         var sizeDelta: Double = 2
     }

@@ -487,9 +487,15 @@ private struct ExportDocumentCard: View {
             .help(help)
         }
         return HStack(spacing: 3) {
-            toggle("bold", style.bold, "Bold heading") { $0.bold.toggle() }
-            toggle("underline", style.underline, "Underlined heading") { $0.underline.toggle() }
-            toggle("text.aligncenter", style.centered, "Centered heading") { $0.centered.toggle() }
+            Button {
+                mutate { $0.allCaps = ($0.allCaps == true) ? false : true }
+            } label: {
+                Text("AA")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(style.allCaps == true ? Color.accentColor : Color(nsColor: .tertiaryLabelColor))
+            }
+            .buttonStyle(.plain)
+            .help("Print the heading in ALL CAPS")
             Menu {
                 ForEach([("Small", 0.0), ("Medium", 2.0), ("Large", 5.0)], id: \.0) { name, delta in
                     Button {
