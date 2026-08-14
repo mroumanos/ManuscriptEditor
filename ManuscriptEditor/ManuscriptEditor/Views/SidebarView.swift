@@ -133,10 +133,6 @@ struct SidebarView: View {
                 .tag(SidebarItem.log)
             // Manuscript-scoped settings, split by concern; app-wide settings
             // stay in Preferences (gear below).
-            Label("Backend", systemImage: "externaldrive.connected.to.line.below")
-                .tag(SidebarItem.manuscriptBackend)
-            Label("AI", systemImage: "sparkles")
-                .tag(SidebarItem.manuscriptAI)
         }
     }
 

@@ -68,12 +68,12 @@ struct GitHubBackendService {
                          repository: String? = nil,
                          branch: String? = nil) throws -> Config {
             guard account.provider == .github else {
-                throw GitHubBackendError.notConfigured("The active account is \(account.provider.rawValue) — only GitHub is supported so far. Pick a GitHub account in Manuscript → Backend.")
+                throw GitHubBackendError.notConfigured("The active account is \(account.provider.rawValue) — only GitHub is supported so far. Pick a GitHub account in Overview → Saving & Backend.")
             }
             let repoString = repository ?? account.repository ?? ""
             let parts = repoString.split(separator: "/").map(String.init)
             guard parts.count == 2, !parts[0].isEmpty, !parts[1].isEmpty else {
-                throw GitHubBackendError.notConfigured("Set the repository as \"owner/name\" in Manuscript → Backend (or create one there).")
+                throw GitHubBackendError.notConfigured("Set the repository as \"owner/name\" in Overview → Saving & Backend (or create one there).")
             }
             guard let token = KeychainService.secret(for: account.id), !token.isEmpty else {
                 throw GitHubBackendError.notConfigured("No personal access token stored for \"\(account.displayName)\". Add one in Settings → Accounts.")

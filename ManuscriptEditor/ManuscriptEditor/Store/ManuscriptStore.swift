@@ -1253,14 +1253,11 @@ final class ManuscriptStore {
               let source = syncSource(forJournal: journalID) else { return }
         guard let accountID = m.settings.activeAIServiceID,
               let account = appStore.aiServices.first(where: { $0.id == accountID }) else {
-            showBanner(.error, "Smart sync needs an AI service — pick one in Manuscript → AI.")
+            showBanner(.error, "Smart sync needs an AI service — pick one in Overview → Saving & Backend.")
             return
         }
-        guard account.provider == .claude else {
-            showBanner(.error, "Smart sync currently supports Claude accounts only.")
-            return
-        }
-        guard let key = KeychainService.secret(for: account.id), !key.isEmpty else {
+        let key = KeychainService.secret(for: account.id)
+        if account.provider.requiresAPIKey, (key ?? "").isEmpty {
             showBanner(.error, "No API key stored for \(account.displayName) — add one in Settings → Accounts.")
             return
         }
@@ -1289,7 +1286,7 @@ final class ManuscriptStore {
         do {
             let adapted = try await SmartSyncService().adaptSections(
                 sections, targetName: targetName,
-                requirements: targetRequirements, apiKey: key)
+                requirements: targetRequirements, account: account, apiKey: key)
             if forward {
                 if syncJournal(journalID, adaptedSections: adapted) != nil {
                     showBanner(.success, "Smart-forwarded \(journalName(journalID) ?? "journal") from \(source.upstreamName).")
@@ -1517,7 +1514,7 @@ final class ManuscriptStore {
         guard let backendID = m.settings.activeBackendID,
               let account = appStore.backends.first(where: { $0.id == backendID })
         else {
-            throw GitHubBackendError.notConfigured("This manuscript has no active backend. Pick one in Manuscript → Settings (add accounts in Settings → Backend).")
+            throw GitHubBackendError.notConfigured("This manuscript has no active backend. Pick one in Overview (add accounts in Settings → Backend).")
         }
         return account
     }
@@ -1790,7 +1787,7 @@ final class ManuscriptStore {
 
     /// Creates a manuscript bound to a remote repository (File → New
     /// Manuscript (Remote)…).  A local copy always exists (default App
-    /// Support location, shown in Manuscript → Backend): if the repository
+    /// Support location, shown in Overview → Saving & Backend): if the repository
     /// already holds a manuscript it is pulled; an empty repository gets this
     /// fresh manuscript pushed as its first commit.
     func createNewRemote(repository: String, branch: String?, accountID: UUID, appStore: AppStore) {

@@ -36,8 +36,6 @@ enum SidebarItem: Hashable {
     case export
     case data
     case versions
-    case manuscriptBackend
-    case manuscriptAI
 
     // ── Content ─────────────────────────────────────────────────────────────
     case title
@@ -56,8 +54,7 @@ enum SidebarItem: Hashable {
         case .title, .authors, .abstract, .keywords, .section,
              .figures, .tables, .bibliography, .letterToEditor:
             return true
-        case .overview, .log, .checks, .export, .data, .versions,
-             .manuscriptBackend, .manuscriptAI:
+        case .overview, .log, .checks, .export, .data, .versions:
             return false
         }
     }
@@ -79,8 +76,6 @@ enum SidebarItem: Hashable {
         case .export:             return "export"
         case .data:               return "data"
         case .versions:           return "versions"
-        case .manuscriptBackend:  return "settings"      // keeps old note anchors
-        case .manuscriptAI:       return "settings-ai"
         case .title:              return "title"
         case .authors:            return "authors"
         case .abstract:           return "abstract"
@@ -497,7 +492,7 @@ struct ContentView: View {
     // MARK: - Folder picker
 
     /// File → New: a fresh manuscript in the app-data folder (move it later
-    /// from Manuscript → Backend if you want it somewhere visible).
+    /// from Overview → Saving & Backend if you want it somewhere visible).
     private func createInAppData() {
         store.createNew()
         resetWorkspace()
@@ -642,8 +637,6 @@ struct DetailRouter: View {
         case .export:               ExportView()
         case .data:                 DataView()
         case .versions:             VersionsView()
-        case .manuscriptBackend:    ManuscriptBackendView()
-        case .manuscriptAI:         ManuscriptAIView()
         case .title:                TitleView()
         case .authors:              AuthorsView()
         case .abstract:             AbstractView()

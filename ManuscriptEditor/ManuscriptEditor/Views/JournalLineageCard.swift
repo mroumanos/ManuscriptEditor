@@ -32,7 +32,7 @@ struct JournalLineageCard: View {
     }
     @State private var pendingSync: PendingSync?
     /// Smart mode: the AI adapts sections during the override (needs a
-    /// Claude account with a stored key, selected in Manuscript → AI).
+    /// Claude account with a stored key, selected in Overview → Saving & Backend).
     @State private var smartSync = false
     @State private var showSmartInfo = false
     /// Journal awaiting the delete confirmation (context menu).
@@ -60,7 +60,7 @@ struct JournalLineageCard: View {
                     .disabled(!aiReady)
                     .help(aiReady
                           ? "Smart mode: the AI adapts sections to the target's requirements during a sync"
-                          : "Needs a Claude account with a key (Settings → Accounts), selected in Manuscript → AI")
+                          : "Needs an AI account (Settings → Accounts), selected in Overview → Backend & AI")
                     Button {
                         showSmartInfo = true
                     } label: {
@@ -80,7 +80,7 @@ struct JournalLineageCard: View {
                         into its version history first, so either direction \
                         is recoverable.
 
-                        With Smart on, the connected AI (Claude) rewrites \
+                        With Smart on, the connected AI service rewrites \
                         each section toward the target's requirements as it \
                         copies — instead of a verbatim copy.
                         """)
@@ -97,14 +97,16 @@ struct JournalLineageCard: View {
                 .frame(maxWidth: cardWidth)
 
                 lineageTree
+                    // Attached here, NOT on the outer VStack: two
+                    // alert(item:) modifiers on one view conflict on macOS —
+                    // only the last fires (the original Sync button's silent
+                    // failure).
+                    .alert(item: $pendingSync) { pending in
+                        syncAlert(pending)
+                    }
         }
         .sheet(isPresented: $showAddJournal) {
             AddJournalSheet(isPresented: $showAddJournal)
-        }
-        // The sync confirmation, stating plainly whether AI is involved.
-        // (Reached only after the checksum precheck says the edge is ready.)
-        .alert(item: $pendingSync) { pending in
-            syncAlert(pending)
         }
         .alert(item: $pendingDelete) { journal in
             Alert(
@@ -333,7 +335,7 @@ struct JournalLineageCard: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
             if let source, source.targetVersion.map({ $0.id != head.parentID }) ?? false {
-                Label("\(source.upstreamName) has moved — fast-forward available",
+                Label("\(source.upstreamName) has newer content — ⏩ fast-forward pulls it in",
                       systemImage: "arrow.triangle.2.circlepath")
                     .font(.caption)
                     .foregroundStyle(.blue)
@@ -389,7 +391,7 @@ struct JournalLineageCard: View {
     private var aiReady: Bool {
         guard let id = store.manuscript?.settings.activeAIServiceID,
               let account = appStore.aiServices.first(where: { $0.id == id }) else { return false }
-        return account.provider == .claude && account.hasKey
+        return !account.provider.requiresAPIKey || account.hasKey
     }
 
     // Sync messages live in the window-toolbar banner (shared app-wide).

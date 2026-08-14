@@ -12,6 +12,9 @@ import SwiftUI
 struct LogView: View {
     @Environment(ManuscriptStore.self) private var store
 
+    /// Rows whose full text is expanded (rows are single-line until clicked).
+    @State private var expandedIDs: Set<UUID> = []
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
@@ -43,24 +46,25 @@ struct LogView: View {
                 Spacer(minLength: 0)
             }
             .padding(24)
-            .frame(maxWidth: 720, alignment: .topLeading)
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
     }
 
     private func row(_ entry: LogEntry) -> some View {
-        HStack(alignment: .top, spacing: 10) {
+        let expanded = expandedIDs.contains(entry.id)
+        return HStack(alignment: .top, spacing: 10) {
             Image(systemName: entry.kind.systemImage)
                 .foregroundStyle(color(for: entry.kind))
                 .frame(width: 24)
                 .padding(.top, 1)
             VStack(alignment: .leading, spacing: 3) {
-                // Full text, wrapped — never truncated.
+                // One line until clicked; the click expands the full text.
                 Text(entry.message)
                     .font(.callout)
+                    .lineLimit(expanded ? nil : 1)
                     .textSelection(.enabled)
-                    .fixedSize(horizontal: false, vertical: true)
-                if let detail = entry.detail, !detail.isEmpty {
+                    .fixedSize(horizontal: false, vertical: expanded)
+                if expanded, let detail = entry.detail, !detail.isEmpty {
                     Text(detail)
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -75,6 +79,10 @@ struct LogView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if expanded { expandedIDs.remove(entry.id) } else { expandedIDs.insert(entry.id) }
+        }
         .contextMenu {
             Button("Copy") {
                 NSPasteboard.general.clearContents()

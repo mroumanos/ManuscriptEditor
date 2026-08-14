@@ -3,7 +3,7 @@
 // File → New Manuscript (Remote)…: create a manuscript bound to a backend
 // repository.  The user picks the backend type + account (from Preferences →
 // Accounts) and enters the repository link ("owner/name" or a full GitHub
-// URL).  A local copy is always kept (visible in Manuscript → Backend); if
+// URL).  A local copy is always kept (visible in Overview → Saving & Backend); if
 // the repository already holds a manuscript it is pulled, otherwise the new
 // manuscript becomes its first commit.
 

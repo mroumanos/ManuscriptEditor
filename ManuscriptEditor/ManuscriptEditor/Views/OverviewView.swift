@@ -30,10 +30,52 @@ struct OverviewView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 28) {
                     summaryCard
+                    backendCard
                     JournalLineageCard()
                 }
                 .padding(28)
             }
+        }
+    }
+
+    // MARK: - Backend & AI card
+
+    /// Saving plus everything that used to live in the Backend and AI
+    /// sidebar tabs (removed Aug 2026): local folder, backend account,
+    /// remote repo/branch, and the AI service selector.
+    private var backendCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Saving & Backend")
+                    .font(.headline)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button {
+                    store.trySave()
+                    if let error = store.saveError {
+                        store.showBanner(.error, "Local save failed: \(error)")
+                    } else {
+                        store.showBanner(.success, "Saved to disk at \((store.lastSaved ?? Date()).formatted(date: .omitted, time: .standard)).")
+                    }
+                } label: {
+                    Label("Save", systemImage: "internaldrive")
+                }
+                Button {
+                    store.saveToRemote(appStore: appStore)
+                } label: {
+                    Label("Save Remote", systemImage: "icloud.and.arrow.up")
+                }
+                .disabled(store.isRemoteBusy)
+                if store.isRemoteBusy { ProgressView().controlSize(.small) }
+            }
+            .frame(maxWidth: 640)
+
+            ManuscriptBackendView()
+                .frame(height: 420)
+                .frame(maxWidth: 640)
+            ManuscriptAIView()
+                .frame(height: 170)
+                .frame(maxWidth: 640)
         }
     }
 
@@ -80,28 +122,6 @@ struct OverviewView: View {
                     timestampLine("Saved (local)", m.updatedAt.formatted(date: .abbreviated, time: .shortened))
                     timestampLine("Saved (remote)",
                                   m.lastSyncedAt?.formatted(date: .abbreviated, time: .shortened) ?? "never")
-                    // The Sync pane's save buttons, compacted (Aug 2026).
-                    HStack(spacing: 10) {
-                        Button {
-                            store.trySave()
-                            if let error = store.saveError {
-                                store.showBanner(.error, "Local save failed: \(error)")
-                            } else {
-                                store.showBanner(.success, "Saved to disk at \((store.lastSaved ?? Date()).formatted(date: .omitted, time: .standard)).")
-                            }
-                        } label: {
-                            Label("Save", systemImage: "internaldrive")
-                        }
-                        Button {
-                            store.saveToRemote(appStore: appStore)
-                        } label: {
-                            Label("Save Remote", systemImage: "icloud.and.arrow.up")
-                        }
-                        .disabled(store.isRemoteBusy)
-                        if store.isRemoteBusy { ProgressView().controlSize(.small) }
-                    }
-                    .controlSize(.small)
-                    .padding(.top, 6)
                 }
 
                 // Everyone who has stamped a version or written a note.

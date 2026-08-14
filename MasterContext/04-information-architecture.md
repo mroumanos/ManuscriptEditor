@@ -81,7 +81,7 @@ Tab identity is the **journal**, always resolving to its current working head.
 - **Side-by-side for comparable items.** Comparable = the **Content** items
   **plus Checks, Versions, and Export**. When a comparable item is selected AND
   ≥1 tab is open, the detail splits into one pane per open journal. For the
-  remaining manuscript-level items (Overview/Data/Log/Settings) the tabs are
+  remaining manuscript-level items (Overview/Data/Log) the tabs are
   irrelevant and a single pane renders against Source.
 - **Checks renders per-journal and live.** With Source + NEJM open and **Checks**
   selected, each pane shows that journal's requirement checklist evaluated against
@@ -129,3 +129,7 @@ versions). Source maintains its own version chain exactly like the journals
 (stamp it in its Versions pane).
 
 
+
+> Aug 2026: the Backend and AI sidebar tabs were removed — their controls
+> (local folder, backend account, repo/branch, AI service) live in Overview's
+> "Saving & Backend" card alongside the save buttons.
