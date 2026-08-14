@@ -327,7 +327,7 @@ final class ManuscriptStore {
     func updateRunningTitle(_ title: String, ref: VersionRef = .source) { touch(ref) { $0.runningTitle = title } }
     /// The journal-facing article title — versioned content (Title pane).
     func updateArticleTitle(_ title: String, ref: VersionRef = .source) {
-        touch(ref) { $0.articleTitle = title.isEmpty ? nil : title }
+        touch(ref, undoAction: "Edit Title") { $0.articleTitle = title.isEmpty ? nil : title }
     }
 
     // MARK: - Fixed content panes (rename/hide)
@@ -356,13 +356,13 @@ final class ManuscriptStore {
             $0.hiddenPanes = keys.isEmpty ? nil : keys.sorted()
         }
     }
-    func updateAbstract(_ abstract: RichText, ref: VersionRef = .source) { touch(ref, undoable: false) { $0.abstract = abstract } }
-    func updateKeywords(_ keywords: [String], ref: VersionRef = .source) { touch(ref) { $0.keywords = keywords } }
+    func updateAbstract(_ abstract: RichText, ref: VersionRef = .source) { logActivity("Edited Abstract", ref: ref); touch(ref, undoable: false) { $0.abstract = abstract } }
+    func updateKeywords(_ keywords: [String], ref: VersionRef = .source) { touch(ref, undoAction: "Edit Keywords") { $0.keywords = keywords } }
 
     // MARK: - Authors
 
     func addAuthor(ref: VersionRef = .source) {
-        touch(ref) { $0.authors.append(Author.empty(order: $0.authors.count)) }
+        touch(ref, undoAction: "Add Author") { $0.authors.append(Author.empty(order: $0.authors.count)) }
     }
 
     func updateAuthor(_ author: Author, ref: VersionRef = .source) {
@@ -395,7 +395,7 @@ final class ManuscriptStore {
     @discardableResult
     func addInstitution(ref: VersionRef = .source) -> UUID {
         let institution = Institution.empty()
-        touch(ref) { $0.institutions.append(institution) }
+        touch(ref, undoAction: "Add Institution") { $0.institutions.append(institution) }
         return institution.id
     }
 
@@ -442,7 +442,7 @@ final class ManuscriptStore {
         guard manuscript != nil else { return nil }
         let uniqueTitle = uniqueSectionTitle(title ?? (type == .custom ? "New Section" : type.rawValue))
         let id = UUID()
-        touch { m in
+        touch(undoAction: "Add Section") { m in
             m.sections.append(ManuscriptSection(id: id, type: type, title: uniqueTitle,
                                                 content: RichText(), order: m.sections.count, active: true))
             for v in m.versions.indices {
@@ -457,7 +457,7 @@ final class ManuscriptStore {
 
     /// Renames a section everywhere (shared structure), keeping the title unique.
     func renameSection(id: UUID, title: String) {
-        touch { m in
+        touch(undoAction: "Rename Section") { m in
             // Uniqueness excluding this section itself.
             let others = Set(m.sections.filter { $0.id != id }.map { $0.title.lowercased() })
             let trimmed = title.trimmingCharacters(in: .whitespaces)
@@ -490,6 +490,7 @@ final class ManuscriptStore {
 
     /// Edits one version's copy of a section (content etc.).
     func updateSection(_ section: ManuscriptSection, ref: VersionRef = .source) {
+        logActivity("Edited \(section.title)", ref: ref)
         touch(ref, undoable: false) { m in
             if let idx = m.sections.firstIndex(where: { $0.id == section.id }) { m.sections[idx] = section }
         }
@@ -549,7 +550,7 @@ final class ManuscriptStore {
     // MARK: - Figures
 
     func addFigure(ref: VersionRef = .source) {
-        touch(ref) { $0.figures.append(Figure.empty(number: ($0.figures.map(\.number).max() ?? 0) + 1)) }
+        touch(ref, undoAction: "Add Figure") { $0.figures.append(Figure.empty(number: ($0.figures.map(\.number).max() ?? 0) + 1)) }
     }
 
     func updateFigure(_ figure: Figure, ref: VersionRef = .source) {
@@ -584,7 +585,7 @@ final class ManuscriptStore {
     // MARK: - Tables
 
     func addTable(ref: VersionRef = .source) {
-        touch(ref) { $0.tables.append(ManuscriptTable.empty(number: ($0.tables.map(\.number).max() ?? 0) + 1)) }
+        touch(ref, undoAction: "Add Table") { $0.tables.append(ManuscriptTable.empty(number: ($0.tables.map(\.number).max() ?? 0) + 1)) }
     }
 
     func updateTable(_ table: ManuscriptTable, ref: VersionRef = .source) {
@@ -655,13 +656,13 @@ final class ManuscriptStore {
     // MARK: - Bibliography
 
     func addBibEntry(ref: VersionRef = .source) {
-        touch(ref) { $0.bibliography.append(BibEntry.empty()) }
+        touch(ref, undoAction: "Add Reference") { $0.bibliography.append(BibEntry.empty()) }
     }
 
     /// Appends a fully-populated entry (e.g. imported from Zotero), skipping
     /// duplicates that share the same `zoteroKey`.
     func addBibEntry(_ entry: BibEntry, ref: VersionRef = .source) {
-        touch(ref) { m in
+        touch(ref, undoAction: "Add Reference") { m in
             if let zk = entry.zoteroKey, m.bibliography.contains(where: { $0.zoteroKey == zk }) { return }
             m.bibliography.append(entry)
         }
@@ -704,6 +705,7 @@ final class ManuscriptStore {
     // MARK: - Letter to editor
 
     func updateLetterToEditor(_ letter: LetterToEditor, ref: VersionRef = .source) {
+        logActivity("Edited Letter to Editor", ref: ref)
         touch(ref, undoable: false) { $0.letterToEditor = letter }
     }
 
@@ -769,7 +771,7 @@ final class ManuscriptStore {
     // MARK: - Journals
 
     func addJournal(_ journal: Journal) {
-        touch { $0.journals.append(journal) }
+        touch(undoAction: "Add Journal") { $0.journals.append(journal) }
     }
 
     func updateJournal(_ journal: Journal) {
@@ -1460,8 +1462,10 @@ final class ManuscriptStore {
     /// manuscript.json.  Autosaves are deliberately never logged.
     var activityLog: [LogEntry] = []
 
-    func log(_ kind: LogEntry.Kind, _ message: String, detail: String? = nil) {
-        activityLog.insert(LogEntry(kind: kind, message: message, detail: detail), at: 0)
+    func log(_ kind: LogEntry.Kind, _ message: String, detail: String? = nil,
+             context: String? = nil) {
+        activityLog.insert(LogEntry(kind: kind, message: message, detail: detail,
+                                    author: SigningService.userName, context: context), at: 0)
         if activityLog.count > 500 { activityLog.removeLast(activityLog.count - 500) }
         persistLog()
     }
@@ -1480,6 +1484,31 @@ final class ManuscriptStore {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         try? encoder.encode(activityLog).write(to: logURL(for: id), options: .atomic)
+    }
+
+    /// "Source" or the journal owning `ref`'s version.
+    private func refName(_ ref: VersionRef) -> String {
+        if case .version(let id) = ref,
+           let jid = manuscript?.versions.first(where: { $0.id == id })?.journalID,
+           let name = manuscript?.journals.first(where: { $0.id == jid })?.name {
+            return name
+        }
+        return "Source"
+    }
+
+    /// Content-change entries coalesce per (action, ref) so a typing burst
+    /// reads as one "Edited Introduction" line, not hundreds.
+    @ObservationIgnored private var lastActivity: (key: String, at: Date)?
+
+    func logActivity(_ action: String, ref: VersionRef) {
+        let key = action + refName(ref)
+        if let last = lastActivity, last.key == key,
+           Date().timeIntervalSince(last.at) < 300 {
+            lastActivity = (key, Date())
+            return
+        }
+        lastActivity = (key, Date())
+        log(.info, action, context: refName(ref))
     }
 
     private func loadLog() {
@@ -1977,6 +2006,8 @@ final class ManuscriptStore {
         manuscript = m
         trySave()
         if undoable { registerUndo(before, name: undoAction) }
+        // Named mutations feed the activity log (who/where/what).
+        if let action = undoAction { logActivity(action, ref: ref) }
     }
 
     /// Attempts to resolve a security-scoped bookmark stored on the manuscript

@@ -57,6 +57,15 @@ struct LogView: View {
                 .foregroundStyle(color(for: entry.kind))
                 .frame(width: 24)
                 .padding(.top, 1)
+            if let context = entry.context {
+                Text(context)
+                    .font(.caption2.weight(.semibold))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.accentColor.opacity(0.12), in: Capsule())
+                    .foregroundStyle(Color.accentColor)
+                    .padding(.top, 1)
+            }
             VStack(alignment: .leading, spacing: 3) {
                 // One line until clicked; the click expands the full text.
                 Text(entry.message)
@@ -73,9 +82,16 @@ struct LogView: View {
                 }
             }
             Spacer(minLength: 8)
-            Text(entry.date.formatted(date: .abbreviated, time: .standard))
-                .font(.caption.monospacedDigit())
-                .foregroundStyle(.tertiary)
+            VStack(alignment: .trailing, spacing: 2) {
+                Text(entry.date.formatted(date: .abbreviated, time: .standard))
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.tertiary)
+                if let author = entry.author, !author.isEmpty {
+                    Text(author)
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+            }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)

@@ -30,4 +30,8 @@ struct LogEntry: Codable, Identifiable, Sendable, Equatable {
     var message: String
     /// Longer context (full error text, sync details) shown when expanded.
     var detail: String? = nil
+    /// Who made the change (the app-wide user identity).
+    var author: String? = nil
+    /// Where it happened: "Source" or the journal's name.
+    var context: String? = nil
 }
