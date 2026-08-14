@@ -83,7 +83,7 @@ struct OverviewView: View {
                 .foregroundStyle(.secondary)
             VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 8) {
-                    Text("Local").font(.caption).foregroundStyle(.secondary).frame(width: 60, alignment: .leading)
+                    Text("Local").font(.caption).foregroundStyle(.secondary).frame(width: 76, alignment: .leading)
                     if let dir = store.manuscript.map({ store.persistence.manuscriptDirectory(for: $0.id) }) {
                         Button {
                             let panel = NSOpenPanel()
@@ -102,25 +102,25 @@ struct OverviewView: View {
                     Spacer()
                 }
                 HStack(spacing: 8) {
-                    Text("Remote").font(.caption).foregroundStyle(.secondary).frame(width: 60, alignment: .leading)
+                    Text("Remote").font(.caption).foregroundStyle(.secondary).frame(width: 76, alignment: .leading)
                     Picker("", selection: settingsBinding.activeBackendID) {
                         Text("None").tag(Optional<UUID>.none)
                         ForEach(appStore.backends.filter { $0.provider == .github || $0.provider == .gitlab }) {
                             Text($0.displayName).tag(Optional($0.id))
                         }
                     }
-                    .labelsHidden().fixedSize()
+                    .labelsHidden().controlSize(.small).fixedSize()
                     Spacer()
                 }
                 HStack(spacing: 8) {
-                    Text("AI").font(.caption).foregroundStyle(.secondary).frame(width: 60, alignment: .leading)
+                    Text("AI").font(.caption).foregroundStyle(.secondary).frame(width: 76, alignment: .leading)
                     Picker("", selection: settingsBinding.activeAIServiceID) {
                         Text("None").tag(Optional<UUID>.none)
                         ForEach(appStore.aiServices) {
                             Text("\($0.displayName) (\($0.provider.rawValue))").tag(Optional($0.id))
                         }
                     }
-                    .labelsHidden().fixedSize()
+                    .labelsHidden().controlSize(.small).fixedSize()
                     Spacer()
                 }
             }
@@ -278,9 +278,10 @@ struct OverviewView: View {
 
     private func timestampLine(_ label: String, _ value: String) -> some View {
         HStack(spacing: 6) {
-            Text("\(label):")
+            Text(label)
                 .font(.caption)
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(.secondary)
+                .frame(width: 76, alignment: .leading)
             Text(value)
                 .font(.caption)
                 .foregroundStyle(.secondary)
