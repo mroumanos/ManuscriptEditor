@@ -61,6 +61,12 @@ struct OverviewView: View {
                        store.updateManuscriptSettings(st) })
     }
 
+    enum PendingLoad: String, Identifiable {
+        case local, remote
+        var id: String { rawValue }
+    }
+    @State private var pendingLoad: PendingLoad?
+
     private func saveLine(_ label: String, lastSaved: String, action: @escaping () -> Void) -> some View {
         HStack(spacing: 6) {
             Text(label)
@@ -70,6 +76,12 @@ struct OverviewView: View {
             Button("Save", action: action)
                 .controlSize(.small)
                 .disabled(label == "Remote" && store.isRemoteBusy)
+            Button("Load") {
+                pendingLoad = label == "Remote" ? .remote : .local
+            }
+            .controlSize(.small)
+            .disabled(store.isRemoteBusy)
+            .help("Reload from the last \(label.lowercased()) save — overwrites unsaved changes")
             Text("(last saved \(lastSaved))")
                 .font(.caption)
                 .foregroundStyle(.tertiary)

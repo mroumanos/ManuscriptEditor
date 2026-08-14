@@ -1524,20 +1524,25 @@ final class ManuscriptStore {
     /// not an event trail.
     func changelog() -> [ChangeItem] {
         guard let m = manuscript else { return [] }
+        guard let baseline = remoteBaseline() else {
+            return [ChangeItem(context: "All", item: "No remote baseline yet",
+                               change: "Save Remote to start tracking")]
+        }
         var out: [ChangeItem] = []
-        if let base = latestSourceStamp { out += diff(base.content, m, context: "Source") }
-        else { out.append(ChangeItem(context: "Source", item: "Everything", change: "Not yet stamped")) }
+        out += diff(baseline, m, context: "Source")
         for journal in m.journals {
-            let chain = versions(forJournal: journal.id)
-            guard let head = chain.last else { continue }
-            // Baseline: the stamp beneath the head, else the version the
-            // journal was cut/synced from — so a fresh cut's edits show too.
-            let base = chain.count > 1
-                ? chain[chain.count - 2]
-                : head.parentID.flatMap { pid in manuscript?.versions.first { $0.id == pid } }
-            if let base {
-                out += diff(base.content, head.content, context: journal.name)
+            guard let head = versions(forJournal: journal.id).last else { continue }
+            let baseHead = baseline.versions
+                .filter { $0.journalID == journal.id && $0.sourceStamp != true }
+                .max { $0.number < $1.number }
+            if let baseHead {
+                out += diff(baseHead.content, head.content, context: journal.name)
+            } else {
+                out.append(ChangeItem(context: journal.name, item: "Journal", change: "Added"))
             }
+        }
+        for old in baseline.journals where !m.journals.contains(where: { $0.id == old.id }) {
+            out.append(ChangeItem(context: old.name, item: "Journal", change: "Removed"))
         }
         return out
     }
@@ -1552,7 +1557,10 @@ final class ManuscriptStore {
             if let d = textDiff(old, new) {
                 out.append(ChangeItem(context: context, item: item,
                                       change: "Modified (\(d.summary))", detail: d.detail))
-            } else { add(item, "Modified") }
+            } else {
+                out.append(ChangeItem(context: context, item: item, change: "Modified",
+                                      detail: "Differs only in whitespace or formatting."))
+            }
         }
         if base.title != current.title { add("Project Title", "Modified") }
         addText("Abstract", base.abstract.plain, current.abstract.plain)
@@ -1674,7 +1682,40 @@ final class ManuscriptStore {
     /// Marks a successful remote round-trip on the manuscript (shown in
     /// Overview and the sidebar), without bumping `updatedAt` — syncing isn't
     /// an edit.
+    // MARK: - Remote baseline (changelog anchor)
+
+    /// The manuscript exactly as of the last remote push/pull — what a
+    /// collaborator pulling the repo sees.  The changelog diffs against it.
+    private func baselineURL(for id: UUID) -> URL {
+        persistence.manuscriptDirectory(for: id).appendingPathComponent("remote-baseline.json")
+    }
+
+    func remoteBaseline() -> Manuscript? {
+        guard let id = manuscript?.id,
+              let data = try? Data(contentsOf: baselineURL(for: id)) else { return nil }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return try? decoder.decode(Manuscript.self, from: data)
+    }
+
+    private func saveRemoteBaseline() {
+        guard let m = manuscript else { return }
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        try? encoder.encode(m).write(to: baselineURL(for: m.id), options: .atomic)
+    }
+
+    /// Reloads the manuscript from its local manuscript.json, discarding
+    /// unsaved in-memory state.
+    func reloadFromDisk() {
+        guard let id = manuscript?.id else { return }
+        resetUndoHistory()
+        manuscript = persistence.load(id: id).map(normalized)
+        showBanner(.success, "Reloaded from the local manuscript.json.")
+    }
+
     private func markSynced() {
+        saveRemoteBaseline()
         manuscript?.lastSyncedAt = Date()
         trySave()
     }
