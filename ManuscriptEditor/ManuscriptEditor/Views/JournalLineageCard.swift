@@ -24,8 +24,17 @@ struct JournalLineageCard: View {
     @Environment(ManuscriptStore.self) private var store
     @Environment(AppStore.self)        private var appStore
 
-    /// Journal awaiting the sync confirmation itself.
-    @State private var pendingSync: Journal?
+    /// A sync awaiting confirmation: which journal, and which direction.
+    struct PendingSync: Identifiable {
+        let journal: Journal
+        let forward: Bool
+        var id: UUID { journal.id }
+    }
+    @State private var pendingSync: PendingSync?
+    /// Smart mode: the AI adapts sections during the override (needs a
+    /// Claude account with a stored key, selected in Manuscript → AI).
+    @State private var smartSync = false
+    @State private var showSmartInfo = false
     /// Journal awaiting the delete confirmation (context menu).
     @State private var pendingDelete: Journal?
     /// Lineage row under the pointer — interactive rows highlight on hover.
@@ -43,6 +52,42 @@ struct JournalLineageCard: View {
                         .font(.headline)
                         .foregroundStyle(.secondary)
                     Spacer()
+                    Toggle(isOn: $smartSync) {
+                        Label("Smart", systemImage: "sparkles")
+                    }
+                    .toggleStyle(.button)
+                    .controlSize(.small)
+                    .disabled(!aiReady)
+                    .help(aiReady
+                          ? "Smart mode: the AI adapts sections to the target's requirements during a sync"
+                          : "Needs a Claude account with a key (Settings → Accounts), selected in Manuscript → AI")
+                    Button {
+                        showSmartInfo = true
+                    } label: {
+                        Image(systemName: "info.circle")
+                    }
+                    .buttonStyle(.borderless)
+                    .popover(isPresented: $showSmartInfo, arrowEdge: .bottom) {
+                        Text("""
+                        Every sync is a full override in one direction:
+
+                        ⏪  Fast-backward pushes this journal's latest \
+                        content UP to its upstream.
+                        ⏩  Fast-forward pulls the upstream's latest \
+                        content DOWN into this journal.
+
+                        The overridden side's previous content is stamped \
+                        into its version history first, so either direction \
+                        is recoverable.
+
+                        With Smart on, the connected AI (Claude) rewrites \
+                        each section toward the target's requirements as it \
+                        copies — instead of a verbatim copy.
+                        """)
+                        .font(.callout)
+                        .padding(16)
+                        .frame(width: 340)
+                    }
                     Button {
                         showAddJournal = true
                     } label: {
@@ -58,8 +103,8 @@ struct JournalLineageCard: View {
         }
         // The sync confirmation, stating plainly whether AI is involved.
         // (Reached only after the checksum precheck says the edge is ready.)
-        .alert(item: $pendingSync) { journal in
-            syncAlert(journal)
+        .alert(item: $pendingSync) { pending in
+            syncAlert(pending)
         }
         .alert(item: $pendingDelete) { journal in
             Alert(
@@ -198,22 +243,31 @@ struct JournalLineageCard: View {
             Spacer()
 
             if head != nil {
+                let upstreamName = source?.upstreamName ?? "upstream"
+                let mode = smartSync ? "Smart" : "Fast"
+                if store.isSmartSyncBusy { ProgressView().controlSize(.small) }
                 Button {
-                    // Checksum-verify the A→B edge before anything happens.
-                    switch store.syncPrecheck(forJournal: journal.id) {
-                    case .alreadyInSync(let upstream):
-                        showSuccess("\(journal.name) and \(upstream) are already in sync — their latest contents are identical.")
-                    case .upstreamNeedsStamp(let upstream):
-                        showError("\(upstream)'s latest has changes that aren't stamped. Stamp \(upstream) in its Versions tab first — syncing pulls a frozen version so the lineage stays intact.")
-                    case .ready:
-                        pendingSync = journal
-                    }
+                    pendingSync = PendingSync(journal: journal, forward: false)
                 } label: {
-                    Label("Sync", systemImage: "arrow.triangle.2.circlepath")
-                        .foregroundStyle(.blue)
+                    Image(systemName: "backward.fill")
                 }
                 .buttonStyle(.bordered)
-                .help("Fast-forward \(journal.name) from \(source?.upstreamName ?? "upstream")")
+                .disabled(store.isSmartSyncBusy)
+                .help("\(mode)-backward: override \(upstreamName) with \(journal.name)'s latest")
+                Button {
+                    // Checksum short-circuit: identical latest contents mean
+                    // there is nothing to pull.
+                    if case .alreadyInSync(let upstream) = store.syncPrecheck(forJournal: journal.id) {
+                        showSuccess("\(journal.name) and \(upstream) are already in sync — their latest contents are identical.")
+                        return
+                    }
+                    pendingSync = PendingSync(journal: journal, forward: true)
+                } label: {
+                    Image(systemName: "forward.fill")
+                }
+                .buttonStyle(.bordered)
+                .disabled(store.isSmartSyncBusy)
+                .help("\(mode)-forward: override \(journal.name) with \(upstreamName)'s latest")
             }
         }
         // Indent INSIDE the row (before the background) so the hover tint
@@ -293,41 +347,49 @@ struct JournalLineageCard: View {
 
     // MARK: Sync confirmation
 
-    private func syncAlert(_ journal: Journal) -> Alert {
-        let source = store.syncSource(forJournal: journal.id)
-        let upstream = source?.upstreamName ?? "its upstream"
-        var message = "This creates a new \(journal.name) version from \(upstream)'s latest stamped content — overwriting what currently exists in \(journal.name)'s working head. Previous versions remain in its history."
-        // Be explicit about whether AI participates in the copy.
-        if store.manuscript?.settings.activeAIServiceID != nil {
-            message += "\n\nAI is connected — it may modify what's copied over to fit \(journal.name)'s requirements."
-        } else {
-            message += "\n\nNo AI is connected — this is a straight copy."
-        }
-        // The precheck already guaranteed the upstream stamp is current.
-        if let target = source?.targetVersion {
-            let when = target.sourceSnapshotDate.formatted(date: .abbreviated, time: .omitted)
-            let label = target.sourceStamp == true
-                ? "Source v\(store.sourceOrdinal(of: target))"
-                : "\(upstream) v\(store.journalOrdinal(of: target))"
-            message += "\n\nContent copied: \(label), which carries content from \(when)."
-        }
+    private func syncAlert(_ pending: PendingSync) -> Alert {
+        let journal = pending.journal
+        let upstream = store.syncSource(forJournal: journal.id)?.upstreamName ?? "its upstream"
+        let (from, to) = pending.forward ? (upstream, journal.name) : (journal.name, upstream)
+        var message = "Fully overrides \(to)'s content with \(from)'s latest. \(to)'s current content is stamped into its version history first, so this is recoverable."
+        message += smartSync
+            ? "\n\nSmart mode is ON: the connected AI rewrites each section toward \(to)'s requirements as it copies. This sends the sections to the Claude API and can take a few minutes."
+            : "\n\nSmart mode is off — this is a straight copy."
+        let verb = smartSync ? "Smart" : "Fast"
         return Alert(
-            title: Text("Sync \(journal.name) from \(upstream)?"),
+            title: Text("\(verb)-\(pending.forward ? "forward" : "backward") \(journal.name)?"),
             message: Text(message),
-            primaryButton: .destructive(Text("Sync")) {
-                performSync(journal)
+            primaryButton: .destructive(Text("\(verb)-\(pending.forward ? "Forward" : "Backward")")) {
+                perform(pending)
             },
             secondaryButton: .cancel()
         )
     }
 
-    /// Runs the sync and surfaces an explicit confirmation — the status line
-    /// alone was too quiet to read as success.
-    private func performSync(_ journal: Journal) {
-        guard let synced = store.syncJournal(journal.id) else { return }
-        let from = syncedFromLabel(of: synced)
-        let ordinal = store.versions(forJournal: journal.id).count
-        showSuccess("Successfully synced \(journal.name) from \(from) — now at v\(ordinal) / latest.")
+    private func perform(_ pending: PendingSync) {
+        if smartSync {
+            Task { await store.smartSync(journalID: pending.journal.id,
+                                         forward: pending.forward,
+                                         appStore: appStore) }
+        } else if pending.forward {
+            if let synced = store.syncJournal(pending.journal.id) {
+                let ordinal = store.versions(forJournal: pending.journal.id).count
+                showSuccess("Fast-forwarded \(pending.journal.name) from \(syncedFromLabel(of: synced)) — now at v\(ordinal) / latest.")
+            }
+        } else {
+            let upstream = store.syncSource(forJournal: pending.journal.id)?.upstreamName ?? "upstream"
+            if store.pushToUpstream(pending.journal.id) {
+                showSuccess("Fast-backward: \(upstream) now carries \(pending.journal.name)'s latest content.")
+            }
+        }
+    }
+
+    /// Smart mode needs a Claude account with a stored key, selected for
+    /// this manuscript.
+    private var aiReady: Bool {
+        guard let id = store.manuscript?.settings.activeAIServiceID,
+              let account = appStore.aiServices.first(where: { $0.id == id }) else { return false }
+        return account.provider == .claude && account.hasKey
     }
 
     // Sync messages live in the window-toolbar banner (shared app-wide).

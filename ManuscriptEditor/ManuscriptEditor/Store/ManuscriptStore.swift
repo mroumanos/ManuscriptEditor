@@ -1137,7 +1137,8 @@ final class ManuscriptStore {
     /// frozen versions), then snapshots that stamp as a new version of this
     /// journal.  Never recursive.
     @discardableResult
-    func syncJournal(_ journalID: UUID) -> ManuscriptVersion? {
+    func syncJournal(_ journalID: UUID,
+                     adaptedSections: [UUID: String]? = nil) -> ManuscriptVersion? {
         guard let head = latestVersion(forJournal: journalID),
               let source = syncSource(forJournal: journalID) else { return nil }
 
@@ -1146,7 +1147,8 @@ final class ManuscriptStore {
         let base = syncBase(forUpstream: source.upstreamJournalID)
         guard let m = manuscript else { return nil }
 
-        let baseContent = base?.content ?? m
+        var baseContent = base?.content ?? m
+        if let adaptedSections { applyAdaptedSections(adaptedSections, to: &baseContent) }
         let fromLabel: String
         if let base {
             fromLabel = base.sourceStamp == true
@@ -1172,7 +1174,134 @@ final class ManuscriptStore {
         NotificationCenter.default.post(
             name: .journalHeadChanged, object: nil,
             userInfo: ["old": head.id, "new": version.id])
+        log(.info, "Fast-forwarded \(journalName(journalID) ?? "journal") from \(fromLabel)")
         return version
+    }
+
+    /// Fast-backward: overrides the upstream with this journal's latest
+    /// content — a full override by design (Aug 2026 sync redesign).  A
+    /// journal upstream gets a new head version; the live Source is stamped
+    /// first (so the overridden state stays in its history), then the
+    /// content is transplanted into the live manuscript (undoable).
+    @discardableResult
+    func pushToUpstream(_ journalID: UUID,
+                        adaptedSections: [UUID: String]? = nil) -> Bool {
+        guard let source = syncSource(forJournal: journalID) else { return false }
+        // Freeze this journal so lineage hangs from a stamp.
+        let base = syncBase(forUpstream: journalID)
+        guard var content = base?.content ?? latestVersion(forJournal: journalID)?.content
+        else { return false }
+        if let adaptedSections { applyAdaptedSections(adaptedSections, to: &content) }
+
+        if let upstreamID = source.upstreamJournalID {
+            guard let upstreamHead = latestVersion(forJournal: upstreamID) else { return false }
+            let next = signed(ManuscriptVersion.cut(
+                label: "Pushed back from \(journalName(journalID) ?? "journal")",
+                from: content,
+                parentID: base?.id,
+                journalID: upstreamID,
+                viewConfigID: upstreamHead.viewConfigID,
+                number: (manuscript?.versions.map(\.number).max() ?? 0) + 1,
+                author: SigningService.userName))
+            touch { $0.versions.append(next) }
+            NotificationCenter.default.post(
+                name: .journalHeadChanged, object: nil,
+                userInfo: ["old": upstreamHead.id, "new": next.id])
+        } else {
+            // Upstream is the live Source: stamp it, then transplant (the
+            // same field set rollback restores).
+            _ = stampSource()
+            touch(undoAction: "Fast-Backward to Source") { m in
+                m.title = content.title
+                m.runningTitle = content.runningTitle
+                m.keywords = content.keywords
+                m.authors = content.authors
+                m.abstract = content.abstract
+                m.sections = content.sections
+                m.figures = content.figures
+                m.tables = content.tables
+                m.bibliography = content.bibliography
+                m.letterToEditor = content.letterToEditor
+            }
+        }
+        log(.info, "Fast-backward: \(source.upstreamName) overridden with \(journalName(journalID) ?? "journal")'s latest")
+        return true
+    }
+
+    /// Overwrites matching sections with AI-adapted plain text (smart sync).
+    private func applyAdaptedSections(_ adapted: [UUID: String], to content: inout Manuscript) {
+        for i in content.sections.indices {
+            if let text = adapted[content.sections[i].id] {
+                content.sections[i].content = RichText(plain: text)
+            }
+        }
+    }
+
+    private func journalName(_ id: UUID) -> String? {
+        manuscript?.journals.first { $0.id == id }?.name
+    }
+
+    /// True while a smart sync's AI call is in flight (spinner in the card).
+    var isSmartSyncBusy = false
+
+    /// Smart sync: adapts sections via the connected Claude account, then
+    /// performs the override.  Forward adapts the upstream's content toward
+    /// this journal's requirements; backward adapts this journal's content
+    /// toward the upstream's.
+    func smartSync(journalID: UUID, forward: Bool, appStore: AppStore) async {
+        guard let m = manuscript,
+              let source = syncSource(forJournal: journalID) else { return }
+        guard let accountID = m.settings.activeAIServiceID,
+              let account = appStore.aiServices.first(where: { $0.id == accountID }) else {
+            showBanner(.error, "Smart sync needs an AI service — pick one in Manuscript → AI.")
+            return
+        }
+        guard account.provider == .claude else {
+            showBanner(.error, "Smart sync currently supports Claude accounts only.")
+            return
+        }
+        guard let key = KeychainService.secret(for: account.id), !key.isEmpty else {
+            showBanner(.error, "No API key stored for \(account.displayName) — add one in Settings → Accounts.")
+            return
+        }
+
+        let journal = m.journals.first { $0.id == journalID }
+        let sections: [ManuscriptSection]
+        let targetName: String
+        let targetRequirements: JournalRequirements?
+        if forward {
+            // Upstream's latest content, adapted toward THIS journal.
+            let base = syncBase(forUpstream: source.upstreamJournalID)
+            sections = (base?.content ?? m).sections
+            targetName = journal?.name ?? "the journal"
+            targetRequirements = journal?.requirements
+        } else {
+            // This journal's latest content, adapted toward the upstream.
+            let upstream = source.upstreamJournalID
+                .flatMap { id in m.journals.first { $0.id == id } }
+            sections = latestVersion(forJournal: journalID)?.content.sections ?? []
+            targetName = upstream?.name ?? "the source manuscript"
+            targetRequirements = upstream?.requirements
+        }
+
+        isSmartSyncBusy = true
+        defer { isSmartSyncBusy = false }
+        do {
+            let adapted = try await SmartSyncService().adaptSections(
+                sections, targetName: targetName,
+                requirements: targetRequirements, apiKey: key)
+            if forward {
+                if syncJournal(journalID, adaptedSections: adapted) != nil {
+                    showBanner(.success, "Smart-forwarded \(journalName(journalID) ?? "journal") from \(source.upstreamName).")
+                }
+            } else {
+                if pushToUpstream(journalID, adaptedSections: adapted) {
+                    showBanner(.success, "Smart-backward: \(source.upstreamName) updated from \(journalName(journalID) ?? "journal").")
+                }
+            }
+        } catch {
+            showBanner(.error, "Smart sync failed: \(error.localizedDescription)")
+        }
     }
 
     /// Adds a journal to the manuscript from a library/template entry, cut

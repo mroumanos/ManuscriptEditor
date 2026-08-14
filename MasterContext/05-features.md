@@ -244,6 +244,22 @@ legible.
 
 ![Detailed lineage between two journals](examples/lineage-detailed.png)
 
+### Sync redesign (Aug 2026 — implemented)
+
+- AC: Each journal row in Overview's lineage card has two sync buttons:
+  **fast-backward** ⏪ (push this journal's latest UP to its upstream, full
+  override) and **fast-forward** ⏩ (pull the upstream's latest DOWN, full
+  override). The overridden side is stamped into its version history first,
+  so both directions are recoverable. A checksum precheck short-circuits
+  "already in sync"; a dirty upstream is auto-stamped rather than refused.
+- AC: A **Smart (AI)** toggle on the card header upgrades both buttons: the
+  connected Claude account rewrites each section toward the target's
+  requirements during the copy (`SmartSyncService`, one structured-outputs
+  call to claude-opus-5). Disabled until a Claude account with a stored key
+  is selected in Manuscript → AI; failures surface as banners and log
+  entries. This implements the Phase II "AI-adapted sync" from
+  02-domain-model (explicitly approved Aug 2026).
+
 ## G. Side-by-side comparison & editing
 
 Intent: compare/edit journals together.
