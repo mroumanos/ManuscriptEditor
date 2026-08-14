@@ -19,11 +19,6 @@ struct LogView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                HStack {
-                    Text("Log").font(.title2.weight(.semibold))
-                    Spacer()
-                }
-
                 Text("Changelog")
                     .font(.headline)
                     .foregroundStyle(.secondary)
