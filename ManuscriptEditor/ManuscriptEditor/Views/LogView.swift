@@ -11,6 +11,7 @@ import SwiftUI
 
 struct LogView: View {
     @Environment(ManuscriptStore.self) private var store
+    @Environment(AppStore.self)        private var appStore
 
     /// Rows whose full text is expanded (rows are single-line until clicked).
     @State private var expandedIDs: Set<UUID> = []
@@ -23,12 +24,29 @@ struct LogView: View {
                     Text("Changelog")
                         .font(.headline)
                         .foregroundStyle(.secondary)
-                    if let synced = store.manuscript?.lastSyncedAt {
-                        Text("changes since the remote push on \(synced.formatted(date: .abbreviated, time: .shortened))")
+                    if store.remoteCommits.isEmpty {
+                        Text("changes vs the last remote push")
                             .font(.caption)
                             .foregroundStyle(.tertiary)
+                    } else {
+                        Text("vs commit")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                        Picker("", selection: Binding(
+                            get: { store.changelogBaseSHA ?? store.remoteCommits.first?.sha ?? "" },
+                            set: { store.selectChangelogCommit($0, appStore: appStore) }
+                        )) {
+                            ForEach(store.remoteCommits) { commit in
+                                Text("\(String(commit.sha.prefix(7))) — \(commit.message.components(separatedBy: "\n").first ?? "")\(commit.date.map { " · " + $0.formatted(date: .abbreviated, time: .shortened) } ?? "")")
+                                    .tag(commit.sha)
+                            }
+                        }
+                        .labelsHidden()
+                        .controlSize(.small)
+                        .frame(maxWidth: 420, alignment: .leading)
                     }
                 }
+                .onAppear { store.refreshChangelogCommits(appStore: appStore) }
 
                 let changes = store.changelog()
                 if changes.isEmpty {

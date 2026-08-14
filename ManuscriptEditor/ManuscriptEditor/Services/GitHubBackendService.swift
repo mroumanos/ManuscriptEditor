@@ -208,6 +208,47 @@ struct GitHubBackendService {
     private static let managedPrefixes = ["manuscript.json", "figures/", "data/"]
 
     /// Downloads the manuscript files from the branch head.
+    struct Commit: Identifiable, Sendable {
+        let sha: String
+        let message: String
+        let date: Date?
+        var id: String { sha }
+    }
+
+    /// Recent commits on the branch, newest first (the changelog dropdown).
+    func commits(config: Config, limit: Int = 20) async throws -> [Commit] {
+        var request = URLRequest(url: URL(string:
+            "https://api.github.com/repos/\(config.owner)/\(config.repo)/commits?sha=\(config.branch)&per_page=\(limit)")!)
+        request.setValue("Bearer \(config.token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard (response as? HTTPURLResponse)?.statusCode == 200,
+              let array = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+            throw GitHubBackendError.badResponse("commit list unavailable")
+        }
+        let iso = ISO8601DateFormatter()
+        return array.compactMap { entry in
+            guard let sha = entry["sha"] as? String,
+                  let commit = entry["commit"] as? [String: Any] else { return nil }
+            let date = ((commit["author"] as? [String: Any])?["date"] as? String)
+                .flatMap { iso.date(from: $0) }
+            return Commit(sha: sha, message: (commit["message"] as? String) ?? "", date: date)
+        }
+    }
+
+    /// manuscript.json exactly as of one commit (raw contents API).
+    func manuscriptJSON(atCommit sha: String, config: Config) async throws -> Data {
+        var request = URLRequest(url: URL(string:
+            "https://api.github.com/repos/\(config.owner)/\(config.repo)/contents/manuscript.json?ref=\(sha)")!)
+        request.setValue("Bearer \(config.token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/vnd.github.raw+json", forHTTPHeaderField: "Accept")
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard (response as? HTTPURLResponse)?.statusCode == 200 else {
+            throw GitHubBackendError.badResponse("manuscript.json missing at \(sha.prefix(7))")
+        }
+        return data
+    }
+
     func pull(config: Config) async throws -> [File] {
         guard let base = try await branchHead(config: config) else {
             throw GitHubBackendError.notConfigured("Branch \"\(config.branch)\" has no commits yet — save to remote first.")

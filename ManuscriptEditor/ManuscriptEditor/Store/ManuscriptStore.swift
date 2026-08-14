@@ -1509,7 +1509,47 @@ final class ManuscriptStore {
         log(.info, action, context: refName(ref))
     }
 
-    // MARK: - Changelog (diff vs last stamped baseline)
+    // MARK: - Changelog commit anchor
+
+    /// Commits on the remote branch; the changelog compares against one of
+    /// these (latest by default) — the repo, not local state, is the anchor.
+    var remoteCommits: [GitHubBackendService.Commit] = []
+    var changelogBaseSHA: String?
+    var changelogBaseManuscript: Manuscript?
+    @ObservationIgnored private var changelogBaseCache: [String: Manuscript] = [:]
+
+    func refreshChangelogCommits(appStore: AppStore) {
+        guard let m = manuscript, m.settings.remoteRepository != nil,
+              let (_, raw) = try? remoteConfig(appStore) else { return }
+        let config = raw.with(branch: m.settings.remoteBranch ?? "source")
+        Task {
+            guard let commits = try? await gitHubService.commits(config: config) else { return }
+            remoteCommits = commits
+            if let first = commits.first, changelogBaseSHA == nil || !commits.contains(where: { $0.sha == changelogBaseSHA }) {
+                await loadChangelogBase(first.sha, config: config)
+            }
+        }
+    }
+
+    func selectChangelogCommit(_ sha: String, appStore: AppStore) {
+        guard let m = manuscript, let (_, raw) = try? remoteConfig(appStore) else { return }
+        let config = raw.with(branch: m.settings.remoteBranch ?? "source")
+        Task { await loadChangelogBase(sha, config: config) }
+    }
+
+    private func loadChangelogBase(_ sha: String, config: GitHubBackendService.Config) async {
+        changelogBaseSHA = sha
+        if let cached = changelogBaseCache[sha] { changelogBaseManuscript = cached; return }
+        guard let data = try? await gitHubService.manuscriptJSON(atCommit: sha, config: config) else { return }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        if let base = try? decoder.decode(Manuscript.self, from: data) {
+            changelogBaseCache[sha] = base
+            changelogBaseManuscript = base
+        }
+    }
+
+    // MARK: - Changelog (diff vs a remote commit)
 
     struct ChangeItem: Identifiable {
         let context: String   // "Source" or journal name
@@ -1524,8 +1564,11 @@ final class ManuscriptStore {
     /// not an event trail.
     func changelog() -> [ChangeItem] {
         guard let m = manuscript else { return [] }
-        guard let baseline = remoteBaseline() else {
-            return [ChangeItem(context: "All", item: "No remote baseline yet",
+        // The repo is the anchor: the selected commit's manuscript.json
+        // (latest by default).  The local baseline file is only an offline
+        // fallback.
+        guard let baseline = changelogBaseManuscript ?? remoteBaseline() else {
+            return [ChangeItem(context: "All", item: "No remote commits yet",
                                change: "Save Remote to start tracking")]
         }
         var out: [ChangeItem] = []
