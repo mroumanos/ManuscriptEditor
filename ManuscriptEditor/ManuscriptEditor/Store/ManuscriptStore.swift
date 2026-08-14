@@ -1512,10 +1512,11 @@ final class ManuscriptStore {
     // MARK: - Changelog (diff vs last stamped baseline)
 
     struct ChangeItem: Identifiable {
-        let id = UUID()
         let context: String   // "Source" or journal name
         let item: String      // "Introduction", "Authors", …
-        let change: String    // Added / Removed / Renamed / Modified
+        let change: String    // Added / Removed / Renamed / Modified (+n −m)
+        var detail: String? = nil   // exact line-level diff, expandable
+        var id: String { context + item + change }
     }
 
     /// What differs between each journal's current content and its last
@@ -1529,8 +1530,13 @@ final class ManuscriptStore {
         for journal in m.journals {
             let chain = versions(forJournal: journal.id)
             guard let head = chain.last else { continue }
-            if chain.count > 1 {
-                out += diff(chain[chain.count - 2].content, head.content, context: journal.name)
+            // Baseline: the stamp beneath the head, else the version the
+            // journal was cut/synced from — so a fresh cut's edits show too.
+            let base = chain.count > 1
+                ? chain[chain.count - 2]
+                : head.parentID.flatMap { pid in manuscript?.versions.first { $0.id == pid } }
+            if let base {
+                out += diff(base.content, head.content, context: journal.name)
             }
         }
         return out
@@ -1541,15 +1547,22 @@ final class ManuscriptStore {
         func add(_ item: String, _ change: String) {
             out.append(ChangeItem(context: context, item: item, change: change))
         }
+        func addText(_ item: String, _ old: String, _ new: String) {
+            guard old != new else { return }
+            if let d = textDiff(old, new) {
+                out.append(ChangeItem(context: context, item: item,
+                                      change: "Modified (\(d.summary))", detail: d.detail))
+            } else { add(item, "Modified") }
+        }
         if base.title != current.title { add("Project Title", "Modified") }
-        if base.abstract.plain != current.abstract.plain { add("Abstract", "Modified") }
+        addText("Abstract", base.abstract.plain, current.abstract.plain)
         if base.keywords != current.keywords { add("Keywords", "Modified") }
-        if base.letterToEditor.body.plain != current.letterToEditor.body.plain { add("Letter to Editor", "Modified") }
+        addText("Letter to Editor", base.letterToEditor.body.plain, current.letterToEditor.body.plain)
         let baseSecs = Dictionary(uniqueKeysWithValues: base.sections.map { ($0.id, $0) })
         for s in current.sections {
             guard let b = baseSecs[s.id] else { add(s.title, "Added"); continue }
             if b.title != s.title { add("\(b.title) → \(s.title)", "Renamed") }
-            if b.content.plain != s.content.plain { add(s.title, "Modified") }
+            addText(s.title, b.content.plain, s.content.plain)
         }
         for b in base.sections where !current.sections.contains(where: { $0.id == b.id }) {
             add(b.title, "Removed")
@@ -1570,6 +1583,23 @@ final class ManuscriptStore {
         diffList("Table", base.tables, current.tables, changed: { $0 != $1 }, name: { $0.title.isEmpty ? "untitled" : $0.title })
         diffList("Reference", base.bibliography, current.bibliography, changed: { $0 != $1 }, name: { $0.key.isEmpty ? $0.title : $0.key })
         return out
+    }
+
+    /// Line-level diff: "+n −m" summary plus the exact added/removed lines.
+    private func textDiff(_ old: String, _ new: String) -> (summary: String, detail: String)? {
+        let oldLines = old.components(separatedBy: "\n").filter { !$0.isEmpty }
+        let newLines = new.components(separatedBy: "\n").filter { !$0.isEmpty }
+        let changes = newLines.difference(from: oldLines)
+        guard !changes.isEmpty else { return nil }
+        var removed: [String] = [], added: [String] = []
+        for change in changes {
+            switch change {
+            case .remove(_, let line, _): removed.append("− \(line)")
+            case .insert(_, let line, _): added.append("+ \(line)")
+            }
+        }
+        let detail = (removed + added).joined(separator: "\n")
+        return ("+\(added.count) −\(removed.count)", detail)
     }
 
     private func loadLog() {

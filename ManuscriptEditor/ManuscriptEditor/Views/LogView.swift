@@ -14,18 +14,19 @@ struct LogView: View {
 
     /// Rows whose full text is expanded (rows are single-line until clicked).
     @State private var expandedIDs: Set<UUID> = []
+    @State private var expandedChanges: Set<String> = []
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 HStack {
-                    Text("Changelog").font(.title2.weight(.semibold))
+                    Text("Log").font(.title2.weight(.semibold))
                     Spacer()
-                    if !store.activityLog.isEmpty {
-                        Button("Clear Log") { store.clearLog() }
-                            .controlSize(.small)
-                    }
                 }
+
+                Text("Changelog")
+                    .font(.headline)
+                    .foregroundStyle(.secondary)
 
                 let changes = store.changelog()
                 if changes.isEmpty {
@@ -34,6 +35,8 @@ struct LogView: View {
                 } else {
                     VStack(spacing: 0) {
                         ForEach(changes) { change in
+                            let expanded = expandedChanges.contains(change.id)
+                            VStack(alignment: .leading, spacing: 4) {
                             HStack(spacing: 10) {
                                 Text(change.context)
                                     .font(.caption2.weight(.semibold))
@@ -48,8 +51,27 @@ struct LogView: View {
                                     .foregroundStyle(change.change == "Removed" ? .red : .secondary)
                                 Text(SigningService.userName)
                                     .font(.caption2).foregroundStyle(.tertiary)
+                                if change.detail != nil {
+                                    Image(systemName: expanded ? "chevron.down" : "chevron.right")
+                                        .font(.caption2).foregroundStyle(.tertiary)
+                                }
+                            }
+                            if expanded, let detail = change.detail {
+                                Text(detail)
+                                    .font(.caption.monospaced())
+                                    .foregroundStyle(.secondary)
+                                    .textSelection(.enabled)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .padding(.leading, 120)
+                            }
                             }
                             .padding(.horizontal, 12).padding(.vertical, 7)
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                guard change.detail != nil else { return }
+                                if expanded { expandedChanges.remove(change.id) }
+                                else { expandedChanges.insert(change.id) }
+                            }
                             if change.id != changes.last?.id { Divider().padding(.leading, 12) }
                         }
                     }
@@ -57,7 +79,21 @@ struct LogView: View {
                     .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.separator, lineWidth: 1))
                 }
 
-                DisclosureGroup("Event history (saves, syncs, errors)") {
+                HStack {
+                    Text("Events")
+                        .font(.headline)
+                        .foregroundStyle(.secondary)
+                    Text("local only — never pushed to the remote")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                    Spacer()
+                    if !store.activityLog.isEmpty {
+                        Button("Clear Events") { store.clearLog() }
+                            .controlSize(.small)
+                    }
+                }
+                .padding(.top, 8)
+                Group {
                 if store.activityLog.isEmpty {
                     emptyState
                 } else {
@@ -74,7 +110,6 @@ struct LogView: View {
                     .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.separator, lineWidth: 1))
                 }
                 }
-                .font(.callout)
 
                 Spacer(minLength: 0)
             }
