@@ -42,6 +42,9 @@ struct OverviewView: View {
 
     /// One line each for the manuscript's local folder, backend account, and
     /// AI service (the retired Backend/AI tabs, compacted — Aug 2026).
+    /// Repo/branch load read-only; the pencil switches to text fields.
+    @State private var editingRepo = false
+
     struct PendingMove: Identifiable { let url: URL; var id: String { url.path } }
     @State private var pendingMove: PendingMove?
 
@@ -96,6 +99,7 @@ struct OverviewView: View {
                         .controlSize(.small)
                         .help("The manuscript folder — click to move it")
                     }
+                    Spacer()
                 }
                 HStack(spacing: 8) {
                     Text("Remote").font(.caption).foregroundStyle(.secondary).frame(width: 60, alignment: .leading)
@@ -105,7 +109,8 @@ struct OverviewView: View {
                             Text($0.displayName).tag(Optional($0.id))
                         }
                     }
-                    .labelsHidden().frame(width: 240)
+                    .labelsHidden().fixedSize()
+                    Spacer()
                 }
                 HStack(spacing: 8) {
                     Text("AI").font(.caption).foregroundStyle(.secondary).frame(width: 60, alignment: .leading)
@@ -115,7 +120,8 @@ struct OverviewView: View {
                             Text("\($0.displayName) (\($0.provider.rawValue))").tag(Optional($0.id))
                         }
                     }
-                    .labelsHidden().frame(width: 240)
+                    .labelsHidden().fixedSize()
+                    Spacer()
                 }
             }
             .padding(14)
@@ -191,14 +197,38 @@ struct OverviewView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .frame(width: 76, alignment: .leading)
-                        TextField("owner/name", text: optionalSetting(\.remoteRepository))
-                            .textFieldStyle(.roundedBorder)
-                            .controlSize(.small)
-                            .frame(width: 200)
-                        TextField("branch", text: optionalSetting(\.remoteBranch))
-                            .textFieldStyle(.roundedBorder)
-                            .controlSize(.small)
-                            .frame(width: 110)
+                        if editingRepo {
+                            TextField("owner/name", text: optionalSetting(\.remoteRepository))
+                                .textFieldStyle(.roundedBorder)
+                                .controlSize(.small)
+                                .frame(width: 200)
+                            TextField("branch", text: optionalSetting(\.remoteBranch))
+                                .textFieldStyle(.roundedBorder)
+                                .controlSize(.small)
+                                .frame(width: 100)
+                            Button("Done") { editingRepo = false }
+                                .controlSize(.small)
+                        } else {
+                            let repo = m.settings.remoteRepository ?? ""
+                            let branch = m.settings.remoteBranch ?? "source"
+                            Text(repo.isEmpty ? "not configured" : "\(repo):\(branch)")
+                                .font(.caption)
+                                .foregroundStyle(repo.isEmpty ? .tertiary : .secondary)
+                                .textSelection(.enabled)
+                            if !repo.isEmpty,
+                               let url = URL(string: "https://github.com/\(repo)/tree/\(branch)") {
+                                Button { NSWorkspace.shared.open(url) } label: {
+                                    Image(systemName: "arrow.up.right.square")
+                                }
+                                .buttonStyle(.borderless)
+                                .help("Open the repository in the browser")
+                            }
+                            Button { editingRepo = true } label: {
+                                Image(systemName: "pencil")
+                            }
+                            .buttonStyle(.borderless)
+                            .help("Edit repository and branch")
+                        }
                         if store.isRemoteBusy { ProgressView().controlSize(.small) }
                     }
                 }
