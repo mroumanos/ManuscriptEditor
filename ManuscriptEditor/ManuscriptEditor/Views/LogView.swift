@@ -19,9 +19,16 @@ struct LogView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                Text("Changelog")
-                    .font(.headline)
-                    .foregroundStyle(.secondary)
+                HStack(spacing: 8) {
+                    Text("Changelog")
+                        .font(.headline)
+                        .foregroundStyle(.secondary)
+                    if let synced = store.manuscript?.lastSyncedAt {
+                        Text("changes since the remote push on \(synced.formatted(date: .abbreviated, time: .shortened))")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                    }
+                }
 
                 let changes = store.changelog()
                 if changes.isEmpty {
