@@ -482,8 +482,13 @@ struct DataChartView: View {
                 VerticalAxisTitle(text: resolvedY)
                 VStack(spacing: 2) {
                     chart
-                        .chartXAxis { AxisMarks(values: .automatic) }
+                        // Category axis: labels only — the default per-category
+                        // dashed gridlines read as clutter in exported figures.
+                        .chartXAxis { AxisMarks { AxisValueLabel() } }
                         .chartYAxis { AxisMarks(position: .leading) }
+                        // Single series: the legend would just repeat the Y
+                        // axis title while pushing the X title down a row.
+                        .chartLegend(seriesColumn == nil ? .hidden : .visible)
                         .chartXScale(range: .plotDimension(padding: 10))
                         .chartYScale(range: .plotDimension(padding: 10))
                         .chartPlotStyle { plot in
