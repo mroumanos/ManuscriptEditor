@@ -475,25 +475,26 @@ struct DataChartView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             // Manual axis-title layout: a truly vertical (bottom-to-top) Y
-            // title on the left, the X title centered underneath.  The plot
-            // itself gets a small margin on every side so tick labels (the
-            // max Y value especially) never overlap the plot box.
+            // title on the left, the X title centered underneath.  Headroom
+            // for the top tick label comes from the Y scale's end padding —
+            // never from padding the plot view, which shifts marks off the
+            // axes (bars dipped below the 0 line, labels drifted off bars).
             HStack(spacing: 2) {
                 VerticalAxisTitle(text: resolvedY)
                 VStack(spacing: 2) {
                     chart
-                        // Category axis: labels only — the default per-category
-                        // dashed gridlines read as clutter in exported figures.
-                        .chartXAxis { AxisMarks { AxisValueLabel() } }
+                        // Category axis: centered labels only — the default
+                        // per-category dashed gridlines read as clutter in
+                        // exported figures.
+                        .chartXAxis { AxisMarks { AxisValueLabel(centered: true) } }
                         .chartYAxis { AxisMarks(position: .leading) }
                         // Single series: the legend would just repeat the Y
                         // axis title while pushing the X title down a row.
                         .chartLegend(seriesColumn == nil ? .hidden : .visible)
                         .chartXScale(range: .plotDimension(padding: 10))
-                        .chartYScale(range: .plotDimension(padding: 10))
-                        .chartPlotStyle { plot in
-                            plot.padding(6)
-                        }
+                        // Zero pinned to the axis line; the top gridline sits
+                        // below the plot edge so its label never clips.
+                        .chartYScale(range: .plotDimension(startPadding: 0, endPadding: 12))
                         .chartForegroundStyleScale(range: palette.colors)
                         .frame(minHeight: 220)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
