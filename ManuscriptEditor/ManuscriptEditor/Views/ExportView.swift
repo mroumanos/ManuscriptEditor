@@ -499,14 +499,19 @@ private struct ExportDocumentCard: View {
             }
             .buttonStyle(.plain)
             .help("Print the heading in ALL CAPS")
-            TextField("", value: Binding(
-                get: { style.pointSize ?? (document.format.fontSize + style.sizeDelta) },
-                set: { newValue in mutate { $0.pointSize = min(max(newValue, 6), 99) } }
-            ), format: .number.precision(.fractionLength(0...1)))
+            // Compact font-panel-style size: whole points, arrows to nudge.
+            let sizeBinding = Binding(
+                get: { Int((style.pointSize ?? (document.format.fontSize + style.sizeDelta)).rounded()) },
+                set: { newValue in mutate { $0.pointSize = Double(min(max(newValue, 6), 99)) } }
+            )
+            TextField("", value: sizeBinding, format: .number)
                 .textFieldStyle(.roundedBorder)
-                .controlSize(.small)
+                .controlSize(.mini)
                 .multilineTextAlignment(.trailing)
-                .frame(width: 44)
+                .frame(width: 28)
+            Stepper("", value: sizeBinding, in: 6...99)
+                .labelsHidden()
+                .controlSize(.mini)
                 .help("Heading size")
         }
     }
@@ -526,7 +531,7 @@ private struct ExportDocumentCard: View {
             TextField("", value: Binding(
                 get: { item.format?.fontSize ?? document.format.fontSize },
                 set: { newValue in fmtBinding(index, \.fontSize).wrappedValue = min(max(newValue, 6), 99) }
-            ), format: .number.precision(.fractionLength(0...1)))
+            ), format: .number.precision(.fractionLength(0)))
                 .textFieldStyle(.roundedBorder)
                 .controlSize(.small)
                 .multilineTextAlignment(.trailing)
