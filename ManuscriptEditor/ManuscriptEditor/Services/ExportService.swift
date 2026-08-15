@@ -854,7 +854,12 @@ private struct OutlineBuilder {
             font = scaled(style.sizeDelta, bold: style.bold)
         }
         let out = NSMutableAttributedString()
-        out.append(NSAttributedString(string: "\n", attributes: [.font: base]))
+        // The blank lines around a heading must carry the document's
+        // paragraph style too — bare \n renders single-spaced and made the
+        // gaps uneven (Aug 2026 feedback).
+        let blank = NSAttributedString(string: "\n", attributes: [
+            .font: base, .paragraphStyle: paragraph(after: 0, before: 0)])
+        out.append(blank)
         let heading = style.allCaps == true ? raw.uppercased() : headingText(raw)
         let text = NSMutableAttributedString(attributedString:
             line(heading, font: font, before: 0, after: 0))
@@ -869,7 +874,7 @@ private struct OutlineBuilder {
             text.addAttribute(.paragraphStyle, value: para, range: full)
         }
         out.append(text)
-        out.append(NSAttributedString(string: "\n", attributes: [.font: base]))
+        out.append(blank)
         return out
     }
 
