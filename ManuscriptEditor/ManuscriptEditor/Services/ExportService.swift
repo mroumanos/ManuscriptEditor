@@ -895,7 +895,8 @@ private struct OutlineBuilder {
     }
 
     private func spacer() -> NSAttributedString {
-        NSAttributedString(string: "\n", attributes: [.font: base])
+        NSAttributedString(string: "\n", attributes: [
+            .font: base, .paragraphStyle: paragraph(after: 0, before: 0)])
     }
 
     /// Rich prose re-set in the document font: token refresh + chrome strip,
@@ -927,7 +928,10 @@ private struct OutlineBuilder {
             out.addAttribute(.paragraphStyle, value: style, range: range)
         }
         out.addAttribute(.foregroundColor, value: NSColor.black, range: full)
-        out.append(NSAttributedString(string: "\n", attributes: [.font: base]))
+        // The trailing gap line must carry the document spacing too, or it
+        // renders single-spaced between a section and the next heading.
+        out.append(NSAttributedString(string: "\n", attributes: [
+            .font: base, .paragraphStyle: paragraph(after: 0, before: 0)]))
         return out
     }
 
