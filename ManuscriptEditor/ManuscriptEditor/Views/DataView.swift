@@ -496,7 +496,10 @@ struct DataChartView: View {
                         // below the plot edge so its label never clips.
                         .chartYScale(range: .plotDimension(startPadding: 0, endPadding: 12))
                         .chartForegroundStyleScale(range: palette.colors)
-                        .frame(minHeight: 220)
+                        // Floor low enough that the whole view (plot + X title
+                        // + padding) fits the figure editor's 220pt preview
+                        // box — a 220 floor here made the chart overflow it.
+                        .frame(minHeight: 140)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                     Text(resolvedX)
                         .font(.caption)
