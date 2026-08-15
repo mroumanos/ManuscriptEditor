@@ -490,15 +490,6 @@ private struct ExportDocumentCard: View {
             toggle("bold", style.bold, "Bold heading") { $0.bold.toggle() }
             toggle("underline", style.underline, "Underlined heading") { $0.underline.toggle() }
             toggle("text.aligncenter", style.centered, "Centered heading") { $0.centered.toggle() }
-            Button {
-                mutate { $0.allCaps = ($0.allCaps == true) ? false : true }
-            } label: {
-                Text("AA")
-                    .font(.caption2.weight(.bold))
-                    .foregroundStyle(style.allCaps == true ? Color.accentColor : Color(nsColor: .tertiaryLabelColor))
-            }
-            .buttonStyle(.plain)
-            .help("Print the heading in ALL CAPS")
             // Compact font-panel-style size: whole points, arrows to nudge.
             let sizeBinding = Binding(
                 get: { Int((style.pointSize ?? (document.format.fontSize + style.sizeDelta)).rounded()) },
@@ -528,14 +519,21 @@ private struct ExportDocumentCard: View {
             }
             .frame(width: colFont)
 
-            TextField("", value: Binding(
-                get: { item.format?.fontSize ?? document.format.fontSize },
-                set: { newValue in fmtBinding(index, \.fontSize).wrappedValue = min(max(newValue, 6), 99) }
-            ), format: .number.precision(.fractionLength(0)))
-                .textFieldStyle(.roundedBorder)
-                .controlSize(.small)
-                .multilineTextAlignment(.trailing)
-                .frame(width: colSize)
+            HStack(spacing: 1) {
+                let sizeBinding = Binding(
+                    get: { Int((item.format?.fontSize ?? document.format.fontSize).rounded()) },
+                    set: { newValue in fmtBinding(index, \.fontSize).wrappedValue = Double(min(max(newValue, 6), 99)) }
+                )
+                TextField("", value: sizeBinding, format: .number)
+                    .textFieldStyle(.roundedBorder)
+                    .controlSize(.mini)
+                    .multilineTextAlignment(.trailing)
+                    .frame(width: 28)
+                Stepper("", value: sizeBinding, in: 6...99)
+                    .labelsHidden()
+                    .controlSize(.mini)
+            }
+            .frame(width: colSize)
 
             Picker("", selection: fmtBinding(index, \.lineSpacing)) {
                 Text("1×").tag(1.0)
