@@ -318,6 +318,15 @@ private struct ExportDocumentCard: View {
             }
             .labelsHidden()
             .fixedSize()
+            Picker("", selection: binding(\.format.lineSpacing)) {
+                Text("1× spacing").tag(1.0)
+                Text("1.15 spacing").tag(1.15)
+                Text("1.5 spacing").tag(1.5)
+                Text("2× spacing").tag(2.0)
+            }
+            .labelsHidden()
+            .fixedSize()
+            .help("Line spacing (whole document — keeps headings and body uniform)")
             Picker("", selection: binding(\.format.marginInches)) {
                 Text("0.75″ margins").tag(0.75)
                 Text("1″ margins").tag(1.0)
@@ -380,7 +389,6 @@ private struct ExportDocumentCard: View {
             Spacer(minLength: 4)
             Text("Font").frame(width: colFont)
             Text("Size").frame(width: colSize)
-            Text("Spacing").frame(width: colSpacing)
             Text("Lines").frame(width: colLines)
             Color.clear.frame(width: 16, height: 1)            // remove button
         }
@@ -534,14 +542,6 @@ private struct ExportDocumentCard: View {
                     .controlSize(.mini)
             }
             .frame(width: colSize)
-
-            Picker("", selection: fmtBinding(index, \.lineSpacing)) {
-                Text("1×").tag(1.0)
-                Text("1.15").tag(1.15)
-                Text("1.5").tag(1.5)
-                Text("2×").tag(2.0)
-            }
-            .frame(width: colSpacing)
 
             Toggle("", isOn: fmtBinding(index, \.lineNumbers))
                 .toggleStyle(.checkbox)

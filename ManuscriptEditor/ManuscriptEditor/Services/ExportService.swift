@@ -707,6 +707,9 @@ private struct OutlineBuilder {
         guard var override = item.format else { return format }
         override.marginInches = format.marginInches
         override.twoColumn = format.twoColumn
+        // Uniform per document: mixed per-item spacing made the gaps around
+        // headings inconsistent (Aug 2026 feedback).
+        override.lineSpacing = format.lineSpacing
         return override
     }
 
