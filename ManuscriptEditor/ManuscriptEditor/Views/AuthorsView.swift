@@ -25,6 +25,10 @@ struct AuthorsView: View {
     /// show the matching `AuthorEditor` on the right.
     @State private var selectedID: UUID?
 
+    /// ORCID search popover (only one of the two anchor buttons exists at a
+    /// time — populated view vs. empty state — so they share this flag).
+    @State private var showingOrcidSearch = false
+
     /// Authors sorted by their `order` field (ascending = display order).
     private var authors: [Author] {
         (store.manuscript(for: versionRef)?.authors ?? []).sorted { $0.order < $1.order }
@@ -77,6 +81,21 @@ struct AuthorsView: View {
                         .buttonStyle(.borderless)
                         .padding(.vertical, 10)
                         .padding(.leading, 10)
+
+                        Button {
+                            showingOrcidSearch = true
+                        } label: {
+                            Image(systemName: "magnifyingglass")
+                        }
+                        .buttonStyle(.borderless)
+                        .padding(.vertical, 10)
+                        .help("Search ORCID by name or iD and autofill the author")
+                        .popover(isPresented: $showingOrcidSearch, arrowEdge: .top) {
+                            OrcidSearchView { candidate in
+                                showingOrcidSearch = false
+                                selectedID = store.addAuthor(from: candidate, ref: versionRef)
+                            }
+                        }
 
                         Button {
                             store.addInstitution(ref: versionRef)
@@ -136,6 +155,17 @@ struct AuthorsView: View {
                     Label("Add Author", systemImage: "plus")
                 }
                 .buttonStyle(.borderedProminent)
+                Button {
+                    showingOrcidSearch = true
+                } label: {
+                    Label("Search ORCID", systemImage: "magnifyingglass")
+                }
+                .popover(isPresented: $showingOrcidSearch, arrowEdge: .bottom) {
+                    OrcidSearchView { candidate in
+                        showingOrcidSearch = false
+                        store.addAuthor(from: candidate, ref: versionRef)
+                    }
+                }
                 Button {
                     store.addInstitution(ref: versionRef)
                 } label: {
@@ -221,6 +251,101 @@ struct AuthorsView: View {
 }
 
 // MARK: - InstitutionEditor
+
+// MARK: - OrcidSearchView
+
+/// Popover for "Search ORCID": type a name ("marie curie", "curie, marie")
+/// or a full iD, pick one of the top-20 hits, and the author is added with
+/// names, iD, public email, and primary institution filled in.
+private struct OrcidSearchView: View {
+    let onPick: (OrcidService.Candidate) -> Void
+
+    @State private var query = ""
+    @State private var results: [OrcidService.Candidate] = []
+    @State private var searching = false
+    @State private var errorText: String?
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            TextField("Name or ORCID iD", text: $query)
+                .textFieldStyle(.roundedBorder)
+                .focused($focused)
+            if let errorText {
+                Label(errorText, systemImage: "exclamationmark.triangle")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            } else if searching {
+                ProgressView()
+                    .controlSize(.small)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+            } else if results.isEmpty {
+                Text(query.trimmingCharacters(in: .whitespaces).count < 3
+                     ? "First and last name, or a full 0000-… iD."
+                     : "No matches on ORCID.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                ScrollView {
+                    VStack(spacing: 0) {
+                        ForEach(results) { candidate in
+                            row(candidate)
+                            if candidate.id != results.last?.id {
+                                Divider()
+                            }
+                        }
+                    }
+                }
+                .frame(maxHeight: 300)
+            }
+        }
+        .padding(12)
+        .frame(width: 380)
+        .onAppear { focused = true }
+        // Live search, debounced: each keystroke restarts the task; the
+        // sleep absorbs typing bursts before the request goes out.
+        .task(id: query) {
+            errorText = nil
+            let text = query.trimmingCharacters(in: .whitespaces)
+            guard text.count >= 3 else { results = []; return }
+            try? await Task.sleep(nanoseconds: 350_000_000)
+            guard !Task.isCancelled else { return }
+            searching = true
+            defer { searching = false }
+            do { results = try await OrcidService().search(text) }
+            catch { if !Task.isCancelled { errorText = error.localizedDescription } }
+        }
+    }
+
+    private func row(_ candidate: OrcidService.Candidate) -> some View {
+        Button {
+            onPick(candidate)
+        } label: {
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 8) {
+                    Text(candidate.displayName.isEmpty ? "(no public name)"
+                                                       : candidate.displayName)
+                        .font(.callout)
+                    Spacer()
+                    Text(candidate.orcid)
+                        .font(.caption.monospaced())
+                        .foregroundStyle(.tertiary)
+                }
+                if let institution = candidate.institutionNames.first {
+                    Text(institution)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(.vertical, 6)
+        .padding(.horizontal, 4)
+    }
+}
 
 /// Right-pane form for a selected institution: the name lives here (not in
 /// the list row), plus which authors reference it.

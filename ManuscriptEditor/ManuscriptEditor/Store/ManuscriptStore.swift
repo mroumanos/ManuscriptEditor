@@ -365,6 +365,37 @@ final class ManuscriptStore {
         touch(ref, undoAction: "Add Author") { $0.authors.append(Author.empty(order: $0.authors.count)) }
     }
 
+    /// Adds an author autofilled from an ORCID search hit.  The candidate's
+    /// primary (first-listed) institution is matched case-insensitively
+    /// against the registry and created there only when missing.
+    @discardableResult
+    func addAuthor(from candidate: OrcidService.Candidate, ref: VersionRef = .source) -> UUID {
+        var author = Author.empty()
+        author.firstName = candidate.givenNames
+        author.lastName  = candidate.familyNames
+        author.email     = candidate.email ?? ""
+        author.orcid     = candidate.orcid
+        let newID = author.id
+        touch(ref, undoAction: "Add Author") { m in
+            author.order = m.authors.count
+            if let name = candidate.institutionNames.first?
+                    .trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty {
+                if let existing = m.institutions.first(where: {
+                    $0.name.compare(name, options: [.caseInsensitive, .diacriticInsensitive])
+                        == .orderedSame
+                }) {
+                    author.institutionIDs = [existing.id]
+                } else {
+                    let institution = Institution(id: UUID(), name: name)
+                    m.institutions.append(institution)
+                    author.institutionIDs = [institution.id]
+                }
+            }
+            m.authors.append(author)
+        }
+        return newID
+    }
+
     func updateAuthor(_ author: Author, ref: VersionRef = .source) {
         touch(ref, undoAction: "Edit Author") { m in
             if let idx = m.authors.firstIndex(where: { $0.id == author.id }) { m.authors[idx] = author }

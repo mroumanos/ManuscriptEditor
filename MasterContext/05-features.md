@@ -29,6 +29,15 @@ Intent: most time is spent here; it must be excellent and AI-optional.
   **drag-to-reorder** (offsets applied against the sorted list). Exports
   resolve affiliation lines from the registry (legacy free-text still
   honored).
+- AC (implemented): **Add author via ORCID search** (Aug 2026). A
+  magnifying-glass button beside "Add Author" opens a popover: type a first
+  and last name (either order) or a full iD, and the top 20 public-API hits
+  list live (debounced). Picking one adds the author with names, iD, and any
+  public email filled, and references the hit's primary institution —
+  matched case-insensitively against the registry, **created there only if
+  missing** (`OrcidService`, `addAuthor(from:)`). Query gotcha: the search
+  index field is `family-name` (singular); the response key is
+  `family-names`.
 - AC: Each list view (Authors/Figures/Tables/Bibliography/Data) auto-selects the
   first item; an empty state offers a centered "Add …" action (no broken
   half-empty split).
