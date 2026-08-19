@@ -438,26 +438,24 @@ private struct ExportDocumentCard: View {
                         headingStyleControls(item, index: index)
                     }
                 } else {
-                    // Title page: byline mode — names alone or names + the
-                    // authors' credentials ("Jane Doe, MD").  "Credentials",
-                    // not "titles": the item is named "Title & Authors" and a
-                    // second "title" there would mean two different things.
-                    Picker("", selection: Binding(
-                        get: { item.authorTitlesShown },
-                        set: { on in
-                            var doc = document
-                            guard doc.items.indices.contains(index) else { return }
-                            doc.items[index].authorTitlesShown = on
-                            onChange(doc)
-                        }
-                    )) {
-                        Text("Author").tag(false)
-                        Text("Author+Credentials").tag(true)
+                    // Title page: append the authors' credentials ("Jane
+                    // Doe, MD") to the byline.  "Credentials", not "titles":
+                    // the item is named "Title & Authors" and a second
+                    // "title" there would mean two different things.
+                    Button {
+                        var doc = document
+                        guard doc.items.indices.contains(index) else { return }
+                        doc.items[index].authorTitlesShown.toggle()
+                        onChange(doc)
+                    } label: {
+                        Text("+ credentials")
+                            .font(.caption)
+                            .foregroundStyle(item.authorTitlesShown
+                                ? Color.accentColor
+                                : Color(nsColor: .tertiaryLabelColor))
                     }
-                    .pickerStyle(.segmented)
-                    .controlSize(.mini)
-                    .fixedSize()
-                    .help("Byline: author names alone, or names with their credentials (MD, PhD…)")
+                    .buttonStyle(.plain)
+                    .help("Append author credentials (MD, PhD…) to the byline")
                 }
                 Spacer(minLength: 4)
                 formatColumns(item, index: index)

@@ -43,10 +43,10 @@ Intent: most time is spent here; it must be excellent and AI-optional.
   replaced a separate honorific field plus a title-tag row, two fields for
   one idea. Text stores in `degrees`; a legacy `titles` tag list still reads
   (joined) and bylines resolve through `effectiveTitles` either way. The
-  export card's title-page row carries an **"Author | Author+Credentials"
-  segmented toggle** (`ExportItem.showAuthorTitles`, default = credentials
-  shown, the historical output) switching the byline between plain names and
-  names + credentials, in the attributed and LaTeX writers alike.
+  export card's title-page row carries a compact **"+ credentials" toggle
+  button** (`ExportItem.showAuthorTitles`, default on = the historical
+  output) switching the byline between plain names and names + credentials,
+  in the attributed and LaTeX writers alike.
   ("Credentials", not "titles" — the item is "Title & Authors", and a second
   "title" would collide.) The editor's Contact section is email + ORCID
   only; the postal `address` field remains in the model for old files but is

@@ -336,10 +336,12 @@ private struct OrcidSearchBar: View {
                         }
                     }
                 }
-                .frame(maxHeight: 260)
+                .frame(maxHeight: 420)
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        // Wider than the narrow pane on purpose — it floats, so it may
+        // overhang the editor to show full names and institutions.
+        .frame(width: 360, alignment: .leading)
         .background(Color(NSColor.controlBackgroundColor),
                     in: RoundedRectangle(cornerRadius: 7))
         .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(.separator))
