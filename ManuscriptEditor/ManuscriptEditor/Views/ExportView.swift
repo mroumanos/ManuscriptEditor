@@ -439,7 +439,9 @@ private struct ExportDocumentCard: View {
                     }
                 } else {
                     // Title page: byline mode — names alone or names + the
-                    // authors' title tags ("Jane Doe, MD").
+                    // authors' credentials ("Jane Doe, MD").  "Credentials",
+                    // not "titles": the item is named "Title & Authors" and a
+                    // second "title" there would mean two different things.
                     Picker("", selection: Binding(
                         get: { item.authorTitlesShown },
                         set: { on in
@@ -450,12 +452,12 @@ private struct ExportDocumentCard: View {
                         }
                     )) {
                         Text("Author").tag(false)
-                        Text("Author+Title").tag(true)
+                        Text("Author+Credentials").tag(true)
                     }
                     .pickerStyle(.segmented)
                     .controlSize(.mini)
                     .fixedSize()
-                    .help("Byline: author names alone, or names with their titles (MD, PhD…)")
+                    .help("Byline: author names alone, or names with their credentials (MD, PhD…)")
                 }
                 Spacer(minLength: 4)
                 formatColumns(item, index: index)

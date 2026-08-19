@@ -38,15 +38,19 @@ Intent: most time is spent here; it must be excellent and AI-optional.
   case-insensitively against the registry, **created there only if missing**
   (`OrcidService`, `addAuthor(from:)`). Query gotcha: the search index field
   is `family-name` (singular); the response key is `family-names`.
-- AC (implemented): **Author titles as tags** (Aug 2026). The editor's
-  Titles row holds free-form tags ("MD", "PhD", "Professor") **ordered as
-  entered** — ⏎ appends, ✕ removes (`Author.titles`; the legacy
-  comma-separated `degrees` text seeds the list and still drives bylines for
-  files that predate the field, via `effectiveTitles`). The export card's
-  title-page row carries an **"Author | Author+Title" segmented toggle**
-  (`ExportItem.showAuthorTitles`, default Author+Title = historical output)
-  switching the byline between plain names and names + titles, in the
-  attributed and LaTeX writers alike.
+- AC (implemented): **Author credentials** (Aug 2026). One free-form
+  Credentials line ("MD, PhD, Prof.") at the end of the Name section — it
+  replaced a separate honorific field plus a title-tag row, two fields for
+  one idea. Text stores in `degrees`; a legacy `titles` tag list still reads
+  (joined) and bylines resolve through `effectiveTitles` either way. The
+  export card's title-page row carries an **"Author | Author+Credentials"
+  segmented toggle** (`ExportItem.showAuthorTitles`, default = credentials
+  shown, the historical output) switching the byline between plain names and
+  names + credentials, in the attributed and LaTeX writers alike.
+  ("Credentials", not "titles" — the item is "Title & Authors", and a second
+  "title" would collide.) The editor's Contact section is email + ORCID
+  only; the postal `address` field remains in the model for old files but is
+  no longer edited.
 - AC: Each list view (Authors/Figures/Tables/Bibliography/Data) auto-selects the
   first item; an empty state offers a centered "Add …" action (no broken
   half-empty split).

@@ -48,6 +48,8 @@ struct AuthorsView: View {
                         selectedID = store.addAuthor(from: candidate, ref: versionRef)
                     }
                     .padding(8)
+                    // Above the List so the results dropdown paints over it.
+                    .zIndex(1)
 
                     Divider()
 
@@ -156,6 +158,7 @@ struct AuthorsView: View {
                 store.addAuthor(from: candidate, ref: versionRef)
             }
             .frame(width: 320)
+            .zIndex(1)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -249,57 +252,48 @@ private struct OrcidSearchBar: View {
     @State private var results: [OrcidService.Candidate] = []
     @State private var searching = false
     @State private var errorText: String?
+    /// Measured field height, so the floating dropdown lands just below it.
+    @State private var fieldHeight: CGFloat = 28
+
+    /// Anything worth floating under the field: hits, an error, or the
+    /// no-match note once a real query has finished searching.
+    private var dropdownVisible: Bool {
+        errorText != nil || !results.isEmpty
+            || (!searching && query.trimmingCharacters(in: .whitespaces).count >= 3)
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 5) {
-                Image(systemName: "magnifyingglass")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                TextField("Search ORCID — name or iD", text: $query)
-                    .textFieldStyle(.plain)
-                if searching {
-                    ProgressView().controlSize(.small)
-                } else if !query.isEmpty {
-                    Button {
-                        query = ""
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(.tertiary)
-                    }
-                    .buttonStyle(.plain)
+        HStack(spacing: 5) {
+            Image(systemName: "magnifyingglass")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            TextField("Search - ORCID or name", text: $query)
+                .textFieldStyle(.plain)
+            if searching {
+                ProgressView().controlSize(.small)
+            } else if !query.isEmpty {
+                Button {
+                    query = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.tertiary)
                 }
+                .buttonStyle(.plain)
             }
-            .padding(.horizontal, 7)
-            .padding(.vertical, 5)
-            .background(Color(NSColor.textBackgroundColor),
-                        in: RoundedRectangle(cornerRadius: 7))
-            .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(.separator))
-
-            if let errorText {
-                Label(errorText, systemImage: "exclamationmark.triangle")
-                    .font(.caption)
-                    .foregroundStyle(.red)
-            } else if !results.isEmpty {
-                ScrollView {
-                    VStack(spacing: 0) {
-                        ForEach(results) { candidate in
-                            row(candidate)
-                            if candidate.id != results.last?.id {
-                                Divider()
-                            }
-                        }
-                    }
-                }
-                .frame(maxHeight: 260)
-                .background(Color(NSColor.controlBackgroundColor),
-                            in: RoundedRectangle(cornerRadius: 7))
-                .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(.separator))
-            } else if !searching,
-                      query.trimmingCharacters(in: .whitespaces).count >= 3 {
-                Text("No matches on ORCID.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 7)
+        .padding(.vertical, 5)
+        .background(Color(NSColor.textBackgroundColor),
+                    in: RoundedRectangle(cornerRadius: 7))
+        .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(.separator))
+        .onGeometryChange(for: CGFloat.self,
+                          of: { $0.size.height },
+                          action: { fieldHeight = $0 })
+        // The dropdown FLOATS over whatever sits below (call sites raise the
+        // bar's zIndex) — in the layout it would shove the author list down.
+        .overlay(alignment: .topLeading) {
+            if dropdownVisible {
+                dropdown.offset(y: fieldHeight + 4)
             }
         }
         // Live search, debounced: each keystroke restarts the task; the
@@ -315,6 +309,41 @@ private struct OrcidSearchBar: View {
             do { results = try await OrcidService().search(text) }
             catch { if !Task.isCancelled { errorText = error.localizedDescription } }
         }
+    }
+
+    /// The floating results card (also carries error / no-match states so
+    /// none of them reflow the layout underneath).
+    private var dropdown: some View {
+        Group {
+            if let errorText {
+                Label(errorText, systemImage: "exclamationmark.triangle")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .padding(8)
+            } else if results.isEmpty {
+                Text("No matches on ORCID.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(8)
+            } else {
+                ScrollView {
+                    VStack(spacing: 0) {
+                        ForEach(results) { candidate in
+                            row(candidate)
+                            if candidate.id != results.last?.id {
+                                Divider()
+                            }
+                        }
+                    }
+                }
+                .frame(maxHeight: 260)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(NSColor.controlBackgroundColor),
+                    in: RoundedRectangle(cornerRadius: 7))
+        .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(.separator))
+        .shadow(color: .black.opacity(0.18), radius: 8, y: 3)
     }
 
     /// Two-line row sized for the narrow pane: name, then iD · institution.
@@ -420,8 +449,21 @@ struct AuthorEditor: View {
 
     private var selectedInstitutions: Set<UUID> { Set(draft.institutionIDs ?? []) }
 
-    /// Pending text in the "Add title" tag field (committed on ⏎).
-    @State private var newTitle = ""
+    /// Free-form credentials text.  Reading joins the tag list when a file
+    /// has one; writing stores the raw text in `degrees` and clears the tags
+    /// so the text becomes the single source of truth.
+    private var credentialsBinding: Binding<String> {
+        Binding(
+            get: {
+                if let titles = draft.titles { return titles.joined(separator: ", ") }
+                return draft.degrees ?? ""
+            },
+            set: {
+                draft.degrees = $0.isEmpty ? nil : $0
+                draft.titles = nil
+            }
+        )
+    }
 
     /// Bridges an optional model field to a TextField; empty text stores nil
     /// so untouched fields stay absent from manuscript.json.
@@ -436,54 +478,17 @@ struct AuthorEditor: View {
         ScrollView {
             Form {
                 Section("Name") {
-                    TextField("Title (Dr., Prof.)", text: optionalField(\.namePrefix))
                     TextField("First name", text: $draft.firstName)
                     TextField("Middle name / initials", text: optionalField(\.middleName))
                     TextField("Last name",  text: $draft.lastName)
-                    // Free-form title tags, kept in entry order ("MD", "PhD",
-                    // "Professor").  First edit migrates the legacy comma-
-                    // separated `degrees` text into tags via effectiveTitles.
-                    LabeledContent("Titles") {
-                        VStack(alignment: .trailing, spacing: 6) {
-                            if !draft.effectiveTitles.isEmpty {
-                                HStack(spacing: 4) {
-                                    ForEach(Array(draft.effectiveTitles.enumerated()),
-                                            id: \.offset) { index, title in
-                                        HStack(spacing: 3) {
-                                            Text(title).font(.caption)
-                                            Button {
-                                                var tags = draft.effectiveTitles
-                                                tags.remove(at: index)
-                                                draft.titles = tags
-                                            } label: {
-                                                Image(systemName: "xmark")
-                                                    .font(.system(size: 7, weight: .bold))
-                                                    .foregroundStyle(.secondary)
-                                            }
-                                            .buttonStyle(.plain)
-                                        }
-                                        .padding(.horizontal, 7).padding(.vertical, 3)
-                                        .background(Color.accentColor.opacity(0.12),
-                                                    in: Capsule())
-                                    }
-                                }
-                            }
-                            TextField("Add title (MD, PhD, Professor…) ⏎", text: $newTitle)
-                                .multilineTextAlignment(.trailing)
-                                .onSubmit {
-                                    let tag = newTitle.trimmingCharacters(in: .whitespaces)
-                                    guard !tag.isEmpty else { return }
-                                    draft.titles = draft.effectiveTitles + [tag]
-                                    newTitle = ""
-                                }
-                        }
-                    }
+                    // One free-form credentials line — replaces the separate
+                    // honorific ("Dr., Prof.") and title-tag rows, which were
+                    // two fields for one idea (Aug 2026 feedback).
+                    TextField("Credentials (MD, PhD, Prof., …)", text: credentialsBinding)
                 }
 
                 Section("Contact") {
                     TextField("Email address", text: $draft.email)
-                    TextField("Address", text: optionalField(\.address), axis: .vertical)
-                        .lineLimit(2...4)
                     HStack(spacing: 8) {
                         TextField("ORCID", text: $draft.orcid)
                         // Once an iD is entered, link straight to the ORCID record.
@@ -538,10 +543,8 @@ struct AuthorEditor: View {
         .onChange(of: draft.firstName)       { _, _ in onChange(draft) }
         .onChange(of: draft.lastName)        { _, _ in onChange(draft) }
         .onChange(of: draft.middleName)      { _, _ in onChange(draft) }
-        .onChange(of: draft.namePrefix)      { _, _ in onChange(draft) }
         .onChange(of: draft.degrees)         { _, _ in onChange(draft) }
         .onChange(of: draft.titles)          { _, _ in onChange(draft) }
-        .onChange(of: draft.address)         { _, _ in onChange(draft) }
         .onChange(of: draft.email)           { _, _ in onChange(draft) }
         .onChange(of: draft.orcid)           { _, _ in onChange(draft) }
         .onChange(of: draft.affiliations)    { _, _ in onChange(draft) }
