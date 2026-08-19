@@ -311,8 +311,15 @@ private struct OrcidSearchBar: View {
         }
     }
 
+    /// Measured height of the result rows, so the card can size to content.
+    @State private var contentHeight: CGFloat = 44
+
     /// The floating results card (also carries error / no-match states so
-    /// none of them reflow the layout underneath).
+    /// none of them reflow the layout underneath).  An overlay proposes the
+    /// FIELD's height to its children and a ScrollView obeys the proposal —
+    /// which squashed the card to a row and a half.  So the card sizes
+    /// itself: exact measured content height, capped at 40% of the screen
+    /// (the same trick as the "/" reference picker).
     private var dropdown: some View {
         Group {
             if let errorText {
@@ -320,11 +327,13 @@ private struct OrcidSearchBar: View {
                     .font(.caption)
                     .foregroundStyle(.red)
                     .padding(8)
+                    .fixedSize(horizontal: false, vertical: true)
             } else if results.isEmpty {
                 Text("No matches on ORCID.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .padding(8)
+                    .fixedSize(horizontal: false, vertical: true)
             } else {
                 ScrollView {
                     VStack(spacing: 0) {
@@ -335,8 +344,12 @@ private struct OrcidSearchBar: View {
                             }
                         }
                     }
+                    .onGeometryChange(for: CGFloat.self,
+                                      of: { $0.size.height },
+                                      action: { contentHeight = $0 })
                 }
-                .frame(maxHeight: 420)
+                .frame(height: min(contentHeight,
+                                   (NSScreen.main?.visibleFrame.height ?? 800) * 0.4))
             }
         }
         // Wider than the narrow pane on purpose — it floats, so it may
