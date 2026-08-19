@@ -39,8 +39,14 @@ struct Author: Codable, Identifiable, Sendable, Equatable {
     /// printed in exported bylines.
     var namePrefix: String? = nil
 
-    /// Academic degrees ("MD, PhD") — appended to the exported byline.
+    /// Academic degrees ("MD, PhD") — legacy free text, superseded by the
+    /// ordered `titles` tags; still decoded so old files keep their byline.
     var degrees: String? = nil
+
+    /// Free-form title tags ("MD", "PhD", "Professor"), kept in the order
+    /// they were entered (Aug 2026).  Optional for backward-compatible
+    /// decoding; nil = fall back to splitting `degrees`.
+    var titles: [String]? = nil
 
     /// Postal address — required by some journals for the corresponding author.
     var address: String? = nil
@@ -78,11 +84,20 @@ struct Author: Codable, Identifiable, Sendable, Equatable {
             .trimmingCharacters(in: .whitespaces)
     }
 
-    /// Byline for exported documents: full name plus degrees ("Jane Q. Doe,
-    /// MD, PhD").  The honorific prefix is deliberately excluded.
+    /// Title tags in display order: the tag list when present, else the
+    /// legacy `degrees` text split on commas.
+    var effectiveTitles: [String] {
+        if let titles { return titles.filter { !$0.isEmpty } }
+        return (degrees ?? "").split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+    }
+
+    /// Byline for exported documents: full name plus title tags ("Jane Q.
+    /// Doe, MD, PhD").  The honorific prefix is deliberately excluded.
     var exportName: String {
-        let d = (degrees ?? "").trimmingCharacters(in: .whitespaces)
-        return d.isEmpty ? fullName : "\(fullName), \(d)"
+        let t = effectiveTitles
+        return t.isEmpty ? fullName : "\(fullName), \(t.joined(separator: ", "))"
     }
 
     /// "Last, First" — conventional format for reference lists and author lines.

@@ -437,6 +437,25 @@ private struct ExportDocumentCard: View {
                     if item.titleShown {
                         headingStyleControls(item, index: index)
                     }
+                } else {
+                    // Title page: byline mode — names alone or names + the
+                    // authors' title tags ("Jane Doe, MD").
+                    Picker("", selection: Binding(
+                        get: { item.authorTitlesShown },
+                        set: { on in
+                            var doc = document
+                            guard doc.items.indices.contains(index) else { return }
+                            doc.items[index].authorTitlesShown = on
+                            onChange(doc)
+                        }
+                    )) {
+                        Text("Author").tag(false)
+                        Text("Author+Title").tag(true)
+                    }
+                    .pickerStyle(.segmented)
+                    .controlSize(.mini)
+                    .fixedSize()
+                    .help("Byline: author names alone, or names with their titles (MD, PhD…)")
                 }
                 Spacer(minLength: 4)
                 formatColumns(item, index: index)

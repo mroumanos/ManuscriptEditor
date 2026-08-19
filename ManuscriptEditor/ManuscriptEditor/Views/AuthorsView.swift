@@ -25,9 +25,6 @@ struct AuthorsView: View {
     /// show the matching `AuthorEditor` on the right.
     @State private var selectedID: UUID?
 
-    /// ORCID search popover (only one of the two anchor buttons exists at a
-    /// time — populated view vs. empty state — so they share this flag).
-    @State private var showingOrcidSearch = false
 
     /// Authors sorted by their `order` field (ascending = display order).
     private var authors: [Author] {
@@ -45,6 +42,15 @@ struct AuthorsView: View {
             HSplitView {
                 // MARK: Left — authors + institution registry
                 VStack(spacing: 0) {
+                    // ORCID search up top where it's visible (it hid at the
+                    // bottom between the add buttons at first, Aug 2026).
+                    OrcidSearchBar { candidate in
+                        selectedID = store.addAuthor(from: candidate, ref: versionRef)
+                    }
+                    .padding(8)
+
+                    Divider()
+
                     List(selection: $selectedID) {
                         Section("Authors") {
                             ForEach(authors) { author in
@@ -81,21 +87,6 @@ struct AuthorsView: View {
                         .buttonStyle(.borderless)
                         .padding(.vertical, 10)
                         .padding(.leading, 10)
-
-                        Button {
-                            showingOrcidSearch = true
-                        } label: {
-                            Image(systemName: "magnifyingglass")
-                        }
-                        .buttonStyle(.borderless)
-                        .padding(.vertical, 10)
-                        .help("Search ORCID by name or iD and autofill the author")
-                        .popover(isPresented: $showingOrcidSearch, arrowEdge: .top) {
-                            OrcidSearchView { candidate in
-                                showingOrcidSearch = false
-                                selectedID = store.addAuthor(from: candidate, ref: versionRef)
-                            }
-                        }
 
                         Button {
                             store.addInstitution(ref: versionRef)
@@ -156,22 +147,15 @@ struct AuthorsView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 Button {
-                    showingOrcidSearch = true
-                } label: {
-                    Label("Search ORCID", systemImage: "magnifyingglass")
-                }
-                .popover(isPresented: $showingOrcidSearch, arrowEdge: .bottom) {
-                    OrcidSearchView { candidate in
-                        showingOrcidSearch = false
-                        store.addAuthor(from: candidate, ref: versionRef)
-                    }
-                }
-                Button {
                     store.addInstitution(ref: versionRef)
                 } label: {
                     Label("Add Institution", systemImage: "building.columns")
                 }
             }
+            OrcidSearchBar { candidate in
+                store.addAuthor(from: candidate, ref: versionRef)
+            }
+            .frame(width: 320)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -252,41 +236,51 @@ struct AuthorsView: View {
 
 // MARK: - InstitutionEditor
 
-// MARK: - OrcidSearchView
+// MARK: - OrcidSearchBar
 
-/// Popover for "Search ORCID": type a name ("marie curie", "curie, marie")
-/// or a full iD, pick one of the top-20 hits, and the author is added with
-/// names, iD, public email, and primary institution filled in.
-private struct OrcidSearchView: View {
+/// Inline ORCID author search (sits at the top of the Authors pane): type a
+/// name ("marie curie", "curie, marie") or a full iD, and the top-20 hits
+/// drop down live.  Picking one adds the author with names, iD, public
+/// email, and primary institution filled in, then clears the search.
+private struct OrcidSearchBar: View {
     let onPick: (OrcidService.Candidate) -> Void
 
     @State private var query = ""
     @State private var results: [OrcidService.Candidate] = []
     @State private var searching = false
     @State private var errorText: String?
-    @FocusState private var focused: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            TextField("Name or ORCID iD", text: $query)
-                .textFieldStyle(.roundedBorder)
-                .focused($focused)
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 5) {
+                Image(systemName: "magnifyingglass")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                TextField("Search ORCID — name or iD", text: $query)
+                    .textFieldStyle(.plain)
+                if searching {
+                    ProgressView().controlSize(.small)
+                } else if !query.isEmpty {
+                    Button {
+                        query = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.tertiary)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 7)
+            .padding(.vertical, 5)
+            .background(Color(NSColor.textBackgroundColor),
+                        in: RoundedRectangle(cornerRadius: 7))
+            .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(.separator))
+
             if let errorText {
                 Label(errorText, systemImage: "exclamationmark.triangle")
                     .font(.caption)
                     .foregroundStyle(.red)
-            } else if searching {
-                ProgressView()
-                    .controlSize(.small)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
-            } else if results.isEmpty {
-                Text(query.trimmingCharacters(in: .whitespaces).count < 3
-                     ? "First and last name, or a full 0000-… iD."
-                     : "No matches on ORCID.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            } else {
+            } else if !results.isEmpty {
                 ScrollView {
                     VStack(spacing: 0) {
                         ForEach(results) { candidate in
@@ -297,12 +291,17 @@ private struct OrcidSearchView: View {
                         }
                     }
                 }
-                .frame(maxHeight: 300)
+                .frame(maxHeight: 260)
+                .background(Color(NSColor.controlBackgroundColor),
+                            in: RoundedRectangle(cornerRadius: 7))
+                .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(.separator))
+            } else if !searching,
+                      query.trimmingCharacters(in: .whitespaces).count >= 3 {
+                Text("No matches on ORCID.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
-        .padding(12)
-        .frame(width: 380)
-        .onAppear { focused = true }
         // Live search, debounced: each keystroke restarts the task; the
         // sleep absorbs typing bursts before the request goes out.
         .task(id: query) {
@@ -318,32 +317,31 @@ private struct OrcidSearchView: View {
         }
     }
 
+    /// Two-line row sized for the narrow pane: name, then iD · institution.
     private func row(_ candidate: OrcidService.Candidate) -> some View {
         Button {
             onPick(candidate)
+            query = ""
+            results = []
         } label: {
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 8) {
-                    Text(candidate.displayName.isEmpty ? "(no public name)"
-                                                       : candidate.displayName)
-                        .font(.callout)
-                    Spacer()
-                    Text(candidate.orcid)
-                        .font(.caption.monospaced())
-                        .foregroundStyle(.tertiary)
-                }
-                if let institution = candidate.institutionNames.first {
-                    Text(institution)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
+            VStack(alignment: .leading, spacing: 1) {
+                Text(candidate.displayName.isEmpty ? "(no public name)"
+                                                   : candidate.displayName)
+                    .font(.callout)
+                Text([candidate.orcid, candidate.institutionNames.first ?? ""]
+                        .filter { !$0.isEmpty }
+                        .joined(separator: " · "))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .padding(.vertical, 6)
-        .padding(.horizontal, 4)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
     }
 }
 
@@ -422,6 +420,9 @@ struct AuthorEditor: View {
 
     private var selectedInstitutions: Set<UUID> { Set(draft.institutionIDs ?? []) }
 
+    /// Pending text in the "Add title" tag field (committed on ⏎).
+    @State private var newTitle = ""
+
     /// Bridges an optional model field to a TextField; empty text stores nil
     /// so untouched fields stay absent from manuscript.json.
     private func optionalField(_ keyPath: WritableKeyPath<Author, String?>) -> Binding<String> {
@@ -439,7 +440,44 @@ struct AuthorEditor: View {
                     TextField("First name", text: $draft.firstName)
                     TextField("Middle name / initials", text: optionalField(\.middleName))
                     TextField("Last name",  text: $draft.lastName)
-                    TextField("Degrees (MD, PhD)", text: optionalField(\.degrees))
+                    // Free-form title tags, kept in entry order ("MD", "PhD",
+                    // "Professor").  First edit migrates the legacy comma-
+                    // separated `degrees` text into tags via effectiveTitles.
+                    LabeledContent("Titles") {
+                        VStack(alignment: .trailing, spacing: 6) {
+                            if !draft.effectiveTitles.isEmpty {
+                                HStack(spacing: 4) {
+                                    ForEach(Array(draft.effectiveTitles.enumerated()),
+                                            id: \.offset) { index, title in
+                                        HStack(spacing: 3) {
+                                            Text(title).font(.caption)
+                                            Button {
+                                                var tags = draft.effectiveTitles
+                                                tags.remove(at: index)
+                                                draft.titles = tags
+                                            } label: {
+                                                Image(systemName: "xmark")
+                                                    .font(.system(size: 7, weight: .bold))
+                                                    .foregroundStyle(.secondary)
+                                            }
+                                            .buttonStyle(.plain)
+                                        }
+                                        .padding(.horizontal, 7).padding(.vertical, 3)
+                                        .background(Color.accentColor.opacity(0.12),
+                                                    in: Capsule())
+                                    }
+                                }
+                            }
+                            TextField("Add title (MD, PhD, Professor…) ⏎", text: $newTitle)
+                                .multilineTextAlignment(.trailing)
+                                .onSubmit {
+                                    let tag = newTitle.trimmingCharacters(in: .whitespaces)
+                                    guard !tag.isEmpty else { return }
+                                    draft.titles = draft.effectiveTitles + [tag]
+                                    newTitle = ""
+                                }
+                        }
+                    }
                 }
 
                 Section("Contact") {
@@ -502,6 +540,7 @@ struct AuthorEditor: View {
         .onChange(of: draft.middleName)      { _, _ in onChange(draft) }
         .onChange(of: draft.namePrefix)      { _, _ in onChange(draft) }
         .onChange(of: draft.degrees)         { _, _ in onChange(draft) }
+        .onChange(of: draft.titles)          { _, _ in onChange(draft) }
         .onChange(of: draft.address)         { _, _ in onChange(draft) }
         .onChange(of: draft.email)           { _, _ in onChange(draft) }
         .onChange(of: draft.orcid)           { _, _ in onChange(draft) }

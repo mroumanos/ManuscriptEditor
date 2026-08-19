@@ -345,7 +345,8 @@ struct ExportService {
             switch item.kind {
             case .titlePage:
                 out += "\\title{\(tex(displayTitle(m)))}\n"
-                let authors = m.authors.sorted { $0.order < $1.order }.map { tex($0.exportName) }
+                let authors = m.authors.sorted { $0.order < $1.order }
+                    .map { tex(item.authorTitlesShown ? $0.exportName : $0.fullName) }
                 out += "\\author{\(authors.joined(separator: " \\and "))}\n\\date{}\n\\maketitle\n"
             case .abstract:
                 if !m.abstract.isEmpty {
@@ -738,7 +739,10 @@ private struct OutlineBuilder {
             }
             let authors = m.authors.sorted { $0.order < $1.order }
             if !authors.isEmpty {
-                let names = authors.map { $0.exportName + ($0.isCorresponding ? "*" : "") }.joined(separator: ", ")
+                let names = authors.map {
+                    (item.authorTitlesShown ? $0.exportName : $0.fullName)
+                        + ($0.isCorresponding ? "*" : "")
+                }.joined(separator: ", ")
                 doc.append(line(names, font: base, after: 2))
                 var seen = Set<String>()
                 for aff in authors.flatMap({ $0.affiliationNames(in: m) }) where seen.insert(aff).inserted {

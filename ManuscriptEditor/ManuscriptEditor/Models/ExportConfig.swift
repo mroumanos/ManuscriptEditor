@@ -230,6 +230,16 @@ struct ExportItem: Codable, Identifiable, Sendable, Equatable {
 
     var effectiveHeadingStyle: HeadingStyle { headingStyle ?? HeadingStyle() }
 
+    /// Title-page byline mode ("Author | Author+Title" toggle): true prints
+    /// each author's title tags after the name ("Jane Doe, MD, PhD"), false
+    /// prints names alone.  Optional for backward-compatible decoding;
+    /// nil = titles shown (the historical output).
+    var showAuthorTitles: Bool? = nil
+    var authorTitlesShown: Bool {
+        get { showAuthorTitles ?? true }
+        set { showAuthorTitles = newValue }
+    }
+
     /// Per-item typography override (font/size/spacing/line numbers).
     /// nil = inherit the document's format.  Margins and columns are page
     /// geometry and always come from the document.
