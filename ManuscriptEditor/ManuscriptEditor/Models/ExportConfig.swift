@@ -205,8 +205,26 @@ struct ExportItem: Codable, Identifiable, Sendable, Equatable {
         /// Point-size delta over the document body font: 0 (S), 2 (M), 5 (L).
         /// Superseded by `pointSize` when that is set.
         var sizeDelta: Double = 2
-        /// Absolute heading size in points (typed entry); nil = body + delta.
+        /// Absolute heading size in points (legacy typed entry); honored only
+        /// when `level` is nil so pre-level documents keep their look.
         var pointSize: Double? = nil
+        /// Word-style heading level (1–3) — the familiar replacement for the
+        /// typed point size (Aug 2026).  Sizing comes from the document body
+        /// font via `Self.sizeDelta(forLevel:)`.  Optional for
+        /// backward-compatible decoding; nil = pointSize/sizeDelta rules.
+        var level: Int? = nil
+
+        var effectiveLevel: Int { min(max(level ?? 1, 1), 3) }
+
+        /// H1 = body + 4, H2 = body + 2, H3 = body size — mirrors the ratios
+        /// word processors use so exports look like everyone's documents.
+        static func sizeDelta(forLevel level: Int) -> Double {
+            switch level {
+            case 1: return 4
+            case 2: return 2
+            default: return 0
+            }
+        }
     }
     var headingStyle: HeadingStyle? = nil
 

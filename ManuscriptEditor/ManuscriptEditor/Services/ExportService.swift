@@ -846,7 +846,12 @@ private struct OutlineBuilder {
     private func headingBlock(_ raw: String,
                               style: ExportItem.HeadingStyle = .init()) -> NSAttributedString {
         let font: NSFont
-        if let pt = style.pointSize {
+        if style.level != nil {
+            // Word-style level sizing (H1/H2/H3 off the document body font).
+            font = scaled(ExportItem.HeadingStyle.sizeDelta(forLevel: style.effectiveLevel),
+                          bold: style.bold)
+        } else if let pt = style.pointSize {
+            // Legacy typed point size — pre-level documents keep their look.
             var sized = NSFont(descriptor: base.fontDescriptor, size: pt) ?? base
             if style.bold { sized = NSFontManager.shared.convert(sized, toHaveTrait: .boldFontMask) }
             font = sized

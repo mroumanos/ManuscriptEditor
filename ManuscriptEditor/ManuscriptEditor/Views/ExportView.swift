@@ -498,20 +498,20 @@ private struct ExportDocumentCard: View {
             toggle("bold", style.bold, "Bold heading") { $0.bold.toggle() }
             toggle("underline", style.underline, "Underlined heading") { $0.underline.toggle() }
             toggle("text.aligncenter", style.centered, "Centered heading") { $0.centered.toggle() }
-            // Compact font-panel-style size: whole points, arrows to nudge.
-            let sizeBinding = Binding(
-                get: { Int((style.pointSize ?? (document.format.fontSize + style.sizeDelta)).rounded()) },
-                set: { newValue in mutate { $0.pointSize = Double(min(max(newValue, 6), 99)) } }
-            )
-            TextField("", value: sizeBinding, format: .number)
-                .textFieldStyle(.roundedBorder)
-                .controlSize(.mini)
-                .multilineTextAlignment(.trailing)
-                .frame(width: 28)
-            Stepper("", value: sizeBinding, in: 6...99)
-                .labelsHidden()
-                .controlSize(.mini)
-                .help("Heading size")
+            // Word-style level instead of a typed point size: click cycles
+            // H1 → H2 → H3; the level sets the size off the document font.
+            Button {
+                mutate {
+                    $0.level = $0.effectiveLevel % 3 + 1
+                    $0.pointSize = nil   // level now governs the size
+                }
+            } label: {
+                Text("H\(style.effectiveLevel)")
+                    .font(.caption.weight(.semibold).monospacedDigit())
+                    .foregroundStyle(Color.accentColor)
+            }
+            .buttonStyle(.plain)
+            .help("Heading level — click to cycle H1 → H2 → H3")
         }
     }
 

@@ -436,7 +436,11 @@ just a rendered blob.
   Document"). Click the **item name to rename its exported heading**
   (export-level `customTitle`; empty reverts). Each row's **"H" toggle
   shows/hides the printed heading** (`ExportItem.showTitle`; content always
-  exports — only the title toggles). Default: every kind prints its heading
+  exports — only the title toggles), and a shown heading carries inline
+  **bold / underline / center toggles plus a Word-style level button** that
+  cycles **H1 → H2 → H3** on click (`HeadingStyle.level`; H1 = body + 4 pt,
+  H2 = body + 2, H3 = body size — Aug 2026, replacing the typed point size,
+  which legacy documents without a level still honor). Default: every kind prints its heading
   **except the cover letter**, which exports as a real letter with no
   "Cover Letter" label (Jul 2026 beta feedback). Margins/columns remain
   document-level (page geometry). PDF line numbering follows the per-item
