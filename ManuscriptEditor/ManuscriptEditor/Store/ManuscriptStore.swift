@@ -808,6 +808,16 @@ final class ManuscriptStore {
         touch { $0.journals[idx] = journal }
     }
 
+    /// Ticks/unticks one manual checklist rule for a journal (Checks pane).
+    func toggleManualCheck(journalID: UUID, rule: String) {
+        touch(undoAction: "Check Item") { m in
+            guard let idx = m.journals.firstIndex(where: { $0.id == journalID }) else { return }
+            var done = m.journals[idx].manualChecksDone ?? []
+            if let i = done.firstIndex(of: rule) { done.remove(at: i) } else { done.append(rule) }
+            m.journals[idx].manualChecksDone = done
+        }
+    }
+
     func deleteJournals(at offsets: IndexSet) {
         touch(undoAction: "Delete Journal") { $0.journals.remove(atOffsets: offsets) }
     }

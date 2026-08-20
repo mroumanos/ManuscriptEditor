@@ -104,9 +104,22 @@ final class AppStore {
         journalLibrary.removeAll {
             $0.articleType == nil && typedNames.contains($0.name.lowercased())
         }
+        // Upgrade: entries that predate the typed technical checks (Aug
+        // 2026) adopt their preset's requirements once — detected by the
+        // preset having requiredSectionTitles the entry lacks entirely.
+        var upgraded = false
+        for i in journalLibrary.indices {
+            if let preset = JournalPresets.all.first(where: {
+                key($0.name, $0.articleType) == key(journalLibrary[i].name, journalLibrary[i].articleType)
+            }), preset.requirements.requiredSectionTitles != nil,
+               journalLibrary[i].requirements.requiredSectionTitles == nil {
+                journalLibrary[i].requirements = preset.requirements
+                upgraded = true
+            }
+        }
         let existing = Set(journalLibrary.map { key($0.name, $0.articleType) })
         let missing = JournalPresets.all.filter { !existing.contains(key($0.name, $0.articleType)) }
-        if !missing.isEmpty || journalLibrary.count != before {
+        if !missing.isEmpty || journalLibrary.count != before || upgraded {
             journalLibrary += missing.map { preset in
                 var journal = Journal(
                     id: UUID(), name: preset.name, publisher: preset.publisher,

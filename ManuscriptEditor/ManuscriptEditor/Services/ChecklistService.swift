@@ -7,8 +7,10 @@
 // The checklist tab in JournalDetailView calls this every time the view renders,
 // so the results update in real time as the user writes.
 //
-// Rules that cannot be checked automatically (e.g. "Cover letter required") are
-// always marked failed with a "Requires manual verification" note.
+// Rules split into TECHNICAL (verified against the manuscript and the
+// journal's export configuration automatically) and MANUAL (free-text
+// `customRules` the app cannot verify — rendered as checkboxes the user
+// ticks after verifying by hand; ticks persist in `Journal.manualChecksDone`).
 
 import Foundation
 
@@ -26,10 +28,18 @@ enum ChecklistService {
     ///   5. Custom / manual rules
     ///
     /// - Parameters:
-    ///   - manuscript: The current source manuscript to evaluate.
-    ///   - requirements: The target journal's rules.
-    /// - Returns: An array of results in display order.
-    static func run(manuscript: Manuscript, requirements: JournalRequirements) -> [ChecklistResult] {
+    ///   - manuscript: The current version's content to evaluate.
+    ///   - journal: The target journal — requirements, export config (for
+    ///     the spacing/font/line-number checks), and manual-check ticks.
+    /// - Returns: An array of results in display order (technical first).
+    static func run(manuscript: Manuscript, journal: Journal) -> [ChecklistResult] {
+        let requirements = journal.requirements
+        let manualDone = Set(journal.manualChecksDone ?? [])
+        // The export document the journal actually renders (first document
+        // of its outline; the standard outline when not customized yet).
+        let exportFormat = (journal.exportConfig
+            ?? ExportConfig.standard(content: manuscript, journal: journal))
+            .documents.first?.format ?? ExportDocumentFormat()
         var results: [ChecklistResult] = []
 
         // --- Word count limits ---
@@ -69,6 +79,25 @@ enum ChecklistService {
                 id: UUID(), rule: "Tables ≤ \(limit)",
                 passed: n <= limit,
                 details: "\(n) of \(limit) tables"
+            ))
+        }
+
+        if let limit = requirements.maxFiguresPlusTables {
+            let n = manuscript.figures.count + manuscript.tables.count
+            results.append(ChecklistResult(
+                id: UUID(), rule: "Tables + figures ≤ \(limit) combined",
+                passed: n <= limit,
+                details: "\(manuscript.tables.count) table\(manuscript.tables.count == 1 ? "" : "s") + \(manuscript.figures.count) figure\(manuscript.figures.count == 1 ? "" : "s") = \(n) of \(limit)"
+            ))
+        }
+
+        if let limit = requirements.maxCoverLetterWords {
+            let wc = manuscript.letterToEditor.body.plain
+                .split(whereSeparator: \.isWhitespace).count
+            results.append(ChecklistResult(
+                id: UUID(), rule: "Cover letter ≤ \(limit) words",
+                passed: wc <= limit,
+                details: wc == 0 ? "No cover letter written yet" : "\(wc) of \(limit) words"
             ))
         }
 
@@ -114,15 +143,73 @@ enum ChecklistService {
             ))
         }
 
-        // --- Custom / manual rules ---
+        // Sections required by title (case-insensitive), e.g. AJPH's
+        // "Public Health Implications" — active + non-empty, so it also
+        // reaches the export.
+        for title in requirements.requiredSectionTitles ?? [] {
+            let exists = manuscript.sections.contains {
+                $0.active && !$0.content.isEmpty
+                    && $0.title.localizedCaseInsensitiveContains(title)
+            }
+            results.append(ChecklistResult(
+                id: UUID(), rule: "\"\(title)\" section present",
+                passed: exists,
+                details: exists ? "Found with content" : "No active section titled \(title)"
+            ))
+        }
 
-        // These cannot be checked programmatically.  We always mark them failed so
-        // the user is reminded to verify them before submission.
+        // Structured-abstract headings must appear in the abstract text.
+        if let headings = requirements.requiredAbstractHeadings, !headings.isEmpty {
+            let text = manuscript.abstract.plain
+            let missing = headings.filter { !text.localizedCaseInsensitiveContains($0) }
+            results.append(ChecklistResult(
+                id: UUID(), rule: "Structured abstract headings: \(headings.joined(separator: ", "))",
+                passed: missing.isEmpty,
+                details: missing.isEmpty ? "All headings present"
+                                         : "Missing: \(missing.joined(separator: ", "))"
+            ))
+        }
+
+        // --- Export configuration ---
+
+        if let spacing = requirements.requiredLineSpacing {
+            let passed = exportFormat.lineSpacing >= spacing - 0.01
+            results.append(ChecklistResult(
+                id: UUID(), rule: "Export spacing ≥ \(spacing == 1.5 ? "1.5×" : String(format: "%g×", spacing))",
+                passed: passed,
+                details: "Export document is \(String(format: "%g", exportFormat.lineSpacing))× spaced"
+            ))
+        }
+
+        if let size = requirements.requiredFontSize {
+            let passed = abs(exportFormat.fontSize - size) < 0.01
+            results.append(ChecklistResult(
+                id: UUID(), rule: "Export font size \(String(format: "%g", size)) pt",
+                passed: passed,
+                details: "Export document is \(String(format: "%g", exportFormat.fontSize)) pt"
+            ))
+        }
+
+        if requirements.requiresLineNumbers == true {
+            results.append(ChecklistResult(
+                id: UUID(), rule: "Continuous line numbers in the export",
+                passed: exportFormat.lineNumbers,
+                details: exportFormat.lineNumbers ? "Line numbers on"
+                                                  : "Turn on Lines in the Export pane"
+            ))
+        }
+
+        // --- Manual rules ---
+
+        // The app cannot verify these; each renders as a checkbox and its
+        // tick persists on the journal (matched by rule text).
         for rule in requirements.customRules where !rule.isEmpty {
+            let done = manualDone.contains(rule)
             results.append(ChecklistResult(
                 id: UUID(), rule: rule,
-                passed: false,
-                details: "Requires manual verification"
+                passed: done,
+                details: done ? "Marked done" : "Tick once verified by hand",
+                manual: true
             ))
         }
 

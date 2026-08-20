@@ -241,9 +241,18 @@ propagate by explicit, individual fast-forwards.
   Article" (3500 words / 180-word structured abstract / 4 tables+figures
   combined / 35 refs) and AJPH "Research Brief" (1200 words / 1 table OR
   figure / 12 refs), each with a checklist distilled from the published
-  author instructions (blinded title page, ≤150-word cover letter, AMA
-  style, page+line numbering, stats rules, …) in
-  `JournalPresets.ajphSharedRules`. Display everywhere uses
+  author instructions. **Checks split technical from manual** (Aug 2026):
+  measurable rules live in typed `JournalRequirements` fields checked
+  automatically — cover-letter word cap, combined tables+figures cap,
+  required section *titles* ("Public Health Implications": active +
+  non-empty), structured-abstract headings present in the text, export
+  spacing ≥ / font size = / line numbers on (read from the journal's
+  export config) — while `customRules` render as **manual checkboxes**
+  (neutral until ticked; ticks persist per journal in
+  `Journal.manualChecksDone`; `ChecklistResult.manual`). Compound rules
+  are split so each half lands on its side (cover letter ≤150 words =
+  technical; "addresses what the paper adds…" = manual, in
+  `JournalPresets.ajphSharedRules`). Display everywhere uses
   `displayName` ("Name — Type"); library seeding/dedupe keys on
   name+type and retires stale untyped entries when typed ones ship.
   Syncing shows a

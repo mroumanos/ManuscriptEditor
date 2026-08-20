@@ -59,6 +59,10 @@ struct Journal: Codable, Identifiable, Sendable {
         articleType.map { "\(name) — \($0)" } ?? name
     }
 
+    /// Manual checklist rules the user has ticked off for this journal
+    /// (matched by rule text).  Optional for backward-compatible decoding.
+    var manualChecksDone: [String]? = nil
+
     /// This journal's export outline (documents, ordering, page breaks,
     /// format, file types).  `nil` means "not customized yet" — the Export
     /// pane shows `ExportConfig.standard` until the user edits it.
@@ -119,6 +123,33 @@ struct JournalRequirements: Codable, Sendable {
     /// Free-text rules that cannot be checked automatically and require manual review
     /// (e.g. "Cover letter required", "Ethics statement in Methods").
     var customRules: [String] = []
+
+    // MARK: Technical checks (Aug 2026 — all optional so old files decode)
+
+    /// Cover-letter word cap, checked against the letter body's text.
+    var maxCoverLetterWords: Int? = nil
+
+    /// Combined tables + figures cap — some journals cap the SUM (AJPH: 4
+    /// combined), not each kind separately.
+    var maxFiguresPlusTables: Int? = nil
+
+    /// Sections required by TITLE, beyond the typed `requiredSections` —
+    /// e.g. AJPH's "Public Health Implications".  Checked case-insensitively
+    /// against active, non-empty sections.
+    var requiredSectionTitles: [String]? = nil
+
+    /// Headings the abstract text must contain ("Objectives", "Methods"…)
+    /// for journals mandating structured abstracts.
+    var requiredAbstractHeadings: [String]? = nil
+
+    /// Minimum export line spacing (1.5 accepts 1.5× or double).
+    var requiredLineSpacing: Double? = nil
+
+    /// Exact export font size in points (12 = "font size of 12").
+    var requiredFontSize: Double? = nil
+
+    /// The export must have continuous line numbers enabled.
+    var requiresLineNumbers: Bool? = nil
 }
 
 // MARK: - Supporting enumerations
@@ -159,4 +190,9 @@ struct ChecklistResult: Codable, Identifiable, Sendable {
 
     /// A short explanation of the result (e.g. "2847 of 3000 words used").
     var details: String
+
+    /// True for rules the app cannot verify — rendered as a checkbox the
+    /// user ticks after verifying by hand (`passed` = ticked, persisted in
+    /// `Journal.manualChecksDone`).  False = checked automatically.
+    var manual: Bool = false
 }

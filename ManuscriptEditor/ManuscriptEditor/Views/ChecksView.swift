@@ -86,11 +86,23 @@ struct ChecksView: View {
     @ViewBuilder
     private func checklist(_ journal: Journal) -> some View {
         if let manuscript = store.manuscript(for: versionRef) {
-            let results = ChecklistService.run(manuscript: manuscript,
-                                               requirements: journal.requirements)
+            let results = ChecklistService.run(manuscript: manuscript, journal: journal)
+            let technical = results.filter { !$0.manual }
+            let manualRules = results.filter(\.manual)
             summaryBanner(results)
-            ForEach(results) { result in
-                ChecklistRow(result: result)
+            if !technical.isEmpty {
+                sectionHeader("Technical", note: "checked automatically against the manuscript and export")
+                ForEach(technical) { result in
+                    ChecklistRow(result: result)
+                }
+            }
+            if !manualRules.isEmpty {
+                sectionHeader("Manual", note: "tick each box once you've verified it yourself")
+                ForEach(manualRules) { result in
+                    ChecklistRow(result: result) {
+                        store.toggleManualCheck(journalID: journal.id, rule: result.rule)
+                    }
+                }
             }
             if results.isEmpty {
                 Text("This journal has no requirements configured yet — use Edit Requirements… above to add limits and rules.")
@@ -98,6 +110,18 @@ struct ChecksView: View {
                     .foregroundStyle(.secondary)
             }
         }
+    }
+
+    private func sectionHeader(_ title: String, note: String) -> some View {
+        HStack(spacing: 8) {
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.secondary)
+            Text(note)
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+        }
+        .padding(.top, 8)
     }
 
     private func summaryBanner(_ results: [ChecklistResult]) -> some View {
@@ -152,12 +176,22 @@ struct ChecksView: View {
 /// One requirement check with a green ✓ / red ✗ verdict.
 struct ChecklistRow: View {
     let result: ChecklistResult
+    /// Set for manual rules: the row renders as a checkbox (neutral until
+    /// ticked — an unverified item is a to-do, not a failure) and clicking
+    /// anywhere on it toggles.
+    var onToggle: (() -> Void)? = nil
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            Image(systemName: result.passed ? "checkmark.circle.fill" : "xmark.circle.fill")
-                .foregroundStyle(result.passed ? .green : .red)
-                .padding(.top, 1)
+            if onToggle != nil {
+                Image(systemName: result.passed ? "checkmark.square.fill" : "square")
+                    .foregroundStyle(result.passed ? Color.green : Color.secondary)
+                    .padding(.top, 1)
+            } else {
+                Image(systemName: result.passed ? "checkmark.circle.fill" : "xmark.circle.fill")
+                    .foregroundStyle(result.passed ? .green : .red)
+                    .padding(.top, 1)
+            }
             VStack(alignment: .leading, spacing: 2) {
                 Text(result.rule).fontWeight(.medium)
                 Text(result.details).font(.caption).foregroundStyle(.secondary)
@@ -167,6 +201,8 @@ struct ChecklistRow: View {
         .padding(.horizontal, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.background.secondary, in: RoundedRectangle(cornerRadius: 8))
+        .contentShape(Rectangle())
+        .onTapGesture { onToggle?() }
     }
 }
 

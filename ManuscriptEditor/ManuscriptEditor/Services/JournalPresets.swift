@@ -323,16 +323,19 @@ enum JournalPresets {
         requirements: JournalRequirements(
             maxBodyWords: 3500,
             maxAbstractWords: 180,
-            maxFigures: 4,
-            maxTables: 4,
             maxReferences: 35,
             requiresSeparateFigures: true,
             allowedExportFormats: [.docx],
             citationStyle: .ama,
             requiredSections: [.introduction, .methods, .results, .discussion],
-            customRules: ajphSharedRules + [
-                "No more than 4 tables + figures COMBINED (the 4/4 caps above are not additive)",
-            ]
+            customRules: ajphSharedRules,
+            maxCoverLetterWords: 150,
+            maxFiguresPlusTables: 4,
+            requiredSectionTitles: ["Public Health Implications"],
+            requiredAbstractHeadings: ["Objectives", "Methods", "Results", "Conclusions"],
+            requiredLineSpacing: 1.5,
+            requiredFontSize: 12,
+            requiresLineNumbers: true
         )
     )
 
@@ -346,30 +349,35 @@ enum JournalPresets {
         requirements: JournalRequirements(
             maxBodyWords: 1200,
             maxAbstractWords: 180,
-            maxFigures: 1,
-            maxTables: 1,
             maxReferences: 12,
             requiresSeparateFigures: true,
             allowedExportFormats: [.docx],
             citationStyle: .ama,
             requiredSections: [.introduction, .methods, .results, .discussion],
             customRules: ajphSharedRules + [
-                "1 table OR 1 figure total (not one of each)",
                 "Same rigor as a Research Article — narrower scope, key findings only",
-            ]
+            ],
+            maxCoverLetterWords: 150,
+            // 1 table OR 1 figure total — the combined cap enforces it.
+            maxFiguresPlusTables: 1,
+            requiredSectionTitles: ["Public Health Implications"],
+            requiredAbstractHeadings: ["Objectives", "Methods", "Results", "Conclusions"],
+            requiredLineSpacing: 1.5,
+            requiredFontSize: 12,
+            requiresLineNumbers: true
         )
     )
 
-    /// Checklist items common to every AJPH research format, from the
-    /// components and editorial-policies author-instruction pages.
+    /// MANUAL checklist items common to every AJPH research format, from
+    /// the components and editorial-policies author-instruction pages.
+    /// Everything measurable moved to the typed technical fields (cover
+    /// letter/combined-asset caps, required section titles, abstract
+    /// headings, export spacing/font/line numbers) — only what genuinely
+    /// needs a human eye stays here.
     private static let ajphSharedRules: [String] = [
         "Blinded title page: manuscript title only, no author names",
-        "Cover letter ≤150 words: what the paper adds, its public health importance, and a one-sentence main message",
-        "Structured abstract ≤180 words INCLUDING headings: Objectives, Methods, Results, Conclusions (+ optional Policy Implications)",
-        "Public Health Implications section after Discussion",
-        "Text 1.5 or double spaced, 12-point font",
-        "Pages AND lines numbered continuously (Word: Page Setup → Line Numbers → Continuous)",
-        "References in AMA Manual of Style format",
+        "Cover letter addresses: what the paper adds, its public health importance, and a one-sentence main message",
+        "References formatted per the AMA Manual of Style",
         "Figures: a single readable panel (2 panels only for direct comparison; more count as extra figures)",
         "Tables self-contained (content, place, time); no combined tables to dodge count limits",
         "Images ≥300 dpi print resolution",
