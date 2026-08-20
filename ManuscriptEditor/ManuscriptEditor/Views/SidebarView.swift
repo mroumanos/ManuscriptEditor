@@ -141,12 +141,30 @@ struct SidebarView: View {
     @ViewBuilder
     private var journalSection: some View {
         Section("Journal") {
-            Label("Checks", systemImage: "checklist")
-                .tag(SidebarItem.checks)
-            Label("Export", systemImage: "square.and.arrow.up")
-                .tag(SidebarItem.export)
-            Label("Versions (\(versionCount))", systemImage: "arrow.triangle.branch")
-                .tag(SidebarItem.versions)
+            row(SidebarItem.checks, "Checks", "checklist")
+            row(SidebarItem.export, "Export", "square.and.arrow.up")
+            row(SidebarItem.versions, "Versions (\(versionCount))", "arrow.triangle.branch")
+        }
+    }
+
+    /// A sidebar row: label plus the trailing comment bubble (only once the
+    /// item has comments — the pane header's bubble adds the first one).
+    private func row(_ item: SidebarItem, _ title: String, _ icon: String) -> some View {
+        HStack {
+            Label(title, systemImage: icon)
+            Spacer()
+            notesBadge(item)
+        }
+        .tag(item)
+    }
+
+    /// Blue comment bubble opening the notes popover, shown only when the
+    /// item has comments in the active version.
+    @ViewBuilder
+    private func notesBadge(_ item: SidebarItem) -> some View {
+        if store.noteCount(versionKey: activeRef.id, itemKey: item.notesKey) > 0 {
+            NotesButton(versionKey: activeRef.id, itemKey: item.notesKey,
+                        idleColor: .blue)
         }
     }
 
@@ -173,14 +191,10 @@ struct SidebarView: View {
     @ViewBuilder
     private var contentSection: some View {
         Section("Content") {
-            Label("Title", systemImage: "textformat")
-                .tag(SidebarItem.title)
-            Label("Authors (\(active?.authors.count ?? 0))", systemImage: "person.2")
-                .tag(SidebarItem.authors)
-            Label("Abstract", systemImage: "text.quote")
-                .tag(SidebarItem.abstract)
-            Label("Keywords (\(active?.keywords.count ?? 0))", systemImage: "tag")
-                .tag(SidebarItem.keywords)
+            row(SidebarItem.title, "Title", "textformat")
+            row(SidebarItem.authors, "Authors (\(active?.authors.count ?? 0))", "person.2")
+            row(SidebarItem.abstract, "Abstract", "text.quote")
+            row(SidebarItem.keywords, "Keywords (\(active?.keywords.count ?? 0))", "tag")
             bodySection
 
             ForEach(fixedPanes, id: \.key) { pane in
@@ -216,7 +230,11 @@ struct SidebarView: View {
         let display = custom.map { name in
             pane.name.contains("(") ? "\(name) (\(pane.name.split(separator: "(").last?.dropLast() ?? ""))" : name
         } ?? pane.name
-        return Label(display, systemImage: pane.icon)
+        return HStack {
+            Label(display, systemImage: pane.icon)
+            Spacer()
+            notesBadge(pane.item)
+        }
             .tag(pane.item)
             .contextMenu {
                 Button("Rename…") {
@@ -269,11 +287,7 @@ struct SidebarView: View {
         HStack {
             Label(section.title, systemImage: section.type.systemImage)
             Spacer()
-            // The full comments affordance, right on the row: blue bubble
-            // (count when notes exist) that opens the notes popover.
-            NotesButton(versionKey: activeRef.id,
-                        itemKey: SidebarItem.section(section.id).notesKey,
-                        idleColor: .blue)
+            notesBadge(.section(section.id))
         }
         .tag(SidebarItem.section(section.id))
         // Reliable delete affordances (macOS swipe can be non-obvious).
