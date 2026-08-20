@@ -335,7 +335,11 @@ enum JournalPresets {
             requiredAbstractHeadings: ["Objectives", "Methods", "Results", "Conclusions"],
             requiredLineSpacing: 1.5,
             requiredFontSize: 12,
-            requiresLineNumbers: true
+            requiresLineNumbers: true,
+            requiresCompleteReferences: true,
+            minFigureImageDPI: 300,
+            checksAcronymsDefined: true,
+            checksStatsNotation: true
         )
     )
 
@@ -364,25 +368,28 @@ enum JournalPresets {
             requiredAbstractHeadings: ["Objectives", "Methods", "Results", "Conclusions"],
             requiredLineSpacing: 1.5,
             requiredFontSize: 12,
-            requiresLineNumbers: true
+            requiresLineNumbers: true,
+            requiresCompleteReferences: true,
+            minFigureImageDPI: 300,
+            checksAcronymsDefined: true,
+            checksStatsNotation: true
         )
     )
 
     /// MANUAL checklist items common to every AJPH research format, from
     /// the components and editorial-policies author-instruction pages.
-    /// Everything measurable moved to the typed technical fields (cover
-    /// letter/combined-asset caps, required section titles, abstract
-    /// headings, export spacing/font/line numbers) — only what genuinely
-    /// needs a human eye stays here.
+    /// Everything a heuristic checker can measure moved to the typed
+    /// technical fields (word/asset caps, section titles, abstract
+    /// headings, export spacing/font/line numbers, reference completeness,
+    /// image DPI, acronym definitions, P-value notation) — only judgment
+    /// calls stay here.
     private static let ajphSharedRules: [String] = [
         "Blinded title page: manuscript title only, no author names",
         "Cover letter addresses: what the paper adds, its public health importance, and a one-sentence main message",
         "References formatted per the AMA Manual of Style",
         "Figures: a single readable panel (2 panels only for direct comparison; more count as extra figures)",
         "Tables self-contained (content, place, time); no combined tables to dodge count limits",
-        "Images ≥300 dpi print resolution",
-        "Avoid abbreviations/acronyms; define any unavoidable ones at first use",
-        "Statistics: exponentiated estimates (OR/IRR) with 95% CIs; P values to 2 decimals, never \"NS\"; two-sided tests",
+        "Statistics: exponentiated estimates (OR/IRR) with 95% CIs; two-sided tests",
         "CONSORT (trials) / TREND (non-randomized) / PRISMA (reviews) reporting compliance where applicable",
         "Supplemental files blinded and submitted with the paper",
     ]

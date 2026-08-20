@@ -13,6 +13,7 @@
 // ticks after verifying by hand; ticks persist in `Journal.manualChecksDone`).
 
 import Foundation
+import ImageIO
 
 /// A stateless service that runs a manuscript against a set of journal requirements
 /// and returns a list of pass/fail checklist items.
@@ -32,7 +33,8 @@ enum ChecklistService {
     ///   - journal: The target journal — requirements, export config (for
     ///     the spacing/font/line-number checks), and manual-check ticks.
     /// - Returns: An array of results in display order (technical first).
-    static func run(manuscript: Manuscript, journal: Journal) -> [ChecklistResult] {
+    static func run(manuscript: Manuscript, journal: Journal,
+                    figureURL: ((Figure) -> URL?)? = nil) -> [ChecklistResult] {
         let requirements = journal.requirements
         let manualDone = Set(journal.manualChecksDone ?? [])
         // The export document the journal actually renders (first document
@@ -199,6 +201,82 @@ enum ChecklistService {
             ))
         }
 
+        // --- Content heuristics ---
+
+        if requirements.requiresCompleteReferences == true, !manuscript.bibliography.isEmpty {
+            let incomplete = manuscript.bibliography.filter { e in
+                e.authors.allSatisfy(\.isEmpty) || e.title.isEmpty || e.year == nil
+                    || (e.journal ?? e.publisher ?? e.booktitle ?? e.url ?? "").isEmpty
+            }
+            let names = incomplete.prefix(3)
+                .map { $0.key.isEmpty ? ($0.title.isEmpty ? "(untitled)" : $0.title) : $0.key }
+            results.append(ChecklistResult(
+                id: UUID(), rule: "References complete (authors, title, year, venue)",
+                passed: incomplete.isEmpty,
+                details: incomplete.isEmpty
+                    ? "All \(manuscript.bibliography.count) references carry the fields citation styles need"
+                    : "\(incomplete.count) incomplete: \(names.joined(separator: ", "))\(incomplete.count > 3 ? ", …" : "")"
+            ))
+        }
+
+        if let minDPI = requirements.minFigureImageDPI, let figureURL {
+            let images = manuscript.figures.filter { $0.dataAssetID == nil }
+            if !images.isEmpty {
+                var low: [String] = []
+                for figure in images {
+                    guard let url = figureURL(figure), let dpi = imageDPI(at: url) else { continue }
+                    if dpi < minDPI - 0.5 {
+                        let label = figure.title.isEmpty ? "Figure \(figure.number)" : figure.title
+                        low.append("\(label) (~\(Int(dpi)) dpi)")
+                    }
+                }
+                results.append(ChecklistResult(
+                    id: UUID(), rule: "Figure images ≥ \(Int(minDPI)) dpi",
+                    passed: low.isEmpty,
+                    details: low.isEmpty ? "\(images.count) image figure\(images.count == 1 ? "" : "s") at print resolution"
+                                         : "Low resolution: \(low.joined(separator: ", "))"
+                ))
+            }
+        }
+
+        // Full prose the text heuristics scan: active sections + abstract.
+        let bodyText = (manuscript.sections.filter(\.active).map { $0.content.plain }
+                        + [manuscript.abstract.plain]).joined(separator: "\n")
+
+        if requirements.checksAcronymsDefined == true {
+            // ALL-CAPS tokens are acronyms; "defined" = the token appears in
+            // parentheses at least once ("confidence interval (CI)").
+            // Universally understood ones don't need defining.
+            let allowed: Set<String> = ["USA", "US", "UK", "EU", "UN", "WHO", "CDC", "NIH",
+                                        "HIV", "AIDS", "COVID", "DNA", "RNA", "CI", "OR",
+                                        "RR", "IRR", "HR", "SD", "SE", "IQR", "ANOVA"]
+            let tokens = Set(bodyText.matches(of: /\b[A-Z]{2,6}\b/).map { String($0.output) })
+                .subtracting(allowed)
+            let undefined = tokens.filter { !bodyText.contains("(\($0)") }.sorted()
+            results.append(ChecklistResult(
+                id: UUID(), rule: "Acronyms defined at first use (heuristic)",
+                passed: undefined.isEmpty,
+                details: undefined.isEmpty
+                    ? "No undefined acronyms found"
+                    : "Never defined in parentheses: \(undefined.prefix(6).joined(separator: ", "))\(undefined.count > 6 ? ", …" : "")"
+            ))
+        }
+
+        if requirements.checksStatsNotation == true {
+            var issues: [String] = []
+            if bodyText.contains(/\bNS\b/) {
+                issues.append("\"NS\" used — print the actual P value")
+            }
+            if !bodyText.matches(of: /[Pp]\s*[<=>≤≥]\s*0?\.\d{3,}/).isEmpty {
+                issues.append("P value with more than 2 decimals")
+            }
+            results.append(ChecklistResult(
+                id: UUID(), rule: "P-value notation: ≤ 2 decimals, never \"NS\"",
+                passed: issues.isEmpty,
+                details: issues.isEmpty ? "No notation issues found" : issues.joined(separator: "; ")
+            ))
+        }
+
         // --- Manual rules ---
 
         // The app cannot verify these; each renders as a checkbox and its
@@ -214,5 +292,16 @@ enum ChecklistService {
         }
 
         return results
+    }
+
+    /// Effective print DPI of an image file: its DPI metadata when present,
+    /// else a pixel-based estimate assuming a 6.5-inch print width.
+    private static func imageDPI(at url: URL) -> Double? {
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+              let props = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
+        else { return nil }
+        if let dpi = props[kCGImagePropertyDPIWidth] as? Double, dpi > 0 { return dpi }
+        if let width = props[kCGImagePropertyPixelWidth] as? Double, width > 0 { return width / 6.5 }
+        return nil
     }
 }

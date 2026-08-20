@@ -106,13 +106,13 @@ final class AppStore {
         }
         // Upgrade: entries that predate the typed technical checks (Aug
         // 2026) adopt their preset's requirements once — detected by the
-        // preset having requiredSectionTitles the entry lacks entirely.
+        // preset having the NEWEST typed field while the entry lacks it.
         var upgraded = false
         for i in journalLibrary.indices {
             if let preset = JournalPresets.all.first(where: {
                 key($0.name, $0.articleType) == key(journalLibrary[i].name, journalLibrary[i].articleType)
-            }), preset.requirements.requiredSectionTitles != nil,
-               journalLibrary[i].requirements.requiredSectionTitles == nil {
+            }), preset.requirements.checksAcronymsDefined != nil,
+               journalLibrary[i].requirements.checksAcronymsDefined == nil {
                 journalLibrary[i].requirements = preset.requirements
                 upgraded = true
             }

@@ -150,6 +150,21 @@ struct JournalRequirements: Codable, Sendable {
 
     /// The export must have continuous line numbers enabled.
     var requiresLineNumbers: Bool? = nil
+
+    /// Every reference must carry authors, title, year, and a venue
+    /// (journal/publisher/book/URL) — the fields any citation style needs.
+    var requiresCompleteReferences: Bool? = nil
+
+    /// Minimum print resolution for image figures (300 = "300 dpi"),
+    /// read from image metadata (pixel-based estimate when absent).
+    var minFigureImageDPI: Double? = nil
+
+    /// Heuristic: every ALL-CAPS acronym in the text should be defined —
+    /// appear at least once in parentheses after its spelled-out form.
+    var checksAcronymsDefined: Bool? = nil
+
+    /// Heuristic: P values to ≤2 decimals and never the "NS" shorthand.
+    var checksStatsNotation: Bool? = nil
 }
 
 // MARK: - Supporting enumerations

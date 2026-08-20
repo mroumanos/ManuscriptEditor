@@ -86,7 +86,8 @@ struct ChecksView: View {
     @ViewBuilder
     private func checklist(_ journal: Journal) -> some View {
         if let manuscript = store.manuscript(for: versionRef) {
-            let results = ChecklistService.run(manuscript: manuscript, journal: journal)
+            let results = ChecklistService.run(manuscript: manuscript, journal: journal,
+                                               figureURL: { store.figureURL(for: $0) })
             let technical = results.filter { !$0.manual }
             let manualRules = results.filter(\.manual)
             summaryBanner(results)

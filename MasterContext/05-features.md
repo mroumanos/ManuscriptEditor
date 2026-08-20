@@ -247,7 +247,10 @@ propagate by explicit, individual fast-forwards.
   required section *titles* ("Public Health Implications": active +
   non-empty), structured-abstract headings present in the text, export
   spacing ≥ / font size = / line numbers on (read from the journal's
-  export config) — while `customRules` render as **manual checkboxes**
+  export config), reference completeness (authors/title/year/venue),
+  image-figure DPI (metadata, else a pixel estimate at 6.5-inch width),
+  undefined-acronym and P-value-notation heuristics — while `customRules`
+  render as **manual checkboxes**
   (neutral until ticked; ticks persist per journal in
   `Journal.manualChecksDone`; `ChecklistResult.manual`). Compound rules
   are split so each half lands on its side (cover letter ≤150 words =
