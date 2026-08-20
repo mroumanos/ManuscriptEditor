@@ -28,6 +28,7 @@ struct ExportConfig: Codable, Sendable, Equatable {
 
         var items: [ExportItem] = [
             ExportItem(kind: .titlePage),
+            ExportItem(kind: .authors),
             ExportItem(kind: .abstract),
             ExportItem(kind: .keywords),
             ExportItem(kind: .pageBreak),
@@ -167,6 +168,11 @@ struct ExportItem: Codable, Identifiable, Sendable, Equatable {
     enum Kind: String, Codable, CaseIterable, Sendable {
         case titlePage, abstract, keywords, section, figures, tables,
              references, coverLetter, pageBreak
+        /// The byline block (authors + affiliations), separate from the
+        /// title since Aug 2026 so removing it makes a blind-review copy.
+        /// Configs saved before then have no `.authors` item — `.titlePage`
+        /// still renders the byline for those (see the renderers).
+        case authors
     }
 
     var id: UUID = UUID()
@@ -253,7 +259,8 @@ struct ExportItem: Codable, Identifiable, Sendable, Equatable {
     /// Default display name; body sections resolve their live title from `content`.
     func title(in content: Manuscript?) -> String {
         switch kind {
-        case .titlePage:   return "Title & Authors"
+        case .titlePage:   return "Title"
+        case .authors:     return "Authors"
         case .abstract:    return "Abstract"
         case .keywords:    return "Keywords"
         case .section:
@@ -272,6 +279,7 @@ struct ExportItem: Codable, Identifiable, Sendable, Equatable {
     var systemImage: String {
         switch kind {
         case .titlePage:   return "textformat"
+        case .authors:     return "person.2"
         case .abstract:    return "text.quote"
         case .keywords:    return "tag"
         case .section:     return "doc.text"

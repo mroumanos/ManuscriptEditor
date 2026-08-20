@@ -69,7 +69,16 @@ struct ChecksView: View {
     @ViewBuilder
     private func header(_ journal: Journal) -> some View {
         HStack {
-            Text(journal.name).font(.headline)
+            Text(journal.displayName).font(.headline)
+            // Straight to the journal's author instructions — the checks'
+            // source of truth.
+            if !journal.submissionURL.isEmpty, let url = URL(string: journal.submissionURL) {
+                Link(destination: url) {
+                    Label("Author instructions", systemImage: "arrow.up.right.square")
+                        .font(.caption)
+                }
+                .help(journal.submissionURL)
+            }
             Spacer()
             Button("Edit Requirements…") { editingRequirements = true }
             Button {

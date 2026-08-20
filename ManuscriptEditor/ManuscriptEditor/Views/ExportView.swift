@@ -420,7 +420,7 @@ private struct ExportDocumentCard: View {
                 // Print/hide this item's heading in the export.  The content
                 // always exports; only the printed title toggles ("H" ≠ the
                 // remove ✕, which drops the whole item).
-                if item.kind != .titlePage {
+                if item.kind != .titlePage && item.kind != .authors {
                     Button {
                         var doc = document
                         guard doc.items.indices.contains(index) else { return }
@@ -437,11 +437,11 @@ private struct ExportDocumentCard: View {
                     if item.titleShown {
                         headingStyleControls(item, index: index)
                     }
-                } else {
-                    // Title page: append the authors' credentials ("Jane
-                    // Doe, MD") to the byline.  "Credentials", not "titles":
-                    // the item is named "Title & Authors" and a second
-                    // "title" there would mean two different things.
+                } else if item.kind == .authors
+                            || !document.items.contains(where: { $0.kind == .authors }) {
+                    // Append the authors' credentials ("Jane Doe, MD") to
+                    // the byline — on the Authors item, or on Title only for
+                    // pre-split configs where Title still renders the byline.
                     Button {
                         var doc = document
                         guard doc.items.indices.contains(index) else { return }
@@ -686,7 +686,7 @@ private struct ExportDocumentCard: View {
 
     private var missingSimpleKinds: [ExportItem.Kind] {
         let present = Set(document.items.map(\.kind))
-        return [.titlePage, .abstract, .keywords, .figures, .tables, .references, .coverLetter]
+        return [.titlePage, .authors, .abstract, .keywords, .figures, .tables, .references, .coverLetter]
             .filter { !present.contains($0) }
     }
 

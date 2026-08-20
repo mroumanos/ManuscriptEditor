@@ -114,6 +114,9 @@ final class AppStore {
             }), preset.requirements.checksAcronymsDefined != nil,
                journalLibrary[i].requirements.checksAcronymsDefined == nil {
                 journalLibrary[i].requirements = preset.requirements
+                if journalLibrary[i].submissionURL.isEmpty {
+                    journalLibrary[i].submissionURL = preset.submissionURL
+                }
                 upgraded = true
             }
         }
@@ -123,7 +126,7 @@ final class AppStore {
             journalLibrary += missing.map { preset in
                 var journal = Journal(
                     id: UUID(), name: preset.name, publisher: preset.publisher,
-                    submissionURL: "", requirements: preset.requirements,
+                    submissionURL: preset.submissionURL, requirements: preset.requirements,
                     viewConfigID: nil, createdAt: Date()
                 )
                 journal.country = preset.country

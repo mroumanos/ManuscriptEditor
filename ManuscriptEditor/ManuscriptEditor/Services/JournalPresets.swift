@@ -33,6 +33,8 @@ enum JournalPresets {
         /// "Research Brief") — a journal ships once per format, each with
         /// its own requirements.  nil = the journal's default format.
         var articleType: String? = nil
+        /// The journal's author-instructions page (the checks' source link).
+        var submissionURL: String = ""
         /// Pre-filled requirements based on the journal's published author guidelines.
         let requirements: JournalRequirements
     }
@@ -320,6 +322,7 @@ enum JournalPresets {
         publisher: "American Public Health Association",
         country: "United States",
         articleType: "Research Article",
+        submissionURL: "https://ajph.aphapublications.org/authorinstructions",
         requirements: JournalRequirements(
             maxBodyWords: 3500,
             maxAbstractWords: 180,
@@ -350,6 +353,7 @@ enum JournalPresets {
         publisher: "American Public Health Association",
         country: "United States",
         articleType: "Research Brief",
+        submissionURL: "https://ajph.aphapublications.org/authorinstructions",
         requirements: JournalRequirements(
             maxBodyWords: 1200,
             maxAbstractWords: 180,

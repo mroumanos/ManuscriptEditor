@@ -252,7 +252,9 @@ propagate by explicit, individual fast-forwards.
   undefined-acronym and P-value-notation heuristics — while `customRules`
   render as **manual checkboxes**
   (neutral until ticked; ticks persist per journal in
-  `Journal.manualChecksDone`; `ChecklistResult.manual`). Compound rules
+  `Journal.manualChecksDone`; `ChecklistResult.manual`). The Checks header
+  links to the journal's **author instructions** (`submissionURL`, seeded
+  from the preset). Compound rules
   are split so each half lands on its side (cover letter ≤150 words =
   technical; "addresses what the paper adds…" = manual, in
   `JournalPresets.ajphSharedRules`). Display everywhere uses
@@ -494,7 +496,11 @@ just a rendered blob.
   aligned columns — **Font · Size · Spacing · Lines** — with inline controls on
   every row showing the item's *effective* format; changing any value creates
   that item's override (`ExportItem.format`; right-click → "Reset Formatting to
-  Document"). Click the **item name to rename its exported heading**
+  Document"). **Title and Authors are separate items** (Aug 2026): removing the
+  Authors item exports a **blind-review copy** (attributed writers skip the
+  byline; LaTeX emits an empty \author). Configs saved before the split
+  have no Authors item and Title keeps rendering the combined block.
+  Click the **item name to rename its exported heading**
   (export-level `customTitle`; empty reverts). Each row's **"H" toggle
   shows/hides the printed heading** (`ExportItem.showTitle`; content always
   exports — only the title toggles), and a shown heading carries inline

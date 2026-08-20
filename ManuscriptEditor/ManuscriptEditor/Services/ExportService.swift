@@ -295,7 +295,8 @@ struct ExportService {
                               tableData: ((ManuscriptTable) -> QueryResult?)? = nil) -> [NSAttributedString] {
         let builder = OutlineBuilder(format: document.format, refContext: refContext,
                                      fileType: document.fileType,
-                                     figureURL: figureURL, chartImage: chartImage, tableData: tableData)
+                                     figureURL: figureURL, chartImage: chartImage, tableData: tableData,
+                                     separateAuthors: document.items.contains { $0.kind == .authors })
         var segments: [NSAttributedString] = []
         var current = NSMutableAttributedString()
         for item in document.items {
@@ -342,12 +343,32 @@ struct ExportService {
                     numbering = wanted
                 }
             }
+            let separateAuthors = document.items.contains { $0.kind == .authors }
             switch item.kind {
             case .titlePage:
                 out += "\\title{\(tex(displayTitle(m)))}\n"
+                if separateAuthors {
+                    // The byline renders from its own item — a removed
+                    // authors item makes a blind copy, so keep \author empty.
+                    out += "\\author{}\n\\date{}\n\\maketitle\n"
+                } else {
+                    let authors = m.authors.sorted { $0.order < $1.order }
+                        .map { tex(item.authorTitlesShown ? $0.exportName : $0.fullName) }
+                    out += "\\author{\(authors.joined(separator: " \\and "))}\n\\date{}\n\\maketitle\n"
+                }
+            case .authors:
                 let authors = m.authors.sorted { $0.order < $1.order }
-                    .map { tex(item.authorTitlesShown ? $0.exportName : $0.fullName) }
-                out += "\\author{\(authors.joined(separator: " \\and "))}\n\\date{}\n\\maketitle\n"
+                if !authors.isEmpty {
+                    let names = authors
+                        .map { tex(item.authorTitlesShown ? $0.exportName : $0.fullName) }
+                        .joined(separator: ", ")
+                    var affiliations: [String] = []
+                    for aff in authors.flatMap({ $0.affiliationNames(in: m) })
+                        where !affiliations.contains(aff) { affiliations.append(aff) }
+                    out += "\\begin{center}\n\(names)\\\\\n"
+                        + affiliations.map { "\\textit{\(tex($0))}\\\\" }.joined(separator: "\n")
+                        + "\n\\end{center}\n"
+                }
             case .abstract:
                 if !m.abstract.isEmpty {
                     out += "\\begin{abstract}\n\(tex(m.abstract.plain))\n\\end{abstract}\n"
@@ -688,13 +709,18 @@ private struct OutlineBuilder {
     var chartImage: ((Figure) -> NSImage?)? = nil
     /// Runs a data-linked table's SQL and returns the rows to lay out.
     var tableData: ((ManuscriptTable) -> QueryResult?)? = nil
+    /// True when the document carries its own `.authors` item, so
+    /// `.titlePage` must NOT render the byline too (pre-split configs have
+    /// no authors item and keep the combined rendering).
+    var separateAuthors: Bool = false
 
     /// Renders `item`, honoring its format override and custom title, and
     /// stamps the line-number attribute when its effective format asks for it.
     func block(for item: ExportItem, content m: Manuscript) -> NSAttributedString? {
         let effective = effectiveFormat(for: item)
         let builder = OutlineBuilder(format: effective, refContext: refContext, fileType: fileType,
-                                     figureURL: figureURL, chartImage: chartImage, tableData: tableData)
+                                     figureURL: figureURL, chartImage: chartImage, tableData: tableData,
+                                     separateAuthors: separateAuthors)
         guard let rendered = builder.renderBlock(item, content: m) else { return nil }
         guard effective.lineNumbers else { return rendered }
         let out = NSMutableAttributedString(attributedString: rendered)
@@ -729,6 +755,24 @@ private struct OutlineBuilder {
         return font
     }
 
+    /// The byline: names (credentials per the item toggle, * on the
+    /// corresponding author) plus deduplicated affiliation lines.
+    private func authorsBlock(_ item: ExportItem, content m: Manuscript) -> NSAttributedString {
+        let doc = NSMutableAttributedString()
+        let authors = m.authors.sorted { $0.order < $1.order }
+        guard !authors.isEmpty else { return doc }
+        let names = authors.map {
+            (item.authorTitlesShown ? $0.exportName : $0.fullName)
+                + ($0.isCorresponding ? "*" : "")
+        }.joined(separator: ", ")
+        doc.append(line(names, font: base, after: 2))
+        var seen = Set<String>()
+        for aff in authors.flatMap({ $0.affiliationNames(in: m) }) where seen.insert(aff).inserted {
+            doc.append(line(aff, font: meta, color: .darkGray, after: 1))
+        }
+        return doc
+    }
+
     private func renderBlock(_ item: ExportItem, content m: Manuscript) -> NSAttributedString? {
         switch item.kind {
         case .titlePage:
@@ -737,18 +781,12 @@ private struct OutlineBuilder {
             if !m.runningTitle.isEmpty {
                 doc.append(line("Running title: \(m.runningTitle)", font: meta, color: .darkGray, after: 8))
             }
-            let authors = m.authors.sorted { $0.order < $1.order }
-            if !authors.isEmpty {
-                let names = authors.map {
-                    (item.authorTitlesShown ? $0.exportName : $0.fullName)
-                        + ($0.isCorresponding ? "*" : "")
-                }.joined(separator: ", ")
-                doc.append(line(names, font: base, after: 2))
-                var seen = Set<String>()
-                for aff in authors.flatMap({ $0.affiliationNames(in: m) }) where seen.insert(aff).inserted {
-                    doc.append(line(aff, font: meta, color: .darkGray, after: 1))
-                }
-            }
+            if !separateAuthors { doc.append(authorsBlock(item, content: m)) }
+            doc.append(spacer())
+            return doc
+        case .authors:
+            let doc = NSMutableAttributedString(attributedString: authorsBlock(item, content: m))
+            guard doc.length > 0 else { return nil }
             doc.append(spacer())
             return doc
         case .abstract:
