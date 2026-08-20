@@ -266,17 +266,14 @@ struct SidebarView: View {
     // MARK: - Row helpers
 
     private func sectionRow(_ section: ManuscriptSection) -> some View {
-        let comments = store.noteCount(versionKey: activeRef.id,
-                                       itemKey: SidebarItem.section(section.id).notesKey)
-        return HStack {
+        HStack {
             Label(section.title, systemImage: section.type.systemImage)
             Spacer()
-            if comments > 0 {
-                Label("\(comments)", systemImage: "bubble.left")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .help("\(comments) comment\(comments == 1 ? "" : "s") on this section")
-            }
+            // The full comments affordance, right on the row: blue bubble
+            // (count when notes exist) that opens the notes popover.
+            NotesButton(versionKey: activeRef.id,
+                        itemKey: SidebarItem.section(section.id).notesKey,
+                        idleColor: .blue)
         }
         .tag(SidebarItem.section(section.id))
         // Reliable delete affordances (macOS swipe can be non-obvious).

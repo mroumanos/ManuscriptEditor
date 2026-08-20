@@ -17,6 +17,9 @@ struct NotesButton: View {
     let versionKey: String
     /// `SidebarItem.notesKey` of the pane's content item.
     let itemKey: String
+    /// Bubble color while there are no open notes (pane headers stay
+    /// quiet-gray; the sidebar rows use blue so the affordance is visible).
+    var idleColor: Color = .secondary
 
     @State private var showPopover = false
     @State private var draft = ""
@@ -34,7 +37,7 @@ struct NotesButton: View {
                     Text("\(notes.count)").font(.caption2.monospacedDigit())
                 }
             }
-            .foregroundStyle(openCount > 0 ? Color.blue : Color.secondary)
+            .foregroundStyle(openCount > 0 ? Color.blue : idleColor)
         }
         .buttonStyle(.borderless)
         .help("Notes")
@@ -58,12 +61,14 @@ struct NotesButton: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {
-                ScrollView {
+                // Height follows the notes themselves, capped by the screen
+                // (the app default for popups) — a fixed cap squashed long
+                // threads into a tiny scroll strip.
+                FitScrollView {
                     VStack(alignment: .leading, spacing: 8) {
                         ForEach(notes) { note in noteRow(note) }
                     }
                 }
-                .frame(maxHeight: 260)
             }
 
             Divider()

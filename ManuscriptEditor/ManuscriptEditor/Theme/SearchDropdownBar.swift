@@ -22,8 +22,6 @@ struct SearchDropdownBar<Dropdown: View>: View {
 
     /// Measured field height, so the floating card lands just below it.
     @State private var fieldHeight: CGFloat = 28
-    /// Measured height of the card's content, so it can size to fit.
-    @State private var contentHeight: CGFloat = 44
 
     var body: some View {
         HStack(spacing: 5) {
@@ -60,16 +58,11 @@ struct SearchDropdownBar<Dropdown: View>: View {
     }
 
     private var card: some View {
-        ScrollView {
+        FitScrollView(maxScreenFraction: 0.4) {
             VStack(alignment: .leading, spacing: 0) {
                 dropdown()
             }
-            .onGeometryChange(for: CGFloat.self,
-                              of: { $0.size.height },
-                              action: { contentHeight = $0 })
         }
-        .frame(height: min(contentHeight,
-                           (NSScreen.main?.visibleFrame.height ?? 800) * 0.4))
         // Wider than the narrow panes on purpose — it floats, so it may
         // overhang the editor to show full titles and institutions.
         .frame(width: 360, alignment: .leading)
