@@ -193,6 +193,16 @@ struct BibliographyView: View {
     /// cited badge, title, first author.
     private func entryRow(_ entry: BibEntry, number: Int? = nil, citedCount: Int? = nil) -> some View {
         HStack(alignment: .top, spacing: 6) {
+            // Uncited references are hand-arranged — show the drag handle.
+            // Cited ones sit in citation order and snap back if dragged, so
+            // no handle (their [n] badge marks them).
+            if number == nil {
+                Image(systemName: "line.3.horizontal")
+                    .foregroundStyle(.tertiary)
+                    .font(.caption)
+                    .padding(.top, 3)
+                    .help("Drag to arrange — uncited references keep the order you set")
+            }
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
                     if let number {
@@ -337,7 +347,8 @@ private struct BibSearchBar: View {
                     subtitle: [entry.authorsFormatted,
                                entry.year.map(String.init) ?? "",
                                entry.journal ?? entry.url ?? ""]
-                        .filter { !$0.isEmpty }.joined(separator: " · ")
+                        .filter { !$0.isEmpty }.joined(separator: " · "),
+                    linkURL: entry.url.flatMap(URL.init(string:))
                 ) {
                     onAdd(entry)
                     query = ""
@@ -462,7 +473,19 @@ struct BibEntryEditor: View {
                 }
 
                 Section("Identifiers") {
-                    TextField("DOI", text: optionalBinding(\.doi))
+                    HStack(spacing: 8) {
+                        TextField("DOI", text: optionalBinding(\.doi))
+                        // Once a DOI is entered, link straight to the paper
+                        // (same affordance as the author editor's ORCID row).
+                        if let doi = draft.doi?.trimmingCharacters(in: .whitespaces),
+                           !doi.isEmpty,
+                           let url = URL(string: "https://doi.org/\(doi)") {
+                            Link(destination: url) {
+                                Image(systemName: "arrow.up.right.square")
+                            }
+                            .help("Open on doi.org")
+                        }
+                    }
                     TextField("URL", text: optionalBinding(\.url))
                 }
 

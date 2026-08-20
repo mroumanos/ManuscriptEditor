@@ -101,6 +101,9 @@ struct SearchResultRow: View {
     var icon: String? = nil
     let title: String
     var subtitle: String = ""
+    /// When set, a trailing ↗ opens this in the browser (e.g. the DOI page,
+    /// so the paper can be checked before adding it).
+    var linkURL: URL? = nil
     let action: () -> Void
 
     var body: some View {
@@ -124,6 +127,14 @@ struct SearchResultRow: View {
                     }
                 }
                 Spacer(minLength: 0)
+                if let linkURL {
+                    Link(destination: linkURL) {
+                        Image(systemName: "arrow.up.right.square")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .help("Open in browser")
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
