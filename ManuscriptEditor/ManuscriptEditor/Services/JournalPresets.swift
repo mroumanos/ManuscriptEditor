@@ -29,6 +29,10 @@ enum JournalPresets {
         let publisher: String
         /// Country of the journal/publisher (journal-library detail).
         var country: String? = nil
+        /// Submission format within the journal ("Research Article",
+        /// "Research Brief") — a journal ships once per format, each with
+        /// its own requirements.  nil = the journal's default format.
+        var articleType: String? = nil
         /// Pre-filled requirements based on the journal's published author guidelines.
         let requirements: JournalRequirements
     }
@@ -38,7 +42,8 @@ enum JournalPresets {
     /// Every available preset, in the order shown in the picker.
     static var all: [JournalPreset] {
         [nature, nejm, plosOne, lancet, bmj, cell, science,
-         jama, healthAffairs, healthAndPlace, hsr, ajph, plosMedicine,
+         jama, healthAffairs, healthAndPlace, hsr,
+         ajphResearchArticle, ajphResearchBrief, plosMedicine,
          diabetesCare, bmjOpenDiabetes, jneb]
     }
 
@@ -303,26 +308,76 @@ enum JournalPresets {
     )
 
     /// AJPH — American Journal of Public Health.
-    static let ajph = JournalPreset(
+    // AJPH ships once per submission format, each with its own limits and
+    // checklist — verified against the published Instructions for Authors
+    // (ajph.aphapublications.org/authorinstructions: formats, components,
+    // and editorial-policies pages; also issued as a PDF), Aug 2026.
+
+    /// AJPH Research Articles: original public health research, the
+    /// journal's highest-priority format.
+    static let ajphResearchArticle = JournalPreset(
         name: "American Journal of Public Health",
         publisher: "American Public Health Association",
         country: "United States",
+        articleType: "Research Article",
         requirements: JournalRequirements(
             maxBodyWords: 3500,
-            maxAbstractWords: 200,
+            maxAbstractWords: 180,
             maxFigures: 4,
             maxTables: 4,
-            maxReferences: 40,
+            maxReferences: 35,
             requiresSeparateFigures: true,
             allowedExportFormats: [.docx],
             citationStyle: .ama,
             requiredSections: [.introduction, .methods, .results, .discussion],
-            customRules: [
-                "Structured abstract (Objectives/Methods/Results/Conclusions)",
-                "Public Health Implications section required",
+            customRules: ajphSharedRules + [
+                "No more than 4 tables + figures COMBINED (the 4/4 caps above are not additive)",
             ]
         )
     )
+
+    /// AJPH Research Briefs: original data-driven research, narrower in
+    /// scope — a limited set of key findings shown with 1 table or figure.
+    static let ajphResearchBrief = JournalPreset(
+        name: "American Journal of Public Health",
+        publisher: "American Public Health Association",
+        country: "United States",
+        articleType: "Research Brief",
+        requirements: JournalRequirements(
+            maxBodyWords: 1200,
+            maxAbstractWords: 180,
+            maxFigures: 1,
+            maxTables: 1,
+            maxReferences: 12,
+            requiresSeparateFigures: true,
+            allowedExportFormats: [.docx],
+            citationStyle: .ama,
+            requiredSections: [.introduction, .methods, .results, .discussion],
+            customRules: ajphSharedRules + [
+                "1 table OR 1 figure total (not one of each)",
+                "Same rigor as a Research Article — narrower scope, key findings only",
+            ]
+        )
+    )
+
+    /// Checklist items common to every AJPH research format, from the
+    /// components and editorial-policies author-instruction pages.
+    private static let ajphSharedRules: [String] = [
+        "Blinded title page: manuscript title only, no author names",
+        "Cover letter ≤150 words: what the paper adds, its public health importance, and a one-sentence main message",
+        "Structured abstract ≤180 words INCLUDING headings: Objectives, Methods, Results, Conclusions (+ optional Policy Implications)",
+        "Public Health Implications section after Discussion",
+        "Text 1.5 or double spaced, 12-point font",
+        "Pages AND lines numbered continuously (Word: Page Setup → Line Numbers → Continuous)",
+        "References in AMA Manual of Style format",
+        "Figures: a single readable panel (2 panels only for direct comparison; more count as extra figures)",
+        "Tables self-contained (content, place, time); no combined tables to dodge count limits",
+        "Images ≥300 dpi print resolution",
+        "Avoid abbreviations/acronyms; define any unavoidable ones at first use",
+        "Statistics: exponentiated estimates (OR/IRR) with 95% CIs; P values to 2 decimals, never \"NS\"; two-sided tests",
+        "CONSORT (trials) / TREND (non-randomized) / PRISMA (reviews) reporting compliance where applicable",
+        "Supplemental files blinded and submitted with the paper",
+    ]
 
     /// PLOS Medicine — open-access general medical journal.
     static let plosMedicine = JournalPreset(

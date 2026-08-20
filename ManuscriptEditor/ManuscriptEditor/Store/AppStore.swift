@@ -88,11 +88,25 @@ final class AppStore {
             views      = decoded.views
             journalLibrary = decoded.journalLibrary ?? []
         }
-        // Seed/merge presets: any preset name not yet in the library is
-        // appended, so newly shipped presets reach existing installs too.
-        let existingNames = Set(journalLibrary.map { $0.name.lowercased() })
-        let missing = JournalPresets.all.filter { !existingNames.contains($0.name.lowercased()) }
-        if !missing.isEmpty {
+        // Seed/merge presets: any preset not yet in the library is appended,
+        // so newly shipped presets reach existing installs too.  The key is
+        // name + article type — one journal can ship once per format.
+        func key(_ name: String, _ type: String?) -> String {
+            name.lowercased() + "|" + (type ?? "").lowercased()
+        }
+        // Migration: when a journal's presets became typed (AJPH → Research
+        // Article + Research Brief), retire the old untyped seeded entry so
+        // it doesn't linger beside the typed ones.
+        let typedNames = Set(JournalPresets.all.compactMap {
+            $0.articleType != nil ? $0.name.lowercased() : nil
+        })
+        let before = journalLibrary.count
+        journalLibrary.removeAll {
+            $0.articleType == nil && typedNames.contains($0.name.lowercased())
+        }
+        let existing = Set(journalLibrary.map { key($0.name, $0.articleType) })
+        let missing = JournalPresets.all.filter { !existing.contains(key($0.name, $0.articleType)) }
+        if !missing.isEmpty || journalLibrary.count != before {
             journalLibrary += missing.map { preset in
                 var journal = Journal(
                     id: UUID(), name: preset.name, publisher: preset.publisher,
@@ -100,6 +114,7 @@ final class AppStore {
                     viewConfigID: nil, createdAt: Date()
                 )
                 journal.country = preset.country
+                journal.articleType = preset.articleType
                 return journal
             }
             save()

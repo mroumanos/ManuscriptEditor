@@ -230,9 +230,23 @@ propagate by explicit, individual fast-forwards.
   and the confirmation states whether a connected AI may modify the copy —
   on a **contiguous** nested lineage tree — child
   cards attached beneath their upstream, tabbed left, right edges aligned),
-  and **Add Journal** (from = Source or any journal; to = a profile from the
-  global journal library or a custom name; creates v1 "Created" + the edge,
-  and the journal's tab appears automatically). Syncing shows a
+  and **Add Journal** (from = Source or any journal; to = a profile found by
+  **searching the saved journal library** — the same search pattern as the
+  Authors/Bibliography bars, app-saved profiles only, no web query (that can
+  come later) — or an unchanged **custom name** field; creates v1 "Created"
+  + the edge,
+  and the journal's tab appears automatically). **Journals carry an article
+  type** (`Journal.articleType`, optional): one journal ships once per
+  submission format as separate library entries — e.g. AJPH "Research
+  Article" (3500 words / 180-word structured abstract / 4 tables+figures
+  combined / 35 refs) and AJPH "Research Brief" (1200 words / 1 table OR
+  figure / 12 refs), each with a checklist distilled from the published
+  author instructions (blinded title page, ≤150-word cover letter, AMA
+  style, page+line numbering, stats rules, …) in
+  `JournalPresets.ajphSharedRules`. Display everywhere uses
+  `displayName` ("Name — Type"); library seeding/dedupe keys on
+  name+type and retires stale untyped entries when typed ones ship.
+  Syncing shows a
   **warning dialog** ("overwrites what currently exists in the journal's
   working head; previous versions remain in history") before creating the new
   version + edge via `ManuscriptStore.syncJournal`.

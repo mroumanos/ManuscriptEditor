@@ -47,6 +47,18 @@ struct Journal: Codable, Identifiable, Sendable {
     /// the app-settings Journals library).  nil renders as a question mark.
     var icon: String? = nil
 
+    /// Submission format within the journal ("Research Article", "Research
+    /// Brief") — one journal can appear in the library once per type, each
+    /// with its own requirements.  Optional for backward-compatible
+    /// decoding; nil = the journal's default/unspecified format.
+    var articleType: String? = nil
+
+    /// "American Journal of Public Health — Research Brief"; just the name
+    /// when no type is set.
+    var displayName: String {
+        articleType.map { "\(name) — \($0)" } ?? name
+    }
+
     /// This journal's export outline (documents, ordering, page breaks,
     /// format, file types).  `nil` means "not customized yet" — the Export
     /// pane shows `ExportConfig.standard` until the user edits it.

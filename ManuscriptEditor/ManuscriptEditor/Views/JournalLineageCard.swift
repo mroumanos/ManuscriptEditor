@@ -235,7 +235,7 @@ struct JournalLineageCard: View {
 
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 8) {
-                    Text(journal.name).font(.headline)
+                    Text(journal.displayName).font(.headline)
                     if head != nil {
                         let count = store.versions(forJournal: journal.id).count
                         Text("v\(count - 1)")
@@ -429,13 +429,28 @@ struct AddJournalSheet: View {
     @State private var fromJournalID: UUID?          // nil = Source
     @State private var libraryChoice: UUID?          // journalLibrary entry id
     @State private var customName = ""
+    @State private var journalQuery = ""
 
     private var journals: [Journal] { store.manuscript?.journals ?? [] }
 
-    /// Library entries not already added to this manuscript (by name).
+    /// Library entries not already added to this manuscript (by name +
+    /// article type — the same journal's other formats stay addable).
     private var availableLibrary: [Journal] {
         appStore.journalLibrary.filter { entry in
-            !journals.contains { $0.name == entry.name }
+            !journals.contains { $0.name == entry.name && $0.articleType == entry.articleType }
+        }
+    }
+
+    /// Saved-library entries every ≥2-letter search term matches (name,
+    /// article type, publisher, or country).
+    private var journalMatches: [Journal] {
+        let terms = journalQuery.lowercased()
+            .split(separator: " ").map(String.init).filter { $0.count >= 2 }
+        guard !terms.isEmpty else { return [] }
+        return availableLibrary.filter { entry in
+            let hay = "\(entry.name) \(entry.articleType ?? "") \(entry.publisher) \(entry.country ?? "")"
+                .lowercased()
+            return terms.allSatisfy { hay.contains($0) }
         }
     }
 
@@ -446,21 +461,74 @@ struct AddJournalSheet: View {
             Picker("From", selection: $fromJournalID) {
                 Label("Source", systemImage: "doc.text").tag(Optional<UUID>.none)
                 ForEach(journals) { journal in
-                    Label(journal.name, systemImage: "building.columns").tag(Optional(journal.id))
+                    Label(journal.displayName, systemImage: "building.columns").tag(Optional(journal.id))
                 }
             }
 
-            Picker("To", selection: $libraryChoice) {
-                ForEach(availableLibrary) { entry in
-                    Text(entry.name + (entry.country.map { " (\($0))" } ?? ""))
-                        .tag(Optional(entry.id))
+            // To: search the saved journal library (typed formats included)
+            // instead of scrolling a picker — same pattern as the Authors
+            // and Bibliography search.  Everything is app-saved; no web
+            // query.  Custom journals are unchanged: name one below.
+            if let choice = libraryChoice,
+               let entry = appStore.journalLibrary.first(where: { $0.id == choice }) {
+                HStack(spacing: 6) {
+                    Text("To:").foregroundStyle(.secondary)
+                    Text(entry.displayName).fontWeight(.medium)
+                    Button {
+                        libraryChoice = nil
+                    } label: {
+                        Image(systemName: "xmark.circle.fill").foregroundStyle(.tertiary)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Choose a different journal")
+                    Spacer()
                 }
-                Text("Custom journal…").tag(Optional<UUID>.none)
-            }
+            } else {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 5) {
+                        Image(systemName: "magnifyingglass")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        TextField("Search saved journals…", text: $journalQuery)
+                            .textFieldStyle(.plain)
+                    }
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 5)
+                    .background(Color(NSColor.textBackgroundColor),
+                                in: RoundedRectangle(cornerRadius: 7))
+                    .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(.separator))
 
-            if libraryChoice == nil {
-                TextField("Custom journal name", text: $customName)
-                    .textFieldStyle(.roundedBorder)
+                    if !journalMatches.isEmpty {
+                        // Inline (not floating): a sheet's window would clip
+                        // an overlay card at its edge.
+                        FitScrollView(maxScreenFraction: 0.3) {
+                            VStack(alignment: .leading, spacing: 0) {
+                                SearchSectionHeader(title: "Library", count: journalMatches.count)
+                                ForEach(journalMatches) { entry in
+                                    SearchResultRow(
+                                        icon: "plus.circle",
+                                        title: entry.displayName,
+                                        subtitle: [entry.publisher, entry.country ?? ""]
+                                            .filter { !$0.isEmpty }.joined(separator: " · ")
+                                    ) {
+                                        libraryChoice = entry.id
+                                        journalQuery = ""
+                                    }
+                                }
+                            }
+                        }
+                        .background(Color(NSColor.controlBackgroundColor),
+                                    in: RoundedRectangle(cornerRadius: 7))
+                        .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(.separator))
+                    } else if journalQuery.trimmingCharacters(in: .whitespaces).count >= 2 {
+                        Text("No saved journals match — name a custom journal below.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    TextField("…or custom journal name", text: $customName)
+                        .textFieldStyle(.roundedBorder)
+                }
             }
 
             Text("The new journal is cut from the FROM journal's latest stamped version (stamping it first if needed), appears in the lineage, and gets its own tab. Manage reusable journal profiles in Settings → Journals.")
@@ -482,7 +550,7 @@ struct AddJournalSheet: View {
         }
         .padding(24)
         .frame(width: 440)
-        .onAppear { libraryChoice = availableLibrary.first?.id }
+
     }
 
     private func add() {
