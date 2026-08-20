@@ -1548,6 +1548,11 @@ final class ManuscriptStore {
     var changelogBaseSHA: String?
     var changelogBaseManuscript: Manuscript?
     @ObservationIgnored private var changelogBaseCache: [String: Manuscript] = [:]
+    /// An explicit dropdown pick — kept across refreshes while that commit
+    /// exists.  Unset (the default) means "always follow the latest commit";
+    /// without this distinction a refresh kept whatever sha happened to be
+    /// selected, so after a push the anchor stayed on the pre-push commit.
+    @ObservationIgnored private var changelogPinnedSHA: String?
 
     func refreshChangelogCommits(appStore: AppStore) {
         guard let m = manuscript, m.settings.remoteRepository != nil,
@@ -1556,14 +1561,19 @@ final class ManuscriptStore {
         Task {
             guard let commits = try? await gitHubService.commits(config: config) else { return }
             remoteCommits = commits
-            if let first = commits.first, changelogBaseSHA == nil || !commits.contains(where: { $0.sha == changelogBaseSHA }) {
-                await loadChangelogBase(first.sha, config: config)
+            // Default follows the newest commit; only an explicit dropdown
+            // pick (still present in the list) pins an older anchor.
+            let pinned = changelogPinnedSHA.flatMap { p in commits.first(where: { $0.sha == p })?.sha }
+            if let target = pinned ?? commits.first?.sha,
+               target != changelogBaseSHA || changelogBaseManuscript == nil {
+                await loadChangelogBase(target, config: config)
             }
         }
     }
 
     func selectChangelogCommit(_ sha: String, appStore: AppStore) {
         guard let m = manuscript, let (_, raw) = try? remoteConfig(appStore) else { return }
+        changelogPinnedSHA = sha
         let config = raw.with(branch: m.settings.remoteBranch ?? "source")
         Task { await loadChangelogBase(sha, config: config) }
     }
@@ -1788,9 +1798,16 @@ final class ManuscriptStore {
         showBanner(.success, "Reloaded from the local manuscript.json.")
     }
 
-    private func markSynced() {
+    private func markSynced(appStore: AppStore? = nil) {
         saveRemoteBaseline()
         manuscript?.lastSyncedAt = Date()
+        // The remote head just moved: drop the stale changelog anchor so the
+        // comparison retargets to the fresh commit (immediately when we have
+        // the appStore for the API config, else on the next pane refresh).
+        changelogPinnedSHA = nil
+        changelogBaseSHA = nil
+        changelogBaseManuscript = nil
+        if let appStore { refreshChangelogCommits(appStore: appStore) }
         trySave()
     }
 
@@ -1940,7 +1957,7 @@ final class ManuscriptStore {
                     }
                     remoteStatus = "Pushed to \(config.owner)/\(config.repo) — source@\(sha), \(snapshots.count) journal branch\(snapshots.count == 1 ? "" : "es")"
                     showBanner(.success, "Successfully saved to remote — \(remoteStatus ?? "")")
-                    markSynced()
+                    markSynced(appStore: appStore)
                     account.isConnected = true
                     account.syncStatus = .available
                     account.lastErrorMessage = nil
@@ -1996,7 +2013,7 @@ final class ManuscriptStore {
                         config: config)
                     remoteStatus = "Created \(repo.fullName) and pushed"
                     showBanner(.success, "Created \(repo.fullName) and pushed.")
-                    markSynced()
+                    markSynced(appStore: appStore)
                     account.isConnected = true
                     account.syncStatus = .available
                     account.lastErrorMessage = nil
@@ -2065,7 +2082,7 @@ final class ManuscriptStore {
                         decoded.settings.remoteBranch = m.settings.remoteBranch
                         manuscript = normalized(decoded)
                         trySave()
-                        markSynced()
+                        markSynced(appStore: appStore)
                     }
                     remoteStatus = "Loaded from \(config.owner)/\(config.repo)@\(config.branch)"
                     showBanner(.success, "Loaded from \(config.owner)/\(config.repo)@\(config.branch).")
@@ -2156,7 +2173,7 @@ final class ManuscriptStore {
                         decoded.settings.remoteRepository = current.settings.remoteRepository
                             ?? decoded.settings.remoteRepository
                         manuscript = normalized(decoded)
-                        markSynced()
+                        markSynced(appStore: appStore)
                     }
                     remoteStatus = "Loaded from \(config.owner)/\(config.repo)@\(config.branch)"
                     account.isConnected = true
