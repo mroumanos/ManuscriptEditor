@@ -29,15 +29,28 @@ Intent: most time is spent here; it must be excellent and AI-optional.
   **drag-to-reorder** (offsets applied against the sorted list). Exports
   resolve affiliation lines from the registry (legacy free-text still
   honored).
-- AC (implemented): **Add author via ORCID search** (Aug 2026). A search bar
-  at the **top of the Authors pane** (it hid at the bottom between the add
-  buttons at first — moved on feedback): type a first and last name (either
-  order) or a full iD, and the top 20 public-API hits drop down live
-  (debounced). Picking one adds the author with names, iD, and any public
-  email filled, and references the hit's primary institution — matched
-  case-insensitively against the registry, **created there only if missing**
-  (`OrcidService`, `addAuthor(from:)`). Query gotcha: the search index field
-  is `family-name` (singular); the response key is `family-names`.
+- AC (implemented): **Categorized author search** (Aug 2026). A search bar
+  at the **top of the Authors pane** (shared chrome: `SearchDropdownBar`, a
+  floating measured-height dropdown capped at 40% of screen). Sections:
+  **"Saved (N)"** text-matches existing authors — clicking one just opens
+  its card; **"ORCID (N)"** lists top-20 public-API hits (name in either
+  order, or a full iD) each with a **+** that adds the autofilled author
+  (names, iD, public email) and references the hit's primary institution —
+  matched case-insensitively against the registry, **created there only if
+  missing** (`OrcidService`, `addAuthor(from:)`). Query gotcha: the search
+  index field is `family-name` (singular); the response key is
+  `family-names`.
+- AC (implemented): **Categorized bibliography search** (Aug 2026, same
+  pattern + the same query doubles as the list filter). Sections by input
+  shape: **"Saved (N)"** matches existing entries (click opens);
+  **"Zotero (N)"** searches the local Zotero library, + adds via the
+  existing `bibEntry(from:)` mapping (zoteroKey dedupe applies); a **DOI**
+  (bare, doi:, or doi.org URL) resolves **full metadata** via doi.org CSL
+  JSON content negotiation — title, authors, journal, year, volume/issue/
+  pages, publisher, type (closes issue #9; `ReferenceLookupService`); a web
+  **URL** fetches the page `<title>` to seed a website entry. The
+  Add-by-URL sheet runs the same lookups, falling back to a bare DOI/URL
+  entry when offline.
 - AC (implemented): **Author credentials** (Aug 2026). One free-form
   Credentials line ("MD, PhD, Prof.") at the end of the Name section — it
   replaced a separate honorific field plus a title-tag row, two fields for

@@ -1,8 +1,9 @@
 // AddReferenceByURLSheet.swift
 //
-// Adds a bibliography reference from a pasted DOI or URL. The DOI/URL is stored
-// on a new (editable) entry that the user can then complete. (Automatic metadata
-// lookup via Crossref is a possible future enhancement.)
+// Adds a bibliography reference from a pasted DOI or URL.  A DOI resolves
+// full metadata through doi.org (issue #9); a web URL fetches the page
+// title.  If the lookup fails, the entry is still created with the DOI/URL
+// filled so the user can complete it by hand.
 
 import SwiftUI
 
@@ -16,6 +17,8 @@ struct AddReferenceByURLSheet: View {
     var onCreated: (UUID) -> Void
 
     @State private var input = ""
+    /// True while the metadata lookup runs (Add shows a spinner).
+    @State private var looking = false
 
     private var trimmed: String { input.trimmingCharacters(in: .whitespacesAndNewlines) }
 
@@ -33,9 +36,10 @@ struct AddReferenceByURLSheet: View {
                 Spacer()
                 Button("Cancel") { dismiss() }
                     .keyboardShortcut(.cancelAction)
+                if looking { ProgressView().controlSize(.small) }
                 Button("Add") { add() }
                     .keyboardShortcut(.defaultAction)
-                    .disabled(trimmed.isEmpty)
+                    .disabled(trimmed.isEmpty || looking)
             }
         }
         .padding(24)
@@ -43,29 +47,40 @@ struct AddReferenceByURLSheet: View {
     }
 
     private func add() {
-        var entry = BibEntry.empty()
-        entry.authors = []
-        entry.title = ""
-        if let doi = extractDOI(trimmed) {
-            entry.doi = doi
-            entry.type = .article
-        } else {
-            entry.url = trimmed
-            entry.type = .website
+        let input = trimmed
+        looking = true
+        Task {
+            let entry = await lookedUpEntry(for: input)
+            looking = false
+            store.addBibEntry(entry, ref: versionRef)
+            if let id = store.manuscript(for: versionRef)?.bibliography.last?.id {
+                onCreated(id)
+            }
+            dismiss()
         }
-        store.addBibEntry(entry, ref: versionRef)
-        if let id = store.manuscript(for: versionRef)?.bibliography.last?.id {
-            onCreated(id)
-        }
-        dismiss()
     }
 
-    /// Pulls a bare DOI out of a DOI string or a doi.org URL, else returns nil.
-    private func extractDOI(_ s: String) -> String? {
-        let lower = s.lowercased()
-        if let range = lower.range(of: #"10\.\d{4,9}/[^\s]+"#, options: .regularExpression) {
-            return String(s[range])
+    /// Resolves metadata for the input; falls back to a bare DOI/URL entry
+    /// when the lookup fails so Add always succeeds.
+    private func lookedUpEntry(for input: String) async -> BibEntry {
+        if let doi = ReferenceLookupService.extractDOI(input) {
+            if let entry = try? await ReferenceLookupService().entry(forDOI: doi) {
+                return entry
+            }
+            var entry = BibEntry.empty()
+            entry.authors = []
+            entry.doi = doi
+            entry.type = .article
+            return entry
         }
-        return nil
+        if let url = ReferenceLookupService.webURL(input),
+           let entry = try? await ReferenceLookupService().entry(forWebPage: url) {
+            return entry
+        }
+        var entry = BibEntry.empty()
+        entry.authors = []
+        entry.url = input
+        entry.type = .website
+        return entry
     }
 }

@@ -42,11 +42,13 @@ struct AuthorsView: View {
             HSplitView {
                 // MARK: Left — authors + institution registry
                 VStack(spacing: 0) {
-                    // ORCID search up top where it's visible (it hid at the
-                    // bottom between the add buttons at first, Aug 2026).
-                    OrcidSearchBar { candidate in
-                        selectedID = store.addAuthor(from: candidate, ref: versionRef)
-                    }
+                    // Categorized search up top where it's visible (it hid at
+                    // the bottom between the add buttons at first, Aug 2026).
+                    AuthorSearchBar(
+                        authors: authors,
+                        onOpen: { selectedID = $0 },
+                        onAdd: { selectedID = store.addAuthor(from: $0, ref: versionRef) }
+                    )
                     .padding(8)
                     // Above the List so the results dropdown paints over it.
                     .zIndex(1)
@@ -154,9 +156,11 @@ struct AuthorsView: View {
                     Label("Add Institution", systemImage: "building.columns")
                 }
             }
-            OrcidSearchBar { candidate in
-                store.addAuthor(from: candidate, ref: versionRef)
-            }
+            AuthorSearchBar(
+                authors: authors,
+                onOpen: { selectedID = $0 },
+                onAdd: { selectedID = store.addAuthor(from: $0, ref: versionRef) }
+            )
             .frame(width: 320)
             .zIndex(1)
         }
@@ -239,65 +243,85 @@ struct AuthorsView: View {
 
 // MARK: - InstitutionEditor
 
-// MARK: - OrcidSearchBar
+// MARK: - AuthorSearchBar
 
-/// Inline ORCID author search (sits at the top of the Authors pane): type a
-/// name ("marie curie", "curie, marie") or a full iD, and the top-20 hits
-/// drop down live.  Picking one adds the author with names, iD, public
-/// email, and primary institution filled in, then clears the search.
-private struct OrcidSearchBar: View {
-    let onPick: (OrcidService.Candidate) -> Void
+/// Categorized author search (top of the Authors pane).  "Saved" text-
+/// matches the manuscript's existing authors — clicking one just opens its
+/// card.  "ORCID" lists public-API hits ("marie curie", "curie, marie", or
+/// a full iD) with a + that adds the autofilled author (names, iD, public
+/// email, primary institution).
+private struct AuthorSearchBar: View {
+    let authors: [Author]
+    let onOpen: (UUID) -> Void
+    let onAdd: (OrcidService.Candidate) -> Void
 
     @State private var query = ""
     @State private var results: [OrcidService.Candidate] = []
     @State private var searching = false
     @State private var errorText: String?
-    /// Measured field height, so the floating dropdown lands just below it.
-    @State private var fieldHeight: CGFloat = 28
 
-    /// Anything worth floating under the field: hits, an error, or the
-    /// no-match note once a real query has finished searching.
+    /// Existing authors every ≥2-letter term matches (name or iD).
+    private var savedMatches: [Author] {
+        let terms = query.lowercased()
+            .split(whereSeparator: { $0 == " " || $0 == "," })
+            .map(String.init).filter { $0.count >= 2 }
+        guard !terms.isEmpty else { return [] }
+        return authors.filter { author in
+            let hay = "\(author.fullName) \(author.orcid)".lowercased()
+            return terms.allSatisfy { hay.contains($0) }
+        }
+    }
+
+    private var noMatches: Bool {
+        savedMatches.isEmpty && results.isEmpty && errorText == nil && !searching
+            && query.trimmingCharacters(in: .whitespaces).count >= 3
+    }
+
     private var dropdownVisible: Bool {
-        errorText != nil || !results.isEmpty
-            || (!searching && query.trimmingCharacters(in: .whitespaces).count >= 3)
+        !savedMatches.isEmpty || !results.isEmpty || errorText != nil || noMatches
     }
 
     var body: some View {
-        HStack(spacing: 5) {
-            Image(systemName: "magnifyingglass")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            TextField("Search - ORCID or name", text: $query)
-                .textFieldStyle(.plain)
-            if searching {
-                ProgressView().controlSize(.small)
-            } else if !query.isEmpty {
-                Button {
-                    query = ""
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.tertiary)
+        SearchDropdownBar(placeholder: "Search - ORCID or name",
+                          query: $query,
+                          searching: searching,
+                          dropdownVisible: dropdownVisible) {
+            if !savedMatches.isEmpty {
+                SearchSectionHeader(title: "Saved", count: savedMatches.count)
+                ForEach(savedMatches) { author in
+                    SearchResultRow(
+                        title: author.fullName.isEmpty ? "(unnamed)" : author.fullName,
+                        subtitle: [author.orcid, author.email]
+                            .filter { !$0.isEmpty }.joined(separator: " · ")
+                    ) {
+                        onOpen(author.id)
+                        query = ""
+                    }
                 }
-                .buttonStyle(.plain)
+            }
+            if let errorText {
+                SearchNoteRow(text: errorText, color: .red)
+            } else if !results.isEmpty {
+                SearchSectionHeader(title: "ORCID", count: results.count)
+                ForEach(results) { candidate in
+                    SearchResultRow(
+                        icon: "plus.circle",
+                        title: candidate.displayName.isEmpty ? "(no public name)"
+                                                             : candidate.displayName,
+                        subtitle: [candidate.orcid, candidate.institutionNames.first ?? ""]
+                            .filter { !$0.isEmpty }.joined(separator: " · ")
+                    ) {
+                        onAdd(candidate)
+                        query = ""
+                        results = []
+                    }
+                }
+            } else if noMatches {
+                SearchNoteRow(text: "No matches on ORCID.")
             }
         }
-        .padding(.horizontal, 7)
-        .padding(.vertical, 5)
-        .background(Color(NSColor.textBackgroundColor),
-                    in: RoundedRectangle(cornerRadius: 7))
-        .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(.separator))
-        .onGeometryChange(for: CGFloat.self,
-                          of: { $0.size.height },
-                          action: { fieldHeight = $0 })
-        // The dropdown FLOATS over whatever sits below (call sites raise the
-        // bar's zIndex) — in the layout it would shove the author list down.
-        .overlay(alignment: .topLeading) {
-            if dropdownVisible {
-                dropdown.offset(y: fieldHeight + 4)
-            }
-        }
-        // Live search, debounced: each keystroke restarts the task; the
-        // sleep absorbs typing bursts before the request goes out.
+        // Live ORCID search, debounced: each keystroke restarts the task;
+        // the sleep absorbs typing bursts before the request goes out.
         .task(id: query) {
             errorText = nil
             let text = query.trimmingCharacters(in: .whitespaces)
@@ -309,83 +333,6 @@ private struct OrcidSearchBar: View {
             do { results = try await OrcidService().search(text) }
             catch { if !Task.isCancelled { errorText = error.localizedDescription } }
         }
-    }
-
-    /// Measured height of the result rows, so the card can size to content.
-    @State private var contentHeight: CGFloat = 44
-
-    /// The floating results card (also carries error / no-match states so
-    /// none of them reflow the layout underneath).  An overlay proposes the
-    /// FIELD's height to its children and a ScrollView obeys the proposal —
-    /// which squashed the card to a row and a half.  So the card sizes
-    /// itself: exact measured content height, capped at 40% of the screen
-    /// (the same trick as the "/" reference picker).
-    private var dropdown: some View {
-        Group {
-            if let errorText {
-                Label(errorText, systemImage: "exclamationmark.triangle")
-                    .font(.caption)
-                    .foregroundStyle(.red)
-                    .padding(8)
-                    .fixedSize(horizontal: false, vertical: true)
-            } else if results.isEmpty {
-                Text("No matches on ORCID.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .padding(8)
-                    .fixedSize(horizontal: false, vertical: true)
-            } else {
-                ScrollView {
-                    VStack(spacing: 0) {
-                        ForEach(results) { candidate in
-                            row(candidate)
-                            if candidate.id != results.last?.id {
-                                Divider()
-                            }
-                        }
-                    }
-                    .onGeometryChange(for: CGFloat.self,
-                                      of: { $0.size.height },
-                                      action: { contentHeight = $0 })
-                }
-                .frame(height: min(contentHeight,
-                                   (NSScreen.main?.visibleFrame.height ?? 800) * 0.4))
-            }
-        }
-        // Wider than the narrow pane on purpose — it floats, so it may
-        // overhang the editor to show full names and institutions.
-        .frame(width: 360, alignment: .leading)
-        .background(Color(NSColor.controlBackgroundColor),
-                    in: RoundedRectangle(cornerRadius: 7))
-        .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(.separator))
-        .shadow(color: .black.opacity(0.18), radius: 8, y: 3)
-    }
-
-    /// Two-line row sized for the narrow pane: name, then iD · institution.
-    private func row(_ candidate: OrcidService.Candidate) -> some View {
-        Button {
-            onPick(candidate)
-            query = ""
-            results = []
-        } label: {
-            VStack(alignment: .leading, spacing: 1) {
-                Text(candidate.displayName.isEmpty ? "(no public name)"
-                                                   : candidate.displayName)
-                    .font(.callout)
-                Text([candidate.orcid, candidate.institutionNames.first ?? ""]
-                        .filter { !$0.isEmpty }
-                        .joined(separator: " · "))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 5)
     }
 }
 

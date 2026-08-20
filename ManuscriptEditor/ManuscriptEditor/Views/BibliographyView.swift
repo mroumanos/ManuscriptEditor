@@ -152,6 +152,17 @@ struct BibliographyView: View {
             addReferenceMenu
                 .padding(.horizontal, 12).padding(.vertical, 6)
                 .background(.secondary.opacity(0.12), in: Capsule())
+            BibSearchBar(
+                entries: allEntries,
+                query: $searchText,
+                onOpen: { selectedID = $0 },
+                onAdd: { entry in
+                    store.addBibEntry(entry, ref: versionRef)
+                    selectedID = entry.id
+                }
+            )
+            .frame(width: 320)
+            .zIndex(1)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -159,18 +170,23 @@ struct BibliographyView: View {
     // MARK: - Sub-views
 
     private var searchBar: some View {
-        HStack {
-            Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-            TextField("Search references…", text: $searchText).textFieldStyle(.plain)
-            if !searchText.isEmpty {
-                Button { searchText = "" } label: {
-                    Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
+        BibSearchBar(
+            entries: allEntries,
+            query: $searchText,
+            onOpen: { selectedID = $0 },
+            onAdd: { entry in
+                store.addBibEntry(entry, ref: versionRef)
+                // addBibEntry dedupes on zoteroKey, so resolve the id of
+                // whichever entry actually represents this reference now.
+                selectedID = store.manuscript(for: versionRef)?.bibliography.first(where: {
+                    $0.id == entry.id
+                        || ($0.zoteroKey != nil && $0.zoteroKey == entry.zoteroKey)
+                })?.id
             }
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        )
+        .padding(8)
+        // Above the List so the results dropdown paints over it.
+        .zIndex(1)
     }
 
     /// One row in the reference list: citation number (when cited), key, year,
@@ -240,6 +256,140 @@ struct BibliographyView: View {
 // MARK: - BibEntryEditor
 
 /// Full form for editing all fields of one bibliography entry.
+// MARK: - BibSearchBar
+
+/// Categorized reference search (top of the Bibliography pane), the same
+/// pattern as the Authors pane.  "Saved" text-matches existing entries —
+/// clicking one opens it.  Source sections add with a +, chosen by input
+/// shape: plain text searches Zotero, a DOI resolves full metadata via
+/// doi.org (issue #9), and a web URL fetches the page title.  The query
+/// doubles as the saved-list filter (same binding).
+private struct BibSearchBar: View {
+    let entries: [BibEntry]
+    @Binding var query: String
+    let onOpen: (UUID) -> Void
+    let onAdd: (BibEntry) -> Void
+
+    @State private var zoteroHits: [ZoteroItem] = []
+    /// Resolved DOI or Web result (those sections hold at most one hit).
+    @State private var lookupEntry: BibEntry?
+    /// Which single-hit section is active: "DOI" or "Web".
+    @State private var lookupSection: String?
+    @State private var searching = false
+    @State private var errorText: String?
+
+    /// Existing entries every ≥2-letter term matches (key, title, authors,
+    /// journal, year, or DOI).
+    private var savedMatches: [BibEntry] {
+        let terms = query.lowercased()
+            .split(whereSeparator: { $0 == " " || $0 == "," })
+            .map(String.init).filter { $0.count >= 2 }
+        guard !terms.isEmpty else { return [] }
+        return entries.filter { entry in
+            let hay = """
+            \(entry.key) \(entry.title) \(entry.authorsFormatted) \
+            \(entry.journal ?? "") \(entry.year.map(String.init) ?? "") \(entry.doi ?? "")
+            """.lowercased()
+            return terms.allSatisfy { hay.contains($0) }
+        }
+    }
+
+    private var noMatches: Bool {
+        savedMatches.isEmpty && zoteroHits.isEmpty && lookupEntry == nil
+            && errorText == nil && !searching
+            && query.trimmingCharacters(in: .whitespaces).count >= 3
+    }
+
+    private var dropdownVisible: Bool {
+        !savedMatches.isEmpty || !zoteroHits.isEmpty || lookupEntry != nil
+            || errorText != nil || noMatches
+    }
+
+    var body: some View {
+        SearchDropdownBar(placeholder: "Search - text, DOI, or URL",
+                          query: $query,
+                          searching: searching,
+                          dropdownVisible: dropdownVisible) {
+            if !savedMatches.isEmpty {
+                SearchSectionHeader(title: "Saved", count: savedMatches.count)
+                ForEach(savedMatches) { entry in
+                    SearchResultRow(
+                        title: entry.title.isEmpty ? (entry.key.isEmpty ? "(untitled)" : entry.key)
+                                                   : entry.title,
+                        subtitle: [entry.authorsFormatted,
+                                   entry.year.map(String.init) ?? "",
+                                   entry.journal ?? ""]
+                            .filter { !$0.isEmpty }.joined(separator: " · ")
+                    ) {
+                        onOpen(entry.id)
+                        query = ""
+                    }
+                }
+            }
+            if let errorText {
+                SearchNoteRow(text: errorText, color: .red)
+            } else if let section = lookupSection, let entry = lookupEntry {
+                SearchSectionHeader(title: section, count: 1)
+                SearchResultRow(
+                    icon: "plus.circle",
+                    title: entry.title.isEmpty ? (entry.doi ?? entry.url ?? "(untitled)")
+                                               : entry.title,
+                    subtitle: [entry.authorsFormatted,
+                               entry.year.map(String.init) ?? "",
+                               entry.journal ?? entry.url ?? ""]
+                        .filter { !$0.isEmpty }.joined(separator: " · ")
+                ) {
+                    onAdd(entry)
+                    query = ""
+                }
+            } else if !zoteroHits.isEmpty {
+                SearchSectionHeader(title: "Zotero", count: zoteroHits.count)
+                ForEach(zoteroHits) { item in
+                    SearchResultRow(
+                        icon: "plus.circle",
+                        title: item.title,
+                        subtitle: [item.creators.first?.formatted ?? "",
+                                   item.date,
+                                   item.publicationTitle ?? ""]
+                            .filter { !$0.isEmpty }.joined(separator: " · ")
+                    ) {
+                        onAdd(ZoteroService().bibEntry(from: item))
+                        query = ""
+                    }
+                }
+            } else if noMatches {
+                SearchNoteRow(text: "No matches in Zotero.")
+            }
+        }
+        // Debounced source lookup, routed by input shape.
+        .task(id: query) {
+            errorText = nil
+            zoteroHits = []
+            lookupEntry = nil
+            lookupSection = nil
+            let text = query.trimmingCharacters(in: .whitespaces)
+            guard text.count >= 3 else { return }
+            try? await Task.sleep(nanoseconds: 350_000_000)
+            guard !Task.isCancelled else { return }
+            searching = true
+            defer { searching = false }
+            do {
+                if let doi = ReferenceLookupService.extractDOI(text) {
+                    lookupSection = "DOI"
+                    lookupEntry = try await ReferenceLookupService().entry(forDOI: doi)
+                } else if let url = ReferenceLookupService.webURL(text) {
+                    lookupSection = "Web"
+                    lookupEntry = try await ReferenceLookupService().entry(forWebPage: url)
+                } else {
+                    zoteroHits = try await ZoteroService().fetchItems(matching: text, limit: 20)
+                }
+            } catch {
+                if !Task.isCancelled { errorText = error.localizedDescription }
+            }
+        }
+    }
+}
+
 struct BibEntryEditor: View {
     @Environment(ManuscriptStore.self) private var store
     let entry: BibEntry
