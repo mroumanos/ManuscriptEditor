@@ -266,9 +266,17 @@ struct SidebarView: View {
     // MARK: - Row helpers
 
     private func sectionRow(_ section: ManuscriptSection) -> some View {
-        HStack {
+        let comments = store.noteCount(versionKey: activeRef.id,
+                                       itemKey: SidebarItem.section(section.id).notesKey)
+        return HStack {
             Label(section.title, systemImage: section.type.systemImage)
             Spacer()
+            if comments > 0 {
+                Label("\(comments)", systemImage: "bubble.left")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .help("\(comments) comment\(comments == 1 ? "" : "s") on this section")
+            }
         }
         .tag(SidebarItem.section(section.id))
         // Reliable delete affordances (macOS swipe can be non-obvious).
