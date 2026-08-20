@@ -100,6 +100,14 @@ xcodebuild -scheme ManuscriptEditor -destination 'platform=macOS' build
     inaccessible other-partition item (delete-then-add on
     `errSecDuplicateItem`). Sandbox-era Keychain secrets are unrecoverable —
     users re-enter them once.
+12. **One `alert(item:)` per view *branch*, ancestors included.** Two alert
+    modifiers on the same node: only the last fires (killed the Sync button,
+    the ⏪⏩ sync buttons, and the Load buttons — three separate times). But
+    the rule is broader: an `alert(item:)` on an **ancestor** suppresses one
+    on a descendant the same way (the delete alert on JournalLineageCard's
+    outer VStack silently ate the sync confirmations on `lineageTree`
+    inside it). Attach each alert to its own node on **sibling branches** —
+    never stack them, never nest them.
 
 ## Working style for LLM contributors
 

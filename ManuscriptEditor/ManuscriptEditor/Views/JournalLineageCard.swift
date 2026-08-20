@@ -95,6 +95,26 @@ struct JournalLineageCard: View {
                     }
                 }
                 .frame(maxWidth: cardWidth)
+                // The delete alert lives on the header row — a SIBLING of
+                // lineageTree (which holds the sync alert).  On macOS an
+                // alert(item:) on an ANCESTOR suppresses one on a descendant
+                // just like two on the same node do: with this alert on the
+                // outer VStack, the ⏪⏩ sync confirmations never fired.
+                .alert(item: $pendingDelete) { journal in
+                    Alert(
+                        title: Text("Delete \(journal.name)?"),
+                        message: Text("Removes the journal's tab and its whole version history from this manuscript"
+                                      + (store.manuscript?.settings.remoteRepository != nil
+                                         ? ", and deletes its snapshot branch on the remote." : ".")
+                                      + " Source and other journals are untouched. This cannot be undone."),
+                        primaryButton: .destructive(Text("Delete")) {
+                            if let error = store.deleteJournal(id: journal.id, appStore: appStore) {
+                                showError(error)
+                            }
+                        },
+                        secondaryButton: .cancel()
+                    )
+                }
 
                 lineageTree
                     // Attached here, NOT on the outer VStack: two
@@ -107,21 +127,6 @@ struct JournalLineageCard: View {
         }
         .sheet(isPresented: $showAddJournal) {
             AddJournalSheet(isPresented: $showAddJournal)
-        }
-        .alert(item: $pendingDelete) { journal in
-            Alert(
-                title: Text("Delete \(journal.name)?"),
-                message: Text("Removes the journal's tab and its whole version history from this manuscript"
-                              + (store.manuscript?.settings.remoteRepository != nil
-                                 ? ", and deletes its snapshot branch on the remote." : ".")
-                              + " Source and other journals are untouched. This cannot be undone."),
-                primaryButton: .destructive(Text("Delete")) {
-                    if let error = store.deleteJournal(id: journal.id, appStore: appStore) {
-                        showError(error)
-                    }
-                },
-                secondaryButton: .cancel()
-            )
         }
     }
 
