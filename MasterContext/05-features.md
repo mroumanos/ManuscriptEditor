@@ -216,7 +216,15 @@ propagate by explicit, individual fast-forwards.
   **notification banner** slot (`ManuscriptStore.showBanner` — green success
   / red failure, auto-dismissing): all sync messages, save confirmations,
   and remote push/pull results surface there (no inline banners in the Sync
-  pane; no blocking remote-error alert). The top-right shows the **save
+  pane; no blocking remote-error alert). **Adaptive Remote controls**
+  (Aug 2026): the configured repository is verified on manuscript load and
+  after repo edits (one commits fetch proves the repo exists and its content
+  branch loads; offline keeps the previous state). A verified repo shows
+  **Save | Load**; a missing or blank one swaps them for **Create**, which
+  creates + pushes — using the entered name, else
+  `manuscript-editor-<title-slug>-<id8>` (`suggestedRepoName`). The
+  repository entry is **owner/name only** — the branch layout (main /
+  source / journal-*) is fixed, nothing to type. The top-right shows the **save
   status**: last local save time and last remote push ("N/A" when no backend
   is configured). **Save (Local)** always writes to disk and banners;
   **Save (Remote)** banners its async result.

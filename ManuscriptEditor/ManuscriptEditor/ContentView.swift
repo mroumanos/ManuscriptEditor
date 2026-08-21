@@ -290,6 +290,11 @@ struct ContentView: View {
             store.closeToWelcome()
             resetWorkspace()
         }
+        // Repo existence check on manuscript load — drives Overview's
+        // adaptive Remote controls (Save|Load vs Create).
+        .onChange(of: store.manuscript?.id) { _, _ in
+            store.validateRemoteRepository(appStore: appStore)
+        }
         .onReceive(NotificationCenter.default.publisher(for: .exportManuscript)) { _ in
             if store.manuscript != nil { showingExport = true }
         }

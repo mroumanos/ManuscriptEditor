@@ -201,8 +201,38 @@ struct OverviewView: View {
                             store.showBanner(.success, "Saved to disk at \((store.lastSaved ?? Date()).formatted(date: .omitted, time: .standard)).")
                         }
                     }
-                    saveLine("Remote", lastSaved: m.lastSyncedAt?.formatted(date: .abbreviated, time: .shortened) ?? "never") {
-                        store.saveToRemote(appStore: appStore)
+                    // Remote controls follow the repo-existence check: a
+                    // verified repo gets Save|Load; a missing (or blank) one
+                    // gets Create, which makes + pushes the repository.
+                    if store.remoteRepoStatus == .missing {
+                        HStack(spacing: 6) {
+                            Text("Remote")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .frame(width: 76, alignment: .leading)
+                            Button("Create") {
+                                let entered = (m.settings.remoteRepository ?? "")
+                                    .split(separator: "/").last.map(String.init) ?? ""
+                                let name = entered.isEmpty ? store.suggestedRepoName : entered
+                                store.createRemoteRepository(named: name, appStore: appStore) { _ in
+                                    store.validateRemoteRepository(appStore: appStore)
+                                }
+                            }
+                            .controlSize(.small)
+                            .disabled(store.isRemoteBusy)
+                            if store.isRemoteBusy { ProgressView().controlSize(.small) }
+                            Text((m.settings.remoteRepository ?? "").isEmpty
+                                 ? "(creates \(store.suggestedRepoName))"
+                                 : "(repository not found — Create makes it and pushes)")
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                        }
+                    } else {
+                        saveLine("Remote", lastSaved: m.lastSyncedAt?.formatted(date: .abbreviated, time: .shortened) ?? "never") {
+                            store.saveToRemote(appStore: appStore)
+                        }
                     }
                     HStack(spacing: 6) {
                         Text("Repository")
@@ -210,25 +240,25 @@ struct OverviewView: View {
                             .foregroundStyle(.secondary)
                             .frame(width: 76, alignment: .leading)
                         if editingRepo {
+                            // Just owner/name — the branch layout is fixed
+                            // (main, source, journal-*), nothing to enter.
                             TextField("owner/name", text: optionalSetting(\.remoteRepository))
                                 .textFieldStyle(.roundedBorder)
                                 .controlSize(.small)
                                 .frame(width: 200)
-                            TextField("branch", text: optionalSetting(\.remoteBranch))
-                                .textFieldStyle(.roundedBorder)
-                                .controlSize(.small)
-                                .frame(width: 100)
-                            Button("Done") { editingRepo = false }
-                                .controlSize(.small)
+                            Button("Done") {
+                                editingRepo = false
+                                store.validateRemoteRepository(appStore: appStore)
+                            }
+                            .controlSize(.small)
                         } else {
                             let repo = m.settings.remoteRepository ?? ""
-                            let branch = m.settings.remoteBranch ?? "source"
-                            Text(repo.isEmpty ? "not configured" : "\(repo):\(branch)")
+                            Text(repo.isEmpty ? "not configured" : repo)
                                 .font(.caption)
                                 .foregroundStyle(repo.isEmpty ? .tertiary : .secondary)
                                 .textSelection(.enabled)
                             if !repo.isEmpty,
-                               let url = URL(string: "https://github.com/\(repo)/tree/\(branch)") {
+                               let url = URL(string: "https://github.com/\(repo)") {
                                 Button { NSWorkspace.shared.open(url) } label: {
                                     Image(systemName: "arrow.up.right.square")
                                 }
@@ -239,9 +269,9 @@ struct OverviewView: View {
                                 Image(systemName: "pencil")
                             }
                             .buttonStyle(.borderless)
-                            .help("Edit repository and branch")
+                            .help("Edit the repository (owner/name)")
                         }
-                        if store.isRemoteBusy { ProgressView().controlSize(.small) }
+                        if store.remoteRepoStatus == .checking { ProgressView().controlSize(.small) }
                     }
                 }
                 // On its own node — a second alert(item:) on a view that

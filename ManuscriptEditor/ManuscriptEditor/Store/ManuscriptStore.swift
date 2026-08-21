@@ -1764,6 +1764,55 @@ final class ManuscriptStore {
 
     /// The GitHub config for this manuscript: active account credentials +
     /// the manuscript's own repository/branch.
+    // MARK: - Remote repository validation (Overview's adaptive controls)
+
+    enum RemoteRepoStatus: Equatable {
+        case unknown      // nothing configured, not yet checked, or offline
+        case checking
+        case valid        // repo exists and its content branch loads
+        case missing      // repo (or the content branch) not reachable
+    }
+    var remoteRepoStatus: RemoteRepoStatus = .unknown
+
+    /// Verifies the configured repository exists and its content branch is
+    /// loadable — one commits fetch covers both.  Runs when a manuscript
+    /// loads and after the repo name is edited; Overview swaps Save|Load
+    /// for Create while the status is `.missing`.  Note GitHub 404s both
+    /// "missing" and "no access" — either way Save couldn't work.
+    func validateRemoteRepository(appStore: AppStore) {
+        guard manuscript?.settings.remoteRepository?.isEmpty == false else {
+            remoteRepoStatus = .missing   // nothing entered — offer Create
+            return
+        }
+        guard let (_, raw) = try? remoteConfig(appStore) else {
+            remoteRepoStatus = .unknown   // no usable account — leave Save|Load
+            return
+        }
+        let config = raw.with(branch: manuscript?.settings.remoteBranch ?? "source")
+        remoteRepoStatus = .checking
+        Task {
+            do {
+                _ = try await gitHubService.commits(config: config, limit: 1)
+                remoteRepoStatus = .valid
+            } catch is URLError {
+                remoteRepoStatus = .unknown   // offline — don't flip the UI
+            } catch {
+                remoteRepoStatus = .missing
+            }
+        }
+    }
+
+    /// Default repository name for Create when none is entered:
+    /// manuscript-editor-<title slug>-<first 8 of the manuscript id> (the
+    /// same UUID that names the local storage folder).
+    var suggestedRepoName: String {
+        let title = (manuscript?.title ?? "manuscript").lowercased()
+            .map { $0.isLetter || $0.isNumber ? String($0) : "-" }.joined()
+        let slug = title.split(separator: "-").joined(separator: "-")
+        let id8 = (manuscript?.id.uuidString.prefix(8) ?? "00000000").lowercased()
+        return "manuscript-editor-\(slug.isEmpty ? "untitled" : slug)-\(id8)"
+    }
+
     private func remoteConfig(_ appStore: AppStore) throws -> (BackendAccount, GitHubBackendService.Config) {
         let account = try activeBackend(appStore)
         let config = try GitHubBackendService.Config.from(
@@ -1810,6 +1859,7 @@ final class ManuscriptStore {
 
     private func markSynced(appStore: AppStore? = nil) {
         saveRemoteBaseline()
+        remoteRepoStatus = .valid   // a successful round-trip proves it
         manuscript?.lastSyncedAt = Date()
         // The remote head just moved: drop the stale changelog anchor so the
         // comparison retargets to the fresh commit (immediately when we have
