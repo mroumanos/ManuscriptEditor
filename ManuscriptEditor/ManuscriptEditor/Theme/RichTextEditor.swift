@@ -728,14 +728,15 @@ private struct RichTextRepresentable: NSViewRepresentable {
                     var attrs = storage.attributes(at: u.range.location, effectiveRange: nil)
                     attrs[.link] = u.url
                     attrs[.toolTip] = u.tooltip
-                    // Superscript formats raise plain digits by attribute;
-                    // switching formats must also clear it.
-                    if let token = RefEngine.Token.parse(u.url),
-                       RefEngine.isSuperscripted(token, context: parent.refContext) {
-                        attrs[.superscript] = 1
-                    } else {
-                        attrs.removeValue(forKey: .superscript)
-                    }
+                    // Superscript formats raise plain digits; switching
+                    // formats must also clear the raise.
+                    let raised = RefEngine.Token.parse(u.url).map {
+                        RefEngine.isSuperscripted($0, context: parent.refContext)
+                    } ?? false
+                    CitationTextView.applyCitationRaise(
+                        &attrs, raised: raised,
+                        baseFont: (textView as? CitationTextView)?
+                            .defaultTypingAttributes[.font] as? NSFont)
                     storage.replaceCharacters(in: u.range,
                                               with: NSAttributedString(string: u.text, attributes: attrs))
                     // Keep the caret logically in place across the length change.
@@ -950,6 +951,26 @@ final class CitationTextView: NSTextView {
         }
     }
 
+    /// Raised-citation styling.  Raised text at FULL size grows the line
+    /// box (an extra gap appeared above citation lines); ~0.7× the body
+    /// font lifted ~0.28 em fits inside the normal ascent, so line spacing
+    /// stays even.  The editor uses baselineOffset + the smaller font;
+    /// exports carry the semantic .superscript attribute instead (their
+    /// writers apply Word-style superscript themselves).
+    static func applyCitationRaise(_ attrs: inout [NSAttributedString.Key: Any],
+                                   raised: Bool, baseFont: NSFont?) {
+        let base = baseFont ?? .systemFont(ofSize: NSFont.systemFontSize)
+        if raised {
+            attrs[.font] = NSFont(descriptor: base.fontDescriptor,
+                                  size: (base.pointSize * 0.7).rounded()) ?? base
+            attrs[.baselineOffset] = base.pointSize * 0.28
+        } else {
+            attrs[.font] = base
+            attrs.removeValue(forKey: .baselineOffset)
+        }
+        attrs.removeValue(forKey: .superscript)
+    }
+
     private func isSpace(_ ch: unichar) -> Bool {
         ch == 0x20 || ch == 0x0A || ch == 0x09 || ch == 0xA0
     }
@@ -1079,7 +1100,9 @@ final class CitationTextView: NSTextView {
         }
         if let url = token.url { attrs[.link] = url }
         if let tip = RefEngine.tooltip(for: token, context: refContext) { attrs[.toolTip] = tip }
-        if RefEngine.isSuperscripted(token, context: refContext) { attrs[.superscript] = 1 }
+        CitationTextView.applyCitationRaise(&attrs,
+                                            raised: RefEngine.isSuperscripted(token, context: refContext),
+                                            baseFont: defaultTypingAttributes[.font] as? NSFont)
 
         guard shouldChangeText(in: range, replacementString: text) else { return }
         textStorage?.replaceCharacters(in: range, with: NSAttributedString(string: text, attributes: attrs))

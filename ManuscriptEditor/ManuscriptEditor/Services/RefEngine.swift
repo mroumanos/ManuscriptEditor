@@ -485,9 +485,14 @@ enum RefEngine {
             let tip = tooltip(for: token, context: context)
             let current = attributed.attributedSubstring(from: range).string
             let currentTip = attributed.attribute(.toolTip, at: range.location, effectiveRange: nil) as? String
-            if desired != current || tip != currentTip {
+            // Legacy raise: tokens styled by the retired .superscript
+            // attribute (full-size, grew the line box) restyle even when
+            // their text already matches.
+            let legacyRaise = attributed.attribute(.superscript, at: range.location,
+                                                   effectiveRange: nil) != nil
+            if desired != current || tip != currentTip || legacyRaise {
                 updates.append(TokenUpdate(range: range, text: desired,
-                                           textChanged: desired != current,
+                                           textChanged: desired != current || legacyRaise,
                                            url: url, tooltip: tip))
             }
         }
@@ -513,8 +518,14 @@ enum RefEngine {
         let full = NSRange(location: 0, length: out.length)
         var tokenRanges: [NSRange] = []
         out.enumerateAttribute(.link, in: full) { value, range, _ in
-            guard let url = value as? URL, Token.parse(url) != nil else { return }
+            guard let url = value as? URL, let token = Token.parse(url) else { return }
             tokenRanges.append(range)
+            // Exports carry the semantic superscript (Word/RTF writers do
+            // their own raise+shrink); the editor's baselineOffset goes.
+            if isSuperscripted(token, context: context) {
+                out.addAttribute(.superscript, value: 1, range: range)
+                out.removeAttribute(.baselineOffset, range: range)
+            }
         }
         for range in tokenRanges {
             out.removeAttribute(.link, range: range)
