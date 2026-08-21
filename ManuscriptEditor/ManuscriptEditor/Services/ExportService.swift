@@ -670,6 +670,20 @@ struct ExportService {
             base = NSAttributedString(string: richText.plain, attributes: [.font: bodyFont])
         }
         let out = NSMutableAttributedString(attributedString: base)
+        // Same superscript materialization as the outline path.
+        let full = NSRange(location: 0, length: out.length)
+        out.enumerateAttribute(.superscript, in: full) { value, range, _ in
+            guard let level = value as? Int, level != 0 else { return }
+            out.enumerateAttribute(.font, in: range) { f, sub, _ in
+                let current = (f as? NSFont) ?? bodyFont
+                let small = NSFont(descriptor: current.fontDescriptor,
+                                   size: (bodyFont.pointSize * 0.65).rounded()) ?? current
+                out.addAttribute(.font, value: small, range: sub)
+            }
+            out.addAttribute(.baselineOffset,
+                             value: bodyFont.pointSize * 0.33 * CGFloat(level), range: range)
+            out.removeAttribute(.superscript, range: range)
+        }
         out.append(NSAttributedString(string: "\n"))
         return out
     }
@@ -949,6 +963,28 @@ private struct OutlineBuilder {
     /// Rich prose re-set in the document font: token refresh + chrome strip,
     /// then every run mapped onto the base font keeping bold/italic traits,
     /// and paragraph styles forced to the document's line spacing.
+    /// Citations (and any superscript/subscript prose) become transferable:
+    /// the semantic NSSuperScript attribute translates into a smaller font
+    /// plus an explicit baselineOffset — CoreText's paginator honors the
+    /// offset (verified: the bare superscript key is a no-op there) and the
+    /// RTF/DOCX writers serialize it as raised text, so Word gets a real
+    /// raise instead of "body-type made smaller".
+    private func materializeSuperscripts(_ out: NSMutableAttributedString, base: NSFont) {
+        let full = NSRange(location: 0, length: out.length)
+        out.enumerateAttribute(.superscript, in: full) { value, range, _ in
+            guard let level = value as? Int, level != 0 else { return }
+            out.enumerateAttribute(.font, in: range) { f, sub, _ in
+                let current = (f as? NSFont) ?? base
+                let small = NSFont(descriptor: current.fontDescriptor,
+                                   size: (base.pointSize * 0.65).rounded()) ?? current
+                out.addAttribute(.font, value: small, range: sub)
+            }
+            out.addAttribute(.baselineOffset,
+                             value: base.pointSize * 0.33 * CGFloat(level), range: range)
+            out.removeAttribute(.superscript, range: range)
+        }
+    }
+
     private func rich(_ richText: RichText, in m: Manuscript) -> NSAttributedString {
         let source: NSAttributedString
         if let rtf = richText.rtf, let s = NSAttributedString(rtf: rtf, documentAttributes: nil) {
@@ -974,6 +1010,7 @@ private struct OutlineBuilder {
             style.lineHeightMultiple = format.lineSpacing
             out.addAttribute(.paragraphStyle, value: style, range: range)
         }
+        materializeSuperscripts(out, base: base)
         out.addAttribute(.foregroundColor, value: NSColor.black, range: full)
         // The trailing gap line must carry the document spacing too, or it
         // renders single-spaced between a section and the next heading.
