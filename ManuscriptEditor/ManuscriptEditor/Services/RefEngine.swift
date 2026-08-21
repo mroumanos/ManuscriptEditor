@@ -68,7 +68,10 @@ enum RefEngine {
             switch style {
             case .numeric:       return "[\(number)]"
             case .parenthetical: return "(\(number))"
-            case .superscripted: return superscriptDigits(number)
+            // Plain digits — raised by the .superscript ATTRIBUTE at render
+            // (Unicode superscript glyphs sit at different heights per font:
+            // legacy ¹²³ vs the newer ⁴-⁹ block made "³" lower than "⁶").
+            case .superscripted: return String(number)
             case .authorYear:    return "(\(authorNames(info.authors, ampersand: true)), \(info.year.map(String.init) ?? "n.d."))"
             case .narrative:     return "\(authorNames(info.authors, ampersand: false)) (\(info.year.map(String.init) ?? "n.d."))"
             }
@@ -293,10 +296,7 @@ enum RefEngine {
             case .numeric:       return "[\(compressedNumbers(pairs.map(\.number)))]"
             case .parenthetical: return "(\(compressedNumbers(pairs.map(\.number))))"
             case .superscripted:
-                let map: [Character: Character] = ["0": "⁰", "1": "¹", "2": "²", "3": "³",
-                                                   "4": "⁴", "5": "⁵", "6": "⁶", "7": "⁷",
-                                                   "8": "⁸", "9": "⁹", "-": "⁻"]
-                return String(compressedNumbers(pairs.map(\.number)).map { map[$0] ?? $0 })
+                return compressedNumbers(pairs.map(\.number))
             case .authorYear, .narrative:
                 let inner = pairs.map { pair in
                     guard let info = context.bib[pair.id] else { return "?" }
@@ -319,6 +319,13 @@ enum RefEngine {
             guard let (number, _) = context.tables[token.targetID] else { return "⟦?⟧" }
             return "⟦Table \(number) here⟧"
         }
+    }
+
+    /// True when this token should render raised (the app-wide format is
+    /// superscript): plain digits + the .superscript attribute, so every
+    /// digit sits at the same height.
+    static func isSuperscripted(_ token: Token, context: Context) -> Bool {
+        token.kind == .bib && context.defaultStyle == .superscripted
     }
 
     /// The hover tooltip for a token, or nil when the target no longer exists.
@@ -496,6 +503,11 @@ enum RefEngine {
         where u.textChanged {
             var attrs = out.attributes(at: u.range.location, effectiveRange: nil)
             attrs[.toolTip] = u.tooltip
+            if let token = Token.parse(u.url), isSuperscripted(token, context: context) {
+                attrs[.superscript] = 1
+            } else {
+                attrs.removeValue(forKey: .superscript)
+            }
             out.replaceCharacters(in: u.range, with: NSAttributedString(string: u.text, attributes: attrs))
         }
         let full = NSRange(location: 0, length: out.length)

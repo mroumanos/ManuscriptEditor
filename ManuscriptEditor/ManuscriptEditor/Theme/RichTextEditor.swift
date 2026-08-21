@@ -728,6 +728,14 @@ private struct RichTextRepresentable: NSViewRepresentable {
                     var attrs = storage.attributes(at: u.range.location, effectiveRange: nil)
                     attrs[.link] = u.url
                     attrs[.toolTip] = u.tooltip
+                    // Superscript formats raise plain digits by attribute;
+                    // switching formats must also clear it.
+                    if let token = RefEngine.Token.parse(u.url),
+                       RefEngine.isSuperscripted(token, context: parent.refContext) {
+                        attrs[.superscript] = 1
+                    } else {
+                        attrs.removeValue(forKey: .superscript)
+                    }
                     storage.replaceCharacters(in: u.range,
                                               with: NSAttributedString(string: u.text, attributes: attrs))
                     // Keep the caret logically in place across the length change.
@@ -1071,6 +1079,7 @@ final class CitationTextView: NSTextView {
         }
         if let url = token.url { attrs[.link] = url }
         if let tip = RefEngine.tooltip(for: token, context: refContext) { attrs[.toolTip] = tip }
+        if RefEngine.isSuperscripted(token, context: refContext) { attrs[.superscript] = 1 }
 
         guard shouldChangeText(in: range, replacementString: text) else { return }
         textStorage?.replaceCharacters(in: range, with: NSAttributedString(string: text, attributes: attrs))
@@ -1097,15 +1106,31 @@ final class CitationTextView: NSTextView {
         var body = ""
         switch token.kind {
         case .bib:
-            if let info = refContext.bib[token.targetID] {
-                let number = refContext.numbers[token.targetID]
-                title = ([info.key.isEmpty ? "Reference" : info.key]
-                         + (number.map { ["cited as [\($0)]"] } ?? [])).joined(separator: "  ·  ")
-                body = info.tooltip
-            } else {
-                title = "Reference not found"
-                body = "This entry was removed from the bibliography."
+            // Multi-citations stack one section per cited entry.
+            let sections: [(String, String)] = token.allIDs.map { id in
+                if let info = refContext.bib[id] {
+                    let number = refContext.numbers[id]
+                    let t = ([info.key.isEmpty ? "Reference" : info.key]
+                             + (number.map { ["cited as [\($0)]"] } ?? [])).joined(separator: "  ·  ")
+                    return (t, info.tooltip)
+                }
+                return ("Reference not found", "This entry was removed from the bibliography.")
             }
+            let out = NSMutableAttributedString()
+            for (i, section) in sections.enumerated() {
+                if i > 0 { out.append(NSAttributedString(string: "\n\n")) }
+                out.append(NSAttributedString(
+                    string: section.0,
+                    attributes: [.font: NSFont.systemFont(ofSize: 12, weight: .semibold),
+                                 .foregroundColor: NSColor.labelColor]))
+                if !section.1.isEmpty {
+                    out.append(NSAttributedString(
+                        string: "\n" + section.1,
+                        attributes: [.font: NSFont.systemFont(ofSize: 11),
+                                     .foregroundColor: NSColor.secondaryLabelColor]))
+                }
+            }
+            return out
         case .figure, .table, .figurePlacement, .tablePlacement:
             let isFigure = token.kind == .figure || token.kind == .figurePlacement
             let noun = isFigure ? "Figure" : "Table"
