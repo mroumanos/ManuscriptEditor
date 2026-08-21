@@ -2054,6 +2054,11 @@ final class ManuscriptStore {
                 throw GitHubBackendError.notConfigured("No personal access token stored for \"\(account.displayName)\". Add one in Settings → Accounts.")
             }
             let files = try gatherRemoteFiles()
+            let readme = readmeFile()
+            let snapshots: [(String, GitHubBackendService.File)] =
+                try (manuscript?.journals ?? []).compactMap { journal in
+                    try journalSnapshot(journal).map { (branchName(for: journal), $0) }
+                }
             let title = manuscript?.title ?? "manuscript"
             isRemoteBusy = true
             account.syncStatus = .syncing
@@ -2061,25 +2066,50 @@ final class ManuscriptStore {
 
             Task {
                 do {
-                    let repo = try await gitHubService.createRepository(named: name, token: token)
-                    manuscript?.settings.remoteRepository = repo.fullName
-                    trySave()
+                    var htmlURL: URL?
+                    do {
+                        let repo = try await gitHubService.createRepository(named: name, token: token)
+                        manuscript?.settings.remoteRepository = repo.fullName
+                        htmlURL = repo.htmlURL
+                        trySave()
+                    } catch {
+                        // The repo may exist from a previous attempt whose
+                        // push failed (it once pushed content straight to
+                        // `source`, which an empty repo rejects) — resume
+                        // into the bound repository instead of dead-ending
+                        // on "name already exists".
+                        guard manuscript?.settings.remoteRepository?.isEmpty == false else { throw error }
+                    }
                     let config = try GitHubBackendService.Config.from(
-                        account: account, repository: repo.fullName,
+                        account: account, repository: manuscript?.settings.remoteRepository,
                         branch: manuscript?.settings.remoteBranch)
+                    // The same layout Save (Remote) writes — README on main
+                    // FIRST (this is what bootstraps an empty repository),
+                    // content on source, then per-journal snapshots.
+                    _ = try await gitHubService.push(
+                        files: [readme],
+                        message: "Update manuscript README",
+                        config: config.with(branch: "main"))
                     _ = try await gitHubService.push(
                         files: files,
                         message: "Save \(title) from Manuscript Editor",
-                        config: config)
-                    remoteStatus = "Created \(repo.fullName) and pushed"
-                    showBanner(.success, "Created \(repo.fullName) and pushed.")
+                        config: config.with(branch: "source"))
+                    for (branch, snapshot) in snapshots {
+                        _ = try await gitHubService.push(
+                            files: [snapshot],
+                            message: "Update \(branch) snapshot",
+                            config: config.with(branch: branch))
+                    }
+                    let fullName = manuscript?.settings.remoteRepository ?? name
+                    remoteStatus = "Created \(fullName) and pushed"
+                    showBanner(.success, "Created \(fullName) and pushed.")
                     markSynced(appStore: appStore)
                     account.isConnected = true
                     account.syncStatus = .available
                     account.lastErrorMessage = nil
                     appStore.updateBackend(account)
                     isRemoteBusy = false
-                    onDone(repo.htmlURL)
+                    onDone(htmlURL ?? URL(string: "https://github.com/\(fullName)"))
                 } catch {
                     remoteError = error.localizedDescription
                     showBanner(.error, "Remote sync failed: \(error.localizedDescription)")
