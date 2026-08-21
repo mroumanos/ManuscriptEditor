@@ -27,6 +27,93 @@ struct BibliographyView: View {
     @State private var searchText = ""
     /// Drives the Zotero import sheet.
     @State private var showZoteroImport = false
+
+    /// The local Zotero library, fetched once per appearance (nil =
+    /// unreachable / not yet loaded) — drives the per-entry link status.
+    @State private var zoteroLibrary: [ZoteroItem]? = nil
+
+    /// A locked entry's live relationship to the local Zotero library.
+    enum ZoteroStatus {
+        case unlocked          // normal editable reference (grey open lock)
+        case linked(ZoteroItem)  // found in the library (green lock)
+        case broken            // locked but not found (orange lock)
+        case unknown           // Zotero not reachable / still loading
+    }
+
+    private func zoteroStatus(_ entry: BibEntry) -> ZoteroStatus {
+        guard entry.isZoteroLocked else { return .unlocked }
+        guard let items = zoteroLibrary else { return .unknown }
+        if let hit = Self.zoteroMatch(for: entry, in: items) { return .linked(hit) }
+        return .broken
+    }
+
+    /// The matching ladder: key > DOI > title+authors > URL.  Found matches
+    /// are never written back to the entry — the link stays dynamic.
+    static func zoteroMatch(for entry: BibEntry, in items: [ZoteroItem]) -> ZoteroItem? {
+        if let key = entry.zoteroKey, let hit = items.first(where: { $0.key == key }) { return hit }
+        func normDOI(_ raw: String?) -> String? {
+            guard var d = raw?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
+                  !d.isEmpty else { return nil }
+            for prefix in ["https://doi.org/", "http://doi.org/", "doi:"]
+                where d.hasPrefix(prefix) { d = String(d.dropFirst(prefix.count)) }
+            return d
+        }
+        if let doi = normDOI(entry.doi),
+           let hit = items.first(where: { normDOI($0.doi) == doi }) { return hit }
+        let title = entry.title.lowercased().trimmingCharacters(in: .whitespaces)
+        if !title.isEmpty {
+            let lastName = entry.authors.first?.components(separatedBy: ",").first?
+                .trimmingCharacters(in: .whitespaces).lowercased() ?? ""
+            if let hit = items.first(where: { item in
+                item.title.lowercased().trimmingCharacters(in: .whitespaces) == title
+                    && (lastName.isEmpty || item.creators.first?.lastName.lowercased() == lastName)
+            }) { return hit }
+        }
+        if let url = entry.url?.lowercased(), !url.isEmpty,
+           let hit = items.first(where: { $0.url?.lowercased() == url }) { return hit }
+        return nil
+    }
+
+    private func loadZoteroLibrary() async {
+        zoteroLibrary = try? await ZoteroService().fetchItems(matching: "", limit: 500)
+    }
+
+    /// "Refresh from Zotero" (Add Reference menu): every locked entry with a
+    /// live match re-pulls its fields from the library.  Stored keys are
+    /// never added or rewritten — matching stays dynamic.
+    private func refreshFromZotero() {
+        Task {
+            guard let items = try? await ZoteroService().fetchItems(matching: "", limit: 500) else {
+                store.showBanner(.error, "Zotero isn't reachable — is it running with \"Allow other applications\" enabled?")
+                return
+            }
+            zoteroLibrary = items
+            let service = ZoteroService()
+            var refreshed = 0, broken = 0
+            for entry in allEntries where entry.isZoteroLocked {
+                guard let item = Self.zoteroMatch(for: entry, in: items) else { broken += 1; continue }
+                let fresh = service.bibEntry(from: item)
+                var updated = entry
+                updated.type = fresh.type
+                updated.authors = fresh.authors
+                updated.title = fresh.title
+                updated.year = fresh.year
+                updated.journal = fresh.journal
+                updated.volume = fresh.volume
+                updated.issue = fresh.issue
+                updated.pages = fresh.pages
+                updated.doi = fresh.doi
+                updated.url = fresh.url
+                updated.publisher = fresh.publisher
+                if updated != entry {
+                    store.updateBibEntry(updated, ref: versionRef)
+                    refreshed += 1
+                }
+            }
+            let skipped = broken > 0 ? " \(broken) locked entr\(broken == 1 ? "y has" : "ies have") no Zotero match (orange) and kept their saved data." : ""
+            store.showBanner(.success, "Refreshed \(refreshed) Zotero reference\(refreshed == 1 ? "" : "s") from your library.\(skipped)")
+        }
+    }
     /// Drives the add-by-URL sheet.
     @State private var showURLSheet = false
 
@@ -114,6 +201,7 @@ struct BibliographyView: View {
             }
         }
         }
+        .task { await loadZoteroLibrary() }
         .sheet(isPresented: $showZoteroImport) {
             ZoteroImportSheet(versionRef: versionRef)
         }
@@ -133,6 +221,8 @@ struct BibliographyView: View {
             }
             Button("From Zotero…") { showZoteroImport = true }
             Button("From URL…") { showURLSheet = true }
+            Divider()
+            Button("Refresh from Zotero") { refreshFromZotero() }
         } label: {
             Label("Add Reference", systemImage: "plus")
         }
@@ -189,6 +279,42 @@ struct BibliographyView: View {
         .zIndex(1)
     }
 
+    /// The per-entry lock: state + live link status, hover info on every
+    /// state, click to toggle.
+    @ViewBuilder
+    private func zoteroLockButton(_ entry: BibEntry) -> some View {
+        let status = zoteroStatus(entry)
+        Button {
+            var updated = entry
+            updated.zoteroLocked = !entry.isZoteroLocked
+            store.updateBibEntry(updated, ref: versionRef)
+        } label: {
+            switch status {
+            case .unlocked:
+                Image(systemName: "lock.open").foregroundStyle(.secondary)
+            case .linked:
+                Image(systemName: "lock.fill").foregroundStyle(.green)
+            case .broken:
+                Image(systemName: "lock.fill").foregroundStyle(.orange)
+            case .unknown:
+                Image(systemName: "lock.fill").foregroundStyle(.tertiary)
+            }
+        }
+        .buttonStyle(.plain)
+        .help({
+            switch status {
+            case .unlocked:
+                return "Unlocked — a normal reference, editable in ME (originally from Zotero). Click to lock it back to your Zotero library."
+            case .linked(let item):
+                return "Locked to Zotero — matched in your library (\"\(item.title)\"). Read-only here; \"Refresh from Zotero\" pulls updates. Click to unlock and edit in ME."
+            case .broken:
+                return "Locked, but NOT found in your Zotero library (tried key, DOI, title+authors, URL). The saved data still cites and exports fine. Click to unlock and edit in ME."
+            case .unknown:
+                return "Locked to Zotero — link not checked (Zotero isn't reachable). The saved data still cites and exports fine."
+            }
+        }())
+    }
+
     /// One row in the reference list: citation number (when cited), key, year,
     /// cited badge, title, first author.
     private func entryRow(_ entry: BibEntry, number: Int? = nil, citedCount: Int? = nil) -> some View {
@@ -240,6 +366,9 @@ struct BibliographyView: View {
                 }
             }
             Spacer()
+            if entry.zoteroKey != nil {
+                zoteroLockButton(entry)
+            }
             Button {
                 guard let idx = store.manuscript(for: versionRef)?.bibliography.firstIndex(where: { $0.id == entry.id }) else { return }
                 store.deleteBibEntries(at: IndexSet([idx]), ref: versionRef)
@@ -420,12 +549,12 @@ struct BibEntryEditor: View {
     }
 
     /// Zotero-imported references are managed in Zotero and shown read-only here.
-    private var isReadOnly: Bool { entry.zoteroKey != nil }
+    private var isReadOnly: Bool { entry.isZoteroLocked }
 
     var body: some View {
         ScrollView {
             if isReadOnly {
-                Label("Managed in Zotero — read-only. Add, edit, and organize this reference in Zotero.",
+                Label("Locked to Zotero — read-only. Manage it in Zotero (\"Refresh from Zotero\" pulls changes), or click its lock in the list to unlock and edit here.",
                       systemImage: "lock")
                     .font(.caption)
                     .foregroundStyle(.secondary)

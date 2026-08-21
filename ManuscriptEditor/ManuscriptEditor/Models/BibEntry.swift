@@ -73,9 +73,18 @@ struct BibEntry: Codable, Identifiable, Sendable, Equatable {
     /// Free-form notes visible only in the app (not exported to the paper).
     var note: String?
 
-    /// If imported from Zotero, the source item key — lets the entry be matched
-    /// back to the local Zotero library for re-sync. `nil` for manual entries.
+    /// If imported from Zotero, the source item key — the first rung of the
+    /// link-matching ladder (key > DOI > title+authors > URL).  `nil` for
+    /// manual entries; matches found by the lower rungs are NEVER written
+    /// back here — the link resolves dynamically each time.
     var zoteroKey: String? = nil
+
+    /// Whether a Zotero-imported entry is locked to its library record
+    /// (read-only in ME; refreshable).  nil = locked when `zoteroKey` is
+    /// set — the historical behavior; unlocking makes it a normal entry.
+    var zoteroLocked: Bool? = nil
+
+    var isZoteroLocked: Bool { zoteroLocked ?? (zoteroKey != nil) }
 
     // MARK: - Computed display helpers
 

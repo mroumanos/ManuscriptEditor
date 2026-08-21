@@ -40,6 +40,18 @@ Intent: most time is spent here; it must be excellent and AI-optional.
   missing** (`OrcidService`, `addAuthor(from:)`). Query gotcha: the search
   index field is `family-name` (singular); the response key is
   `family-names`.
+- AC (implemented): **Zotero link locks** (Aug 2026). Zotero-imported
+  entries carry a per-entry **lock** in the list, every state with hover
+  info: grey open lock = unlocked, a normal editable reference; green lock
+  = locked and **matched live** in the local library; orange = locked but
+  no match; dim = Zotero unreachable. Matching ladder: **key > DOI >
+  title+authors > URL** (`zoteroMatch`), and found matches are **never
+  written back** — the link stays dynamic (`BibEntry.zoteroLocked`;
+  read-only in the editor follows the lock, not the key). **Refresh from
+  Zotero** (Add Reference menu) re-pulls every green entry's fields from
+  the library; orange entries keep their saved snapshot, which always
+  cites/exports fine — collaborators without the source library just see
+  orange locks (or unlock to edit).
 - AC (implemented): **Categorized bibliography search** (Aug 2026, same
   pattern + the same query doubles as the list filter). Sections by input
   shape: **"Saved (N)"** matches existing entries (click opens);
