@@ -217,13 +217,22 @@ struct ContentView: View {
                         } label: {
                             HStack(spacing: 3) {
                                 Text("Manuscripts")
+                                    .underline(hoveringBreadcrumb)
                                 Image(systemName: "chevron.right").font(.caption2)
                             }
-                            .foregroundStyle(.secondary)
+                            // Link-blue + underline-on-hover + pointing hand:
+                            // unmistakably clickable, never a bubble.
+                            .foregroundStyle(hoveringBreadcrumb ? Color.accentColor.opacity(0.75)
+                                                                : Color.accentColor)
                         }
                         .buttonStyle(.plain)
+                        .onHover { hovering in
+                            hoveringBreadcrumb = hovering
+                            if hovering { NSCursor.pointingHand.push() } else { NSCursor.pop() }
+                        }
                         .help("Back to Manage Manuscripts (saves and closes this manuscript)")
                     }
+                    .sharedBackgroundVisibility(.hidden)
                     // Plain text in the title bar — no liquid-glass bubbles.
                     ToolbarItem(placement: .principal) { ToolbarBanner() }
                         .sharedBackgroundVisibility(.hidden)
@@ -356,6 +365,9 @@ struct ContentView: View {
     }
 
     /// The manuscript's title, falling back to the app name when unnamed.
+    /// Pointer over the "Manuscripts ›" breadcrumb (underline + dimmed tint).
+    @State private var hoveringBreadcrumb = false
+
     private var windowTitle: String {
         let title = store.manuscript?.title.trimmingCharacters(in: .whitespaces) ?? ""
         return title.isEmpty ? "Manuscript Editor" : title
