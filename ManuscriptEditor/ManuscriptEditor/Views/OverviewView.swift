@@ -214,9 +214,12 @@ struct OverviewView: View {
                                 let entered = (m.settings.remoteRepository ?? "")
                                     .split(separator: "/").last.map(String.init) ?? ""
                                 let name = entered.isEmpty ? store.suggestedRepoName : entered
-                                store.createRemoteRepository(named: name, appStore: appStore) { _ in
-                                    store.validateRemoteRepository(appStore: appStore)
-                                }
+                                // No re-validation here: the successful push
+                                // inside create already marks the repo valid,
+                                // and an immediate re-check races GitHub's
+                                // just-created repo (momentary 404) — which
+                                // flipped the button back to Create.
+                                store.createRemoteRepository(named: name, appStore: appStore) { _ in }
                             }
                             .controlSize(.small)
                             .disabled(store.isRemoteBusy)
