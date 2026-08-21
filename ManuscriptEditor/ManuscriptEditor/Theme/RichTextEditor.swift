@@ -859,6 +859,24 @@ final class CitationTextView: NSTextView {
     private var hoverWork: DispatchWorkItem?
     private var hoverTrackingArea: NSTrackingArea?
 
+    // MARK: Formatting shortcuts
+
+    /// ⌘B / ⌘I / ⌘U (+ ⇧⌘X strikethrough) toggle emphasis like the toolbar
+    /// buttons.  macOS dispatches these through Format-menu items, which a
+    /// SwiftUI app doesn't have — so the keystrokes previously did nothing.
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        let controller = RichTextController()
+        controller.textView = self
+        switch (flags, event.charactersIgnoringModifiers?.lowercased()) {
+        case (.command, "b"):           controller.toggleBold();          return true
+        case (.command, "i"):           controller.toggleItalic();        return true
+        case (.command, "u"):           controller.toggleUnderline();     return true
+        case ([.command, .shift], "x"): controller.toggleStrikethrough(); return true
+        default: return super.performKeyEquivalent(with: event)
+        }
+    }
+
     // MARK: "/" reference picker
 
     /// The open "/" picker panel, if any.
