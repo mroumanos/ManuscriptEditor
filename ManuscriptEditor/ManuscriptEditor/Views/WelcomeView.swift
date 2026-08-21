@@ -30,8 +30,11 @@ struct WelcomeView: View {
             VStack(spacing: 24) {
                 Spacer()
 
-                // The real app icon (asset catalog), not a symbol stand-in.
-                Image(nsImage: NSApp.applicationIconImage)
+                // The real app icon — read straight from the asset catalog,
+                // NOT NSApp.applicationIconImage: that routes through the
+                // system icon-services cache, which serves stale art after
+                // an icon change until the Mac's caches turn over.
+                Image(nsImage: NSImage(named: "AppIcon") ?? NSApp.applicationIconImage)
                     .resizable()
                     .scaledToFit()
                     .frame(width: 96, height: 96)
