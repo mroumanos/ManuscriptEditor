@@ -15,6 +15,12 @@ import Foundation
 
 /// Per-manuscript selections for backend, view, and AI service.
 struct ManuscriptSettings: Codable, Sendable {
+    /// Manuscript-wide citation format (RefEngine.CitationStyle raw code:
+    /// "n" numeric, "p" parenthesized, "s" superscript, "ay" author–year,
+    /// "na" narrative).  Every in-text citation renders with this.
+    /// Optional for backward-compatible decoding; nil = numeric.
+    var defaultCitationStyle: String? = nil
+
 
     /// The `BackendAccount.id` of the account currently used to sync this manuscript.
     /// `nil` means local-only storage (no sync).

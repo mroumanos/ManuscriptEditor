@@ -135,6 +135,27 @@ struct OverviewView: View {
                     .labelsHidden().controlSize(.small).fixedSize()
                     Spacer()
                 }
+                HStack(spacing: 8) {
+                    Text("Citations").font(.caption).foregroundStyle(.secondary).frame(width: 76, alignment: .leading)
+                    // Manuscript-wide citation format — every in-text
+                    // reference (single or multi) renders with this.
+                    Picker("", selection: Binding(
+                        get: { store.manuscript?.settings.defaultCitationStyle ?? "n" },
+                        set: { code in
+                            var s = settingsBinding.wrappedValue
+                            s.defaultCitationStyle = code
+                            settingsBinding.wrappedValue = s
+                        }
+                    )) {
+                        Text("Numeric — [1]").tag("n")
+                        Text("Parenthesized — (1)").tag("p")
+                        Text("Superscript — ¹").tag("s")
+                        Text("Author–Year — (Smith et al., 2024)").tag("ay")
+                        Text("Narrative — Smith et al. (2024)").tag("na")
+                    }
+                    .labelsHidden().controlSize(.small).fixedSize()
+                    Spacer()
+                }
             }
             .padding(14)
             .frame(maxWidth: .infinity, alignment: .leading)

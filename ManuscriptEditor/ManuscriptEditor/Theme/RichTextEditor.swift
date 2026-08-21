@@ -855,17 +855,18 @@ final class CitationTextView: NSTextView {
     /// The open "/" picker panel, if any.
     private var referencePicker: ReferencePicker?
 
-    /// Typing "/" at a word boundary is the ONLY trigger for the picker —
-    /// an *event*, not a text state.  After Escape the "/" is ordinary
-    /// prose, and backspacing to it later can never re-open the panel; the
-    /// slash must be retyped (Jul 2026 interaction contract).
+    /// Typing "/" is the ONLY trigger for the picker — an *event*, not a
+    /// text state.  No word boundary required (Aug 2026): a slash right
+    /// after an existing citation merges the next pick into it.  After
+    /// Escape the "/" is ordinary prose, and backspacing to it later can
+    /// never re-open the panel; the slash must be retyped (Jul 2026
+    /// interaction contract).
     override func insertText(_ insertString: Any, replacementRange: NSRange) {
         super.insertText(insertString, replacementRange: replacementRange)
         guard (insertString as? String) == "/" else { return }
         let ns = string as NSString
         let slash = selectedRange().location - 1
-        guard slash >= 0, slash < ns.length, ns.character(at: slash) == 0x2F,
-              slash == 0 || isSpace(ns.character(at: slash - 1)) else { return }
+        guard slash >= 0, slash < ns.length, ns.character(at: slash) == 0x2F else { return }
         openReferencePicker(slashLocation: slash)
     }
 
@@ -916,8 +917,7 @@ final class CitationTextView: NSTextView {
         // zoteroKey in the store), then cite it like any bib entry.
         if let item = candidate.zoteroItem {
             if let id = addZoteroEntry?(item) {
-                insertToken(RefEngine.Token(kind: .bib, targetID: id, style: .numeric),
-                            replacing: range)
+                insertBibCitation(id: id, replacing: range)
             }
             return
         }
@@ -932,8 +932,7 @@ final class CitationTextView: NSTextView {
         }
         switch candidate.kind {
         case .bib:
-            insertToken(RefEngine.Token(kind: .bib, targetID: candidate.id, style: .numeric),
-                        replacing: range)
+            insertBibCitation(id: candidate.id, replacing: range)
         default:
             // Figures/tables: a caret menu chooses Reference vs Placement.
             // Deferred a tick so the panel finishes tearing down first.
@@ -1029,6 +1028,33 @@ final class CitationTextView: NSTextView {
     /// their identity lives in the link attribute, not in styling.
     /// A first-time citation shows the next free number; the store-driven
     /// rewrite pass corrects it if document order says otherwise.
+    /// Inserts a citation for one bibliography entry.  When the "/" was
+    /// typed IMMEDIATELY after an existing citation token, the new entry
+    /// merges into it instead — "[3]" then "/jones⏎" becomes "[3,7]" (or
+    /// "[3-6]" when the numbers run sequentially).  Repeat to keep adding.
+    private func insertBibCitation(id: UUID, replacing range: NSRange) {
+        if range.location > 0, let storage = textStorage {
+            var tokenRange = NSRange()
+            let url = storage.attribute(.link, at: range.location - 1,
+                                        longestEffectiveRange: &tokenRange,
+                                        in: NSRange(location: 0, length: storage.length)) as? URL
+            if let url, let existing = RefEngine.Token.parse(url), existing.kind == .bib {
+                var ids = existing.allIDs
+                if !ids.contains(id) { ids.append(id) }
+                let merged = RefEngine.Token(kind: .bib, targetID: ids[0],
+                                             style: existing.style,
+                                             extraIDs: Array(ids.dropFirst()))
+                // Replace the whole token plus the typed "/" in one shot.
+                let whole = NSRange(location: tokenRange.location,
+                                    length: range.location + range.length - tokenRange.location)
+                insertToken(merged, replacing: whole)
+                return
+            }
+        }
+        insertToken(RefEngine.Token(kind: .bib, targetID: id, style: refContext.defaultStyle),
+                    replacing: range)
+    }
+
     private func insertToken(_ token: RefEngine.Token, replacing range: NSRange) {
         let text = RefEngine.displayText(for: token, context: refContext)
         var attrs = defaultTypingAttributes
@@ -1143,7 +1169,9 @@ final class CitationTextView: NSTextView {
         menu.addItem(.separator())
 
         if token.kind == .bib {
-            menu.addItem(NSMenuItem.sectionHeader(title: "Citation Format"))
+            // The format is manuscript-wide (Overview → Settings →
+            // Citations); picking one here sets it for EVERY citation.
+            menu.addItem(NSMenuItem.sectionHeader(title: "Citation Format (all references)"))
             let number = refContext.numbers[token.targetID] ?? refContext.nextNumber
             let info = refContext.bib[token.targetID]
             for (i, style) in RefEngine.CitationStyle.allCases.enumerated() {
@@ -1151,7 +1179,7 @@ final class CitationTextView: NSTextView {
                                       action: #selector(applyCitationStyle(_:)), keyEquivalent: "")
                 item.target = self
                 item.tag = i
-                item.state = (style == token.style) ? .on : .off
+                item.state = (style == refContext.defaultStyle) ? .on : .off
                 menu.addItem(item)
             }
             menu.addItem(.separator())
@@ -1167,12 +1195,13 @@ final class CitationTextView: NSTextView {
     }
 
     @objc private func applyCitationStyle(_ sender: NSMenuItem) {
-        guard let (token, range) = menuToken,
-              RefEngine.CitationStyle.allCases.indices.contains(sender.tag) else { return }
+        guard RefEngine.CitationStyle.allCases.indices.contains(sender.tag) else { return }
         menuToken = nil
-        let restyled = RefEngine.Token(kind: token.kind, targetID: token.targetID,
-                                       style: RefEngine.CitationStyle.allCases[sender.tag])
-        insertToken(restyled, replacing: range)
+        // Sets the manuscript-wide format; every token re-renders through
+        // the refreshed context (its signature includes the style).
+        NotificationCenter.default.post(
+            name: .setCitationFormat, object: nil,
+            userInfo: ["code": RefEngine.CitationStyle.allCases[sender.tag].rawValue])
     }
 
     @objc private func removeToken(_ sender: NSMenuItem) {

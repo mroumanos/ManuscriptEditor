@@ -110,6 +110,9 @@ extension Notification.Name {
     static let openManuscriptLocal = Notification.Name("ManuscriptEditor.openManuscriptLocal")
     /// File → Manage Manuscripts… (curate the known-projects list).
     static let manageManuscripts = Notification.Name("ManuscriptEditor.manageManuscripts")
+    /// Sets the manuscript-wide citation format (userInfo["code"] =
+    /// RefEngine.CitationStyle raw value) — posted by the token context menu.
+    static let setCitationFormat = Notification.Name("ManuscriptEditor.setCitationFormat")
     /// Posted when the user chooses File → Open Manuscript (Remote)….
     static let newManuscriptRemote = Notification.Name("ManuscriptEditor.newManuscriptRemote")
     /// Posted when the user chooses File → Save (Local) (⌘S).

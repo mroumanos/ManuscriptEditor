@@ -102,13 +102,24 @@ enum RefEngine {
     struct Token {
         let kind: RefOccurrence.Kind
         let targetID: UUID
-        /// Rendering style; only meaningful for `.bib` tokens.
+        /// Rendering style; only meaningful for `.bib` tokens.  Kept for
+        /// URL compatibility — rendering follows the manuscript's default
+        /// citation format (`Context.defaultStyle`) since Aug 2026.
         let style: CitationStyle
+        /// Additional cited entries for a multi-citation ("[3-6]") — bib
+        /// tokens only; persisted in the URL's `m=` list (Aug 2026).
+        var extraIDs: [UUID] = []
+
+        /// Every entry this token cites (primary first).
+        var allIDs: [UUID] { [targetID] + extraIDs }
 
         /// The `.link` URL persisting this token's identity + style.
         var url: URL? {
             switch kind {
-            case .bib:    return URL(string: "cite://\(targetID.uuidString)?f=\(style.rawValue)")
+            case .bib:
+                let more = extraIDs.isEmpty ? ""
+                    : "&m=" + extraIDs.map(\.uuidString).joined(separator: ",")
+                return URL(string: "cite://\(targetID.uuidString)?f=\(style.rawValue)\(more)")
             case .figure: return URL(string: "figref://\(targetID.uuidString)")
             case .table:  return URL(string: "tabref://\(targetID.uuidString)")
             case .figurePlacement: return URL(string: "figplace://\(targetID.uuidString)")
@@ -136,10 +147,12 @@ enum RefEngine {
                     .components(separatedBy: "?").first
                 ?? ""
             guard let id = UUID(uuidString: idString) else { return nil }
-            let code = URLComponents(url: url, resolvingAgainstBaseURL: false)?
-                .queryItems?.first(where: { $0.name == "f" })?.value
+            let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems
+            let code = items?.first(where: { $0.name == "f" })?.value
             let style = code.flatMap(CitationStyle.init(rawValue:)) ?? .numeric
-            return Token(kind: kind, targetID: id, style: style)
+            let extras = (items?.first(where: { $0.name == "m" })?.value ?? "")
+                .split(separator: ",").compactMap { UUID(uuidString: String($0)) }
+            return Token(kind: kind, targetID: id, style: style, extraIDs: extras)
         }
     }
 
@@ -163,6 +176,10 @@ enum RefEngine {
         var bib: [UUID: BibInfo] = [:]
         var figures: [UUID: (number: Int, tooltip: String)] = [:]
         var tables: [UUID: (number: Int, tooltip: String)] = [:]
+        /// The manuscript-wide citation format — EVERY bib token renders
+        /// with this (per-token styles retired Aug 2026); part of the
+        /// signature so changing the setting re-renders live.
+        var defaultStyle: CitationStyle = .numeric
         var signature: Int = 0
     }
 
@@ -172,6 +189,9 @@ enum RefEngine {
     static func context(for m: Manuscript) -> Context {
         var ctx = Context()
         var hasher = Hasher()
+        ctx.defaultStyle = m.settings.defaultCitationStyle
+            .flatMap(CitationStyle.init(rawValue:)) ?? .numeric
+        hasher.combine(ctx.defaultStyle.rawValue)
 
         let order = citedOrder(in: m)
         for (i, id) in order.enumerated() { ctx.numbers[id] = i + 1 }
@@ -254,9 +274,34 @@ enum RefEngine {
     static func displayText(for token: Token, context: Context) -> String {
         switch token.kind {
         case .bib:
-            guard let info = context.bib[token.targetID] else { return "[?]" }
-            let number = context.numbers[token.targetID] ?? context.nextNumber
-            return CitationStyle.bibText(token.style, info: info, number: number)
+            let style = context.defaultStyle
+            if token.extraIDs.isEmpty {
+                guard let info = context.bib[token.targetID] else { return "[?]" }
+                let number = context.numbers[token.targetID] ?? context.nextNumber
+                return CitationStyle.bibText(style, info: info, number: number)
+            }
+            // Multi-citation: entries ordered by citation number, sequential
+            // runs of ≥3 compressed ("3-6"), otherwise comma-delimited.
+            let pairs = token.allIDs
+                .map { (id: $0, number: context.numbers[$0] ?? context.nextNumber) }
+                .sorted { $0.number < $1.number }
+            switch style {
+            case .numeric:       return "[\(compressedNumbers(pairs.map(\.number)))]"
+            case .parenthetical: return "(\(compressedNumbers(pairs.map(\.number))))"
+            case .superscripted:
+                let map: [Character: Character] = ["0": "⁰", "1": "¹", "2": "²", "3": "³",
+                                                   "4": "⁴", "5": "⁵", "6": "⁶", "7": "⁷",
+                                                   "8": "⁸", "9": "⁹", "-": "⁻"]
+                return String(compressedNumbers(pairs.map(\.number)).map { map[$0] ?? $0 })
+            case .authorYear, .narrative:
+                let inner = pairs.map { pair in
+                    guard let info = context.bib[pair.id] else { return "?" }
+                    // Reuse the single-entry renderer, minus its parentheses.
+                    return CitationStyle.bibText(.authorYear, info: info, number: pair.number)
+                        .trimmingCharacters(in: CharacterSet(charactersIn: "()"))
+                }.joined(separator: "; ")
+                return "(\(inner))"
+            }
         case .figure:
             guard let (number, _) = context.figures[token.targetID] else { return "[?]" }
             return "Figure \(number)"
@@ -275,10 +320,32 @@ enum RefEngine {
     /// The hover tooltip for a token, or nil when the target no longer exists.
     static func tooltip(for token: Token, context: Context) -> String? {
         switch token.kind {
-        case .bib:    return context.bib[token.targetID]?.tooltip
+        case .bib:
+            // A multi-citation's hover lists every cited entry.
+            let tips = token.allIDs.compactMap { context.bib[$0]?.tooltip }
+            return tips.isEmpty ? nil : tips.joined(separator: "\n\n")
         case .figure, .figurePlacement: return context.figures[token.targetID]?.tooltip
         case .table, .tablePlacement:   return context.tables[token.targetID]?.tooltip
         }
+    }
+
+    /// "3,4,5,6" → "3-6"; non-sequential stay comma-delimited ("3,4,6").
+    /// Runs need ≥3 members to compress ("3,4" stays "3,4"); duplicates drop.
+    static func compressedNumbers(_ numbers: [Int]) -> String {
+        let sorted = Array(Set(numbers)).sorted()
+        var parts: [String] = []
+        var i = 0
+        while i < sorted.count {
+            var j = i
+            while j + 1 < sorted.count, sorted[j + 1] == sorted[j] + 1 { j += 1 }
+            if j - i >= 2 {
+                parts.append("\(sorted[i])-\(sorted[j])")
+            } else {
+                for k in i...j { parts.append("\(sorted[k])") }
+            }
+            i = j + 1
+        }
+        return parts.joined(separator: ",")
     }
 
     // MARK: - Scanning
@@ -289,7 +356,10 @@ enum RefEngine {
         let full = NSRange(location: 0, length: attributed.length)
         attributed.enumerateAttribute(.link, in: full) { value, _, _ in
             guard let url = value as? URL, let token = Token.parse(url) else { return }
-            refs.append(RefOccurrence(kind: token.kind, targetID: token.targetID))
+            // A multi-citation counts each cited entry (numbering, index).
+            for id in token.allIDs {
+                refs.append(RefOccurrence(kind: token.kind, targetID: id))
+            }
         }
         return refs
     }

@@ -593,15 +593,28 @@ editor as **live, formatted, auto-numbered tokens**, and keep the bibliography
 ordered by use. `RefEngine` (Services/) is the single home for this logic.
 
 **Trigger & insertion**
-- AC: Typing **`/`** at a word boundary in any rich text box (abstract,
-  sections, letter) opens the **reference picker panel** (`ReferencePicker`,
-  Theme/) under the caret: a **search box on top, focused automatically** —
-  typing (spaces included) lands there, not in the prose — over an
-  **icon-tagged list** of every referencable thing: bibliography entries
-  (books icon; keyless entries appear by title), figures, tables, and a
-  **Zotero section** ("z" icon) of library items not yet in the bibliography.
-  The search filters across every source's text fields (key, title, authors,
-  journal, caption). `/` mid-word ("and/or", DOIs, URLs) does not trigger.
+- AC: Typing **`/`** in any rich text box (abstract, sections, letter) —
+  **no word boundary needed** (Aug 2026) — opens the **reference picker
+  panel** (`ReferencePicker`, Theme/) under the caret: a **search box on
+  top, focused automatically** — typing (spaces included) lands there, not
+  in the prose — over an **icon-tagged list** of every referencable thing:
+  bibliography entries (books icon; keyless entries appear by title),
+  figures, tables, and a **Zotero section** ("z" icon) of library items not
+  yet in the bibliography. The search filters across every source's text
+  fields (key, title, authors, journal, caption).
+- AC (implemented): **Multi-citations** (Aug 2026). A "/" typed IMMEDIATELY
+  after an existing citation token merges the next pick into it — repeat to
+  chain ("/smith⏎/jones⏎…"). The merged token stores every entry
+  (`cite://…&m=<ids>`), counts each for numbering, renders numbers sorted
+  with **sequential runs of ≥3 compressed** ("[3-6]") else comma-delimited
+  ("[3,4,6]"), and its **hover tooltip lists every cited entry**.
+- AC (implemented): **Manuscript-wide citation format** (Aug 2026).
+  Overview → Settings → **Citations** picks numeric/parenthesized/
+  superscript/author–year/narrative (`settings.defaultCitationStyle`);
+  EVERY citation token renders through it (`Context.defaultStyle`, part of
+  the render signature so changes re-render live). A token's context menu
+  sets the same manuscript-wide format (via `.setCitationFormat`); per-token
+  styles are retired (the URL's `f=` is parsed but ignored).
 - AC: **↑/↓ navigate** the list without leaving the search box; **Tab,
   Return, or a click accepts** the selected row. Accepting replaces just the
   "/" with the token (figures/tables then offer Reference vs Placement at the

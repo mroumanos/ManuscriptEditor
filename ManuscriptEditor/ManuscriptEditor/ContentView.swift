@@ -261,8 +261,13 @@ struct ContentView: View {
         }
     }
 
-    /// Menu-bar notifications (split out to keep type-checking fast).
+    /// Menu-bar notifications (split out to keep type-checking fast; two
+    /// halves — one chain grew past what the type-checker will solve).
     private func notificationLayer(_ content: some View) -> some View {
+        notificationLayerB(notificationLayerA(content))
+    }
+
+    private func notificationLayerA(_ content: some View) -> some View {
         content
         .onReceive(NotificationCenter.default.publisher(for: .newManuscript)) { _ in
             if store.manuscript == nil { createInAppData() } else { pendingNew = .file }
@@ -290,11 +295,18 @@ struct ContentView: View {
             store.closeToWelcome()
             resetWorkspace()
         }
+    }
+
+    private func notificationLayerB(_ content: some View) -> some View {
+        content
         // Repo existence check on manuscript load — drives Overview's
         // adaptive Remote controls (Save|Load vs Create).
         .onChange(of: store.manuscript?.id) { _, _ in
             store.validateRemoteRepository(appStore: appStore)
         }
+        // Citation-format changes from a token's context menu.
+        .onReceive(NotificationCenter.default.publisher(for: .setCitationFormat),
+                   perform: applyCitationFormat)
         .onReceive(NotificationCenter.default.publisher(for: .exportManuscript)) { _ in
             if store.manuscript != nil { showingExport = true }
         }
@@ -372,6 +384,13 @@ struct ContentView: View {
     /// The manuscript's title, falling back to the app name when unnamed.
     /// Pointer over the "Manuscripts ›" breadcrumb (underline + dimmed tint).
     @State private var hoveringBreadcrumb = false
+
+    private func applyCitationFormat(_ note: Notification) {
+        guard var settings = store.manuscript?.settings,
+              let code = note.userInfo?["code"] as? String else { return }
+        settings.defaultCitationStyle = code
+        store.updateManuscriptSettings(settings)
+    }
 
     private var windowTitle: String {
         let title = store.manuscript?.title.trimmingCharacters(in: .whitespaces) ?? ""
