@@ -742,7 +742,9 @@ struct JournalTabBar: View {
             .help("Active: one journal at a time (⌘⇧←/→ to switch). Compare: pick tabs with + to view side-by-side.")
         }
         .frame(height: 36)
-        .background(.bar)
+        // No material behind the strip — .bar rendered as a lighter glassy
+        // bubble over the tabs in dark mode; the divider below is enough.
+        .background(Color(nsColor: .windowBackgroundColor))
     }
 
     private func label(for tab: JournalTab) -> String {
