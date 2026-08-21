@@ -186,11 +186,15 @@ enum RefEngine {
     /// Builds the rendering context for one manuscript (Source or a version
     /// snapshot).  Cost is O(citations + bibliography + figures + tables) —
     /// no text scanning.
-    static func context(for m: Manuscript) -> Context {
+    static func context(for m: Manuscript, defaultStyle: CitationStyle? = nil) -> Context {
         var ctx = Context()
         var hasher = Hasher()
-        ctx.defaultStyle = m.settings.defaultCitationStyle
-            .flatMap(CitationStyle.init(rawValue:)) ?? .numeric
+        // App-wide citation format (app Settings → Editor); callers with an
+        // observable copy pass it so SwiftUI tracks the dependency.
+        ctx.defaultStyle = defaultStyle
+            ?? UserDefaults.standard.string(forKey: EditorPrefs.citationStyleKey)
+                .flatMap(CitationStyle.init(rawValue:))
+            ?? .numeric
         hasher.combine(ctx.defaultStyle.rawValue)
 
         let order = citedOrder(in: m)

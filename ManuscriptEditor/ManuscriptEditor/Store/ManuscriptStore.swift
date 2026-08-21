@@ -722,8 +722,19 @@ final class ManuscriptStore {
     /// The rendering context (numbers, entry details, figure/table numbers)
     /// for every token in one version's prose.  Recomputed cheaply per render;
     /// editors compare its `signature` to skip redundant rewrite passes.
+    /// App-wide citation format code, mirrored from UserDefaults so open
+    /// editors re-render the moment it changes (observable dependency).
+    var citationStyleCode: String =
+        UserDefaults.standard.string(forKey: EditorPrefs.citationStyleKey) ?? "n"
+
+    func setCitationStyle(_ code: String) {
+        citationStyleCode = code
+        UserDefaults.standard.set(code, forKey: EditorPrefs.citationStyleKey)
+    }
+
     func refContext(for ref: VersionRef) -> RefEngine.Context? {
-        manuscript(for: ref).map(RefEngine.context)
+        let style = RefEngine.CitationStyle(rawValue: citationStyleCode)
+        return manuscript(for: ref).map { RefEngine.context(for: $0, defaultStyle: style) }
     }
 
     /// Per-entry citation number, total count, and per-field usage for the

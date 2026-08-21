@@ -608,12 +608,13 @@ ordered by use. `RefEngine` (Services/) is the single home for this logic.
   (`cite://…&m=<ids>`), counts each for numbering, renders numbers sorted
   with **sequential runs of ≥3 compressed** ("[3-6]") else comma-delimited
   ("[3,4,6]"), and its **hover tooltip lists every cited entry**.
-- AC (implemented): **Manuscript-wide citation format** (Aug 2026).
-  Overview → Settings → **Citations** picks numeric/parenthesized/
-  superscript/author–year/narrative (`settings.defaultCitationStyle`);
-  EVERY citation token renders through it (`Context.defaultStyle`, part of
-  the render signature so changes re-render live). A token's context menu
-  sets the same manuscript-wide format (via `.setCitationFormat`); per-token
+- AC (implemented): **App-wide citation format** (Aug 2026). App Settings →
+  **Editor → Citations** picks numeric/parenthesized/superscript/
+  author–year/narrative (UserDefaults `EditorPrefs.citationStyleKey`,
+  mirrored in `ManuscriptStore.citationStyleCode` so open editors re-render
+  live); EVERY citation token in every manuscript renders through it
+  (`Context.defaultStyle`, part of the render signature). A token's context
+  menu sets the same app-wide format (via `.setCitationFormat`); per-token
   styles are retired (the URL's `f=` is parsed but ignored).
 - AC: **↑/↓ navigate** the list without leaving the search box; **Tab,
   Return, or a click accepts** the selected row. Accepting replaces just the

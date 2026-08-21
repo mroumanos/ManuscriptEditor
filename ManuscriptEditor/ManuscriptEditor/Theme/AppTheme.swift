@@ -59,6 +59,8 @@ enum EditorPrefs {
     static let fontKey       = "defaultFont"      // "Serif" | "Sans" | "Mono"
     static let fontSizeKey   = "editorFontSize"
     static let lineSpacingKey = "lineSpacing"     // multiplier 1.0…2.5
+    /// App-wide citation format (RefEngine.CitationStyle raw code).
+    static let citationStyleKey = "defaultCitationStyle"
 
     static let defaultFont       = "Sans"   // clean system sans (SF Pro), Inter-like
     static let defaultFontSize   = 17.0

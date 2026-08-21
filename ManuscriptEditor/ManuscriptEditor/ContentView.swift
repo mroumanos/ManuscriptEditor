@@ -386,10 +386,8 @@ struct ContentView: View {
     @State private var hoveringBreadcrumb = false
 
     private func applyCitationFormat(_ note: Notification) {
-        guard var settings = store.manuscript?.settings,
-              let code = note.userInfo?["code"] as? String else { return }
-        settings.defaultCitationStyle = code
-        store.updateManuscriptSettings(settings)
+        guard let code = note.userInfo?["code"] as? String else { return }
+        store.setCitationStyle(code)
     }
 
     private var windowTitle: String {

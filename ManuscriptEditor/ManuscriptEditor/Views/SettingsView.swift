@@ -21,6 +21,7 @@ struct SettingsView: View {
     @AppStorage(EditorPrefs.fontKey)         private var defaultFont = EditorPrefs.defaultFont
     @AppStorage(EditorPrefs.fontSizeKey)     private var fontSize    = EditorPrefs.defaultFontSize
     @AppStorage(EditorPrefs.lineSpacingKey)  private var lineSpacing = EditorPrefs.defaultLineSpacing
+    @AppStorage(EditorPrefs.citationStyleKey) private var citationStyle = "n"
 
     var body: some View {
         TabView {
@@ -50,6 +51,23 @@ struct SettingsView: View {
                     }
                 }
                 .pickerStyle(.segmented)
+            }
+
+            Section("Citations") {
+                // App-wide: every in-text citation (single or multi) in
+                // every manuscript renders with this format.
+                Picker("Citation format", selection: $citationStyle) {
+                    Text("Numeric — [1]").tag("n")
+                    Text("Parenthesized — (1)").tag("p")
+                    Text("Superscript — ¹").tag("s")
+                    Text("Author–Year — (Smith et al., 2024)").tag("ay")
+                    Text("Narrative — Smith et al. (2024)").tag("na")
+                }
+                .onChange(of: citationStyle) { _, code in
+                    // Nudge open editors through the store mirror.
+                    NotificationCenter.default.post(name: .setCitationFormat, object: nil,
+                                                    userInfo: ["code": code])
+                }
             }
 
             Section("Editing") {
