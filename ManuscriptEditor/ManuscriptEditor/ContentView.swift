@@ -206,6 +206,24 @@ struct ContentView: View {
                 // Title-bar chrome: notification banner centered, save status
                 // in the otherwise-empty top-right corner.
                 .toolbar {
+                    // Breadcrumb (issue #20): "Manuscripts ›" before the
+                    // window title reads as "Manuscripts > <name>"; clicking
+                    // it saves + closes back to the manager, exactly like
+                    // File → Manage Manuscripts….
+                    ToolbarItem(placement: .navigation) {
+                        Button {
+                            store.closeToWelcome()
+                            resetWorkspace()
+                        } label: {
+                            HStack(spacing: 3) {
+                                Text("Manuscripts")
+                                Image(systemName: "chevron.right").font(.caption2)
+                            }
+                            .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Back to Manage Manuscripts (saves and closes this manuscript)")
+                    }
                     // Plain text in the title bar — no liquid-glass bubbles.
                     ToolbarItem(placement: .principal) { ToolbarBanner() }
                         .sharedBackgroundVisibility(.hidden)

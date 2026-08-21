@@ -86,7 +86,13 @@ Intent: most time is spent here; it must be excellent and AI-optional.
   journal. Exports print it, falling back to the **project name**
   (`Manuscript.title`), which names the folder/Welcome entry.
 - AC: **The app always launches on the Welcome screen** (the project
-  manager) — nothing auto-opens. Rows open on **double-click or the pencil
+  manager) — nothing auto-opens. The editing window's title bar carries a
+  **"Manuscripts ›" breadcrumb** before the manuscript name — clicking it
+  saves + closes back to the manager (same path as File → Manage
+  Manuscripts…), and manager rows with a configured remote repository wear
+  a **cloud badge** (hover shows owner/name), so the recency-sorted list
+  doubles as "recently remote-connected projects" (issue #20). The Welcome
+  branding shows the real app icon (the ME monogram asset). Rows open on **double-click or the pencil
   button**; the orange **⊖ removes the entry from recent memory** (files
   stay); the red **trash deletes** (folder → Trash, confirmed); right-click
   adds Rename…/Reveal in Finder. **File → Manage Manuscripts…** saves +

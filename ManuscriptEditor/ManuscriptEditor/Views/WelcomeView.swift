@@ -30,9 +30,11 @@ struct WelcomeView: View {
             VStack(spacing: 24) {
                 Spacer()
 
-                Image(systemName: "doc.richtext")
-                    .font(.system(size: 64, weight: .thin))
-                    .foregroundStyle(.secondary)
+                // The real app icon (asset catalog), not a symbol stand-in.
+                Image(nsImage: NSApp.applicationIconImage)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 96, height: 96)
 
                 VStack(spacing: 8) {
                     Text("Manuscript Editor")
@@ -139,9 +141,20 @@ struct WelcomeView: View {
     private func row(_ summary: ManuscriptSummary) -> some View {
         HStack(spacing: 8) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(summary.title)
-                    .font(.body)
-                    .lineLimit(1)
+                HStack(spacing: 5) {
+                    Text(summary.title)
+                        .font(.body)
+                        .lineLimit(1)
+                    // Remote-connected projects wear a badge (issue #20) —
+                    // with the list's recency sort, the recently
+                    // remote-connected ones surface on top.
+                    if let repo = summary.remoteRepository {
+                        Image(systemName: "cloud.fill")
+                            .font(.caption)
+                            .foregroundStyle(Color.accentColor)
+                            .help("Remote: \(repo)")
+                    }
+                }
                 Text("Opened \(relative(summary.lastAccessedAt)) · Created \(summary.createdAt.formatted(date: .abbreviated, time: .omitted))")
                     .font(.caption)
                     .foregroundStyle(.secondary)

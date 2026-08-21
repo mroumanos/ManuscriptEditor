@@ -167,7 +167,8 @@ struct PersistenceService: Sendable {
             return ManuscriptSummary(id: m.id, title: m.title, updatedAt: m.updatedAt,
                                      createdAt: m.createdAt,
                                      lastAccessedAt: max(lastOpenedAt(id: id) ?? .distantPast, m.updatedAt),
-                                     location: manuscriptDirectory(for: id))
+                                     location: manuscriptDirectory(for: id),
+                                     remoteRepository: m.settings.remoteRepository)
         }
         .sorted { $0.lastAccessedAt > $1.lastAccessedAt }
     }
@@ -241,4 +242,7 @@ struct ManuscriptSummary: Identifiable {
     let lastAccessedAt: Date
     /// Where the project lives (app data or a user folder).
     let location: URL
+    /// "owner/name" when the manuscript has a configured remote repository
+    /// — the Welcome list badges these rows (issue #20).
+    let remoteRepository: String?
 }
