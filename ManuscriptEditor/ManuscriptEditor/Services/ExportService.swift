@@ -670,8 +670,11 @@ struct ExportService {
             base = NSAttributedString(string: richText.plain, attributes: [.font: bodyFont])
         }
         let out = NSMutableAttributedString(attributedString: base)
-        // Same superscript materialization as the outline path.
+        // Same superscript materialization as the outline path, and the
+        // same dark-mode line-color strip.
         let full = NSRange(location: 0, length: out.length)
+        out.removeAttribute(.underlineColor, range: full)
+        out.removeAttribute(.strikethroughColor, range: full)
         out.enumerateAttribute(.superscript, in: full) { value, range, _ in
             guard let level = value as? Int, level != 0 else { return }
             out.enumerateAttribute(.font, in: range) { f, sub, _ in
@@ -1012,6 +1015,12 @@ private struct OutlineBuilder {
         }
         materializeSuperscripts(out, base: base)
         out.addAttribute(.foregroundColor, value: NSColor.black, range: full)
+        // Dark-mode storage carries near-white underline/strikethrough
+        // colors: on paper the underline vanished and the strikethrough
+        // printed as a translucent line.  Removed = lines use the (black)
+        // text color.
+        out.removeAttribute(.underlineColor, range: full)
+        out.removeAttribute(.strikethroughColor, range: full)
         // The trailing gap line must carry the document spacing too, or it
         // renders single-spaced between a section and the next heading.
         out.append(NSAttributedString(string: "\n", attributes: [
