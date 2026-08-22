@@ -1082,12 +1082,13 @@ private struct OutlineBuilder {
             font = scaled(style.sizeDelta, bold: style.bold)
         }
         let out = NSMutableAttributedString()
-        // The blank lines around a heading must carry the document's
-        // paragraph style too — bare \n renders single-spaced and made the
-        // gaps uneven (Aug 2026 feedback).
+        // The blank line after a heading must carry the document's
+        // paragraph style — bare \n renders single-spaced and made the
+        // gaps uneven (Aug 2026 feedback).  No blank BEFORE the heading:
+        // sections start clean; the separating blank belongs to the END of
+        // whatever came before (rich() appends it).
         let blank = NSAttributedString(string: "\n", attributes: [
             .font: base, .paragraphStyle: paragraph(after: 0, before: 0)])
-        out.append(blank)
         let heading = style.allCaps == true ? raw.uppercased() : headingText(raw)
         let text = NSMutableAttributedString(attributedString:
             line(heading, font: font, before: 0, after: 0))
@@ -1204,9 +1205,10 @@ private struct OutlineBuilder {
         // [[part]] tokens expand LAST so the injected text inherits the
         // fully styled attributes of the token itself.
         expandParts(out, content: m)
-        // The trailing gap line must carry the document spacing too, or it
-        // renders single-spaced between a section and the next heading.
-        out.append(NSAttributedString(string: "\n", attributes: [
+        // Every section ENDS with the separating blank line (terminator +
+        // one empty line, both carrying the document spacing); nothing is
+        // prepended at section starts.
+        out.append(NSAttributedString(string: "\n\n", attributes: [
             .font: base, .paragraphStyle: paragraph(after: 0, before: 0)]))
         return out
     }
