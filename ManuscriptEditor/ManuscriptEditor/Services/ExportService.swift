@@ -381,10 +381,11 @@ struct ExportService {
                     }
                     func mk(_ i: Int) -> String {
                         switch markerStyle {
-                        case "cross":       return String(repeating: "†", count: i + 1)
-                        case "doublecross": return String(repeating: "‡", count: i + 1)
-                        case "none":        return ""
-                        default:            return String(i + 1)
+                        case "cross":
+                            if i == 1 { return "‡" }
+                            return String(repeating: "†", count: i + 1)
+                        case "none": return ""
+                        default:     return String(i + 1)
                         }
                     }
                     let names = authors.map { a -> String in
@@ -837,12 +838,15 @@ private struct OutlineBuilder {
                 affLines.append(lineText)
             }
         }
+        // Crosshatches escalate with the institution index: † (single),
+        // ‡ (double), then ††† and up — one option, not several.
         func marker(_ index: Int) -> String {
             switch markerStyle {
-            case "cross":       return String(repeating: "†", count: index + 1)
-            case "doublecross": return String(repeating: "‡", count: index + 1)
-            case "none":        return ""
-            default:            return String(index + 1)
+            case "cross":
+                if index == 1 { return "‡" }
+                return String(repeating: "†", count: index + 1)
+            case "none": return ""
+            default:     return String(index + 1)
             }
         }
 

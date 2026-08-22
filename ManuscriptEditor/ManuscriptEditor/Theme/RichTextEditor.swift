@@ -1329,9 +1329,8 @@ final class CitationTextView: NSTextView {
             menu.addItem(.separator())
             menu.addItem(NSMenuItem.sectionHeader(title: "Author–Institute Markers"))
             for (tag, name, code) in [(0, "Superscript numbers (¹)", "superscript"),
-                                      (1, "Crosses (†)", "cross"),
-                                      (2, "Double crosses (‡)", "doublecross"),
-                                      (3, "None", "none")] {
+                                      (1, "Crosshatches († ‡ †††)", "cross"),
+                                      (2, "None", "none")] {
                 let item = NSMenuItem(title: name, action: #selector(applyPartMarker(_:)), keyEquivalent: "")
                 item.target = self
                 item.tag = tag
@@ -1399,7 +1398,7 @@ final class CitationTextView: NSTextView {
     @objc private func applyPartMarker(_ sender: NSMenuItem) {
         guard var (part, range) = menuPart else { return }
         menuPart = nil
-        part.marker = ["superscript", "cross", "doublecross", "none"][sender.tag]
+        part.marker = ["superscript", "cross", "none"][sender.tag]
         rewritePart(part, range: range)
     }
 

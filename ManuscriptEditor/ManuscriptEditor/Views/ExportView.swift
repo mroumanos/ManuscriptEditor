@@ -490,7 +490,10 @@ private struct ExportDocumentCard: View {
                     .help("Delimiter between authors (and affiliation lines)")
                     // Author ↔ institution linkage markers.
                     Picker("", selection: Binding(
-                        get: { item.affiliationMarker ?? "superscript" },
+                        get: {
+                            let v = item.affiliationMarker ?? "superscript"
+                            return v == "doublecross" ? "cross" : v   // legacy value
+                        },
                         set: { value in
                             var doc = document
                             guard doc.items.indices.contains(index) else { return }
@@ -500,11 +503,10 @@ private struct ExportDocumentCard: View {
                     )) {
                         Text("a¹").tag("superscript")
                         Text("a†").tag("cross")
-                        Text("a‡").tag("doublecross")
                         Text("none").tag("none")
                     }
                     .labelsHidden().controlSize(.small).fixedSize()
-                    .help("How authors link to their institutions (superscript numbers, crosses, or no markers)")
+                    .help("How authors link to their institutions — crosshatches escalate †, ‡, ††† with each institution")
                     Button {
                         var doc = document
                         guard doc.items.indices.contains(index) else { return }

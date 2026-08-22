@@ -87,9 +87,11 @@ enum PartEngine {
         let path = String(url.path.dropFirst())
         guard !path.isEmpty else { return nil }
         let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems
+        var marker = items?.first(where: { $0.name == "m" })?.value ?? "superscript"
+        if marker == "doublecross" { marker = "cross" }   // legacy value
         return Part(path: path,
                     delimiter: items?.first(where: { $0.name == "d" })?.value ?? "semicolon",
-                    marker: items?.first(where: { $0.name == "m" })?.value ?? "superscript")
+                    marker: marker)
     }
 
     static func delimiterText(_ d: String) -> String {
@@ -100,12 +102,15 @@ enum PartEngine {
         }
     }
 
+    /// Crosshatches escalate with the index — † (single), ‡ (double),
+    /// then ††† and up; one option, not separate ones.
     private static func markerText(_ style: String, index: Int) -> String {
         switch style {
-        case "cross":       return String(repeating: "†", count: index + 1)
-        case "doublecross": return String(repeating: "‡", count: index + 1)
-        case "none":        return ""
-        default:            return String(index + 1)
+        case "cross":
+            if index == 1 { return "‡" }
+            return String(repeating: "†", count: index + 1)
+        case "none": return ""
+        default:     return String(index + 1)
         }
     }
 
