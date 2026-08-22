@@ -18,10 +18,11 @@ struct Institution: Codable, Identifiable, Sendable, Equatable {
     var state: String? = nil
     var country: String? = nil
 
-    /// The affiliation line as exports print it, skipping absent parts.
+    /// The affiliation line as exports print it — "<institute>, <city>,
+    /// <state> <country>" — skipping absent parts.
     var displayLine: String {
         var out = name
-        if let city, !city.isEmpty { out += " \(city)" }
+        if let city, !city.isEmpty { out += ", \(city)" }
         if let state, !state.isEmpty { out += ", \(state)" }
         if let country, !country.isEmpty { out += " \(country)" }
         return out
