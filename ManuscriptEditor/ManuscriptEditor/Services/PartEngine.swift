@@ -29,6 +29,11 @@ enum PartEngine {
 
     /// Everything "/" offers, with the label shown in the picker.
     static let catalog: [(path: String, label: String)] = [
+        ("title", "Title — article title"),
+        ("title.running", "Title — running title"),
+        ("title.project", "Title — project name"),
+        ("keywords", "Keywords"),
+        ("abstract", "Abstract"),
         ("authors", "Authors — full byline (names + institutes)"),
         ("authors.names", "Authors — names only"),
         ("authors.institutes", "Authors — institutes"),
@@ -42,7 +47,10 @@ enum PartEngine {
     /// What the "/" picker offers — just the referencable sections; the
     /// subsections are reached by clicking the inserted token.
     static let topLevel: [(path: String, label: String)] = [
+        ("title", "Title"),
         ("authors", "Authors"),
+        ("keywords", "Keywords"),
+        ("abstract", "Abstract"),
     ]
 
     /// Children shown in a clicked token's "Subsection" menu — picking one
@@ -50,6 +58,9 @@ enum PartEngine {
     /// selections when clicked in turn.
     static func children(of path: String) -> [(path: String, label: String)] {
         switch path {
+        case "title":
+            return [("title.running", "Running title"),
+                    ("title.project", "Project name")]
         case "authors":
             return [("authors.names", "Names only"),
                     ("authors.institutes", "Institutes"),
@@ -125,6 +136,19 @@ enum PartEngine {
         }
 
         switch part.path {
+        case "title":
+            let article = (m.articleTitle ?? "").trimmingCharacters(in: .whitespaces)
+            let title = article.isEmpty ? m.title : article
+            return title.isEmpty ? [] : [(title, false)]
+        case "title.running":
+            return m.runningTitle.isEmpty ? [] : [(m.runningTitle, false)]
+        case "title.project":
+            return m.title.isEmpty ? [] : [(m.title, false)]
+        case "keywords":
+            return joined(m.keywords.filter { !$0.isEmpty })
+        case "abstract":
+            let text = m.abstract.plain.trimmingCharacters(in: .whitespacesAndNewlines)
+            return text.isEmpty ? [] : [(text, false)]
         case "authors":
             var out: [(String, Bool)] = []
             for (i, a) in authors.enumerated() {

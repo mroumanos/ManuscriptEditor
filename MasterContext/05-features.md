@@ -111,7 +111,9 @@ Intent: most time is spent here; it must be excellent and AI-optional.
   preview toggle. Slot images accept PNG/JPEG/TIFF/HEIC/**SVG** (SVG bytes
   are kept as vectors).
 - AC (implemented): **Section parts** (Aug 2026). The "/" picker lists just the
-  referencable SECTIONS (`PartEngine.topLevel` — "Authors";
+  referencable SECTIONS (`PartEngine.topLevel` — Title, Authors,
+  Keywords, Abstract; Title's subsections: running title / project name;
+  keywords join by the token's delimiter;
   `part://t/<path>?d=&m=` links, curly-braces icon). The editor shows the
   literal `[[path]]` marker — format it like prose, and the export
   expansion (last styling pass) **inherits the token's attributes**;
