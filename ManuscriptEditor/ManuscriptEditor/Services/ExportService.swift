@@ -366,9 +366,9 @@ struct ExportService {
                 if !authors.isEmpty {
                     let delim: String
                     switch item.authorDelimiter {
-                    case "semicolon": delim = "; "
-                    case "newline":   delim = " \\\\\n"
-                    default:          delim = ", "
+                    case "comma":   delim = ", "
+                    case "newline": delim = " \\\\\n"
+                    default:        delim = "; "
                     }
                     let markerStyle = item.affiliationMarker ?? "superscript"
                     var affLines: [String] = []
@@ -420,7 +420,7 @@ struct ExportService {
                     if item.titleShown {
                         out += "\\section{\(tex(latexHeading(item.customTitle ?? section.title)))}\n"
                     }
-                    out += "\(tex(section.content.plain))\n\n"
+                    out += "\(tex(PartEngine.expandPlainMarkers(section.content.plain, content: m)))\n\n"
                 }
             case .figures:
                 for fig in m.figures.sorted(by: { $0.number < $1.number }) {
@@ -821,9 +821,9 @@ private struct OutlineBuilder {
 
         let delimiter: String
         switch item.authorDelimiter {
-        case "semicolon": delimiter = "; "
-        case "newline":   delimiter = "\n"
-        default:          delimiter = ", "
+        case "comma":   delimiter = ", "
+        case "newline": delimiter = "\n"
+        default:        delimiter = "; "   // semicolon is the default
         }
         let markerStyle = item.affiliationMarker ?? "superscript"
 
@@ -1120,6 +1120,22 @@ private struct OutlineBuilder {
     /// Rich prose re-set in the document font: token refresh + chrome strip,
     /// then every run mapped onto the base font keeping bold/italic traits,
     /// and paragraph styles forced to the document's line spacing.
+    /// Replaces every [[part]] token with its live expansion (PartEngine),
+    /// carrying the token's own attributes into the injected text.
+    private func expandParts(_ s: NSMutableAttributedString, content m: Manuscript) {
+        var tokens: [(NSRange, PartEngine.Part)] = []
+        s.enumerateAttribute(.link, in: NSRange(location: 0, length: s.length)) { value, range, _ in
+            guard let url = value as? URL, let part = PartEngine.parse(url) else { return }
+            tokens.append((range, part))
+        }
+        for (range, part) in tokens.sorted(by: { $0.0.location > $1.0.location }) {
+            let attrs = s.attributes(at: range.location, effectiveRange: nil)
+            s.replaceCharacters(in: range,
+                                with: PartEngine.attributed(for: part, content: m,
+                                                            tokenAttributes: attrs))
+        }
+    }
+
     /// Citations (and any superscript/subscript prose) become transferable:
     /// the semantic NSSuperScript attribute translates into a smaller font
     /// plus an explicit baselineOffset — CoreText's paginator honors the
@@ -1175,6 +1191,9 @@ private struct OutlineBuilder {
         // text color.
         out.removeAttribute(.underlineColor, range: full)
         out.removeAttribute(.strikethroughColor, range: full)
+        // [[part]] tokens expand LAST so the injected text inherits the
+        // fully styled attributes of the token itself.
+        expandParts(out, content: m)
         // The trailing gap line must carry the document spacing too, or it
         // renders single-spaced between a section and the next heading.
         out.append(NSAttributedString(string: "\n", attributes: [

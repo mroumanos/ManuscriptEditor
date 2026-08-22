@@ -512,6 +512,15 @@ struct AuthorEditor: View {
 
                 Section("Role") {
                     Toggle("Corresponding Author", isOn: $draft.isCorresponding)
+                    if draft.isCorresponding {
+                        // Referencable in prose as
+                        // [[authors.corresponding_author.details]].
+                        PlainTextEditor(text: optionalField(\.correspondingDetails))
+                            .frame(minHeight: 44)
+                        Text("Correspondence details — reference them in any section as [[authors.corresponding_author.details]].")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
             .formStyle(.grouped)
@@ -528,6 +537,7 @@ struct AuthorEditor: View {
         .onChange(of: draft.affiliations)    { _, _ in onChange(draft) }
         .onChange(of: draft.institutionIDs)  { _, _ in onChange(draft) }
         .onChange(of: draft.isCorresponding) { _, _ in onChange(draft) }
+        .onChange(of: draft.correspondingDetails) { _, _ in onChange(draft) }
         // If the user clicks a different author row, reload from the new author.
         .onChange(of: author) { _, new in
             // External change (selection switch or document undo).

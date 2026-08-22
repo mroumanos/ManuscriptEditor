@@ -474,20 +474,20 @@ private struct ExportDocumentCard: View {
                     // Author delimiter: what separates the names (and the
                     // affiliation lines below them).
                     Picker("", selection: Binding(
-                        get: { item.authorDelimiter ?? "comma" },
+                        get: { item.authorDelimiter ?? "semicolon" },
                         set: { value in
                             var doc = document
                             guard doc.items.indices.contains(index) else { return }
-                            doc.items[index].authorDelimiter = value == "comma" ? nil : value
+                            doc.items[index].authorDelimiter = value == "semicolon" ? nil : value
                             onChange(doc)
                         }
                     )) {
-                        Text("a, b").tag("comma")
-                        Text("a; b").tag("semicolon")
-                        Text("a ⏎ b").tag("newline")
+                        Text("semicolon").tag("semicolon")
+                        Text("comma").tag("comma")
+                        Text("newline").tag("newline")
                     }
                     .labelsHidden().controlSize(.small).fixedSize()
-                    .help("Delimiter between authors")
+                    .help("Delimiter between authors (and affiliation lines)")
                     // Author ↔ institution linkage markers.
                     Picker("", selection: Binding(
                         get: { item.affiliationMarker ?? "superscript" },

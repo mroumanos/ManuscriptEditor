@@ -113,6 +113,10 @@ struct RichEditor: View {
     /// category: bibliography entries (key/title/authors/journal), then
     /// figures, then tables (number/title/caption).  Typing a category word
     /// ("ref", "figure", "table") narrows to that group.
+    /// Stable picker-row ids for the section-part candidates.
+    private static let partRowIDs: [String: UUID] =
+        Dictionary(uniqueKeysWithValues: PartEngine.catalog.map { ($0.path, UUID()) })
+
     private func refCandidates(_ query: String) -> [RefCandidate] {
         guard let m = store.manuscript(for: versionRef) else { return [] }
         let q = query.lowercased().trimmingCharacters(in: .whitespaces)
@@ -121,6 +125,17 @@ struct RichEditor: View {
         }
 
         var out: [RefCandidate] = []
+        // Section parts — [[authors]]-style live tokens usable anywhere,
+        // resolved on export in the surrounding text's formatting.
+        for (path, label) in PartEngine.catalog
+            where matches([path, label, "part", "section"]) {
+            out.append(RefCandidate(kind: .bib,
+                                    id: Self.partRowIDs[path] ?? UUID(),
+                                    display: "\(label) — [[\(path)]]",
+                                    snippetText: "[[\(path)]]",
+                                    tokenURL: PartEngine.Part(path: path).url,
+                                    iconName: "curlybraces"))
+        }
         // Letter references first — live tokens that resolve in preview and
         // export (⟦Date⟧ → today at render time, ⟦Signature⟧ → the drawing).
         if letterMode {
@@ -814,6 +829,10 @@ private struct RichTextRepresentable: NSViewRepresentable {
         /// Clicking a token opens its menu (citation style, remove) instead of
         /// following the link.
         func textView(_ textView: NSTextView, clickedOnLink link: Any, at charIndex: Int) -> Bool {
+            if let url = link as? URL, let part = PartEngine.parse(url) {
+                (textView as? CitationTextView)?.showPartMenu(for: part, at: charIndex)
+                return true
+            }
             guard let url = link as? URL else { return false }
             // Letter tokens (⟦Date⟧/⟦Signature⟧) are markers, not links —
             // consume the click so AppKit doesn't try to open letter://.
@@ -1273,6 +1292,89 @@ final class CitationTextView: NSTextView {
     @objc private func removeToken(_ sender: NSMenuItem) {
         guard let (_, range) = menuToken else { return }
         menuToken = nil
+        guard shouldChangeText(in: range, replacementString: "") else { return }
+        textStorage?.replaceCharacters(in: range, with: "")
+        typingAttributes = defaultTypingAttributes
+        didChangeText()
+    }
+
+    // MARK: Section-part token menu ([[authors]]-style)
+
+    private var menuPart: (part: PartEngine.Part, range: NSRange)?
+
+    /// Menu for a clicked [[part]] token: delimiter, linkage markers where
+    /// applicable, and removal.  Choices rewrite the token's URL in place.
+    func showPartMenu(for part: PartEngine.Part, at charIndex: Int) {
+        guard let storage = textStorage else { return }
+        var effective = NSRange()
+        guard storage.attribute(.link, at: charIndex, longestEffectiveRange: &effective,
+                                in: NSRange(location: 0, length: storage.length)) != nil else { return }
+        menuPart = (part, effective)
+        dismissHover()
+
+        let menu = NSMenu()
+        menu.addItem(NSMenuItem.sectionHeader(title: "\(part.markerText) — resolved on export"))
+        menu.addItem(.separator())
+        menu.addItem(NSMenuItem.sectionHeader(title: "Delimiter"))
+        for (tag, name, code) in [(0, "Space", "space"), (1, "Semicolon", "semicolon"),
+                                  (2, "New line", "newline")] {
+            let item = NSMenuItem(title: name, action: #selector(applyPartDelimiter(_:)), keyEquivalent: "")
+            item.target = self
+            item.tag = tag
+            item.state = part.delimiter == code ? .on : .off
+            menu.addItem(item)
+        }
+        if part.hasMarkerOptions {
+            menu.addItem(.separator())
+            menu.addItem(NSMenuItem.sectionHeader(title: "Author–Institute Markers"))
+            for (tag, name, code) in [(0, "Superscript numbers (¹)", "superscript"),
+                                      (1, "Crosses (†)", "cross"),
+                                      (2, "Double crosses (‡)", "doublecross"),
+                                      (3, "None", "none")] {
+                let item = NSMenuItem(title: name, action: #selector(applyPartMarker(_:)), keyEquivalent: "")
+                item.target = self
+                item.tag = tag
+                item.state = part.marker == code ? .on : .off
+                menu.addItem(item)
+            }
+        }
+        menu.addItem(.separator())
+        let remove = NSMenuItem(title: "Remove", action: #selector(removePart(_:)), keyEquivalent: "")
+        remove.target = self
+        menu.addItem(remove)
+        if let event = NSApp.currentEvent {
+            NSMenu.popUpContextMenu(menu, with: event, for: self)
+        }
+    }
+
+    private func rewritePart(_ part: PartEngine.Part, range: NSRange) {
+        guard let url = part.url, shouldChangeText(in: range, replacementString: part.markerText) else { return }
+        var attrs = textStorage?.attributes(at: range.location, effectiveRange: nil) ?? [:]
+        attrs[.link] = url
+        attrs[.toolTip] = "Resolved on export"
+        textStorage?.replaceCharacters(in: range,
+                                       with: NSAttributedString(string: part.markerText, attributes: attrs))
+        typingAttributes = defaultTypingAttributes
+        didChangeText()
+    }
+
+    @objc private func applyPartDelimiter(_ sender: NSMenuItem) {
+        guard var (part, range) = menuPart else { return }
+        menuPart = nil
+        part.delimiter = ["space", "semicolon", "newline"][sender.tag]
+        rewritePart(part, range: range)
+    }
+
+    @objc private func applyPartMarker(_ sender: NSMenuItem) {
+        guard var (part, range) = menuPart else { return }
+        menuPart = nil
+        part.marker = ["superscript", "cross", "doublecross", "none"][sender.tag]
+        rewritePart(part, range: range)
+    }
+
+    @objc private func removePart(_ sender: NSMenuItem) {
+        guard let (_, range) = menuPart else { return }
+        menuPart = nil
         guard shouldChangeText(in: range, replacementString: "") else { return }
         textStorage?.replaceCharacters(in: range, with: "")
         typingAttributes = defaultTypingAttributes

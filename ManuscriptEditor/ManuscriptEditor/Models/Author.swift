@@ -81,6 +81,12 @@ struct Author: Codable, Identifiable, Sendable, Equatable {
     /// Typically shown with a star or envelope symbol in author lists.
     var isCorresponding: Bool
 
+    /// Free-text correspondence details (address, phone, preferred email
+    /// line) shown when `isCorresponding` — referencable in prose as
+    /// [[authors.corresponding_author.details]].  Optional for
+    /// backward-compatible decoding.
+    var correspondingDetails: String? = nil
+
     /// ORCID persistent researcher identifier, formatted as 0000-0000-0000-0000.
     /// Many journals now require or strongly recommend this.
     var orcid: String
