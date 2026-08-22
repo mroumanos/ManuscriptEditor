@@ -633,9 +633,20 @@ struct BibEntryEditor: View {
                     TextField("Pages (e.g. 123–145)", text: optionalBinding(\.pages))
                 }
 
+                Section("Notes") {
+                    PlainTextEditor(text: optionalBinding(\.note))
+                        .frame(minHeight: 50)
+                }
+                }
+                .disabled(isReadOnly)   // Zotero entries are read-only
+
+                // Outside the disabled group: the DOI/URL open-link arrows
+                // must stay clickable even while the entry is locked (only
+                // the text fields follow the lock).
                 Section("Identifiers") {
                     HStack(spacing: 8) {
                         TextField("DOI", text: optionalBinding(\.doi))
+                            .disabled(isReadOnly)
                         // Once a DOI is entered, link straight to the paper
                         // (same affordance as the author editor's ORCID row).
                         if let doi = draft.doi?.trimmingCharacters(in: .whitespaces),
@@ -647,15 +658,18 @@ struct BibEntryEditor: View {
                             .help("Open on doi.org")
                         }
                     }
-                    TextField("URL", text: optionalBinding(\.url))
+                    HStack(spacing: 8) {
+                        TextField("URL", text: optionalBinding(\.url))
+                            .disabled(isReadOnly)
+                        if let raw = draft.url?.trimmingCharacters(in: .whitespaces),
+                           !raw.isEmpty, let url = URL(string: raw) {
+                            Link(destination: url) {
+                                Image(systemName: "arrow.up.right.square")
+                            }
+                            .help("Open in the browser")
+                        }
+                    }
                 }
-
-                Section("Notes") {
-                    PlainTextEditor(text: optionalBinding(\.note))
-                        .frame(minHeight: 50)
-                }
-                }
-                .disabled(isReadOnly)   // Zotero entries are read-only
 
                 // Editable even while Zotero-locked: the override exists
                 // precisely to fix the printed output without unlocking.
