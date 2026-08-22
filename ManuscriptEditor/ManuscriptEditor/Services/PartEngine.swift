@@ -39,6 +39,38 @@ enum PartEngine {
         ("authors.corresponding_author.details", "Corresponding author — details"),
     ]
 
+    /// What the "/" picker offers — just the referencable sections; the
+    /// subsections are reached by clicking the inserted token.
+    static let topLevel: [(path: String, label: String)] = [
+        ("authors", "Authors"),
+    ]
+
+    /// Children shown in a clicked token's "Subsection" menu — picking one
+    /// changes the words in the brackets, and the new token has its own
+    /// selections when clicked in turn.
+    static func children(of path: String) -> [(path: String, label: String)] {
+        switch path {
+        case "authors":
+            return [("authors.names", "Names only"),
+                    ("authors.institutes", "Institutes"),
+                    ("authors.corresponding_author", "Corresponding author")]
+        case "authors.corresponding_author":
+            return [("authors.corresponding_author.first_name", "First name"),
+                    ("authors.corresponding_author.last_name", "Last name"),
+                    ("authors.corresponding_author.email", "Email"),
+                    ("authors.corresponding_author.details", "Details")]
+        default:
+            return []
+        }
+    }
+
+    /// One level up ("authors.corresponding_author.email" →
+    /// "authors.corresponding_author"); nil at the top.
+    static func parent(of path: String) -> String? {
+        guard let dot = path.lastIndex(of: ".") else { return nil }
+        return String(path[..<dot])
+    }
+
     static func parse(_ url: URL) -> Part? {
         guard url.scheme == "part" else { return nil }
         let path = String(url.path.dropFirst())

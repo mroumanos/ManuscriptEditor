@@ -125,9 +125,10 @@ struct RichEditor: View {
         }
 
         var out: [RefCandidate] = []
-        // Section parts — [[authors]]-style live tokens usable anywhere,
-        // resolved on export in the surrounding text's formatting.
-        for (path, label) in PartEngine.catalog
+        // Section parts — [[authors]]-style live tokens usable anywhere.
+        // Only the referencable SECTIONS list here; subsections and
+        // formatting come from clicking the inserted token.
+        for (path, label) in PartEngine.topLevel
             where matches([path, label, "part", "section"]) {
             out.append(RefCandidate(kind: .bib,
                                     id: Self.partRowIDs[path] ?? UUID(),
@@ -1338,6 +1339,26 @@ final class CitationTextView: NSTextView {
                 menu.addItem(item)
             }
         }
+        let children = PartEngine.children(of: part.path)
+        if !children.isEmpty {
+            menu.addItem(.separator())
+            menu.addItem(NSMenuItem.sectionHeader(title: "Subsection"))
+            for child in children {
+                let item = NSMenuItem(title: "\(child.label) — [[\(child.path)]]",
+                                      action: #selector(applyPartPath(_:)), keyEquivalent: "")
+                item.target = self
+                item.representedObject = child.path
+                menu.addItem(item)
+            }
+        }
+        if let parent = PartEngine.parent(of: part.path) {
+            menu.addItem(.separator())
+            let up = NSMenuItem(title: "⬑ [[\(parent)]]",
+                                action: #selector(applyPartPath(_:)), keyEquivalent: "")
+            up.target = self
+            up.representedObject = parent
+            menu.addItem(up)
+        }
         menu.addItem(.separator())
         let remove = NSMenuItem(title: "Remove", action: #selector(removePart(_:)), keyEquivalent: "")
         remove.target = self
@@ -1345,6 +1366,16 @@ final class CitationTextView: NSTextView {
         if let event = NSApp.currentEvent {
             NSMenu.popUpContextMenu(menu, with: event, for: self)
         }
+    }
+
+    /// Subsection/parent pick: changes the words in the brackets, keeping
+    /// the delimiter/marker choices; the new token has its own menu.
+    @objc private func applyPartPath(_ sender: NSMenuItem) {
+        guard let (part, range) = menuPart,
+              let path = sender.representedObject as? String else { return }
+        menuPart = nil
+        rewritePart(PartEngine.Part(path: path, delimiter: part.delimiter, marker: part.marker),
+                    range: range)
     }
 
     private func rewritePart(_ part: PartEngine.Part, range: NSRange) {

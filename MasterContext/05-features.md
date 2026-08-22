@@ -110,17 +110,19 @@ Intent: most time is spent here; it must be excellent and AI-optional.
   signature** (drawable pad with Reset — no typed signature box), with a
   preview toggle. Slot images accept PNG/JPEG/TIFF/HEIC/**SVG** (SVG bytes
   are kept as vectors).
-- AC (implemented): **Section parts** (Aug 2026). The "/" picker offers
-  `[[part]]` live tokens in every rich text box (`PartEngine`,
-  `part://t/<path>?d=&m=` links; curly-braces icon): `authors` (full
-  byline), `authors.names`, `authors.institutes`,
-  `authors.corresponding_author` (+ `.first_name` / `.last_name` /
-  `.email` / `.details`). The editor shows the literal `[[path]]` marker —
-  format it like prose, and the export expansion (last styling pass)
-  **inherits the token's attributes**; markers use the materialized raise.
-  **Clicking a token** opens its menu: delimiter (space / semicolon /
-  newline) and, on `authors`, linkage markers (superscript / crosses /
-  double crosses / none); choices rewrite the token URL. LaTeX expands
+- AC (implemented): **Section parts** (Aug 2026). The "/" picker lists just the
+  referencable SECTIONS (`PartEngine.topLevel` — "Authors";
+  `part://t/<path>?d=&m=` links, curly-braces icon). The editor shows the
+  literal `[[path]]` marker — format it like prose, and the export
+  expansion (last styling pass) **inherits the token's attributes**;
+  markers use the materialized raise. **Clicking a token** opens its menu:
+  delimiter (space / semicolon / newline), linkage markers on `authors`
+  (superscript / crosses / double crosses / none), and **Subsection** —
+  picking one changes the words in the brackets (`[[authors]]` →
+  `[[authors.corresponding_author]]`), and the new token has its own
+  selections when clicked (children per `PartEngine.children(of:)`:
+  names / institutes / corresponding_author, then first_name / last_name
+  / email / details; "⬑" climbs back up). LaTeX expands
   plain `[[path]]` markers with defaults. The corresponding-author toggle
   reveals a **Details** free-text box (`Author.correspondingDetails`)
   referencable as `[[authors.corresponding_author.details]]`. The
