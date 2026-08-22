@@ -424,24 +424,9 @@ private struct ExportDocumentCard: View {
                 // always exports; only the printed title toggles ("H" ≠ the
                 // remove ✕, which drops the whole item).
                 if item.kind != .titlePage && item.kind != .authors {
-                    Button {
-                        var doc = document
-                        guard doc.items.indices.contains(index) else { return }
-                        doc.items[index].titleShown.toggle()
-                        onChange(doc)
-                    } label: {
-                        Image(systemName: item.titleShown ? "h.square.fill" : "h.square")
-                            .foregroundStyle(item.titleShown ? Color.accentColor : Color(nsColor: .tertiaryLabelColor))
-                            .font(.caption)
-                    }
-                    .buttonStyle(.plain)
-                    .help("Include heading in the export")
-                    // Heading format, revealed while the heading is included.
-                    if item.titleShown {
-                        headingStyleControls(item, index: index)
-                    }
                     // References: which citation style the list renders in
-                    // (default = the journal's required style).
+                    // (default = the journal's required style) — sits LEFT
+                    // of the heading controls.
                     if item.kind == .references {
                         Picker("", selection: Binding(
                             get: { item.citationStyle },
@@ -464,6 +449,22 @@ private struct ExportDocumentCard: View {
                         .controlSize(.small)
                         .fixedSize()
                         .help("Citation style for the reference list — \"Journal style\" follows the journal's requirements")
+                    }
+                    Button {
+                        var doc = document
+                        guard doc.items.indices.contains(index) else { return }
+                        doc.items[index].titleShown.toggle()
+                        onChange(doc)
+                    } label: {
+                        Image(systemName: item.titleShown ? "h.square.fill" : "h.square")
+                            .foregroundStyle(item.titleShown ? Color.accentColor : Color(nsColor: .tertiaryLabelColor))
+                            .font(.caption)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Include heading in the export")
+                    // Heading format, revealed while the heading is included.
+                    if item.titleShown {
+                        headingStyleControls(item, index: index)
                     }
                 } else if item.kind == .authors
                             || !document.items.contains(where: { $0.kind == .authors }) {
