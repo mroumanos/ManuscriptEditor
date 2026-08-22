@@ -86,6 +86,14 @@ struct BibEntry: Codable, Identifiable, Sendable, Equatable {
 
     var isZoteroLocked: Bool { zoteroLocked ?? (zoteroKey != nil) }
 
+    /// The reference formatted by Zotero's citation processor (csl-entry
+    /// inner HTML — only <i> markup matters), pulled by "Refresh from
+    /// Zotero".  Exports and tooltips prefer it over the app's generic
+    /// assembly.  nil = never fetched.
+    var formattedReference: String? = nil
+    /// The CSL style id `formattedReference` was rendered with ("apa", …).
+    var formattedStyle: String? = nil
+
     // MARK: - Computed display helpers
 
     /// Up to the first three authors joined by "; ", with "et al." appended when

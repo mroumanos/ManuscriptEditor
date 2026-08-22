@@ -74,6 +74,23 @@ struct BibliographyView: View {
         return nil
     }
 
+    /// The CSL style for this pane's journal (Source and custom → APA).
+    private var cslStyle: String {
+        guard case .version(let id) = versionRef,
+              let jid = store.versions.first(where: { $0.id == id })?.journalID,
+              let journal = store.manuscript?.journals.first(where: { $0.id == jid })
+        else { return "apa" }
+        switch journal.requirements.citationStyle {
+        case .apa:       return "apa"
+        case .mla:       return "modern-language-association"
+        case .chicago:   return "chicago-author-date"
+        case .vancouver: return "vancouver"
+        case .harvard:   return "harvard-cite-them-right"
+        case .ama:       return "american-medical-association"
+        case .custom:    return "apa"
+        }
+    }
+
     private func loadZoteroLibrary() async {
         zoteroLibrary = try? await ZoteroService().fetchItems(matching: "", limit: 500)
     }
@@ -89,6 +106,10 @@ struct BibliographyView: View {
             }
             zoteroLibrary = items
             let service = ZoteroService()
+            // Zotero's citation processor formats every entry in the pane
+            // journal's style (org authors, italics, access dates).
+            let style = cslStyle
+            let formatted = (try? await service.formattedBibliography(style: style)) ?? [:]
             var refreshed = 0, broken = 0
             for entry in allEntries where entry.isZoteroLocked {
                 guard let item = Self.zoteroMatch(for: entry, in: items) else { broken += 1; continue }
@@ -105,6 +126,10 @@ struct BibliographyView: View {
                 updated.doi = fresh.doi
                 updated.url = fresh.url
                 updated.publisher = fresh.publisher
+                if let bib = formatted[item.key] {
+                    updated.formattedReference = bib
+                    updated.formattedStyle = style
+                }
                 if updated != entry {
                     store.updateBibEntry(updated, ref: versionRef)
                     refreshed += 1

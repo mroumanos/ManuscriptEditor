@@ -262,6 +262,11 @@ enum RefEngine {
     /// "Authors (Year). Title. Journal Vol, Pages. doi:…" — the hover tooltip
     /// and the bibliography line used on export.
     static func fullReference(_ e: BibEntry) -> String {
+        // Zotero's citeproc-formatted entry wins when present (Refresh from
+        // Zotero pulls it) — the generic assembly below is the fallback.
+        if let html = e.formattedReference, !html.isEmpty {
+            return strippedFormatted(html)
+        }
         var parts: [String] = []
         if !e.authorsFormatted.isEmpty { parts.append(e.authorsFormatted) }
         if let year = e.year { parts.append("(\(year))") }
@@ -271,6 +276,17 @@ enum RefEngine {
         if let pages = e.pages, !pages.isEmpty { parts.append(pages) }
         if let doi = e.doi, !doi.isEmpty { parts.append("doi:\(doi)") }
         return parts.joined(separator: " ")
+    }
+
+    /// csl-entry HTML → plain text (tags stripped, entities decoded).
+    static func strippedFormatted(_ html: String) -> String {
+        html.replacingOccurrences(of: #"<[^>]+>"#, with: "", options: .regularExpression)
+            .replacingOccurrences(of: "&amp;", with: "&")
+            .replacingOccurrences(of: "&lt;", with: "<")
+            .replacingOccurrences(of: "&gt;", with: ">")
+            .replacingOccurrences(of: "&#38;", with: "&")
+            .replacingOccurrences(of: "&nbsp;", with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     // MARK: - Rendering

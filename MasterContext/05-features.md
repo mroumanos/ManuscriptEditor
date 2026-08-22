@@ -49,8 +49,13 @@ Intent: most time is spent here; it must be excellent and AI-optional.
   written back** — the link stays dynamic (`BibEntry.zoteroLocked`;
   read-only in the editor follows the lock, not the key). **Refresh from
   Zotero** (Add Reference menu) re-pulls every green entry's fields from
-  the library; orange entries keep their saved snapshot, which always
-  cites/exports fine — collaborators without the source library just see
+  the library **and its citeproc-formatted bibliography entry** in the pane
+  journal's CSL style (org authors, italics, access dates —
+  `formattedBibliography(style:)`, styles auto-fetched by Zotero;
+  `BibEntry.formattedReference/-Style`). Exports and tooltips prefer the
+  formatted entry (References render its <i> runs as real italics; LaTeX
+  and tooltips use the stripped text); orange entries keep their saved
+  snapshot, which always cites/exports fine — collaborators without the source library just see
   orange locks (or unlock to edit).
 - AC (implemented): **Categorized bibliography search** (Aug 2026, same
   pattern + the same query doubles as the list filter). Sections by input

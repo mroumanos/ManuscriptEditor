@@ -865,7 +865,7 @@ private struct OutlineBuilder {
             let doc = NSMutableAttributedString()
             if item.titleShown { doc.append(headingBlock(item.customTitle ?? "References", style: item.effectiveHeadingStyle)) }
             for (i, entry) in m.bibliography.enumerated() {
-                doc.append(line("\(i + 1). \(RefEngine.fullReference(entry))", font: base, after: 4))
+                doc.append(referenceLine(number: i + 1, entry: entry))
             }
             return doc
         case .coverLetter:
@@ -898,6 +898,48 @@ private struct OutlineBuilder {
     private func headingText(_ raw: String) -> String {
         guard let first = raw.first else { return raw }
         return first.uppercased() + raw.dropFirst()
+    }
+
+    /// One numbered reference-list line.  A Zotero-formatted entry renders
+    /// with its italics (csl-entry <i> runs — journal and volume names);
+    /// entries without one fall back to the generic assembly.
+    private func referenceLine(number: Int, entry: BibEntry) -> NSAttributedString {
+        guard let html = entry.formattedReference, !html.isEmpty else {
+            return line("\(number). \(RefEngine.fullReference(entry))", font: base, after: 4)
+        }
+        // Reduce to text + italic ranges: <i>/<\i> become sentinels, all
+        // other tags drop, entities decode, then the sentinels lift out.
+        var marked = html
+            .replacingOccurrences(of: #"(?i)<i>"#, with: "\u{1}", options: .regularExpression)
+            .replacingOccurrences(of: #"(?i)</i>"#, with: "\u{2}", options: .regularExpression)
+            .replacingOccurrences(of: #"<[^>]+>"#, with: "", options: .regularExpression)
+        for (entity, ch) in [("&amp;", "&"), ("&lt;", "<"), ("&gt;", ">"),
+                             ("&#38;", "&"), ("&nbsp;", " ")] {
+            marked = marked.replacingOccurrences(of: entity, with: ch)
+        }
+        var text = "\(number). "
+        var italics: [NSRange] = []
+        var start: Int?
+        for ch in marked {
+            if ch == "\u{1}" { start = (text as NSString).length }
+            else if ch == "\u{2}" {
+                if let s0 = start {
+                    italics.append(NSRange(location: s0, length: (text as NSString).length - s0))
+                    start = nil
+                }
+            } else { text.append(ch) }
+        }
+        let out = NSMutableAttributedString(attributedString:
+            line(text.trimmingCharacters(in: .whitespaces), font: base, after: 4))
+        let fm = NSFontManager.shared
+        for range in italics where NSMaxRange(range) <= out.length {
+            out.enumerateAttribute(.font, in: range) { value, sub, _ in
+                let current = (value as? NSFont) ?? base
+                out.addAttribute(.font, value: fm.convert(current, toHaveTrait: .italicFontMask),
+                                 range: sub)
+            }
+        }
+        return out
     }
 
     /// A section title with a blank line before and after it, styled per the

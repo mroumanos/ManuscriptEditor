@@ -111,6 +111,44 @@ struct ZoteroService {
         return try decodeItems(data)
     }
 
+    /// key → formatted bibliography entry (csl-entry inner HTML) in the
+    /// given CSL style — Zotero's own citation processor does the work, so
+    /// org authors, italics, and access dates come out right.  Zotero
+    /// fetches uninstalled styles from its repository on demand.
+    func formattedBibliography(style: String) async throws -> [String: String] {
+        var components = URLComponents(url: base, resolvingAgainstBaseURL: false)!
+        components.queryItems = [
+            URLQueryItem(name: "format", value: "json"),
+            URLQueryItem(name: "include", value: "bib"),
+            URLQueryItem(name: "style", value: style),
+            URLQueryItem(name: "limit", value: "500"),
+        ]
+        var request = URLRequest(url: components.url!)
+        request.setValue("3", forHTTPHeaderField: "Zotero-API-Version")
+        request.timeoutInterval = 20   // citeproc over a whole library
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            throw ZoteroError.badResponse
+        }
+        guard let array = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+            throw ZoteroError.badResponse
+        }
+        var out: [String: String] = [:]
+        for dict in array {
+            guard let key = dict["key"] as? String, let bib = dict["bib"] as? String,
+                  let range = bib.range(of: #"(?s)<div class="csl-entry">.*?</div>"#,
+                                        options: .regularExpression) else { continue }
+            let inner = String(bib[range])
+                .replacingOccurrences(of: #"^<div class="csl-entry">"#,
+                                      with: "", options: .regularExpression)
+                .replacingOccurrences(of: #"</div>$"#, with: "", options: .regularExpression)
+                .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            out[key] = inner
+        }
+        return out
+    }
+
     /// Maps a Zotero item to a `BibEntry`, tagging it with `zoteroKey`.
     func bibEntry(from item: ZoteroItem) -> BibEntry {
         BibEntry(
