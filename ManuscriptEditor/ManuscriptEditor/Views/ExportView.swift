@@ -484,6 +484,9 @@ private struct ExportDocumentCard: View {
                     )) {
                         Text("semicolon").tag("semicolon")
                         Text("comma").tag("comma")
+                        Text("space").tag("space")
+                        Text("slash").tag("slash")
+                        Text("hyphen").tag("hyphen")
                         Text("newline").tag("newline")
                     }
                     .labelsHidden().controlSize(.small).fixedSize()

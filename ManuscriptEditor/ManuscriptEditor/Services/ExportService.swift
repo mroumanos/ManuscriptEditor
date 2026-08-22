@@ -367,6 +367,9 @@ struct ExportService {
                     let delim: String
                     switch item.authorDelimiter {
                     case "comma":   delim = ", "
+                    case "space":   delim = " "
+                    case "slash":   delim = " / "
+                    case "hyphen":  delim = " - "
                     case "newline": delim = " \\\\\n"
                     default:        delim = "; "
                     }
@@ -823,6 +826,9 @@ private struct OutlineBuilder {
         let delimiter: String
         switch item.authorDelimiter {
         case "comma":   delimiter = ", "
+        case "space":   delimiter = " "
+        case "slash":   delimiter = " / "
+        case "hyphen":  delimiter = " - "
         case "newline": delimiter = "\n"
         default:        delimiter = "; "   // semicolon is the default
         }

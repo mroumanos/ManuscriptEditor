@@ -97,6 +97,9 @@ enum PartEngine {
     static func delimiterText(_ d: String) -> String {
         switch d {
         case "space":   return " "
+        case "comma":   return ", "
+        case "slash":   return " / "
+        case "hyphen":  return " - "
         case "newline": return "\n"
         default:        return "; "
         }
