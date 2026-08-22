@@ -471,13 +471,47 @@ private struct ExportDocumentCard: View {
                     // Append the authors' credentials ("Jane Doe, MD") to
                     // the byline — on the Authors item, or on Title only for
                     // pre-split configs where Title still renders the byline.
+                    // Author delimiter: what separates the names (and the
+                    // affiliation lines below them).
+                    Picker("", selection: Binding(
+                        get: { item.authorDelimiter ?? "comma" },
+                        set: { value in
+                            var doc = document
+                            guard doc.items.indices.contains(index) else { return }
+                            doc.items[index].authorDelimiter = value == "comma" ? nil : value
+                            onChange(doc)
+                        }
+                    )) {
+                        Text("a, b").tag("comma")
+                        Text("a; b").tag("semicolon")
+                        Text("a ⏎ b").tag("newline")
+                    }
+                    .labelsHidden().controlSize(.small).fixedSize()
+                    .help("Delimiter between authors")
+                    // Author ↔ institution linkage markers.
+                    Picker("", selection: Binding(
+                        get: { item.affiliationMarker ?? "superscript" },
+                        set: { value in
+                            var doc = document
+                            guard doc.items.indices.contains(index) else { return }
+                            doc.items[index].affiliationMarker = value == "superscript" ? nil : value
+                            onChange(doc)
+                        }
+                    )) {
+                        Text("a¹").tag("superscript")
+                        Text("a†").tag("cross")
+                        Text("a‡").tag("doublecross")
+                        Text("none").tag("none")
+                    }
+                    .labelsHidden().controlSize(.small).fixedSize()
+                    .help("How authors link to their institutions (superscript numbers, crosses, or no markers)")
                     Button {
                         var doc = document
                         guard doc.items.indices.contains(index) else { return }
                         doc.items[index].authorTitlesShown.toggle()
                         onChange(doc)
                     } label: {
-                        Text("+ credentials")
+                        Text("+ cred")
                             .font(.caption)
                             .foregroundStyle(item.authorTitlesShown
                                 ? Color.accentColor

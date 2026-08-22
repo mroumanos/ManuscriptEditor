@@ -12,6 +12,20 @@ struct Institution: Codable, Identifiable, Sendable, Equatable {
     var id: UUID
     /// Institution name, e.g. "Harvard Medical School, Dept. of Genetics".
     var name: String
+    /// Location parts — optional (older files decode without them); exports
+    /// print "<institute> <city>, <state> <country>".
+    var city: String? = nil
+    var state: String? = nil
+    var country: String? = nil
+
+    /// The affiliation line as exports print it, skipping absent parts.
+    var displayLine: String {
+        var out = name
+        if let city, !city.isEmpty { out += " \(city)" }
+        if let state, !state.isEmpty { out += ", \(state)" }
+        if let country, !country.isEmpty { out += " \(country)" }
+        return out
+    }
 
     static func empty() -> Institution { Institution(id: UUID(), name: "") }
 }
@@ -109,6 +123,15 @@ struct Author: Codable, Identifiable, Sendable, Equatable {
         let resolved = (institutionIDs ?? []).compactMap { id in
             m.institutions.first(where: { $0.id == id })?.name
         }.filter { !$0.isEmpty }
+        return resolved.isEmpty ? affiliations.filter { !$0.isEmpty } : resolved
+    }
+
+    /// Resolved affiliation display lines ("<institute> <city>, <state>
+    /// <country>"): registry records when referenced, else legacy free text.
+    func affiliationLines(in m: Manuscript) -> [String] {
+        let resolved = (institutionIDs ?? []).compactMap { id in
+            m.institutions.first(where: { $0.id == id })
+        }.map(\.displayLine).filter { !$0.isEmpty }
         return resolved.isEmpty ? affiliations.filter { !$0.isEmpty } : resolved
     }
 

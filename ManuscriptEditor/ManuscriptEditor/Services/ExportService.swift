@@ -364,15 +364,45 @@ struct ExportService {
             case .authors:
                 let authors = m.authors.sorted { $0.order < $1.order }
                 if !authors.isEmpty {
-                    let names = authors
-                        .map { tex(item.authorTitlesShown ? $0.exportName : $0.fullName) }
-                        .joined(separator: ", ")
-                    var affiliations: [String] = []
-                    for aff in authors.flatMap({ $0.affiliationNames(in: m) })
-                        where !affiliations.contains(aff) { affiliations.append(aff) }
+                    let delim: String
+                    switch item.authorDelimiter {
+                    case "semicolon": delim = "; "
+                    case "newline":   delim = " \\\\\n"
+                    default:          delim = ", "
+                    }
+                    let markerStyle = item.affiliationMarker ?? "superscript"
+                    var affLines: [String] = []
+                    var indexByLine: [String: Int] = [:]
+                    for a in authors {
+                        for l in a.affiliationLines(in: m) where indexByLine[l] == nil {
+                            indexByLine[l] = affLines.count
+                            affLines.append(l)
+                        }
+                    }
+                    func mk(_ i: Int) -> String {
+                        switch markerStyle {
+                        case "cross":       return String(repeating: "†", count: i + 1)
+                        case "doublecross": return String(repeating: "‡", count: i + 1)
+                        case "none":        return ""
+                        default:            return String(i + 1)
+                        }
+                    }
+                    let names = authors.map { a -> String in
+                        var s = tex(item.authorTitlesShown ? a.exportName : a.fullName)
+                        if markerStyle != "none" {
+                            let ms = a.affiliationLines(in: m).compactMap { indexByLine[$0] }
+                                .sorted().map(mk).joined(separator: ",")
+                            if !ms.isEmpty { s += "\\textsuperscript{\(ms)}" }
+                        }
+                        if a.isCorresponding { s += "*" }
+                        return s
+                    }.joined(separator: delim)
                     out += "\\begin{center}\n\(names)\\\\\n"
-                        + affiliations.map { "\\textit{\(tex($0))}\\\\" }.joined(separator: "\n")
-                        + "\n\\end{center}\n"
+                    for (i, l) in affLines.enumerated() {
+                        let prefix = markerStyle == "none" ? "" : "\\textsuperscript{\(mk(i))} "
+                        out += "\(prefix)\\textit{\(tex(l))}\\\\\n"
+                    }
+                    out += "\\end{center}\n"
                 }
             case .abstract:
                 if !m.abstract.isEmpty {
@@ -788,14 +818,79 @@ private struct OutlineBuilder {
         let doc = NSMutableAttributedString()
         let authors = m.authors.sorted { $0.order < $1.order }
         guard !authors.isEmpty else { return doc }
-        let names = authors.map {
-            (item.authorTitlesShown ? $0.exportName : $0.fullName)
-                + ($0.isCorresponding ? "*" : "")
-        }.joined(separator: ", ")
-        doc.append(line(names, font: base, after: 2))
-        var seen = Set<String>()
-        for aff in authors.flatMap({ $0.affiliationNames(in: m) }) where seen.insert(aff).inserted {
-            doc.append(line(aff, font: meta, color: .darkGray, after: 1))
+
+        let delimiter: String
+        switch item.authorDelimiter {
+        case "semicolon": delimiter = "; "
+        case "newline":   delimiter = "\n"
+        default:          delimiter = ", "
+        }
+        let markerStyle = item.affiliationMarker ?? "superscript"
+
+        // Ordered unique affiliation lines across the whole byline; each
+        // gets the marker its index dictates.
+        var affLines: [String] = []
+        var indexByLine: [String: Int] = [:]
+        for author in authors {
+            for lineText in author.affiliationLines(in: m) where indexByLine[lineText] == nil {
+                indexByLine[lineText] = affLines.count
+                affLines.append(lineText)
+            }
+        }
+        func marker(_ index: Int) -> String {
+            switch markerStyle {
+            case "cross":       return String(repeating: "†", count: index + 1)
+            case "doublecross": return String(repeating: "‡", count: index + 1)
+            case "none":        return ""
+            default:            return String(index + 1)
+            }
+        }
+
+        let bodyAttrs: [NSAttributedString.Key: Any] = [
+            .font: base, .paragraphStyle: paragraph(after: 2, before: 0),
+            .foregroundColor: NSColor.black]
+        let metaAttrs: [NSAttributedString.Key: Any] = [
+            .font: meta, .paragraphStyle: paragraph(after: 1, before: 0),
+            .foregroundColor: NSColor.darkGray]
+        // Markers use the same materialized raise as citations (smaller
+        // font + baselineOffset) so every writer renders them superscript.
+        let markerFont = NSFont(descriptor: base.fontDescriptor,
+                                size: (base.pointSize * 0.65).rounded()) ?? base
+        func markerRun(_ text: String, para: NSParagraphStyle) -> NSAttributedString {
+            NSAttributedString(string: text, attributes: [
+                .font: markerFont,
+                .baselineOffset: base.pointSize * 0.33,
+                .paragraphStyle: para,
+                .foregroundColor: NSColor.black])
+        }
+
+        for (i, author) in authors.enumerated() {
+            doc.append(NSAttributedString(
+                string: item.authorTitlesShown ? author.exportName : author.fullName,
+                attributes: bodyAttrs))
+            if markerStyle != "none" {
+                let markers = author.affiliationLines(in: m)
+                    .compactMap { indexByLine[$0] }.sorted().map(marker)
+                    .joined(separator: ",")
+                if !markers.isEmpty {
+                    doc.append(markerRun(markers,
+                                         para: bodyAttrs[.paragraphStyle] as! NSParagraphStyle))
+                }
+            }
+            if author.isCorresponding {
+                doc.append(NSAttributedString(string: "*", attributes: bodyAttrs))
+            }
+            doc.append(NSAttributedString(string: i < authors.count - 1 ? delimiter : "\n",
+                                          attributes: bodyAttrs))
+        }
+
+        for (index, lineText) in affLines.enumerated() {
+            if markerStyle != "none" {
+                doc.append(markerRun(marker(index),
+                                     para: metaAttrs[.paragraphStyle] as! NSParagraphStyle))
+                doc.append(NSAttributedString(string: " ", attributes: metaAttrs))
+            }
+            doc.append(NSAttributedString(string: lineText + "\n", attributes: metaAttrs))
         }
         return doc
     }

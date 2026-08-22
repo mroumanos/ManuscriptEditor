@@ -353,12 +353,25 @@ struct InstitutionEditor: View {
         _draft = State(initialValue: institution)
     }
 
+    /// Optional field → TextField binding ("" stores nil).
+    private func optionalInstField(_ keyPath: WritableKeyPath<Institution, String?>) -> Binding<String> {
+        Binding(
+            get: { draft[keyPath: keyPath] ?? "" },
+            set: { draft[keyPath: keyPath] = $0.isEmpty ? nil : $0 }
+        )
+    }
+
     var body: some View {
         ScrollView {
             Form {
                 Section("Institution") {
                     TextField("Display Name",
                               text: $draft.name)
+                    // Location parts — exports print
+                    // "<institute> <city>, <state> <country>".
+                    TextField("City", text: optionalInstField(\.city))
+                    TextField("State", text: optionalInstField(\.state))
+                    TextField("Country", text: optionalInstField(\.country))
                 }
                 Section("Referenced By") {
                     if referencingAuthors.isEmpty {
@@ -376,7 +389,10 @@ struct InstitutionEditor: View {
             .formStyle(.grouped)
             .padding(.bottom, 16)
         }
-        .onChange(of: draft.name) { _, _ in onChange(draft) }
+        .onChange(of: draft.name)    { _, _ in onChange(draft) }
+        .onChange(of: draft.city)    { _, _ in onChange(draft) }
+        .onChange(of: draft.state)   { _, _ in onChange(draft) }
+        .onChange(of: draft.country) { _, _ in onChange(draft) }
         .onChange(of: institution) { _, new in
             guard new != draft else { return }
             draft = new

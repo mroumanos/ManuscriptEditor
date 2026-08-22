@@ -244,6 +244,14 @@ struct ExportItem: Codable, Identifiable, Sendable, Equatable {
     /// nil = the journal's required style (baked in at export).
     var citationStyle: String? = nil
 
+    /// Authors item: what separates the authors (and affiliation lines):
+    /// "comma" (default), "semicolon", or "newline".
+    var authorDelimiter: String? = nil
+    /// Authors item: how authors link to their institutions — "superscript"
+    /// (numbers, the default), "cross" (†, ††, …), "doublecross" (‡, ‡‡, …),
+    /// or "none" (deduplicated affiliation list, no markers).
+    var affiliationMarker: String? = nil
+
     var showAuthorTitles: Bool? = nil
     var authorTitlesShown: Bool {
         get { showAuthorTitles ?? true }

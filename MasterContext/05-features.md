@@ -81,8 +81,17 @@ Intent: most time is spent here; it must be excellent and AI-optional.
   Credentials line ("MD, PhD, Prof.") at the end of the Name section — it
   replaced a separate honorific field plus a title-tag row, two fields for
   one idea. Text stores in `degrees`; a legacy `titles` tag list still reads
-  (joined) and bylines resolve through `effectiveTitles` either way. The
-  export card's title-page row carries a compact **"+ credentials" toggle
+  (joined) and bylines resolve through `effectiveTitles` either way. **Authors-item byline options** (Aug 2026):
+  a **delimiter picker** (comma / semicolon / newline — separates authors
+  AND the affiliation lines, `ExportItem.authorDelimiter`) and a
+  **linkage-marker picker** (superscript numbers default, † crosses,
+  ‡ double crosses, or none — `affiliationMarker`); markers render via the
+  materialized raise (small font + baselineOffset) so all writers show
+  true superscripts, and LaTeX uses \textsuperscript. Institutions carry
+  optional **city/state/country** (`Institution.city/-state/-country`,
+  edited in the institution form) and export as
+  "<institute> <city>, <state> <country>" (`displayLine`). The
+  export card's title-page row carries a compact **"+ cred" toggle
   button** (`ExportItem.showAuthorTitles`, default on = the historical
   output) switching the byline between plain names and names + credentials,
   in the attributed and LaTeX writers alike.
