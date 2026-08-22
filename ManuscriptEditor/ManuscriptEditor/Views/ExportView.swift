@@ -213,10 +213,13 @@ struct ExportView: View {
         let name = journalID.flatMap { id in journals.first { $0.id == id }?.name }
             ?? store.manuscript?.title ?? "Manuscript"
         do {
+            let journalStyle = journals.first { $0.id == journalID }?
+                .requirements.citationStyle.cslID ?? "apa"
             let folder = try service.exportPackage(
                 config: config,
                 content: content,
                 packageName: name,
+                citationStyleDefault: journalStyle,
                 figureURL: { store.figureURL(for: $0) },
                 chartImage: { ExportRendering.chartImage(for: $0, store: store) },
                 tableData: { ExportRendering.tableData(for: $0, store: store) },
@@ -436,6 +439,31 @@ private struct ExportDocumentCard: View {
                     // Heading format, revealed while the heading is included.
                     if item.titleShown {
                         headingStyleControls(item, index: index)
+                    }
+                    // References: which citation style the list renders in
+                    // (default = the journal's required style).
+                    if item.kind == .references {
+                        Picker("", selection: Binding(
+                            get: { item.citationStyle },
+                            set: { style in
+                                var doc = document
+                                guard doc.items.indices.contains(index) else { return }
+                                doc.items[index].citationStyle = style
+                                onChange(doc)
+                            }
+                        )) {
+                            Text("Journal style").tag(String?.none)
+                            Text("APA").tag(String?.some("apa"))
+                            Text("AMA").tag(String?.some("american-medical-association"))
+                            Text("Vancouver").tag(String?.some("vancouver"))
+                            Text("MLA").tag(String?.some("modern-language-association"))
+                            Text("Chicago").tag(String?.some("chicago-author-date"))
+                            Text("Harvard").tag(String?.some("harvard-cite-them-right"))
+                        }
+                        .labelsHidden()
+                        .controlSize(.small)
+                        .fixedSize()
+                        .help("Citation style for the reference list — \"Journal style\" follows the journal's requirements")
                     }
                 } else if item.kind == .authors
                             || !document.items.contains(where: { $0.kind == .authors }) {

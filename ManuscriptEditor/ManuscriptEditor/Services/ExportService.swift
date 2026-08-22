@@ -233,6 +233,7 @@ struct ExportService {
         config: ExportConfig,
         content: Manuscript,
         packageName: String,
+        citationStyleDefault: String = "apa",
         figureURL: @escaping (Figure) -> URL?,
         chartImage: ((Figure) -> NSImage?)? = nil,
         tableData: ((ManuscriptTable) -> QueryResult?)? = nil,
@@ -247,11 +248,11 @@ struct ExportService {
             let url = folder.appendingPathComponent("\(name).\(document.fileType.ext)")
             switch document.fileType {
             case .pdf:
-                let segments = pageSegments(for: document, content: content, refContext: refContext, figureURL: figureURL, chartImage: chartImage, tableData: tableData)
+                let segments = pageSegments(for: document, content: content, refContext: refContext, figureURL: figureURL, chartImage: chartImage, tableData: tableData, citationStyleDefault: citationStyleDefault)
                 let data = PDFPaginator(format: document.format).render(segments: segments)
                 try data.write(to: url, options: .atomic)
             case .docx, .rtf:
-                let segments = pageSegments(for: document, content: content, refContext: refContext, figureURL: figureURL, chartImage: chartImage, tableData: tableData)
+                let segments = pageSegments(for: document, content: content, refContext: refContext, figureURL: figureURL, chartImage: chartImage, tableData: tableData, citationStyleDefault: citationStyleDefault)
                 // Form feed is the closest page-break the attributed writers offer.
                 let joined = NSMutableAttributedString()
                 for (i, seg) in segments.enumerated() {
@@ -272,7 +273,8 @@ struct ExportService {
                 )
                 try data.write(to: url, options: .atomic)
             case .latex:
-                let tex = latexDocument(document, content: content)
+                let tex = latexDocument(document, content: content,
+                                        citationStyleDefault: citationStyleDefault)
                 try Data(tex.utf8).write(to: url, options: .atomic)
             }
         }
@@ -292,11 +294,13 @@ struct ExportService {
                               refContext: RefEngine.Context,
                               figureURL: ((Figure) -> URL?)? = nil,
                               chartImage: ((Figure) -> NSImage?)? = nil,
-                              tableData: ((ManuscriptTable) -> QueryResult?)? = nil) -> [NSAttributedString] {
+                              tableData: ((ManuscriptTable) -> QueryResult?)? = nil,
+                              citationStyleDefault: String = "apa") -> [NSAttributedString] {
         let builder = OutlineBuilder(format: document.format, refContext: refContext,
                                      fileType: document.fileType,
                                      figureURL: figureURL, chartImage: chartImage, tableData: tableData,
-                                     separateAuthors: document.items.contains { $0.kind == .authors })
+                                     separateAuthors: document.items.contains { $0.kind == .authors },
+                                     citationStyleDefault: citationStyleDefault)
         var segments: [NSAttributedString] = []
         var current = NSMutableAttributedString()
         for item in document.items {
@@ -318,7 +322,8 @@ struct ExportService {
     /// Emits a self-contained .tex source for one document.  Section bodies are
     /// exported as escaped plain text (styling is not translated in v1);
     /// two-column and line numbering map to `twocolumn` and the `lineno` package.
-    private func latexDocument(_ document: ExportDocument, content m: Manuscript) -> String {
+    private func latexDocument(_ document: ExportDocument, content m: Manuscript,
+                               citationStyleDefault: String = "apa") -> String {
         let f = document.format
         let pt = Int(f.fontSize.rounded()).clamped(to: 10...12)
         var options = ["\(pt)pt"]
@@ -401,8 +406,9 @@ struct ExportService {
             case .references:
                 if !m.bibliography.isEmpty {
                     out += "\\begin{thebibliography}{\(m.bibliography.count)}\n"
+                    let style = item.citationStyle ?? citationStyleDefault
                     for entry in m.bibliography {
-                        out += "\\bibitem{\(entry.key.isEmpty ? entry.id.uuidString : entry.key)} \(tex(RefEngine.fullReference(entry)))\n"
+                        out += "\\bibitem{\(entry.key.isEmpty ? entry.id.uuidString : entry.key)} \(tex(RefEngine.referenceText(entry, style: style)))\n"
                     }
                     out += "\\end{thebibliography}\n"
                 }
@@ -730,6 +736,9 @@ private struct OutlineBuilder {
     /// `.titlePage` must NOT render the byline too (pre-split configs have
     /// no authors item and keep the combined rendering).
     var separateAuthors: Bool = false
+    /// CSL style for the reference list when its item doesn't pick one
+    /// (the journal's required style, resolved at the export call).
+    var citationStyleDefault: String = "apa"
 
     /// Renders `item`, honoring its format override and custom title, and
     /// stamps the line-number attribute when its effective format asks for it.
@@ -737,7 +746,8 @@ private struct OutlineBuilder {
         let effective = effectiveFormat(for: item)
         let builder = OutlineBuilder(format: effective, refContext: refContext, fileType: fileType,
                                      figureURL: figureURL, chartImage: chartImage, tableData: tableData,
-                                     separateAuthors: separateAuthors)
+                                     separateAuthors: separateAuthors,
+                                     citationStyleDefault: citationStyleDefault)
         guard let rendered = builder.renderBlock(item, content: m) else { return nil }
         guard effective.lineNumbers else { return rendered }
         let out = NSMutableAttributedString(attributedString: rendered)
@@ -864,8 +874,9 @@ private struct OutlineBuilder {
             guard !m.bibliography.isEmpty else { return nil }
             let doc = NSMutableAttributedString()
             if item.titleShown { doc.append(headingBlock(item.customTitle ?? "References", style: item.effectiveHeadingStyle)) }
+            let style = item.citationStyle ?? citationStyleDefault
             for (i, entry) in m.bibliography.enumerated() {
-                doc.append(referenceLine(number: i + 1, entry: entry))
+                doc.append(referenceLine(number: i + 1, entry: entry, style: style))
             }
             return doc
         case .coverLetter:
@@ -903,8 +914,14 @@ private struct OutlineBuilder {
     /// One numbered reference-list line.  A Zotero-formatted entry renders
     /// with its italics (csl-entry <i> runs — journal and volume names);
     /// entries without one fall back to the generic assembly.
-    private func referenceLine(number: Int, entry: BibEntry) -> NSAttributedString {
-        guard let html = entry.formattedReference, !html.isEmpty else {
+    private func referenceLine(number: Int, entry: BibEntry, style: String) -> NSAttributedString {
+        // Override wins verbatim; then the style's cached Zotero formatting
+        // (italics preserved); then the generic assembly.
+        if entry.isOverrideActive || entry.formattedEntry(for: style) == nil {
+            return line("\(number). \(RefEngine.referenceText(entry, style: style))",
+                        font: base, after: 4)
+        }
+        guard let html = entry.formattedEntry(for: style) else {
             return line("\(number). \(RefEngine.fullReference(entry))", font: base, after: 4)
         }
         // Reduce to text + italic ranges: <i>/<\i> become sentinels, all

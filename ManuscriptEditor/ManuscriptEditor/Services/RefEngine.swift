@@ -261,10 +261,25 @@ enum RefEngine {
 
     /// "Authors (Year). Title. Journal Vol, Pages. doi:…" — the hover tooltip
     /// and the bibliography line used on export.
+    /// The exportable plain text for one reference in a CSL style:
+    /// override > cached Zotero formatting > the generic assembly.
+    static func referenceText(_ e: BibEntry, style: String) -> String {
+        if e.isOverrideActive, let override = e.formattedOverride {
+            return override.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        if let html = e.formattedEntry(for: style) { return strippedFormatted(html) }
+        return fullReference(e)
+    }
+
     static func fullReference(_ e: BibEntry) -> String {
-        // Zotero's citeproc-formatted entry wins when present (Refresh from
-        // Zotero pulls it) — the generic assembly below is the fallback.
-        if let html = e.formattedReference, !html.isEmpty {
+        // Best formatted text available (tooltips have no style context):
+        // override > any cached style (APA preferred) > generic assembly.
+        if e.isOverrideActive, let override = e.formattedOverride {
+            return override.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        if let html = e.formattedEntry(for: "apa")
+            ?? e.formatted?.values.first
+            ?? e.formattedReference, !html.isEmpty {
             return strippedFormatted(html)
         }
         var parts: [String] = []

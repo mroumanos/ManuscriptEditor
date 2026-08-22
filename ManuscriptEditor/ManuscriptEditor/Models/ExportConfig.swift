@@ -240,6 +240,10 @@ struct ExportItem: Codable, Identifiable, Sendable, Equatable {
     /// each author's title tags after the name ("Jane Doe, MD, PhD"), false
     /// prints names alone.  Optional for backward-compatible decoding;
     /// nil = titles shown (the historical output).
+    /// References item only: the CSL style the reference list renders in.
+    /// nil = the journal's required style (baked in at export).
+    var citationStyle: String? = nil
+
     var showAuthorTitles: Bool? = nil
     var authorTitlesShown: Bool {
         get { showAuthorTitles ?? true }

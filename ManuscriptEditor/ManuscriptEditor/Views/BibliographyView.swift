@@ -106,10 +106,16 @@ struct BibliographyView: View {
             }
             zoteroLibrary = items
             let service = ZoteroService()
-            // Zotero's citation processor formats every entry in the pane
-            // journal's style (org authors, italics, access dates).
-            let style = cslStyle
-            let formatted = (try? await service.formattedBibliography(style: style)) ?? [:]
+            // Zotero's citation processor formats every entry in EVERY
+            // supported style (org authors, italics, access dates) — so the
+            // export-page style picker works offline afterward.
+            let styles = ["apa", "american-medical-association", "vancouver",
+                          "modern-language-association", "chicago-author-date",
+                          "harvard-cite-them-right"]
+            var formattedByStyle: [String: [String: String]] = [:]
+            for style in styles {
+                formattedByStyle[style] = (try? await service.formattedBibliography(style: style)) ?? [:]
+            }
             var refreshed = 0, broken = 0
             for entry in allEntries where entry.isZoteroLocked {
                 guard let item = Self.zoteroMatch(for: entry, in: items) else { broken += 1; continue }
@@ -126,10 +132,11 @@ struct BibliographyView: View {
                 updated.doi = fresh.doi
                 updated.url = fresh.url
                 updated.publisher = fresh.publisher
-                if let bib = formatted[item.key] {
-                    updated.formattedReference = bib
-                    updated.formattedStyle = style
+                var cache = updated.formatted ?? [:]
+                for (style, map) in formattedByStyle {
+                    if let bib = map[item.key] { cache[style] = bib }
                 }
+                if !cache.isEmpty { updated.formatted = cache }
                 if updated != entry {
                     store.updateBibEntry(updated, ref: versionRef)
                     refreshed += 1
@@ -649,12 +656,41 @@ struct BibEntryEditor: View {
                 }
                 }
                 .disabled(isReadOnly)   // Zotero entries are read-only
+
+                // Editable even while Zotero-locked: the override exists
+                // precisely to fix the printed output without unlocking.
+                Section("Export") {
+                    Toggle("Custom export text", isOn: Binding(
+                        get: { draft.useFormattedOverride ?? false },
+                        set: { on in
+                            draft.useFormattedOverride = on
+                            // First switch-on seeds from the best current
+                            // rendering so edits start from something real.
+                            if on, (draft.formattedOverride ?? "").isEmpty {
+                                draft.formattedOverride = RefEngine.fullReference(draft)
+                            }
+                        }
+                    ))
+                    .help("Off (default): the reference exports in the selected citation style (Zotero formatting when available). On: the text below exports verbatim, in every style, and Refresh never touches it.")
+                    if draft.useFormattedOverride == true {
+                        PlainTextEditor(text: Binding(
+                            get: { draft.formattedOverride ?? "" },
+                            set: { draft.formattedOverride = $0.isEmpty ? nil : $0 }
+                        ))
+                        .frame(minHeight: 44)
+                        Text("Exports exactly as written, in every citation style.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
             }
             .formStyle(.grouped)
             .padding(.bottom, 16)
         }
         .onChange(of: draft.key)        { _, _ in store.updateBibEntry(draft, ref: versionRef) }
         .onChange(of: draft.type)       { _, _ in store.updateBibEntry(draft, ref: versionRef) }
+        .onChange(of: draft.useFormattedOverride) { _, _ in store.updateBibEntry(draft, ref: versionRef) }
+        .onChange(of: draft.formattedOverride)    { _, _ in store.updateBibEntry(draft, ref: versionRef) }
         .onChange(of: draft.title)      { _, _ in store.updateBibEntry(draft, ref: versionRef) }
         .onChange(of: draft.authors)    { _, _ in store.updateBibEntry(draft, ref: versionRef) }
         .onChange(of: draft.year)       { _, _ in store.updateBibEntry(draft, ref: versionRef) }

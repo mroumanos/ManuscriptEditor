@@ -86,13 +86,33 @@ struct BibEntry: Codable, Identifiable, Sendable, Equatable {
 
     var isZoteroLocked: Bool { zoteroLocked ?? (zoteroKey != nil) }
 
-    /// The reference formatted by Zotero's citation processor (csl-entry
-    /// inner HTML — only <i> markup matters), pulled by "Refresh from
-    /// Zotero".  Exports and tooltips prefer it over the app's generic
-    /// assembly.  nil = never fetched.
+    /// Legacy single-style formatted entry (superseded by `formatted`;
+    /// still decoded and consulted for files from the first iteration).
     var formattedReference: String? = nil
-    /// The CSL style id `formattedReference` was rendered with ("apa", …).
     var formattedStyle: String? = nil
+
+    /// CSL style id → the reference formatted by Zotero's citation
+    /// processor (csl-entry inner HTML — only <i> markup matters), pulled
+    /// per style by "Refresh from Zotero".  Exports pick their style here.
+    var formatted: [String: String]? = nil
+
+    /// Hand-written export text.  When `useFormattedOverride` is on, this
+    /// exact text exports (any style) and refresh never touches it.
+    var formattedOverride: String? = nil
+    /// Off by default — the toggle lives in the reference editor.
+    var useFormattedOverride: Bool? = nil
+
+    var isOverrideActive: Bool {
+        useFormattedOverride == true
+            && !(formattedOverride ?? "").trimmingCharacters(in: .whitespaces).isEmpty
+    }
+
+    /// The cached formatted entry for a style, folding in the legacy fields.
+    func formattedEntry(for style: String) -> String? {
+        if let hit = formatted?[style], !hit.isEmpty { return hit }
+        if formattedStyle == style, let legacy = formattedReference, !legacy.isEmpty { return legacy }
+        return nil
+    }
 
     // MARK: - Computed display helpers
 

@@ -52,9 +52,18 @@ Intent: most time is spent here; it must be excellent and AI-optional.
   the library **and its citeproc-formatted bibliography entry** in the pane
   journal's CSL style (org authors, italics, access dates —
   `formattedBibliography(style:)`, styles auto-fetched by Zotero;
-  `BibEntry.formattedReference/-Style`). Exports and tooltips prefer the
-  formatted entry (References render its <i> runs as real italics; LaTeX
-  and tooltips use the stripped text); orange entries keep their saved
+  `BibEntry.formattedReference/-Style`). Refresh caches **every supported style**
+  (`BibEntry.formatted[cslID]`), so the References item's **citation-style
+  picker on the export page** ("Journal style" default = the journal's
+  required style via `CitationStyle.cslID`, or APA/AMA/Vancouver/MLA/
+  Chicago/Harvard explicitly, `ExportItem.citationStyle`) works offline.
+  Exports resolve each entry **override > cached style > generic
+  assembly** (`RefEngine.referenceText`): the attributed References list
+  renders <i> runs as real italics; LaTeX and tooltips use stripped text.
+  Each reference carries a **"Custom export text" toggle** (off by
+  default, editable even while Zotero-locked; seeds from the current
+  rendering) whose text exports verbatim in every style and is never
+  touched by Refresh. Orange entries keep their saved
   snapshot, which always cites/exports fine — collaborators without the source library just see
   orange locks (or unlock to edit).
 - AC (implemented): **Categorized bibliography search** (Aug 2026, same

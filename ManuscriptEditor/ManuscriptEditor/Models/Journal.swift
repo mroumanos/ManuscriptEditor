@@ -187,6 +187,19 @@ enum CitationStyle: String, Codable, CaseIterable, Sendable {
     case harvard    = "Harvard"    // natural sciences
     case ama        = "AMA"        // medicine
     case custom     = "Custom"     // journal-specific variant
+
+    /// The CSL style id Zotero/doi.org use for this style ("custom" → APA).
+    var cslID: String {
+        switch self {
+        case .apa:       return "apa"
+        case .mla:       return "modern-language-association"
+        case .chicago:   return "chicago-author-date"
+        case .vancouver: return "vancouver"
+        case .harvard:   return "harvard-cite-them-right"
+        case .ama:       return "american-medical-association"
+        case .custom:    return "apa"
+        }
+    }
 }
 
 // MARK: - ChecklistResult
