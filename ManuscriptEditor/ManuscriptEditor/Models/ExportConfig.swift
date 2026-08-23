@@ -230,14 +230,19 @@ struct ExportItem: Codable, Identifiable, Sendable, Equatable {
         /// backward-compatible decoding; nil = pointSize/sizeDelta rules.
         var level: Int? = nil
 
-        var effectiveLevel: Int { min(max(level ?? 1, 1), 3) }
+        var effectiveLevel: Int { min(max(level ?? 1, 1), 4) }
 
-        /// H1 = body + 4, H2 = body + 2, H3 = body size — mirrors the ratios
-        /// word processors use so exports look like everyone's documents.
+        /// Short label for the level button/summaries ("H1"…"H3", "B").
+        var levelLabel: String { effectiveLevel == 4 ? "B" : "H\(effectiveLevel)" }
+
+        /// H1 = body + 4, H2 = body + 2, H3 = body + 1, B(ody) = body size —
+        /// mirrors the ratios word processors use, with a Body step for
+        /// headings that shouldn't stand out by size (Aug 2026).
         static func sizeDelta(forLevel level: Int) -> Double {
             switch level {
             case 1: return 4
             case 2: return 2
+            case 3: return 1
             default: return 0
             }
         }

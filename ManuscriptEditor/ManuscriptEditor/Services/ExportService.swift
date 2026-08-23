@@ -1008,7 +1008,7 @@ private struct OutlineBuilder {
                 // Subtitle: one heading level below the title (H+1) when
                 // the title uses levels; a +2 quiet size otherwise.
                 let subFont: NSFont = hs.level != nil
-                    ? scaled(ExportItem.HeadingStyle.sizeDelta(forLevel: min(hs.effectiveLevel + 1, 3)),
+                    ? scaled(ExportItem.HeadingStyle.sizeDelta(forLevel: min(hs.effectiveLevel + 1, 4)),
                              bold: false)
                     : scaled(2, bold: false)
                 let subLine = NSMutableAttributedString(attributedString:

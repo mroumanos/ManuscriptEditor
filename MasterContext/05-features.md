@@ -583,9 +583,9 @@ just a rendered blob.
   before the split have no Authors item and Title keeps rendering the
   combined block. Heading semantics: `ExportItem.showTitle` (content always
   exports — only the printed title toggles), `customTitle` (empty reverts to
-  the component's name), and `HeadingStyle.level` cycling **H1 → H2 → H3**
-  (H1 = body + 4 pt, H2 = +2, H3 = body; legacy typed point sizes still
-  honored). Default: every kind prints its heading **except the cover
+  the component's name), and `HeadingStyle.level` cycling **H1 → H2 → H3 → B(ody)**
+  (H1 = body + 4 pt, H2 = +2, H3 = +1, B = body size for headings that
+  shouldn't stand out; legacy typed point sizes still honored). Default: every kind prints its heading **except the cover
   letter**, which exports as a real letter with no "Cover Letter" label
   (Jul 2026 beta feedback). **Section breaks** (Phase 1 of the
   document/section/page model, Aug 2026): page-break items are now
@@ -609,14 +609,17 @@ just a rendered blob.
   - **Text editors** (Abstract, body sections, cover letter): the editor's
     **toolbar** carries font family/size (the item's override) and spacing
     (document-uniform).
-  - **Every component pane** has an **"H" on/off button at the header's
-    left edge** with the heading's style set to its **immediate right**
-    while on — bold/underline/center and the **H1→H3 level**
-    (`ComponentHeadingToggle`). The heading's **text sits on a single line
-    right below the button** (empty = the component's name), reflects the
-    style live, and stays within the editor's margin-ruler bounds
-    (`ComponentHeadingRow`). A section **deactivated in the journal hides
-    its heading controls** — it exports nothing there.
+  - **Editor panes** (Abstract, body sections, cover letter) have an
+    **"H" on/off button at the header's left edge** with the heading's
+    style set to its **immediate right** while on — bold/underline/center
+    and the **H1→H3→Body level** (`ComponentHeadingToggle`). The heading's
+    **text sits on a single line right below the button** (empty = the
+    component's name), reflects the style live, and stays within the
+    editor's margin-ruler bounds (`ComponentHeadingRow`). A section
+    **deactivated in the journal hides its heading controls** — it exports
+    nothing there. **List components keep their heading options in the
+    settings gear instead** (print on/off, text, style) — an inline header
+    bar looked out of place over a list.
   - **List components** (Authors, Bibliography, Keywords) carry a **settings
     gear** in their bottom bar (`ComponentSettingsButton`): typography plus
     the component's own options — the byline's delimiter ("a; b"), marker

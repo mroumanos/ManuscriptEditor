@@ -733,12 +733,12 @@ private struct ExportDocumentCard: View {
         }
         switch item.kind {
         case .titlePage:
-            parts.append("H\(item.effectiveHeadingStyle.effectiveLevel) title")
+            parts.append("\(item.effectiveHeadingStyle.levelLabel) title")
         case .authors:
             break
         default:
             parts.append(item.titleShown
-                         ? "+header H\(item.effectiveHeadingStyle.effectiveLevel)"
+                         ? "+header \(item.effectiveHeadingStyle.levelLabel)"
                          : "no header")
         }
         let font = item.format?.fontFamily ?? document.format.fontFamily

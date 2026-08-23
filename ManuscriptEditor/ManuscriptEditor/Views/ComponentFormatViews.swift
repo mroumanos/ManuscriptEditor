@@ -83,6 +83,11 @@ struct ComponentSettingsButton: View {
                 case .titlePage:  titleHeadingSection(entry)
                 default:          EmptyView()
                 }
+                // List components' heading options live here — an inline
+                // header bar looked out of place over a list.
+                if entry.kind != .titlePage, entry.kind != .authors {
+                    headingSection(entry)
+                }
                 Text("Applies to this journal's export (reviewed read-only in Export).")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
@@ -221,6 +226,38 @@ struct ComponentSettingsButton: View {
         .help("Citation style for the reference list — \"Journal style\" follows the journal's requirements")
     }
 
+    /// Heading options for components without an editor pane to carry
+    /// them: print on/off, style, and the printed text.
+    @ViewBuilder
+    private func headingSection(_ entry: ExportItem) -> some View {
+        Divider()
+        Toggle("Print heading", isOn: Binding(
+            get: { entry.titleShown },
+            set: { on in mutateItem { $0.titleShown = on } }
+        ))
+        .toggleStyle(.switch)
+        .controlSize(.small)
+        .help("Include this component's heading in the export (content always exports)")
+        if entry.titleShown {
+            HStack(spacing: 8) {
+                TextField("", text: Binding(
+                    get: { entry.customTitle ?? "" },
+                    set: { text in mutateItem { $0.customTitle = text.isEmpty ? nil : text } }
+                ), prompt: Text(entry.title(in: store.manuscript(for: versionRef))))
+                .textFieldStyle(.roundedBorder)
+                .controlSize(.small)
+                .help("The heading printed for this component — empty uses its own name")
+                HeadingStyleControls(style: entry.effectiveHeadingStyle, showLevel: true) { change in
+                    mutateItem { itm in
+                        var hs = itm.effectiveHeadingStyle
+                        change(&hs)
+                        itm.headingStyle = hs
+                    }
+                }
+            }
+        }
+    }
+
     /// The title page has no heading row (the title IS the heading), so its
     /// look — level and emphasis — lives here.
     @ViewBuilder
@@ -256,16 +293,16 @@ struct HeadingStyleControls: View {
             if showLevel {
                 Button {
                     mutate {
-                        $0.level = $0.effectiveLevel % 3 + 1
+                        $0.level = $0.effectiveLevel % 4 + 1
                         $0.pointSize = nil   // level now governs the size
                     }
                 } label: {
-                    Text("H\(style.effectiveLevel)")
+                    Text(style.levelLabel)
                         .font(.caption.weight(.semibold).monospacedDigit())
                         .foregroundStyle(Color.accentColor)
                 }
                 .buttonStyle(.plain)
-                .help("Heading level — click to cycle H1 → H2 → H3")
+                .help("Heading level — click to cycle H1 → H2 → H3 → Body size")
             }
         }
     }
@@ -356,6 +393,9 @@ struct ComponentHeadingRow: View {
                               weight: style.bold ? .semibold : .regular))
                 .underline(style.underline)
                 .multilineTextAlignment(style.centered ? .center : .leading)
+                // Rebuild the field when the style changes — a focused
+                // NSTextField won't restyle (underline lagged) otherwise.
+                .id("heading-\(style.bold)-\(style.underline)-\(style.centered)-\(style.effectiveLevel)")
                 .frame(maxWidth: CGFloat(wrapWidth))
                 .help("The heading printed for this component — empty uses its own name")
                 Spacer(minLength: 0)

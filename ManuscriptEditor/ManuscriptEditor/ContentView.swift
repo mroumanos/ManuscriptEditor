@@ -448,10 +448,11 @@ struct ContentView: View {
         VStack(spacing: 0) {
             HStack(spacing: 8) {
                 // Heading on/off lives at the pane's left edge (style
-                // controls to its right; the text row below).  A section
-                // deactivated in this journal doesn't export, so its
-                // heading controls disappear with it.
-                if !sectionDeactivated(item: item, ref: ref) {
+                // controls to its right; the text row below) — but only on
+                // editor panes: list components keep their heading options
+                // in the settings gear, and a section deactivated in this
+                // journal doesn't export, so its controls disappear too.
+                if editorBacked(item), !sectionDeactivated(item: item, ref: ref) {
                     ComponentHeadingToggle(item: item, versionRef: ref)
                 }
                 deactivatedBadge(item: item, ref: ref)
@@ -477,13 +478,22 @@ struct ContentView: View {
             .padding(.trailing, 12)
             .padding(.vertical, 7)
 
-            if !sectionDeactivated(item: item, ref: ref) {
+            if editorBacked(item), !sectionDeactivated(item: item, ref: ref) {
                 ComponentHeadingRow(item: item, versionRef: ref)
             }
 
             contentView(for: item, ref: ref)
         }
         .id(ref)
+    }
+
+    /// Panes whose content view embeds a RichEditor — the only ones that
+    /// carry the inline heading bar (list components use their gear).
+    private func editorBacked(_ item: SidebarItem) -> Bool {
+        switch item {
+        case .abstract, .section, .letterToEditor: return true
+        default: return false
+        }
     }
 
     /// True for a section pane switched off in this journal — it exports
