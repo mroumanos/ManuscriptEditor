@@ -528,16 +528,20 @@ private struct ExportDocumentCard: View {
                     .controlSize(.mini)
             }
             .help("Page margins, 0.25–2″ (first section — Section Breaks can re-set them)")
-            Button {
-                var doc = document
-                doc.format.twoColumn.toggle()
-                onChange(doc)
-            } label: {
-                Text("columns: \(document.format.twoColumn ? 2 : 1)").font(.caption)
+            HStack(spacing: 3) {
+                Text("columns:").font(.caption).foregroundStyle(.secondary)
+                Button {
+                    var doc = document
+                    doc.format.twoColumn.toggle()
+                    onChange(doc)
+                } label: {
+                    Text("\(document.format.twoColumn ? 2 : 1)")
+                        .font(.caption)
+                        .foregroundStyle(Color.accentColor)
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
-            .help("Column layout — click to toggle (first section; PDF and LaTeX)")
+            .help("Column layout — click the value to toggle (first section; PDF and LaTeX)")
             Button {
                 onDelete()
             } label: {
@@ -637,28 +641,36 @@ private struct ExportDocumentCard: View {
                     .controlSize(.mini)
                 }
                 .help("Margins for the pages after this break (0.25–2″)")
-                Button {
-                    var doc = document
-                    guard doc.items.indices.contains(index) else { return }
-                    doc.items[index].sectionTwoColumn = !effTwoCol
-                    onChange(doc)
-                } label: {
-                    Text("columns: \(effTwoCol ? 2 : 1)").font(.caption)
+                HStack(spacing: 3) {
+                    Text("columns:").font(.caption).foregroundStyle(.secondary)
+                    Button {
+                        var doc = document
+                        guard doc.items.indices.contains(index) else { return }
+                        doc.items[index].sectionTwoColumn = !effTwoCol
+                        onChange(doc)
+                    } label: {
+                        Text("\(effTwoCol ? 2 : 1)")
+                            .font(.caption)
+                            .foregroundStyle(Color.accentColor)
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.mini)
-                .help("Column layout after this break — click to toggle (PDF and LaTeX)")
-                Button {
-                    var doc = document
-                    guard doc.items.indices.contains(index) else { return }
-                    doc.items[index].sectionLineNumbers = !effLines
-                    onChange(doc)
-                } label: {
-                    Text("line num.: \(effLines ? "on" : "off")").font(.caption)
+                .help("Column layout after this break — click the value to toggle (PDF and LaTeX)")
+                HStack(spacing: 3) {
+                    Text("line num.:").font(.caption).foregroundStyle(.secondary)
+                    Button {
+                        var doc = document
+                        guard doc.items.indices.contains(index) else { return }
+                        doc.items[index].sectionLineNumbers = !effLines
+                        onChange(doc)
+                    } label: {
+                        Text(effLines ? "on" : "off")
+                            .font(.caption)
+                            .foregroundStyle(Color.accentColor)
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.mini)
-                .help("Line numbering after this break — click to toggle (per-item Lines toggles still win)")
+                .help("Line numbering after this break — click the value to toggle (per-item Lines toggles still win)")
                 line
             } else {
                 // Click the name to rename the heading in this document
