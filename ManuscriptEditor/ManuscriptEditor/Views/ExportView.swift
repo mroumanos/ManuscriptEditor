@@ -700,6 +700,26 @@ private struct ExportDocumentCard: View {
     /// Editing happens on the component itself.
     private func formatSummary(_ item: ExportItem) -> String {
         var parts: [String] = []
+        func delimiterPart(_ code: String?, defaultCode: String) {
+            switch code ?? defaultCode {
+            case "comma":   parts.append("\",\" delimiter")
+            case "space":   parts.append("space delimiter")
+            case "slash":   parts.append("\"/\" delimiter")
+            case "hyphen":  parts.append("\"-\" delimiter")
+            case "newline": parts.append("⏎ delimiter")
+            default:        parts.append("\";\" delimiter")
+            }
+        }
+        func bylineParts() {
+            delimiterPart(item.authorDelimiter, defaultCode: "semicolon")
+            switch item.affiliationMarker ?? "superscript" {
+            case "superscript": parts.append("a¹ markers")
+            case "none":        parts.append("no markers")
+            default:            parts.append("a† markers")
+            }
+            if item.correspondingShown { parts.append("+corr") }
+            if item.authorTitlesShown { parts.append("+cred") }
+        }
         switch item.kind {
         case .references:
             switch item.citationStyle {
@@ -713,21 +733,14 @@ private struct ExportDocumentCard: View {
             case .some(let other):                  parts.append(other)
             }
         case .authors:
-            switch item.authorDelimiter ?? "semicolon" {
-            case "comma":   parts.append("\",\" delimiter")
-            case "space":   parts.append("space delimiter")
-            case "slash":   parts.append("\"/\" delimiter")
-            case "hyphen":  parts.append("\"-\" delimiter")
-            case "newline": parts.append("⏎ delimiter")
-            default:        parts.append("\";\" delimiter")
+            bylineParts()
+        case .keywords:
+            delimiterPart(item.authorDelimiter, defaultCode: "comma")
+        case .titlePage:
+            // Pre-split configs: the Title item renders the byline too.
+            if !document.items.contains(where: { $0.kind == .authors }) {
+                bylineParts()
             }
-            switch item.affiliationMarker ?? "superscript" {
-            case "superscript": parts.append("a¹ markers")
-            case "none":        parts.append("no markers")
-            default:            parts.append("a† markers")
-            }
-            if item.correspondingShown { parts.append("+corr") }
-            if item.authorTitlesShown { parts.append("+cred") }
         default:
             break
         }

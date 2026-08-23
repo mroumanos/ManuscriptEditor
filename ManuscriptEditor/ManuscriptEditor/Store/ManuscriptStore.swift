@@ -930,8 +930,13 @@ final class ManuscriptStore {
     /// Phase 2: this is what the pane EDITS and the editor RENDERS.
     func effectiveExportFormat(for item: SidebarItem, ref: VersionRef) -> ExportDocumentFormat {
         let config = exportConfig(forJournal: journalID(for: ref))
-        guard let key = Self.exportItemKey(for: item) else {
+        guard var key = Self.exportItemKey(for: item) else {
             return config.documents.first?.format ?? ExportDocumentFormat()
+        }
+        // Pre-split configs: the byline is part of the Title item.
+        if key.kind == .authors,
+           !config.documents.contains(where: { $0.items.contains { $0.kind == .authors } }) {
+            key = (.titlePage, nil)
         }
         for document in config.documents {
             guard let found = document.items.first(where: {
@@ -955,9 +960,15 @@ final class ManuscriptStore {
     func updateExportEntry(for item: SidebarItem, ref: VersionRef,
                            mutateItem: ((inout ExportItem) -> Void)? = nil,
                            mutateDocument: ((inout ExportDocument) -> Void)? = nil) {
-        guard let key = Self.exportItemKey(for: item) else { return }
+        guard var key = Self.exportItemKey(for: item) else { return }
         let jid = journalID(for: ref)
         var config = exportConfig(forJournal: jid)
+        // Pre-split configs carry the byline on the Title item (no .authors
+        // item anywhere) — the Authors pane's settings write there.
+        if key.kind == .authors,
+           !config.documents.contains(where: { $0.items.contains { $0.kind == .authors } }) {
+            key = (.titlePage, nil)
+        }
         for d in config.documents.indices {
             guard let i = config.documents[d].items.firstIndex(where: {
                 $0.kind == key.kind && $0.sectionID == key.sectionID

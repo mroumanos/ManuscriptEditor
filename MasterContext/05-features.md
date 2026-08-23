@@ -626,7 +626,11 @@ just a rendered blob.
     gear** in their bottom bar (`ComponentSettingsButton`): typography plus
     the component's own options — the byline's delimiter ("a; b"), marker
     (a¹/a†/none), +corr and +cred on Authors; the citation style on
-    Bibliography. Title, Figures, and Tables carry the same gear in their
+    Bibliography; the **keyword-line delimiter** on Keywords (comma
+    default; stored in the same `authorDelimiter` field and honored by the
+    attributed and LaTeX writers). For **pre-split configs** (no `.authors`
+    item — the Title renders the byline) the Authors pane's gear and the
+    Export summary map the byline options to the Title item. Title, Figures, and Tables carry the same gear in their
     pane header (the Title's gear also holds its heading level/emphasis).
   - **Keywords** is a list component like Authors: list on the left with
     add/remove/reorder, the selected keyword's editor on the right, gear in

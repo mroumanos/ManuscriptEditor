@@ -462,7 +462,8 @@ struct ExportService {
             case .keywords:
                 if !m.keywords.isEmpty {
                     let label = item.titleShown ? "\\textbf{\(tex(latexHeading(item.customTitle ?? "Keywords"))):} " : ""
-                    out += "\\noindent\(label)\(tex(m.keywords.joined(separator: ", ")))\n\n"
+                    let delim = OutlineBuilder.delimiterText(item.authorDelimiter, fallback: ", ")
+                    out += "\\noindent\(label)\(tex(m.keywords.joined(separator: delim)))\n\n"
                 }
             case .section:
                 if let id = item.sectionID,
@@ -872,6 +873,21 @@ private struct OutlineBuilder {
         return font
     }
 
+    /// A list component's delimiter code rendered as text (authors byline,
+    /// keywords line — stored in `ExportItem.authorDelimiter`; nil = the
+    /// component's own default).
+    static func delimiterText(_ code: String?, fallback: String) -> String {
+        switch code {
+        case "semicolon": return "; "
+        case "comma":     return ", "
+        case "space":     return " "
+        case "slash":     return " / "
+        case "hyphen":    return " - "
+        case "newline":   return "\n"
+        default:          return fallback
+        }
+    }
+
     /// The byline: names (credentials per the item toggle, * on the
     /// corresponding author) plus deduplicated affiliation lines.
     private func authorsBlock(_ item: ExportItem, content m: Manuscript) -> NSAttributedString {
@@ -879,15 +895,7 @@ private struct OutlineBuilder {
         let authors = m.authors.sorted { $0.order < $1.order }
         guard !authors.isEmpty else { return doc }
 
-        let delimiter: String
-        switch item.authorDelimiter {
-        case "comma":   delimiter = ", "
-        case "space":   delimiter = " "
-        case "slash":   delimiter = " / "
-        case "hyphen":  delimiter = " - "
-        case "newline": delimiter = "\n"
-        default:        delimiter = "; "   // semicolon is the default
-        }
+        let delimiter = Self.delimiterText(item.authorDelimiter, fallback: "; ")
         let markerStyle = item.affiliationMarker ?? "superscript"
 
         // Ordered unique affiliation lines across the whole byline; each
@@ -1042,7 +1050,8 @@ private struct OutlineBuilder {
             return doc
         case .keywords:
             guard !m.keywords.isEmpty else { return nil }
-            let list = m.keywords.joined(separator: ", ")
+            let list = m.keywords.joined(
+                separator: Self.delimiterText(item.authorDelimiter, fallback: ", "))
             let text = item.titleShown ? "\(headingText(item.customTitle ?? "Keywords")): " + list : list
             return line(text, font: meta, color: .darkGray, after: 10)
         case .section:

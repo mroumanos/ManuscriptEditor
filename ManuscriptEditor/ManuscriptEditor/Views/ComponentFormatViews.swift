@@ -25,9 +25,15 @@ import SwiftUI
 func componentExportEntry(_ store: ManuscriptStore,
                           item: SidebarItem, ref: VersionRef) -> ExportItem? {
     guard let key = ManuscriptStore.exportItemKey(for: item) else { return nil }
-    return store.exportConfig(forJournal: store.journalID(for: ref))
+    let items = store.exportConfig(forJournal: store.journalID(for: ref))
         .documents.flatMap(\.items)
-        .first { $0.kind == key.kind && $0.sectionID == key.sectionID }
+    if let hit = items.first(where: { $0.kind == key.kind && $0.sectionID == key.sectionID }) {
+        return hit
+    }
+    // Pre-split configs carry the byline on the Title item (no .authors
+    // item anywhere) — the Authors pane maps there.
+    if key.kind == .authors { return items.first { $0.kind == .titlePage } }
+    return nil
 }
 
 // MARK: - ComponentSettingsButton
@@ -77,16 +83,21 @@ struct ComponentSettingsButton: View {
         VStack(alignment: .leading, spacing: 10) {
             if let entry {
                 typographySection
-                switch entry.kind {
-                case .authors:    authorsSection(entry)
-                case .references: referencesSection(entry)
-                case .titlePage:  titleHeadingSection(entry)
-                default:          EmptyView()
+                switch item {
+                case .authors:      authorsSection(entry)
+                case .bibliography: referencesSection(entry)
+                case .keywords:     keywordsSection(entry)
+                case .title:        titleHeadingSection(entry)
+                default:            EmptyView()
                 }
                 // List components' heading options live here — an inline
-                // header bar looked out of place over a list.
-                if entry.kind != .titlePage, entry.kind != .authors {
+                // header bar looked out of place over a list.  (Title IS
+                // the heading; the byline never prints one.)
+                switch item {
+                case .keywords, .bibliography, .figures, .tables:
                     headingSection(entry)
+                default:
+                    EmptyView()
                 }
                 Text("Applies to this journal's export (reviewed read-only in Export).")
                     .font(.caption2)
@@ -221,6 +232,27 @@ struct ComponentSettingsButton: View {
         }
         .labelsHidden().controlSize(.small).fixedSize()
         .help("Citation style for the reference list — \"Journal style\" follows the journal's requirements")
+    }
+
+    @ViewBuilder
+    private func keywordsSection(_ entry: ExportItem) -> some View {
+        Divider()
+        Text("Keyword line")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.secondary)
+        Picker("", selection: Binding(
+            get: { entry.authorDelimiter ?? "comma" },
+            set: { value in mutateItem { $0.authorDelimiter = value == "comma" ? nil : value } }
+        )) {
+            Text("a, b").tag("comma")
+            Text("a; b").tag("semicolon")
+            Text("a b").tag("space")
+            Text("a / b").tag("slash")
+            Text("a - b").tag("hyphen")
+            Text("a ⏎ b").tag("newline")
+        }
+        .labelsHidden().controlSize(.small).fixedSize()
+        .help("Delimiter between the exported keywords")
     }
 
     /// Heading options for components without an editor pane to carry
