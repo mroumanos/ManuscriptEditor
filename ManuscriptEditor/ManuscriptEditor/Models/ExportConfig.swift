@@ -48,6 +48,13 @@ struct ExportConfig: Codable, Sendable, Equatable {
         }
 
         var documents = [ExportDocument(name: "Manuscript", fileType: fileType, items: items)]
+        // Journal-add defaulting (Phase 2): the requirements seed the
+        // document typography, and checks guard it from there.
+        if let requirements = journal?.requirements {
+            if let size = requirements.requiredFontSize { documents[0].format.fontSize = size }
+            if let spacing = requirements.requiredLineSpacing { documents[0].format.lineSpacing = spacing }
+            if let lines = requirements.requiresLineNumbers { documents[0].format.lineNumbers = lines }
+        }
         if separateFigures {
             documents.append(ExportDocument(
                 name: "Figures and Tables", fileType: fileType,

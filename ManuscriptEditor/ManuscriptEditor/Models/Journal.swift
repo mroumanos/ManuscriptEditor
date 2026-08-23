@@ -219,6 +219,11 @@ struct ChecklistResult: Codable, Identifiable, Sendable {
     /// A short explanation of the result (e.g. "2847 of 3000 words used").
     var details: String
 
+    /// Set when the app can REPAIR this failure itself ("typography" →
+    /// align every export section with the journal's required format);
+    /// Checks renders a Fix button for it.
+    var fixID: String? = nil
+
     /// True for rules the app cannot verify — rendered as a checkbox the
     /// user ticks after verifying by hand (`passed` = ticked, persisted in
     /// `Journal.manualChecksDone`).  False = checked automatically.

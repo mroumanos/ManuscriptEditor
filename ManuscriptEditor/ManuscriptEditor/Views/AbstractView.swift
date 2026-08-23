@@ -14,7 +14,8 @@ struct AbstractView: View {
     @State private var abstract = RichText()
 
     var body: some View {
-        RichEditor(value: $abstract, placeholder: "Write your abstract here…", versionRef: versionRef)
+        RichEditor(value: $abstract, placeholder: "Write your abstract here…", versionRef: versionRef,
+                   formatItem: .abstract)
             .onChange(of: abstract) { _, new in store.updateAbstract(new, ref: versionRef) }
             .onAppear { abstract = store.manuscript(for: versionRef)?.abstract ?? RichText() }
             .onChange(of: store.manuscript?.id) { _, _ in

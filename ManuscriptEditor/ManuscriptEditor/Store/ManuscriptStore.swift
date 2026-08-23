@@ -830,6 +830,34 @@ final class ManuscriptStore {
         touch { $0.journals[idx] = journal }
     }
 
+    /// Checks' one-click repair: aligns every export document and item of
+    /// the journal with its required typography (size, spacing, line
+    /// numbers), correcting conflicting overrides.
+    func applyRequiredTypography(journalID: UUID) {
+        guard let journal = manuscript?.journals.first(where: { $0.id == journalID }) else { return }
+        var config = exportConfig(forJournal: journalID)
+        let r = journal.requirements
+        for d in config.documents.indices {
+            if let size = r.requiredFontSize { config.documents[d].format.fontSize = size }
+            if let spacing = r.requiredLineSpacing { config.documents[d].format.lineSpacing = spacing }
+            if let lines = r.requiresLineNumbers { config.documents[d].format.lineNumbers = lines }
+            for i in config.documents[d].items.indices {
+                if var override = config.documents[d].items[i].format {
+                    if let size = r.requiredFontSize { override.fontSize = size }
+                    if let spacing = r.requiredLineSpacing { override.lineSpacing = spacing }
+                    if let lines = r.requiresLineNumbers { override.lineNumbers = lines }
+                    config.documents[d].items[i].format = override
+                }
+                if let lines = r.requiresLineNumbers,
+                   config.documents[d].items[i].sectionLineNumbers != nil {
+                    config.documents[d].items[i].sectionLineNumbers = lines
+                }
+            }
+        }
+        updateExportConfig(config, forJournal: journalID)
+        showBanner(.success, "Export typography aligned with \(journal.displayName)'s requirements.")
+    }
+
     /// Ticks/unticks one manual checklist rule for a journal (Checks pane).
     func toggleManualCheck(journalID: UUID, rule: String) {
         touch(undoAction: "Check Item") { m in
@@ -873,6 +901,73 @@ final class ManuscriptStore {
     }
 
     /// Persists a (customized) export outline for a journal or the Source.
+    /// The export-item identity a content pane maps to (nil = the pane has
+    /// no exported counterpart).
+    static func exportItemKey(for item: SidebarItem) -> (kind: ExportItem.Kind, sectionID: UUID?)? {
+        switch item {
+        case .title:           return (.titlePage, nil)
+        case .authors:         return (.authors, nil)
+        case .abstract:        return (.abstract, nil)
+        case .keywords:        return (.keywords, nil)
+        case .section(let id): return (.section, id)
+        case .figures:         return (.figures, nil)
+        case .tables:          return (.tables, nil)
+        case .bibliography:    return (.references, nil)
+        case .letterToEditor:  return (.coverLetter, nil)
+        default:               return nil
+        }
+    }
+
+    /// The journal behind a version ref (nil = Source).
+    func journalID(for ref: VersionRef) -> UUID? {
+        guard case .version(let id) = ref else { return nil }
+        return versions.first { $0.id == id }?.journalID
+    }
+
+    /// The typography a content pane's export actually uses: its item's
+    /// override over its document's format (spacing stays document-uniform).
+    /// Phase 2: this is what the pane EDITS and the editor RENDERS.
+    func effectiveExportFormat(for item: SidebarItem, ref: VersionRef) -> ExportDocumentFormat {
+        let config = exportConfig(forJournal: journalID(for: ref))
+        guard let key = Self.exportItemKey(for: item) else {
+            return config.documents.first?.format ?? ExportDocumentFormat()
+        }
+        for document in config.documents {
+            guard let found = document.items.first(where: {
+                $0.kind == key.kind && $0.sectionID == key.sectionID
+            }) else { continue }
+            var format = document.format
+            if let override = found.format {
+                format.fontFamily = override.fontFamily
+                format.fontSize = override.fontSize
+                format.lineNumbers = override.lineNumbers
+            }
+            return format
+        }
+        return config.documents.first?.format ?? ExportDocumentFormat()
+    }
+
+    /// Mutates a content pane's export entry — its item, and/or the
+    /// document carrying it — persisting the journal's config.  Used by
+    /// the pane-header typography popover (Phase 2: page-level settings
+    /// edit from the editors; Export mirrors read-only).
+    func updateExportEntry(for item: SidebarItem, ref: VersionRef,
+                           mutateItem: ((inout ExportItem) -> Void)? = nil,
+                           mutateDocument: ((inout ExportDocument) -> Void)? = nil) {
+        guard let key = Self.exportItemKey(for: item) else { return }
+        let jid = journalID(for: ref)
+        var config = exportConfig(forJournal: jid)
+        for d in config.documents.indices {
+            guard let i = config.documents[d].items.firstIndex(where: {
+                $0.kind == key.kind && $0.sectionID == key.sectionID
+            }) else { continue }
+            if let mutateItem { mutateItem(&config.documents[d].items[i]) }
+            if let mutateDocument { mutateDocument(&config.documents[d]) }
+            updateExportConfig(config, forJournal: jid)
+            return
+        }
+    }
+
     func updateExportConfig(_ config: ExportConfig, forJournal journalID: UUID?) {
         touch { m in
             if let journalID {

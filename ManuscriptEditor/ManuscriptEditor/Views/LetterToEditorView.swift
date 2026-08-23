@@ -140,7 +140,8 @@ struct LetterToEditorView: View {
             .padding(.bottom, 8)
             Divider()
             RichEditor(value: $draft.body, placeholder: "Dear Editor,…",
-                       versionRef: versionRef, letterMode: true)
+                       versionRef: versionRef, letterMode: true,
+                       formatItem: .letterToEditor)
         }
     }
 

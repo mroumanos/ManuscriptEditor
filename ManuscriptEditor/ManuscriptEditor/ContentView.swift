@@ -456,6 +456,7 @@ struct ContentView: View {
                         .monospacedDigit()
                 }
                 sectionActivationControl(item: item, ref: ref)
+                SectionFormatButton(item: item, versionRef: ref)
                 SectionPreviewButton(item: item, versionRef: ref)
                 NotesButton(versionKey: ref.id, itemKey: item.notesKey)
             }

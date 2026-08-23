@@ -597,6 +597,28 @@ just a rendered blob.
   toggles still override. PDF line numbering follows the per-item
   effective format (attribute-driven); LaTeX emits
   `\linenumbers`/`\nolinenumbers` transitions.
+- AC (implemented): **Per-section typography, edited from the panes** (Phase 2
+  of the document/section/page model, Aug 2026). Typography is the journal's
+  medium, so it is edited **where the writing happens**: every content pane's
+  header carries a `textformat` button (`SectionFormatButton`) whose popover
+  edits that item's font family/size (creates the item override) and line
+  numbering, the document's spacing (spacing stays document-uniform), and the
+  heading controls (H show/hide, bold/underline/center, H1→H3 cycle). The
+  Export tab's Font/Size/Lines columns are **read-only mirrors** of the
+  effective format (accented when overridden). **Editors render the document's
+  typography** (`store.effectiveExportFormat(for:ref:)` → export face, size,
+  spacing) scaled by a personal **display zoom** (Settings → Editor, 100–200%,
+  `EditorPrefs.zoomKey`, default 140%) — the zoom is pure display and never
+  touches the file; Source panes without a journal keep the legacy editor
+  prefs. **Journal defaulting:** `ExportConfig.standard()` seeds the first
+  document's format from `requiredFontSize`/`requiredLineSpacing`/
+  `requiresLineNumbers`, so a new journal starts compliant. **Checks guard the
+  rest:** the export typography checks evaluate **every** document/item's
+  effective format and name offenders, and each failure carries a **Fix**
+  button (`ChecklistResult.fixID` → `store.applyRequiredTypography`) that
+  aligns all documents, item overrides, and section-break line numbering in
+  one click. Formatting is excluded from sync transplants (it belongs to the
+  cut, not the content).
 - AC (implemented): **Export preview** (Aug 2026). A Preview button beside
   the export action renders the outline through the REAL pipeline
   (`previewPDF`: same segments + `PDFPaginator`) into a PDFKit sheet —

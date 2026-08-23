@@ -47,7 +47,8 @@ struct SectionEditorView: View {
         if let section, section.active {
             RichEditor(value: $content,
                        placeholder: "Start writing your \(section.title.lowercased())…",
-                       versionRef: versionRef)
+                       versionRef: versionRef,
+                       formatItem: .section(section.id))
                 .onChange(of: content) { _, new in
                     guard var s = self.section else { return }
                     s.content = new

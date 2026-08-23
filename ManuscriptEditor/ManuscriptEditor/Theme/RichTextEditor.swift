@@ -64,16 +64,36 @@ struct RichEditor: View {
     /// Letter-to-editor context: "/" additionally offers Date and Signature
     /// snippets (inserted as plain text).
     var letterMode: Bool = false
+    /// The pane this editor represents — resolves the DOCUMENT typography
+    /// it renders (Phase 2: editors show the journal's export format,
+    /// scaled by the personal zoom).  nil = legacy personal typography.
+    var formatItem: SidebarItem? = nil
 
     @AppStorage(EditorPrefs.fontKey)        private var family = EditorPrefs.defaultFont
     @AppStorage(EditorPrefs.fontSizeKey)    private var size = EditorPrefs.defaultFontSize
     @AppStorage(EditorPrefs.lineSpacingKey) private var lineSpacing = EditorPrefs.defaultLineSpacing
+    @AppStorage(EditorPrefs.zoomKey)        private var zoom = EditorPrefs.defaultZoom
     @AppStorage("editorWrapWidth")          private var wrapWidth = 650.0
 
     @State private var controller = RichTextController()
 
+    /// The export typography this pane renders (nil formatItem = legacy).
+    private var documentFormat: ExportDocumentFormat? {
+        formatItem.map { store.effectiveExportFormat(for: $0, ref: versionRef) }
+    }
+
     private var baseFont: NSFont {
-        EditorTypography(family: family, size: size, lineSpacingMultiplier: lineSpacing).nsFont
+        if let format = documentFormat {
+            let scaled = format.fontSize * zoom
+            if let name = format.fontFamily.familyName,
+               let font = NSFont(name: name, size: scaled) { return font }
+            return .systemFont(ofSize: scaled)
+        }
+        return EditorTypography(family: family, size: size, lineSpacingMultiplier: lineSpacing).nsFont
+    }
+
+    private var effectiveLineSpacing: Double {
+        documentFormat?.lineSpacing ?? lineSpacing
     }
 
     var body: some View {
@@ -87,7 +107,7 @@ struct RichEditor: View {
                     value: $value,
                     controller: controller,
                     baseFont: baseFont,
-                    lineHeightMultiple: lineSpacing,
+                    lineHeightMultiple: effectiveLineSpacing,
                     wrapWidth: CGFloat(wrapWidth),
                     candidates: refCandidates,
                     zoteroKeys: existingZoteroKeys,
@@ -96,7 +116,7 @@ struct RichEditor: View {
                 )
                 if value.isEmpty {
                     Text(placeholder)
-                        .font(.system(size: size))
+                        .font(.system(size: documentFormat.map { $0.fontSize * zoom } ?? size))
                         .foregroundStyle(.tertiary)
                         .padding(.leading, EditorLayout.leftInset + 5)
                         .padding(.top, 18)

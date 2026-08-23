@@ -37,11 +37,19 @@ enum ChecklistService {
                     figureURL: ((Figure) -> URL?)? = nil) -> [ChecklistResult] {
         let requirements = journal.requirements
         let manualDone = Set(journal.manualChecksDone ?? [])
-        // The export document the journal actually renders (first document
-        // of its outline; the standard outline when not customized yet).
-        let exportFormat = (journal.exportConfig
-            ?? ExportConfig.standard(content: manuscript, journal: journal))
-            .documents.first?.format ?? ExportDocumentFormat()
+        // Every printed export entry's effective typography (Phase 2:
+        // per-section) — name + size + spacing + line numbers.
+        let exportConfig = journal.exportConfig
+            ?? ExportConfig.standard(content: manuscript, journal: journal)
+        var typography: [(name: String, fontSize: Double, lineSpacing: Double, lineNumbers: Bool)] = []
+        for document in exportConfig.documents {
+            for entry in document.items where entry.kind != .pageBreak {
+                typography.append((entry.title(in: manuscript),
+                                   entry.format?.fontSize ?? document.format.fontSize,
+                                   document.format.lineSpacing,
+                                   entry.format?.lineNumbers ?? document.format.lineNumbers))
+            }
+        }
         var results: [ChecklistResult] = []
 
         // --- Word count limits ---
@@ -174,30 +182,40 @@ enum ChecklistService {
 
         // --- Export configuration ---
 
+        func offenders(_ names: [String]) -> String {
+            names.prefix(4).joined(separator: ", ") + (names.count > 4 ? ", …" : "")
+        }
+
         if let spacing = requirements.requiredLineSpacing {
-            let passed = exportFormat.lineSpacing >= spacing - 0.01
+            let off = typography.filter { $0.lineSpacing < spacing - 0.01 }.map(\.name)
             results.append(ChecklistResult(
-                id: UUID(), rule: "Export spacing ≥ \(spacing == 1.5 ? "1.5×" : String(format: "%g×", spacing))",
-                passed: passed,
-                details: "Export document is \(String(format: "%g", exportFormat.lineSpacing))× spaced"
+                id: UUID(), rule: "Export spacing ≥ \(spacing == 1.5 ? "1.5×" : String(format: "%g×", spacing)) (every section)",
+                passed: off.isEmpty,
+                details: off.isEmpty ? "All sections at the required spacing"
+                                     : "Below required: \(offenders(off))",
+                fixID: off.isEmpty ? nil : "typography"
             ))
         }
 
         if let size = requirements.requiredFontSize {
-            let passed = abs(exportFormat.fontSize - size) < 0.01
+            let off = typography.filter { abs($0.fontSize - size) > 0.01 }.map(\.name)
             results.append(ChecklistResult(
-                id: UUID(), rule: "Export font size \(String(format: "%g", size)) pt",
-                passed: passed,
-                details: "Export document is \(String(format: "%g", exportFormat.fontSize)) pt"
+                id: UUID(), rule: "Export font size \(String(format: "%g", size)) pt (every section)",
+                passed: off.isEmpty,
+                details: off.isEmpty ? "All sections at \(String(format: "%g", size)) pt"
+                                     : "Off-size: \(offenders(off))",
+                fixID: off.isEmpty ? nil : "typography"
             ))
         }
 
         if requirements.requiresLineNumbers == true {
+            let off = typography.filter { !$0.lineNumbers }.map(\.name)
             results.append(ChecklistResult(
-                id: UUID(), rule: "Continuous line numbers in the export",
-                passed: exportFormat.lineNumbers,
-                details: exportFormat.lineNumbers ? "Line numbers on"
-                                                  : "Turn on Lines in the Export pane"
+                id: UUID(), rule: "Continuous line numbers in the export (every section)",
+                passed: off.isEmpty,
+                details: off.isEmpty ? "Line numbers on throughout"
+                                     : "Missing line numbers: \(offenders(off))",
+                fixID: off.isEmpty ? nil : "typography"
             ))
         }
 

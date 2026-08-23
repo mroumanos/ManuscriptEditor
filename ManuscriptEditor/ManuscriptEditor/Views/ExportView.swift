@@ -384,6 +384,166 @@ struct PDFKitView: NSViewRepresentable {
     final class Coordinator { var lastCount = -1 }
 }
 
+// MARK: - SectionFormatButton
+
+/// Pane-header typography editor (Phase 2 of document/section/page):
+/// page-level settings — font, size, spacing, and the printed heading —
+/// edit HERE, on the pane they style; the Export outline mirrors them
+/// read-only.  Font/size/heading write the pane's item; spacing stays
+/// document-uniform and writes the carrying document.
+struct SectionFormatButton: View {
+    @Environment(ManuscriptStore.self) private var store
+
+    let item: SidebarItem
+    let versionRef: VersionRef
+
+    @State private var showing = false
+
+    var body: some View {
+        if ManuscriptStore.exportItemKey(for: item) != nil {
+            Button {
+                showing = true
+            } label: {
+                Image(systemName: "textformat")
+            }
+            .buttonStyle(.borderless)
+            .help("Typography & heading for this section (what exports)")
+            .popover(isPresented: $showing, arrowEdge: .bottom) { popover }
+        }
+    }
+
+    private var exportEntry: ExportItem? {
+        guard let key = ManuscriptStore.exportItemKey(for: item) else { return nil }
+        return store.exportConfig(forJournal: store.journalID(for: versionRef))
+            .documents.flatMap(\.items)
+            .first { $0.kind == key.kind && $0.sectionID == key.sectionID }
+    }
+
+    private func mutateItem(_ change: @escaping (inout ExportItem) -> Void) {
+        store.updateExportEntry(for: item, ref: versionRef, mutateItem: change)
+    }
+
+    private func styleButton(_ symbol: String, _ active: Bool, _ help: String,
+                             _ change: @escaping (inout ExportItem.HeadingStyle) -> Void) -> some View {
+        Button {
+            mutateItem { entry in
+                var hs = entry.effectiveHeadingStyle
+                change(&hs)
+                entry.headingStyle = hs
+            }
+        } label: {
+            Image(systemName: symbol)
+                .font(.caption)
+                .foregroundStyle(active ? Color.accentColor : Color(nsColor: .tertiaryLabelColor))
+        }
+        .buttonStyle(.plain)
+        .help(help)
+    }
+
+    /// Typography writes create/extend the item's format override, seeded
+    /// from the currently effective values.
+    private func mutateFormat(_ change: @escaping (inout ExportDocumentFormat) -> Void) {
+        let seed = store.effectiveExportFormat(for: item, ref: versionRef)
+        store.updateExportEntry(for: item, ref: versionRef, mutateItem: { entry in
+            var format = entry.format ?? seed
+            change(&format)
+            entry.format = format
+        })
+    }
+
+    @ViewBuilder
+    private var popover: some View {
+        let format = store.effectiveExportFormat(for: item, ref: versionRef)
+        let entry = exportEntry
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Export typography")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+            HStack(spacing: 8) {
+                Picker("", selection: Binding(
+                    get: { format.fontFamily },
+                    set: { family in mutateFormat { $0.fontFamily = family } }
+                )) {
+                    ForEach(ExportFontFamily.allCases) { family in
+                        Text(family.shortLabel).tag(family)
+                    }
+                }
+                .labelsHidden().controlSize(.small).fixedSize()
+                HStack(spacing: 1) {
+                    TextField("", value: Binding(
+                        get: { Int(format.fontSize.rounded()) },
+                        set: { value in mutateFormat { $0.fontSize = Double(min(max(value, 6), 99)) } }
+                    ), format: .number)
+                    .textFieldStyle(.roundedBorder).controlSize(.mini)
+                    .multilineTextAlignment(.trailing).frame(width: 30)
+                    Stepper("", value: Binding(
+                        get: { Int(format.fontSize.rounded()) },
+                        set: { value in mutateFormat { $0.fontSize = Double(min(max(value, 6), 99)) } }
+                    ), in: 6...99)
+                    .labelsHidden().controlSize(.mini)
+                }
+                .help("Font size (pt)")
+                Picker("", selection: Binding(
+                    get: { format.lineSpacing },
+                    set: { spacing in
+                        store.updateExportEntry(for: item, ref: versionRef,
+                                                mutateDocument: { $0.format.lineSpacing = spacing })
+                    }
+                )) {
+                    Text("1×").tag(1.0)
+                    Text("1.15").tag(1.15)
+                    Text("1.5").tag(1.5)
+                    Text("2×").tag(2.0)
+                }
+                .labelsHidden().controlSize(.small).fixedSize()
+                .help("Line spacing (document-uniform)")
+            }
+            if let entry, entry.kind != .authors {
+                Divider()
+                Text("Heading")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                HStack(spacing: 6) {
+                    let style = entry.effectiveHeadingStyle
+                    Button {
+                        mutateItem { $0.titleShown.toggle() }
+                    } label: {
+                        Image(systemName: entry.titleShown ? "h.square.fill" : "h.square")
+                            .foregroundStyle(entry.titleShown ? Color.accentColor : Color(nsColor: .tertiaryLabelColor))
+                            .font(.caption)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Print this section's heading in the export")
+                    if entry.titleShown {
+                        styleButton("bold", style.bold, "Bold heading") { $0.bold.toggle() }
+                        styleButton("underline", style.underline, "Underlined heading") { $0.underline.toggle() }
+                        styleButton("text.aligncenter", style.centered, "Centered heading") { $0.centered.toggle() }
+                        Button {
+                            mutateItem { itm in
+                                var hs = itm.effectiveHeadingStyle
+                                hs.level = hs.effectiveLevel % 3 + 1
+                                hs.pointSize = nil
+                                itm.headingStyle = hs
+                            }
+                        } label: {
+                            Text("H\(style.effectiveLevel)")
+                                .font(.caption.weight(.semibold).monospacedDigit())
+                                .foregroundStyle(Color.accentColor)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Heading level — click to cycle H1 → H2 → H3")
+                    }
+                }
+            }
+            Text("Applies to this journal's export (mirrored read-only in Export).")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+        }
+        .padding(14)
+        .frame(width: 320)
+    }
+}
+
 // MARK: - SectionPreviewButton
 
 /// Eye-glass button in a content pane's header: renders JUST this pane's
@@ -886,42 +1046,25 @@ private struct ExportDocumentCard: View {
 
     /// Inline, per-item format controls (aligned under the column header).
     /// Values show the item's effective format; editing creates its override.
+    /// Read-only mirror (Phase 2): page-level typography EDITS in the
+    /// section's pane header; here it's the pre-export check.
     private func formatColumns(_ item: ExportItem, index: Int) -> some View {
         let overridden = item.format != nil
+        let font = item.format?.fontFamily ?? document.format.fontFamily
+        let size = Int((item.format?.fontSize ?? document.format.fontSize).rounded())
+        let lines = item.format?.lineNumbers ?? document.format.lineNumbers
         return HStack(spacing: 8) {
-            Picker("", selection: fmtBinding(index, \.fontFamily)) {
-                ForEach(ExportFontFamily.allCases) { family in
-                    Text(family.shortLabel).tag(family)
-                }
-            }
-            .frame(width: colFont)
-
-            HStack(spacing: 1) {
-                let sizeBinding = Binding(
-                    get: { Int((item.format?.fontSize ?? document.format.fontSize).rounded()) },
-                    set: { newValue in fmtBinding(index, \.fontSize).wrappedValue = Double(min(max(newValue, 6), 99)) }
-                )
-                TextField("", value: sizeBinding, format: .number)
-                    .textFieldStyle(.roundedBorder)
-                    .controlSize(.mini)
-                    .multilineTextAlignment(.trailing)
-                    .frame(width: 28)
-                Stepper("", value: sizeBinding, in: 6...99)
-                    .labelsHidden()
-                    .controlSize(.mini)
-            }
-            .frame(width: colSize)
-
-            Toggle("", isOn: fmtBinding(index, \.lineNumbers))
-                .toggleStyle(.checkbox)
-                .frame(width: colLines)
+            Text(font.shortLabel)
+                .frame(width: colFont, alignment: .leading)
+            Text("\(size)")
+                .monospacedDigit()
+                .frame(width: colSize, alignment: .trailing)
+            Text(lines ? "on" : "off")
+                .frame(width: colLines, alignment: .center)
         }
-        .labelsHidden()
-        .controlSize(.small)
-        .tint(overridden ? Color.accentColor : nil)
-        .help(overridden
-              ? "Custom format for this item (right-click to reset to the document's)"
-              : "Inherits the document format — change any value to customize this item")
+        .font(.caption)
+        .foregroundStyle(overridden ? Color.accentColor : Color.secondary)
+        .help("Viewable here for the pre-export check — edit typography from the section's pane (the textformat button in its header)")
     }
 
     /// Effective-format binding for one item: reads the override (or the

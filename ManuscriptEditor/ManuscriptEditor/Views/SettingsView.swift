@@ -18,10 +18,8 @@ struct SettingsView: View {
 
     @AppStorage("autoSave")                  private var autoSave    = true
     @AppStorage(EditorPrefs.appearanceKey)   private var appearance  = AppearanceMode.system.rawValue
-    @AppStorage(EditorPrefs.fontKey)         private var defaultFont = EditorPrefs.defaultFont
-    @AppStorage(EditorPrefs.fontSizeKey)     private var fontSize    = EditorPrefs.defaultFontSize
-    @AppStorage(EditorPrefs.lineSpacingKey)  private var lineSpacing = EditorPrefs.defaultLineSpacing
     @AppStorage(EditorPrefs.citationStyleKey) private var citationStyle = "n"
+    @AppStorage(EditorPrefs.zoomKey)          private var zoom = EditorPrefs.defaultZoom
 
     var body: some View {
         TabView {
@@ -72,23 +70,18 @@ struct SettingsView: View {
 
             Section("Editing") {
                 Toggle("Auto-save", isOn: $autoSave)
-                Picker("Editor font", selection: $defaultFont) {
-                    Text("Serif").tag("Serif")
-                    Text("Sans-serif").tag("Sans")
-                    Text("Monospace").tag("Mono")
-                }
-                LabeledContent("Font size") {
-                    Slider(value: $fontSize, in: 13...22, step: 1)
-                    Text("\(Int(fontSize)) pt")
+                // Phase 2: editors render the DOCUMENT's typography (the
+                // journal's export format) — zoom is the personal comfort
+                // knob, a pure display scale that never touches the file.
+                LabeledContent("Display zoom") {
+                    Slider(value: $zoom, in: 1.0...2.0, step: 0.1)
+                    Text("\(Int((zoom * 100).rounded()))%")
                         .monospacedDigit()
-                        .frame(width: 44)
+                        .frame(width: 48)
                 }
-                LabeledContent("Line spacing") {
-                    Slider(value: $lineSpacing, in: 1.0...2.5, step: 0.25)
-                    Text(String(format: "%.2f×", lineSpacing))
-                        .monospacedDigit()
-                        .frame(width: 44)
-                }
+                Text("Editors show each section in its journal's export font, size, and spacing; zoom only scales the display.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section {
@@ -101,10 +94,13 @@ struct SettingsView: View {
         .padding()
     }
 
-    /// A live sample of the current editor typography.
+    /// A live sample of the zoom scale, over a representative 12 pt export
+    /// face (the actual face/size comes from each journal's export format).
     private var proseSample: some View {
         let typography = EditorTypography(
-            family: defaultFont, size: fontSize, lineSpacingMultiplier: lineSpacing
+            family: EditorPrefs.defaultFont,
+            size: EditorPrefs.defaultFontSize * zoom,
+            lineSpacingMultiplier: EditorPrefs.defaultLineSpacing
         )
         return Text("The quick brown fox jumps over the lazy dog. Clear typography keeps long manuscripts comfortable to read and edit.")
             .font(typography.font)

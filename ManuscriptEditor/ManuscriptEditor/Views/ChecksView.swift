@@ -103,7 +103,10 @@ struct ChecksView: View {
             if !technical.isEmpty {
                 sectionHeader("Technical", note: "checked automatically against the manuscript and export")
                 ForEach(technical) { result in
-                    ChecklistRow(result: result)
+                    ChecklistRow(result: result,
+                                 fixAction: result.fixID == "typography" && !result.passed
+                                     ? { store.applyRequiredTypography(journalID: journal.id) }
+                                     : nil)
                 }
             }
             if !manualRules.isEmpty {
@@ -190,6 +193,9 @@ struct ChecklistRow: View {
     /// ticked — an unverified item is a to-do, not a failure) and clicking
     /// anywhere on it toggles.
     var onToggle: (() -> Void)? = nil
+    /// Set on repairable technical failures: renders a Fix button that
+    /// applies the correction (e.g. align export typography).
+    var fixAction: (() -> Void)? = nil
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -205,6 +211,12 @@ struct ChecklistRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(result.rule).fontWeight(.medium)
                 Text(result.details).font(.caption).foregroundStyle(.secondary)
+            }
+            if let fixAction {
+                Spacer()
+                Button("Fix", action: fixAction)
+                    .controlSize(.small)
+                    .help("Align the export with this requirement")
             }
         }
         .padding(.vertical, 8)

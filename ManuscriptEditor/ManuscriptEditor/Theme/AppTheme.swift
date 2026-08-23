@@ -61,6 +61,10 @@ enum EditorPrefs {
     static let lineSpacingKey = "lineSpacing"     // multiplier 1.0…2.5
     /// App-wide citation format (RefEngine.CitationStyle raw code).
     static let citationStyleKey = "defaultCitationStyle"
+    /// Personal display zoom over the document typography (Phase 2:
+    /// editors render the journal's export format; zoom is view-only).
+    static let zoomKey = "editorZoom"
+    static let defaultZoom = 1.4
 
     static let defaultFont       = "Sans"   // clean system sans (SF Pro), Inter-like
     static let defaultFontSize   = 17.0
