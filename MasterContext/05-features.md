@@ -54,7 +54,7 @@ Intent: most time is spent here; it must be excellent and AI-optional.
   `formattedBibliography(style:)`, styles auto-fetched by Zotero;
   `BibEntry.formattedReference/-Style`). Refresh caches **every supported style**
   (`BibEntry.formatted[cslID]`), so the References item's **citation-style
-  picker on the export page** ("Journal style" default = the journal's
+  picker in the Bibliography pane's settings gear** ("Journal style" default = the journal's
   required style via `CitationStyle.cslID`, or APA/AMA/Vancouver/MLA/
   Chicago/Harvard explicitly, `ExportItem.citationStyle`) works offline.
   Exports resolve each entry **override > cached style > generic
@@ -81,8 +81,9 @@ Intent: most time is spent here; it must be excellent and AI-optional.
   Credentials line ("MD, PhD, Prof.") at the end of the Name section — it
   replaced a separate honorific field plus a title-tag row, two fields for
   one idea. Text stores in `degrees`; a legacy `titles` tag list still reads
-  (joined) and bylines resolve through `effectiveTitles` either way. **Authors-item byline options** (Aug 2026):
-  a **delimiter picker** (comma / semicolon / newline — separates authors
+  (joined) and bylines resolve through `effectiveTitles` either way. **Authors-item byline options** (Aug 2026;
+  edited from the Authors pane's settings gear since the export-page
+  cleanup): a **delimiter picker** (comma / semicolon / newline — separates authors
   AND the affiliation lines, `ExportItem.authorDelimiter`) and a
   **linkage-marker picker** (superscript numbers default, † crosses,
   ‡ double crosses, or none — `affiliationMarker`); markers render via the
@@ -96,7 +97,7 @@ Intent: most time is spent here; it must be excellent and AI-optional.
   author with a raised * — styled like an institution marker — plus a
   "* Corresponding author — <details>" footnote line under the
   affiliations ([[authors]] tokens render the same). The
-  export card's title-page row carries a compact **"+ cred" toggle
+  same gear carries a compact **"+ cred" toggle
   button** (`ExportItem.showAuthorTitles`, default on = the historical
   output) switching the byline between plain names and names + credentials,
   in the attributed and LaTeX writers alike.
@@ -567,24 +568,25 @@ just a rendered blob.
   (`Journal.exportConfig` / `Manuscript.sourceExportConfig`) once edited; until
   then the standard outline is derived live (the pane snapshots it into state
   so ids stay stable while editing).
-- AC (implemented): **Per-item overrides, shown as columns.** The item list has
-  aligned columns — **Font · Size · Spacing · Lines** — with inline controls on
-  every row showing the item's *effective* format; changing any value creates
-  that item's override (`ExportItem.format`; right-click → "Reset Formatting to
-  Document"). **Title and Authors are separate items** (Aug 2026): removing the
-  Authors item exports a **blind-review copy** (attributed writers skip the
-  byline; LaTeX emits an empty \author). Configs saved before the split
-  have no Authors item and Title keeps rendering the combined block.
-  Click the **item name to rename its exported heading**
-  (export-level `customTitle`; empty reverts). Each row's **"H" toggle
-  shows/hides the printed heading** (`ExportItem.showTitle`; content always
-  exports — only the title toggles), and a shown heading carries inline
-  **bold / underline / center toggles plus a Word-style level button** that
-  cycles **H1 → H2 → H3** on click (`HeadingStyle.level`; H1 = body + 4 pt,
-  H2 = body + 2, H3 = body size — Aug 2026, replacing the typed point size,
-  which legacy documents without a level still honor). Default: every kind prints its heading
-  **except the cover letter**, which exports as a real letter with no
-  "Cover Letter" label (Jul 2026 beta feedback). **Section breaks** (Phase 1 of the
+- AC (implemented): **The Export page reviews; components edit** (Aug 2026
+  redesign). A document card is just the output file — **name and file type**
+  — and each item row is a **read-only formatting review in inactive grey**:
+  aligned **Font · Size · Head · Lines** columns show every component's
+  effective format at a glance (right-click → "Reset Formatting to
+  Document"). The outline itself (add/remove/reorder, Section rows with
+  margins/columns/line numbers) still edits here, and it reloads live
+  whenever a component changes its formatting, so the review and Preview
+  never go stale. **Title and Authors are separate items** (Aug 2026):
+  removing the Authors item exports a **blind-review copy** (attributed
+  writers skip the byline; LaTeX emits an empty \author). Configs saved
+  before the split have no Authors item and Title keeps rendering the
+  combined block. Heading semantics: `ExportItem.showTitle` (content always
+  exports — only the printed title toggles), `customTitle` (empty reverts to
+  the component's name), and `HeadingStyle.level` cycling **H1 → H2 → H3**
+  (H1 = body + 4 pt, H2 = +2, H3 = body; legacy typed point sizes still
+  honored). Default: every kind prints its heading **except the cover
+  letter**, which exports as a real letter with no "Cover Letter" label
+  (Jul 2026 beta feedback). **Section breaks** (Phase 1 of the
   document/section/page model, Aug 2026): page-break items are now
   boundaries that both start a new page AND can re-set **margins, columns,
   and line numbering** for the pages that follow (mini pickers on the
@@ -597,20 +599,35 @@ just a rendered blob.
   toggles still override. PDF line numbering follows the per-item
   effective format (attribute-driven); LaTeX emits
   `\linenumbers`/`\nolinenumbers` transitions.
-- AC (implemented): **Per-section typography, edited from the panes** (Phase 2
-  of the document/section/page model, Aug 2026). Typography is the journal's
-  medium, so it is edited **where the writing happens**: every content pane's
-  header carries a `textformat` button (`SectionFormatButton`) whose popover
-  edits that item's font family/size (creates the item override) and line
-  numbering, the document's spacing (spacing stays document-uniform), and the
-  heading controls (H show/hide, bold/underline/center, H1→H3 cycle). The
-  Export tab's Font/Size/Lines columns are **read-only mirrors** of the
-  effective format (accented when overridden). **Editors render the document's
-  typography** (`store.effectiveExportFormat(for:ref:)` → export face, size,
-  spacing) scaled by a personal **display zoom** (Settings → Editor, 100–200%,
+- AC (implemented): **Per-component typography, edited on the components**
+  (Phase 2 of the document/section/page model, Aug 2026; reshaped by the
+  Aug 2026 export-page cleanup). Typography is the journal's medium, so it
+  is edited **where the writing happens**, and each surface carries what
+  fits it:
+  - **Text editors** (Abstract, body sections, cover letter): the editor's
+    **toolbar** carries font family/size (the item's override), spacing
+    (document-uniform), and the printed heading's **H1→H3 level**.
+  - **Every component pane** has an **"H" heading toggle at the header's
+    left edge**; turning it on drops down a single-line **heading row** —
+    the printed heading's text (empty = the component's name) with its
+    bold/underline/center controls inline (`ComponentHeadingRow`; list
+    components also carry the level here, having no toolbar).
+  - **List components** (Authors, Bibliography, Keywords) carry a **settings
+    gear** in their bottom bar (`ComponentSettingsButton`): typography plus
+    the component's own options — the byline's delimiter ("a; b"), marker
+    (a¹/a†/none), +corr and +cred on Authors; the citation style on
+    Bibliography. Title, Figures, and Tables carry the same gear in their
+    pane header (the Title's gear also holds its heading level/emphasis).
+  - **Keywords** is a list component like Authors: list on the left with
+    add/remove/reorder, the selected keyword's editor on the right, gear in
+    the bottom bar.
+  **Editors render the document's typography**
+  (`store.effectiveExportFormat(for:ref:)` → export face, size, spacing)
+  scaled by a personal **display zoom** (Settings → Editor, 100–200%,
   `EditorPrefs.zoomKey`, default 140%) — the zoom is pure display and never
   touches the file; Source panes without a journal keep the legacy editor
-  prefs. **Journal defaulting:** `ExportConfig.standard()` seeds the first
+  prefs. Per-pane previews honor the section geometry (margins, columns,
+  line numbers) in effect at the item's position in the outline. **Journal defaulting:** `ExportConfig.standard()` seeds the first
   document's format from `requiredFontSize`/`requiredLineSpacing`/
   `requiresLineNumbers`, so a new journal starts compliant. **Checks guard the
   rest:** the export typography checks evaluate **every** document/item's

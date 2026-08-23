@@ -142,6 +142,9 @@ struct ExportView: View {
         .onAppear { reloadConfig() }
         .onChange(of: journalID) { _, _ in reloadConfig() }
         .onChange(of: store.manuscript?.id) { _, _ in reloadConfig() }
+        // Components edit their own export formatting (toolbar, heading row,
+        // settings buttons) — reload so the mirrors and Preview stay live.
+        .onChange(of: store.manuscript?.updatedAt) { _, _ in reloadConfig() }
         .sheet(isPresented: $showingPreview) {
             if let content = exportContent {
                 let style = journals.first { $0.id == journalID }?
@@ -384,166 +387,6 @@ struct PDFKitView: NSViewRepresentable {
     final class Coordinator { var lastCount = -1 }
 }
 
-// MARK: - SectionFormatButton
-
-/// Pane-header typography editor (Phase 2 of document/section/page):
-/// page-level settings — font, size, spacing, and the printed heading —
-/// edit HERE, on the pane they style; the Export outline mirrors them
-/// read-only.  Font/size/heading write the pane's item; spacing stays
-/// document-uniform and writes the carrying document.
-struct SectionFormatButton: View {
-    @Environment(ManuscriptStore.self) private var store
-
-    let item: SidebarItem
-    let versionRef: VersionRef
-
-    @State private var showing = false
-
-    var body: some View {
-        if ManuscriptStore.exportItemKey(for: item) != nil {
-            Button {
-                showing = true
-            } label: {
-                Image(systemName: "textformat")
-            }
-            .buttonStyle(.borderless)
-            .help("Typography & heading for this section (what exports)")
-            .popover(isPresented: $showing, arrowEdge: .bottom) { popover }
-        }
-    }
-
-    private var exportEntry: ExportItem? {
-        guard let key = ManuscriptStore.exportItemKey(for: item) else { return nil }
-        return store.exportConfig(forJournal: store.journalID(for: versionRef))
-            .documents.flatMap(\.items)
-            .first { $0.kind == key.kind && $0.sectionID == key.sectionID }
-    }
-
-    private func mutateItem(_ change: @escaping (inout ExportItem) -> Void) {
-        store.updateExportEntry(for: item, ref: versionRef, mutateItem: change)
-    }
-
-    private func styleButton(_ symbol: String, _ active: Bool, _ help: String,
-                             _ change: @escaping (inout ExportItem.HeadingStyle) -> Void) -> some View {
-        Button {
-            mutateItem { entry in
-                var hs = entry.effectiveHeadingStyle
-                change(&hs)
-                entry.headingStyle = hs
-            }
-        } label: {
-            Image(systemName: symbol)
-                .font(.caption)
-                .foregroundStyle(active ? Color.accentColor : Color(nsColor: .tertiaryLabelColor))
-        }
-        .buttonStyle(.plain)
-        .help(help)
-    }
-
-    /// Typography writes create/extend the item's format override, seeded
-    /// from the currently effective values.
-    private func mutateFormat(_ change: @escaping (inout ExportDocumentFormat) -> Void) {
-        let seed = store.effectiveExportFormat(for: item, ref: versionRef)
-        store.updateExportEntry(for: item, ref: versionRef, mutateItem: { entry in
-            var format = entry.format ?? seed
-            change(&format)
-            entry.format = format
-        })
-    }
-
-    @ViewBuilder
-    private var popover: some View {
-        let format = store.effectiveExportFormat(for: item, ref: versionRef)
-        let entry = exportEntry
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Export typography")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
-            HStack(spacing: 8) {
-                Picker("", selection: Binding(
-                    get: { format.fontFamily },
-                    set: { family in mutateFormat { $0.fontFamily = family } }
-                )) {
-                    ForEach(ExportFontFamily.allCases) { family in
-                        Text(family.shortLabel).tag(family)
-                    }
-                }
-                .labelsHidden().controlSize(.small).fixedSize()
-                HStack(spacing: 1) {
-                    TextField("", value: Binding(
-                        get: { Int(format.fontSize.rounded()) },
-                        set: { value in mutateFormat { $0.fontSize = Double(min(max(value, 6), 99)) } }
-                    ), format: .number)
-                    .textFieldStyle(.roundedBorder).controlSize(.mini)
-                    .multilineTextAlignment(.trailing).frame(width: 30)
-                    Stepper("", value: Binding(
-                        get: { Int(format.fontSize.rounded()) },
-                        set: { value in mutateFormat { $0.fontSize = Double(min(max(value, 6), 99)) } }
-                    ), in: 6...99)
-                    .labelsHidden().controlSize(.mini)
-                }
-                .help("Font size (pt)")
-                Picker("", selection: Binding(
-                    get: { format.lineSpacing },
-                    set: { spacing in
-                        store.updateExportEntry(for: item, ref: versionRef,
-                                                mutateDocument: { $0.format.lineSpacing = spacing })
-                    }
-                )) {
-                    Text("1×").tag(1.0)
-                    Text("1.15").tag(1.15)
-                    Text("1.5").tag(1.5)
-                    Text("2×").tag(2.0)
-                }
-                .labelsHidden().controlSize(.small).fixedSize()
-                .help("Line spacing (document-uniform)")
-            }
-            if let entry, entry.kind != .authors {
-                Divider()
-                Text("Heading")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                HStack(spacing: 6) {
-                    let style = entry.effectiveHeadingStyle
-                    Button {
-                        mutateItem { $0.titleShown.toggle() }
-                    } label: {
-                        Image(systemName: entry.titleShown ? "h.square.fill" : "h.square")
-                            .foregroundStyle(entry.titleShown ? Color.accentColor : Color(nsColor: .tertiaryLabelColor))
-                            .font(.caption)
-                    }
-                    .buttonStyle(.plain)
-                    .help("Print this section's heading in the export")
-                    if entry.titleShown {
-                        styleButton("bold", style.bold, "Bold heading") { $0.bold.toggle() }
-                        styleButton("underline", style.underline, "Underlined heading") { $0.underline.toggle() }
-                        styleButton("text.aligncenter", style.centered, "Centered heading") { $0.centered.toggle() }
-                        Button {
-                            mutateItem { itm in
-                                var hs = itm.effectiveHeadingStyle
-                                hs.level = hs.effectiveLevel % 3 + 1
-                                hs.pointSize = nil
-                                itm.headingStyle = hs
-                            }
-                        } label: {
-                            Text("H\(style.effectiveLevel)")
-                                .font(.caption.weight(.semibold).monospacedDigit())
-                                .foregroundStyle(Color.accentColor)
-                        }
-                        .buttonStyle(.plain)
-                        .help("Heading level — click to cycle H1 → H2 → H3")
-                    }
-                }
-            }
-            Text("Applies to this journal's export (mirrored read-only in Export).")
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
-        }
-        .padding(14)
-        .frame(width: 320)
-    }
-}
-
 // MARK: - SectionPreviewButton
 
 /// Eye-glass button in a content pane's header: renders JUST this pane's
@@ -591,21 +434,45 @@ struct SectionPreviewButton: View {
         }
     }
 
+    /// A one-item document for the pane preview: the journal outline's
+    /// configured version of the item (heading level, options), its carrying
+    /// document's typography, and the section geometry (margins, columns,
+    /// line numbers) in effect at the item's position in that outline.
+    static func previewDocument(for baseItem: ExportItem, content: Manuscript,
+                                config: ExportConfig) -> ExportDocument {
+        let carrying = config.documents.first { doc in
+            doc.items.contains { $0.kind == baseItem.kind && $0.sectionID == baseItem.sectionID }
+        }
+        let item = carrying?.items
+            .first { $0.kind == baseItem.kind && $0.sectionID == baseItem.sectionID }
+            ?? baseItem
+        var document = ExportDocument(
+            name: item.title(in: content), fileType: .pdf, items: [item])
+        document.format = (carrying ?? config.documents.first)?.format ?? ExportDocumentFormat()
+        if let carrying {
+            for outlineItem in carrying.items {
+                if outlineItem.kind == .pageBreak {
+                    document.format.marginInches =
+                        outlineItem.sectionMarginInches ?? carrying.format.marginInches
+                    document.format.twoColumn =
+                        outlineItem.sectionTwoColumn ?? carrying.format.twoColumn
+                    if let lines = outlineItem.sectionLineNumbers {
+                        document.format.lineNumbers = lines
+                    }
+                }
+                if outlineItem.id == item.id { break }
+            }
+        }
+        return document
+    }
+
     @ViewBuilder
     private var sheet: some View {
         if let content = store.manuscript(for: versionRef), let baseItem = exportItem {
             let config = store.exportConfig(forJournal: journalID)
             let style = store.manuscript?.journals.first { $0.id == journalID }?
                 .requirements.citationStyle.cslID ?? "apa"
-            // The pane's item inherits the journal's configured version of
-            // itself when the outline has one (heading level, options).
-            let item = config.documents
-                .flatMap(\.items)
-                .first { $0.kind == baseItem.kind && $0.sectionID == baseItem.sectionID }
-                ?? baseItem
-            var document = ExportDocument(
-                name: item.title(in: content), fileType: .pdf, items: [item])
-            let _ = { document.format = config.documents.first?.format ?? ExportDocumentFormat() }()
+            let document = Self.previewDocument(for: baseItem, content: content, config: config)
             ExportPreviewSheet(
                 documents: [document],
                 isPresented: $showing,
@@ -653,8 +520,9 @@ private struct ExportDocumentCard: View {
 
     // MARK: header
 
-    /// Name, file type, and the page-geometry settings (margins/columns can't
-    /// vary per section — everything typographic lives in the item columns).
+    /// Name and file type only — page geometry lives on the Section rows,
+    /// typography on the components themselves (the document is just the
+    /// output file).
     private var headerRow: some View {
         HStack(spacing: 10) {
             Image(systemName: "doc.richtext")
@@ -670,36 +538,6 @@ private struct ExportDocumentCard: View {
             }
             .labelsHidden()
             .fixedSize()
-            Picker("", selection: binding(\.format.lineSpacing)) {
-                Text("1× spacing").tag(1.0)
-                Text("1.15 spacing").tag(1.15)
-                Text("1.5 spacing").tag(1.5)
-                Text("2× spacing").tag(2.0)
-            }
-            .labelsHidden()
-            .fixedSize()
-            .help("Line spacing (whole document — keeps headings and body uniform)")
-            HStack(spacing: 2) {
-                Text("margins: \(String(format: "%.2f", document.format.marginInches))″")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Stepper("", value: binding(\.format.marginInches), in: 0.25...2.0, step: 0.25)
-                    .labelsHidden()
-                    .controlSize(.mini)
-            }
-            .help("Page margins, 0.25–2″ (first section — Section Breaks can re-set them)")
-            HStack(spacing: 3) {
-                Text("columns:").font(.caption).foregroundStyle(.secondary)
-                Text("1").font(.caption)
-                    .foregroundStyle(document.format.twoColumn ? .tertiary : .primary)
-                Toggle("", isOn: binding(\.format.twoColumn))
-                    .toggleStyle(.switch)
-                    .labelsHidden()
-                    .controlSize(.mini)
-                Text("2").font(.caption)
-                    .foregroundStyle(document.format.twoColumn ? .primary : .tertiary)
-            }
-            .help("Column layout (first section; PDF and LaTeX)")
             Button {
                 onDelete()
             } label: {
@@ -717,6 +555,7 @@ private struct ExportDocumentCard: View {
     private var colFont: CGFloat { 108 }
     private var colSize: CGFloat { 62 }
     private var colSpacing: CGFloat { 72 }
+    private var colHead: CGFloat { 40 }
     private var colLines: CGFloat { 40 }
 
     private var itemsList: some View {
@@ -747,6 +586,7 @@ private struct ExportDocumentCard: View {
             Spacer(minLength: 4)
             Text("Font").frame(width: colFont)
             Text("Size").frame(width: colSize)
+            Text("Head").frame(width: colHead)
             Text("Lines").frame(width: colLines)
             Color.clear.frame(width: 16, height: 1)            // remove button
         }
@@ -835,136 +675,13 @@ private struct ExportDocumentCard: View {
                 .help("Line numbering after this break (per-item Lines toggles still win)")
                 line
             } else {
-                // Click the name to rename the heading in this document
-                // (export-level override; the manuscript section keeps its title).
-                TextField(item.title(in: content), text: titleBinding(index))
-                    .textFieldStyle(.plain)
+                // Read-only review row: the component's printed heading and
+                // its formatting.  Editing happens on the component itself
+                // (its toolbar, heading row, or settings button).
+                Text(item.effectiveTitle(in: content))
                     .font(.callout)
-                    .foregroundStyle(item.titleShown ? .primary : .tertiary)
-                // Print/hide this item's heading in the export.  The content
-                // always exports; only the printed title toggles ("H" ≠ the
-                // remove ✕, which drops the whole item).
-                if item.kind != .titlePage && item.kind != .authors {
-                    // References: which citation style the list renders in
-                    // (default = the journal's required style) — sits LEFT
-                    // of the heading controls.
-                    if item.kind == .references {
-                        Picker("", selection: Binding(
-                            get: { item.citationStyle },
-                            set: { style in
-                                var doc = document
-                                guard doc.items.indices.contains(index) else { return }
-                                doc.items[index].citationStyle = style
-                                onChange(doc)
-                            }
-                        )) {
-                            Text("Journal style").tag(String?.none)
-                            Text("APA").tag(String?.some("apa"))
-                            Text("AMA").tag(String?.some("american-medical-association"))
-                            Text("Vancouver").tag(String?.some("vancouver"))
-                            Text("MLA").tag(String?.some("modern-language-association"))
-                            Text("Chicago").tag(String?.some("chicago-author-date"))
-                            Text("Harvard").tag(String?.some("harvard-cite-them-right"))
-                        }
-                        .labelsHidden()
-                        .controlSize(.small)
-                        .fixedSize()
-                        .help("Citation style for the reference list — \"Journal style\" follows the journal's requirements")
-                    }
-                    Button {
-                        var doc = document
-                        guard doc.items.indices.contains(index) else { return }
-                        doc.items[index].titleShown.toggle()
-                        onChange(doc)
-                    } label: {
-                        Image(systemName: item.titleShown ? "h.square.fill" : "h.square")
-                            .foregroundStyle(item.titleShown ? Color.accentColor : Color(nsColor: .tertiaryLabelColor))
-                            .font(.caption)
-                    }
-                    .buttonStyle(.plain)
-                    .help("Include heading in the export")
-                    // Heading format, revealed while the heading is included.
-                    if item.titleShown {
-                        headingStyleControls(item, index: index)
-                    }
-                } else if item.kind == .titlePage
-                            && document.items.contains(where: { $0.kind == .authors }) {
-                    // Title-only item: the standard heading controls size it
-                    // (H1/H2/H3 off the document font, bold/underline/center).
-                    headingStyleControls(item, index: index)
-                } else if item.kind == .authors
-                            || !document.items.contains(where: { $0.kind == .authors }) {
-                    // Append the authors' credentials ("Jane Doe, MD") to
-                    // the byline — on the Authors item, or on Title only for
-                    // pre-split configs where Title still renders the byline.
-                    // Author delimiter: what separates the names (and the
-                    // affiliation lines below them).
-                    Picker("", selection: Binding(
-                        get: { item.authorDelimiter ?? "semicolon" },
-                        set: { value in
-                            var doc = document
-                            guard doc.items.indices.contains(index) else { return }
-                            doc.items[index].authorDelimiter = value == "semicolon" ? nil : value
-                            onChange(doc)
-                        }
-                    )) {
-                        Text("a; b").tag("semicolon")
-                        Text("a, b").tag("comma")
-                        Text("a b").tag("space")
-                        Text("a / b").tag("slash")
-                        Text("a - b").tag("hyphen")
-                        Text("a ⏎ b").tag("newline")
-                    }
-                    .labelsHidden().controlSize(.small).fixedSize()
-                    .help("Delimiter between authors (and affiliation lines)")
-                    // Author ↔ institution linkage markers.
-                    Picker("", selection: Binding(
-                        get: {
-                            let v = item.affiliationMarker ?? "superscript"
-                            return v == "doublecross" ? "cross" : v   // legacy value
-                        },
-                        set: { value in
-                            var doc = document
-                            guard doc.items.indices.contains(index) else { return }
-                            doc.items[index].affiliationMarker = value == "superscript" ? nil : value
-                            onChange(doc)
-                        }
-                    )) {
-                        Text("a¹").tag("superscript")
-                        Text("a†").tag("cross")
-                        Text("none").tag("none")
-                    }
-                    .labelsHidden().controlSize(.small).fixedSize()
-                    .help("How authors link to their institutions — crosshatches escalate †, ‡, ††† with each institution")
-                    Button {
-                        var doc = document
-                        guard doc.items.indices.contains(index) else { return }
-                        doc.items[index].correspondingShown.toggle()
-                        onChange(doc)
-                    } label: {
-                        Text("+ corr")
-                            .font(.caption)
-                            .foregroundStyle(item.correspondingShown
-                                ? Color.accentColor
-                                : Color(nsColor: .tertiaryLabelColor))
-                    }
-                    .buttonStyle(.plain)
-                    .help("Annotate the corresponding author: a raised * on the name (like an institution marker) plus a \"* Corresponding author\" footnote line")
-                    Button {
-                        var doc = document
-                        guard doc.items.indices.contains(index) else { return }
-                        doc.items[index].authorTitlesShown.toggle()
-                        onChange(doc)
-                    } label: {
-                        Text("+ cred")
-                            .font(.caption)
-                            .foregroundStyle(item.authorTitlesShown
-                                ? Color.accentColor
-                                : Color(nsColor: .tertiaryLabelColor))
-                    }
-                    .buttonStyle(.plain)
-                    .help("Append author credentials (MD, PhD…) to the byline")
-                }
+                    .foregroundStyle(item.titleShown ? Color.secondary : Color(nsColor: .tertiaryLabelColor))
+                    .help(item.titleShown ? "" : "Heading hidden in the export (content still exports)")
                 Spacer(minLength: 4)
                 formatColumns(item, index: index)
             }
@@ -1001,92 +718,33 @@ private struct ExportDocumentCard: View {
         }
     }
 
-    /// Bold / underline / center / size for the printed heading, shown only
-    /// while its "H" toggle is on.
-    private func headingStyleControls(_ item: ExportItem, index: Int) -> some View {
-        let style = item.effectiveHeadingStyle
-        func mutate(_ change: @escaping (inout ExportItem.HeadingStyle) -> Void) {
-            var doc = document
-            guard doc.items.indices.contains(index) else { return }
-            var s = doc.items[index].effectiveHeadingStyle
-            change(&s)
-            doc.items[index].headingStyle = s
-            onChange(doc)
-        }
-        func toggle(_ symbol: String, _ active: Bool, _ help: String,
-                    _ change: @escaping (inout ExportItem.HeadingStyle) -> Void) -> some View {
-            Button { mutate(change) } label: {
-                Image(systemName: symbol)
-                    .font(.caption)
-                    .foregroundStyle(active ? Color.accentColor : Color(nsColor: .tertiaryLabelColor))
-            }
-            .buttonStyle(.plain)
-            .help(help)
-        }
-        return HStack(spacing: 3) {
-            toggle("bold", style.bold, "Bold heading") { $0.bold.toggle() }
-            toggle("underline", style.underline, "Underlined heading") { $0.underline.toggle() }
-            toggle("text.aligncenter", style.centered, "Centered heading") { $0.centered.toggle() }
-            // Word-style level instead of a typed point size: click cycles
-            // H1 → H2 → H3; the level sets the size off the document font.
-            Button {
-                mutate {
-                    $0.level = $0.effectiveLevel % 3 + 1
-                    $0.pointSize = nil   // level now governs the size
-                }
-            } label: {
-                Text("H\(style.effectiveLevel)")
-                    .font(.caption.weight(.semibold).monospacedDigit())
-                    .foregroundStyle(Color.accentColor)
-            }
-            .buttonStyle(.plain)
-            .help("Heading level — click to cycle H1 → H2 → H3")
-        }
-    }
-
-    /// Inline, per-item format controls (aligned under the column header).
-    /// Values show the item's effective format; editing creates its override.
-    /// Read-only mirror (Phase 2): page-level typography EDITS in the
-    /// section's pane header; here it's the pre-export check.
+    /// Read-only formatting review, aligned under the column header and
+    /// rendered in an inactive grey: one glance covers every component's
+    /// effective font, size, heading, and line numbering.  Editing happens
+    /// on the components (toolbar, heading row, settings button).
     private func formatColumns(_ item: ExportItem, index: Int) -> some View {
-        let overridden = item.format != nil
         let font = item.format?.fontFamily ?? document.format.fontFamily
         let size = Int((item.format?.fontSize ?? document.format.fontSize).rounded())
         let lines = item.format?.lineNumbers ?? document.format.lineNumbers
+        let heading: String = switch item.kind {
+        case .titlePage: "H\(item.effectiveHeadingStyle.effectiveLevel)"
+        case .authors:   "—"
+        default:         item.titleShown ? "H\(item.effectiveHeadingStyle.effectiveLevel)" : "off"
+        }
         return HStack(spacing: 8) {
             Text(font.shortLabel)
                 .frame(width: colFont, alignment: .leading)
             Text("\(size)")
                 .monospacedDigit()
                 .frame(width: colSize, alignment: .trailing)
+            Text(heading)
+                .frame(width: colHead, alignment: .center)
             Text(lines ? "on" : "off")
                 .frame(width: colLines, alignment: .center)
         }
         .font(.caption)
-        .foregroundStyle(overridden ? Color.accentColor : Color.secondary)
-        .help("Viewable here for the pre-export check — edit typography from the section's pane (the textformat button in its header)")
-    }
-
-    /// Effective-format binding for one item: reads the override (or the
-    /// document format), writes by creating/extending the item's override.
-    private func fmtBinding<T>(_ index: Int,
-                               _ keyPath: WritableKeyPath<ExportDocumentFormat, T>) -> Binding<T> {
-        Binding(
-            get: {
-                guard document.items.indices.contains(index) else {
-                    return document.format[keyPath: keyPath]
-                }
-                return (document.items[index].format ?? document.format)[keyPath: keyPath]
-            },
-            set: { newValue in
-                var doc = document
-                guard doc.items.indices.contains(index) else { return }
-                var format = doc.items[index].format ?? doc.format
-                format[keyPath: keyPath] = newValue
-                doc.items[index].format = format
-                onChange(doc)
-            }
-        )
+        .foregroundStyle(Color(nsColor: .secondaryLabelColor))
+        .help("Formatting review (read-only) — edit on the component: its toolbar, heading row, or settings button")
     }
 
     /// The three-line grab handle: drag it to reorder items.
@@ -1120,23 +778,6 @@ private struct ExportDocumentCard: View {
             doc.items.move(fromOffsets: IndexSet(integer: from), toOffset: to > from ? to + 1 : to)
             onChange(doc)
         }
-    }
-
-    /// Export-heading override binding: empty text reverts to the default title.
-    private func titleBinding(_ index: Int) -> Binding<String> {
-        Binding(
-            get: {
-                guard document.items.indices.contains(index) else { return "" }
-                let item = document.items[index]
-                return item.customTitle ?? item.title(in: content)
-            },
-            set: { newValue in
-                var doc = document
-                guard doc.items.indices.contains(index) else { return }
-                doc.items[index].customTitle = newValue.isEmpty ? nil : newValue
-                onChange(doc)
-            }
-        )
     }
 
     // MARK: add item

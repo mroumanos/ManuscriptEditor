@@ -98,7 +98,7 @@ struct RichEditor: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            FormatBar(controller: controller)
+            FormatBar(controller: controller, formatItem: formatItem, versionRef: versionRef)
             Divider()
             WidthRuler(width: $wrapWidth, leftInset: EditorLayout.leftInset)
             Divider()
@@ -282,7 +282,14 @@ struct RefCandidate {
 // MARK: - FormatBar (inline toolbar)
 
 private struct FormatBar: View {
+    @Environment(ManuscriptStore.self) private var store
+
     let controller: RichTextController
+    /// When set, the bar also carries the pane's export typography (font,
+    /// size, spacing — the journal's medium) and the printed heading's
+    /// H1–H3 level, editing the journal's export outline directly.
+    var formatItem: SidebarItem? = nil
+    var versionRef: VersionRef = .source
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -304,6 +311,11 @@ private struct FormatBar: View {
                 Divider().frame(height: 18).padding(.horizontal, 4)
 
                 button("list.bullet", "Bulleted list") { controller.toggleBulletList() }
+
+                if let formatItem, ManuscriptStore.exportItemKey(for: formatItem) != nil {
+                    Divider().frame(height: 18).padding(.horizontal, 4)
+                    typographyCluster(formatItem)
+                }
             }
             .padding(.leading, EditorLayout.leftInset)   // align with the text column
             .padding(.trailing, 10)
@@ -323,6 +335,79 @@ private struct FormatBar: View {
         }
         .buttonStyle(.borderless)
         .help(help)
+    }
+
+    /// Export typography for this pane: font family and size (the item's
+    /// override), spacing (document-uniform), and the heading level while
+    /// the heading is shown.  The editor re-renders live (it displays the
+    /// document's typography scaled by the personal zoom).
+    @ViewBuilder
+    private func typographyCluster(_ item: SidebarItem) -> some View {
+        let format = store.effectiveExportFormat(for: item, ref: versionRef)
+        Picker("", selection: Binding(
+            get: { format.fontFamily },
+            set: { family in mutateFormat(item) { $0.fontFamily = family } }
+        )) {
+            ForEach(ExportFontFamily.allCases) { family in
+                Text(family.shortLabel).tag(family)
+            }
+        }
+        .labelsHidden().controlSize(.small).fixedSize()
+        .help("Export font for this component")
+        HStack(spacing: 1) {
+            Text("\(Int(format.fontSize.rounded()))")
+                .font(.caption)
+                .monospacedDigit()
+            Stepper("", value: Binding(
+                get: { Int(format.fontSize.rounded()) },
+                set: { value in mutateFormat(item) { $0.fontSize = Double(min(max(value, 6), 99)) } }
+            ), in: 6...99)
+            .labelsHidden().controlSize(.mini)
+        }
+        .help("Export font size (pt)")
+        Picker("", selection: Binding(
+            get: { format.lineSpacing },
+            set: { spacing in
+                store.updateExportEntry(for: item, ref: versionRef,
+                                        mutateDocument: { $0.format.lineSpacing = spacing })
+            }
+        )) {
+            Text("1×").tag(1.0)
+            Text("1.15").tag(1.15)
+            Text("1.5").tag(1.5)
+            Text("2×").tag(2.0)
+        }
+        .labelsHidden().controlSize(.small).fixedSize()
+        .help("Line spacing (document-uniform)")
+        if let entry = componentExportEntry(store, item: item, ref: versionRef),
+           entry.kind != .titlePage, entry.kind != .authors, entry.titleShown {
+            Button {
+                store.updateExportEntry(for: item, ref: versionRef, mutateItem: { itm in
+                    var hs = itm.effectiveHeadingStyle
+                    hs.level = hs.effectiveLevel % 3 + 1
+                    hs.pointSize = nil
+                    itm.headingStyle = hs
+                })
+            } label: {
+                Text("H\(entry.effectiveHeadingStyle.effectiveLevel)")
+                    .font(.caption.weight(.semibold).monospacedDigit())
+                    .foregroundStyle(Color.accentColor)
+                    .frame(width: 26, height: 24)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.borderless)
+            .help("Printed heading level — click to cycle H1 → H2 → H3")
+        }
+    }
+
+    private func mutateFormat(_ item: SidebarItem,
+                              _ change: @escaping (inout ExportDocumentFormat) -> Void) {
+        let seed = store.effectiveExportFormat(for: item, ref: versionRef)
+        store.updateExportEntry(for: item, ref: versionRef, mutateItem: { entry in
+            var format = entry.format ?? seed
+            change(&format)
+            entry.format = format
+        })
     }
 }
 

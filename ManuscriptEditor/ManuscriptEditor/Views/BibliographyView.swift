@@ -212,9 +212,10 @@ struct BibliographyView: View {
                         addReferenceMenu
                             .padding(.leading, 10).padding(.vertical, 10)
                         Spacer()
-                        Text("\(allEntries.count) reference\(allEntries.count == 1 ? "" : "s")")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        // Reference-list export settings (citation style,
+                        // typography) — edited here, on the component;
+                        // Export only reviews them.
+                        ComponentSettingsButton(item: .bibliography, versionRef: versionRef)
                             .padding(.trailing, 10)
                     }
                     .background(Color(NSColor.windowBackgroundColor))

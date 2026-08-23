@@ -447,6 +447,9 @@ struct ContentView: View {
     private func versionPane(_ ref: VersionRef, item: SidebarItem) -> some View {
         VStack(spacing: 0) {
             HStack(spacing: 8) {
+                // Heading on/off lives at the pane's left edge; turning it on
+                // reveals the printed-heading row below.
+                ComponentHeadingToggle(item: item, versionRef: ref)
                 deactivatedBadge(item: item, ref: ref)
                 Spacer()
                 if let words = wordCount(for: item, ref: ref) {
@@ -456,7 +459,11 @@ struct ContentView: View {
                         .monospacedDigit()
                 }
                 sectionActivationControl(item: item, ref: ref)
-                SectionFormatButton(item: item, versionRef: ref)
+                // Components without their own settings spot (list views
+                // carry a gear in their bottom bars) get it in the header.
+                if headerCarriesSettings(item) {
+                    ComponentSettingsButton(item: item, versionRef: ref)
+                }
                 SectionPreviewButton(item: item, versionRef: ref)
                 NotesButton(versionKey: ref.id, itemKey: item.notesKey)
             }
@@ -466,9 +473,33 @@ struct ContentView: View {
             .padding(.trailing, 12)
             .padding(.vertical, 7)
 
+            // Editor-backed panes carry the H1–H3 level in their toolbar,
+            // so their heading row skips it.
+            ComponentHeadingRow(item: item, versionRef: ref,
+                                showLevel: !editorBacked(item))
+
             contentView(for: item, ref: ref)
         }
         .id(ref)
+    }
+
+    /// Panes whose content view embeds a RichEditor (its toolbar carries the
+    /// export typography and heading level).
+    private func editorBacked(_ item: SidebarItem) -> Bool {
+        switch item {
+        case .abstract, .section, .letterToEditor: return true
+        default: return false
+        }
+    }
+
+    /// Components whose export settings gear lives in the pane header —
+    /// list views (Authors, Bibliography, Keywords) have their own spot,
+    /// and editor panes edit typography from their toolbar.
+    private func headerCarriesSettings(_ item: SidebarItem) -> Bool {
+        switch item {
+        case .title, .figures, .tables: return true
+        default: return false
+        }
     }
 
     /// A quiet "deactivated" marker for sections switched off in this journal —
