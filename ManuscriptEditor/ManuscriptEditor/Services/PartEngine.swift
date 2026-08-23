@@ -20,8 +20,14 @@ enum PartEngine {
         let path: String
         var delimiter: String = "semicolon"   // "space" | "semicolon" | "newline"
         var marker: String = "superscript"    // "superscript" | "cross" | "doublecross" | "none"
+        /// Append author credentials (MD, PhD…) — export's "+ cred".
+        var creds: Bool = true
+        /// Raised * + "* Corresponding author" footnote — export's "+ corr".
+        var corr: Bool = true
 
-        var url: URL? { URL(string: "part://t/\(path)?d=\(delimiter)&m=\(marker)") }
+        var url: URL? {
+            URL(string: "part://t/\(path)?d=\(delimiter)&m=\(marker)&c=\(creds ? 1 : 0)&x=\(corr ? 1 : 0)")
+        }
         var markerText: String { "[[\(path)]]" }
         /// Marker options only matter where authors meet institutes.
         var hasMarkerOptions: Bool { path == "authors" }
@@ -91,7 +97,9 @@ enum PartEngine {
         if marker == "doublecross" { marker = "cross" }   // legacy value
         return Part(path: path,
                     delimiter: items?.first(where: { $0.name == "d" })?.value ?? "semicolon",
-                    marker: marker)
+                    marker: marker,
+                    creds: items?.first(where: { $0.name == "c" })?.value != "0",
+                    corr: items?.first(where: { $0.name == "x" })?.value != "0")
     }
 
     static func delimiterText(_ d: String) -> String {
@@ -160,11 +168,11 @@ enum PartEngine {
         case "authors":
             var out: [(String, Bool)] = []
             for (i, a) in authors.enumerated() {
-                out.append((a.fullName, false))
+                out.append((part.creds ? a.exportName : a.fullName, false))
                 let mk = markers(a)
                 if !mk.isEmpty { out.append((mk, true)) }
                 // The * annotates like another institution marker (raised).
-                if a.isCorresponding { out.append(("*", true)) }
+                if a.isCorresponding, part.corr { out.append(("*", true)) }
                 if i < authors.count - 1 { out.append((delim, false)) }
             }
             if !lines.isEmpty {
@@ -177,7 +185,7 @@ enum PartEngine {
                     out.append((l + (i < lines.count - 1 ? "\n" : ""), false))
                 }
             }
-            if !corresponding.isEmpty {
+            if !corresponding.isEmpty, part.corr {
                 out.append(("\n", false))
                 out.append(("*", true))
                 out.append((" Corresponding author", false))

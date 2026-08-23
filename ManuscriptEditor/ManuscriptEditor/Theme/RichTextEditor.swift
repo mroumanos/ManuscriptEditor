@@ -1339,6 +1339,20 @@ final class CitationTextView: NSTextView {
                 menu.addItem(item)
             }
         }
+        if part.hasMarkerOptions {
+            menu.addItem(.separator())
+            menu.addItem(NSMenuItem.sectionHeader(title: "Options"))
+            let cred = NSMenuItem(title: "+ cred — author credentials (MD, PhD…)",
+                                  action: #selector(togglePartCreds(_:)), keyEquivalent: "")
+            cred.target = self
+            cred.state = part.creds ? .on : .off
+            menu.addItem(cred)
+            let corr = NSMenuItem(title: "+ corr — raised * and \"Corresponding author\" line",
+                                  action: #selector(togglePartCorr(_:)), keyEquivalent: "")
+            corr.target = self
+            corr.state = part.corr ? .on : .off
+            menu.addItem(corr)
+        }
         let children = PartEngine.children(of: part.path)
         if !children.isEmpty {
             menu.addItem(.separator())
@@ -1368,13 +1382,28 @@ final class CitationTextView: NSTextView {
         }
     }
 
+    @objc private func togglePartCreds(_ sender: NSMenuItem) {
+        guard var (part, range) = menuPart else { return }
+        menuPart = nil
+        part.creds.toggle()
+        rewritePart(part, range: range)
+    }
+
+    @objc private func togglePartCorr(_ sender: NSMenuItem) {
+        guard var (part, range) = menuPart else { return }
+        menuPart = nil
+        part.corr.toggle()
+        rewritePart(part, range: range)
+    }
+
     /// Subsection/parent pick: changes the words in the brackets, keeping
     /// the delimiter/marker choices; the new token has its own menu.
     @objc private func applyPartPath(_ sender: NSMenuItem) {
         guard let (part, range) = menuPart,
               let path = sender.representedObject as? String else { return }
         menuPart = nil
-        rewritePart(PartEngine.Part(path: path, delimiter: part.delimiter, marker: part.marker),
+        rewritePart(PartEngine.Part(path: path, delimiter: part.delimiter, marker: part.marker,
+                                    creds: part.creds, corr: part.corr),
                     range: range)
     }
 
