@@ -456,6 +456,7 @@ struct ContentView: View {
                         .monospacedDigit()
                 }
                 sectionActivationControl(item: item, ref: ref)
+                SectionPreviewButton(item: item, versionRef: ref)
                 NotesButton(versionKey: ref.id, itemKey: item.notesKey)
             }
             // Align the header past the editor's line-number gutter so it

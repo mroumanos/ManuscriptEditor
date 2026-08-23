@@ -306,7 +306,7 @@ enum ExportRendering {
 /// into a PDFKit view — what the output will actually look like, per
 /// document.  Documents with non-PDF file types preview their layout as
 /// PDF (same typography, margins, and pagination).
-private struct ExportPreviewSheet: View {
+struct ExportPreviewSheet: View {
     let documents: [ExportDocument]
     @Binding var isPresented: Bool
     let render: (ExportDocument) -> Data
@@ -362,7 +362,7 @@ private struct ExportPreviewSheet: View {
 }
 
 /// PDFKit host — auto-scaling, continuous-page view of the rendered data.
-private struct PDFKitView: NSViewRepresentable {
+struct PDFKitView: NSViewRepresentable {
     let data: Data
 
     func makeNSView(context: Context) -> PDFView {
@@ -382,6 +382,84 @@ private struct PDFKitView: NSViewRepresentable {
 
     func makeCoordinator() -> Coordinator { Coordinator() }
     final class Coordinator { var lastCount = -1 }
+}
+
+// MARK: - SectionPreviewButton
+
+/// Eye-glass button in a content pane's header: renders JUST this pane's
+/// item through the real export pipeline — using the journal's export
+/// document typography — into the preview sheet.
+struct SectionPreviewButton: View {
+    @Environment(ManuscriptStore.self) private var store
+
+    let item: SidebarItem
+    let versionRef: VersionRef
+
+    @State private var showing = false
+
+    /// The export item this pane maps to (nil = not previewable).
+    private var exportItem: ExportItem? {
+        switch item {
+        case .title:           return ExportItem(kind: .titlePage)
+        case .authors:         return ExportItem(kind: .authors)
+        case .abstract:        return ExportItem(kind: .abstract)
+        case .keywords:        return ExportItem(kind: .keywords)
+        case .section(let id): return ExportItem(kind: .section, sectionID: id)
+        case .figures:         return ExportItem(kind: .figures)
+        case .tables:          return ExportItem(kind: .tables)
+        case .bibliography:    return ExportItem(kind: .references)
+        case .letterToEditor:  return ExportItem(kind: .coverLetter)
+        default:               return nil
+        }
+    }
+
+    private var journalID: UUID? {
+        guard case .version(let id) = versionRef else { return nil }
+        return store.versions.first { $0.id == id }?.journalID
+    }
+
+    var body: some View {
+        if exportItem != nil {
+            Button {
+                showing = true
+            } label: {
+                Image(systemName: "doc.text.magnifyingglass")
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.borderless)
+            .help("Preview this section as it exports (the journal's typography)")
+            .sheet(isPresented: $showing) { sheet }
+        }
+    }
+
+    @ViewBuilder
+    private var sheet: some View {
+        if let content = store.manuscript(for: versionRef), let baseItem = exportItem {
+            let config = store.exportConfig(forJournal: journalID)
+            let style = store.manuscript?.journals.first { $0.id == journalID }?
+                .requirements.citationStyle.cslID ?? "apa"
+            // The pane's item inherits the journal's configured version of
+            // itself when the outline has one (heading level, options).
+            let item = config.documents
+                .flatMap(\.items)
+                .first { $0.kind == baseItem.kind && $0.sectionID == baseItem.sectionID }
+                ?? baseItem
+            var document = ExportDocument(
+                name: item.title(in: content), fileType: .pdf, items: [item])
+            let _ = { document.format = config.documents.first?.format ?? ExportDocumentFormat() }()
+            ExportPreviewSheet(
+                documents: [document],
+                isPresented: $showing,
+                render: { doc in
+                    ExportService().previewPDF(
+                        document: doc, content: content,
+                        citationStyleDefault: style,
+                        figureURL: { store.figureURL(for: $0) },
+                        chartImage: { ExportRendering.chartImage(for: $0, store: store) },
+                        tableData: { ExportRendering.tableData(for: $0, store: store) })
+                })
+        }
+    }
 }
 
 // MARK: - ExportDocumentCard
