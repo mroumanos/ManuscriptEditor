@@ -576,6 +576,15 @@ private struct RichTextRepresentable: NSViewRepresentable {
             context.coordinator.ruler?.needsDisplay = true
         }
 
+        // Editor typography prefs (Settings → Editor) restyle live — the
+        // view otherwise keeps its creation-time font/spacing forever.
+        if context.coordinator.appliedFontName != baseFont.fontName
+            || context.coordinator.appliedFontSize != baseFont.pointSize
+            || context.coordinator.appliedLineHeight != lineHeightMultiple {
+            context.coordinator.applyTypography(in: textView, baseFont: baseFont,
+                                                lineHeightMultiple: lineHeightMultiple)
+        }
+
         // Reload only when the bound content differs from the on-screen text
         // (avoids clobbering the field while the user is typing).  A token
         // rewrite makes them differ until its async commit lands — never
@@ -609,6 +618,11 @@ private struct RichTextRepresentable: NSViewRepresentable {
         /// against — lets `updateNSView` skip the rewrite pass on the vast
         /// majority of renders (plain typing never changes it).
         var lastRefSignature: Int?
+        /// The typography last applied to the storage — updateNSView
+        /// restyles when the Settings → Editor prefs move away from it.
+        var appliedFontName: String?
+        var appliedFontSize: CGFloat = 0
+        var appliedLineHeight: Double = 0
         /// True between a programmatic token rewrite and its async binding
         /// commit; guards the reload-from-binding path against clobbering.
         var hasPendingCommit = false
@@ -702,6 +716,44 @@ private struct RichTextRepresentable: NSViewRepresentable {
             observers.append(token)
         }
 
+        /// Re-sets the whole storage into the current base typography (font
+        /// family/size + line spacing), preserving inline emphasis
+        /// (bold/italic via traits; underline/strike/links ride along) and
+        /// rescaling the citation raise off the new base.
+        func applyTypography(in textView: NSTextView, baseFont: NSFont, lineHeightMultiple: Double) {
+            appliedFontName = baseFont.fontName
+            appliedFontSize = baseFont.pointSize
+            appliedLineHeight = lineHeightMultiple
+            guard let storage = textView.textStorage else { return }
+            let full = NSRange(location: 0, length: storage.length)
+            let fm = NSFontManager.shared
+            storage.beginEditing()
+            storage.enumerateAttribute(.font, in: full) { value, range, _ in
+                let traits = (value as? NSFont)?.fontDescriptor.symbolicTraits ?? []
+                var font = baseFont
+                if traits.contains(.bold)   { font = fm.convert(font, toHaveTrait: .boldFontMask) }
+                if traits.contains(.italic) { font = fm.convert(font, toHaveTrait: .italicFontMask) }
+                storage.addAttribute(.font, value: font, range: range)
+            }
+            storage.addAttribute(.paragraphStyle, value: paragraphStyle(lineHeightMultiple), range: full)
+            // Raised citation runs re-derive their shrink + offset from the
+            // new base so superscripts stay proportional.
+            storage.enumerateAttribute(.baselineOffset, in: full) { value, range, _ in
+                guard let offset = (value as? NSNumber)?.doubleValue, offset != 0 else { return }
+                var attrs = storage.attributes(at: range.location, effectiveRange: nil)
+                CitationTextView.applyCitationRaise(&attrs, raised: offset > 0, baseFont: baseFont)
+                if let font = attrs[.font] { storage.addAttribute(.font, value: font, range: range) }
+                if let raise = attrs[.baselineOffset] {
+                    storage.addAttribute(.baselineOffset, value: raise, range: range)
+                }
+            }
+            storage.endEditing()
+            textView.typingAttributes = defaultAttributes(baseFont, lineHeightMultiple)
+            (textView as? CitationTextView)?.defaultTypingAttributes = defaultAttributes(baseFont, lineHeightMultiple)
+            textView.defaultParagraphStyle = paragraphStyle(lineHeightMultiple)
+            ruler?.needsDisplay = true
+        }
+
         /// Loads `value`: RTF when present, else plain text with default attributes.
         func load(_ value: RichText, into textView: NSTextView, baseFont: NSFont, lineHeightMultiple: Double) {
             guard let storage = textView.textStorage else { return }
@@ -724,6 +776,11 @@ private struct RichTextRepresentable: NSViewRepresentable {
             // text they displayed when last edited) and rebuild tooltips,
             // which RTF doesn't preserve at all.
             refreshTokens(in: textView)
+            // The stored RTF carries the typography it was WRITTEN with —
+            // normalize into the current editor prefs so font/spacing
+            // settings are authoritative for old content too.
+            applyTypography(in: textView, baseFont: baseFont,
+                            lineHeightMultiple: lineHeightMultiple)
             ruler?.needsDisplay = true
         }
 
