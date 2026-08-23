@@ -133,10 +133,7 @@ struct ComponentSettingsButton: View {
             .help("Font size (pt)")
             Picker("", selection: Binding(
                 get: { format.lineSpacing },
-                set: { spacing in
-                    store.updateExportEntry(for: item, ref: versionRef,
-                                            mutateDocument: { $0.format.lineSpacing = spacing })
-                }
+                set: { spacing in mutateFormat { $0.lineSpacing = spacing } }
             )) {
                 Text("1×").tag(1.0)
                 Text("1.15").tag(1.15)
@@ -144,7 +141,7 @@ struct ComponentSettingsButton: View {
                 Text("2×").tag(2.0)
             }
             .labelsHidden().controlSize(.small).fixedSize()
-            .help("Line spacing (document-uniform)")
+            .help("Line spacing for this component")
         }
     }
 

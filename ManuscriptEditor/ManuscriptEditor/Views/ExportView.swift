@@ -745,7 +745,8 @@ private struct ExportDocumentCard: View {
         let size = Int((item.format?.fontSize ?? document.format.fontSize).rounded())
         parts.append(font.shortLabel)
         parts.append("\(size)pt")
-        parts.append("\(String(format: "%g", document.format.lineSpacing))× spacing")
+        let spacing = item.format?.lineSpacing ?? document.format.lineSpacing
+        parts.append("\(String(format: "%g", spacing))× spacing")
         return parts.joined(separator: " / ")
     }
 

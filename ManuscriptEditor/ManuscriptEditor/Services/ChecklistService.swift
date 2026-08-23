@@ -53,7 +53,7 @@ enum ChecklistService {
                 }
                 typography.append((entry.title(in: manuscript),
                                    entry.format?.fontSize ?? document.format.fontSize,
-                                   document.format.lineSpacing,
+                                   entry.format?.lineSpacing ?? document.format.lineSpacing,
                                    sectionLines))
             }
         }

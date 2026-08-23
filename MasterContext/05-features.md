@@ -607,8 +607,10 @@ just a rendered blob.
   is edited **where the writing happens**, and each surface carries what
   fits it:
   - **Text editors** (Abstract, body sections, cover letter): the editor's
-    **toolbar** carries font family/size (the item's override) and spacing
-    (document-uniform).
+    **toolbar** carries font family, size, AND spacing — each the item's
+    own override, managed per component (Aug 2026; the earlier
+    document-uniform spacing rule is gone — LaTeX output still applies the
+    document's spacing globally, like its margins).
   - **Editor panes** (Abstract, body sections, cover letter) have an
     **"H" on/off button at the header's left edge** with the heading's
     style set to its **immediate right** while on — bold/underline/center

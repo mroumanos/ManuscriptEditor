@@ -337,10 +337,10 @@ private struct FormatBar: View {
         .help(help)
     }
 
-    /// Export typography for this pane: font family and size (the item's
-    /// override) and spacing (document-uniform).  The editor re-renders
-    /// live (it displays the document's typography scaled by the personal
-    /// zoom).  Heading options live in the pane header's "H" popover.
+    /// Export typography for this pane — font family, size, and spacing,
+    /// all the item's own override.  The editor re-renders live (it
+    /// displays the component's typography scaled by the personal zoom).
+    /// Heading options live beside the pane header's "H" button.
     @ViewBuilder
     private func typographyCluster(_ item: SidebarItem) -> some View {
         let format = store.effectiveExportFormat(for: item, ref: versionRef)
@@ -367,10 +367,7 @@ private struct FormatBar: View {
         .help("Export font size (pt)")
         Picker("", selection: Binding(
             get: { format.lineSpacing },
-            set: { spacing in
-                store.updateExportEntry(for: item, ref: versionRef,
-                                        mutateDocument: { $0.format.lineSpacing = spacing })
-            }
+            set: { spacing in mutateFormat(item) { $0.lineSpacing = spacing } }
         )) {
             Text("1×").tag(1.0)
             Text("1.15").tag(1.15)
@@ -378,7 +375,7 @@ private struct FormatBar: View {
             Text("2×").tag(2.0)
         }
         .labelsHidden().controlSize(.small).fixedSize()
-        .help("Line spacing (document-uniform)")
+        .help("Line spacing for this component")
     }
 
     private func mutateFormat(_ item: SidebarItem,

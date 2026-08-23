@@ -847,14 +847,13 @@ private struct OutlineBuilder {
         return out
     }
 
-    /// Item override wins for typography; page geometry stays the document's.
+    /// Item override wins for typography — font, size, AND spacing (each
+    /// component manages its own, Aug 2026); page geometry stays the
+    /// document's.
     private func effectiveFormat(for item: ExportItem) -> ExportDocumentFormat {
         guard var override = item.format else { return format }
         override.marginInches = format.marginInches
         override.twoColumn = format.twoColumn
-        // Uniform per document: mixed per-item spacing made the gaps around
-        // headings inconsistent (Aug 2026 feedback).
-        override.lineSpacing = format.lineSpacing
         return override
     }
 

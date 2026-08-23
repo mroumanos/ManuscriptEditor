@@ -941,6 +941,7 @@ final class ManuscriptStore {
             if let override = found.format {
                 format.fontFamily = override.fontFamily
                 format.fontSize = override.fontSize
+                format.lineSpacing = override.lineSpacing
             }
             return format
         }
