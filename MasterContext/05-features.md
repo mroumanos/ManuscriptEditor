@@ -592,7 +592,11 @@ just a rendered blob.
   (`previewPDF`: same segments + `PDFPaginator`) into a PDFKit sheet —
   per-document segmented picker, continuous pages, auto-scaled. Non-PDF
   documents preview their layout as PDF (same typography/margins/
-  pagination). Closes the editor↔export WYSIWYG gap without merging the
+  pagination). **Every content pane's header carries the same preview**
+  (`SectionPreviewButton`): renders just that pane's item — inheriting the
+  journal outline's configured version of it (heading level, options) and
+  the journal document's typography — through the identical pipeline.
+  Closes the editor↔export WYSIWYG gap without merging the
   formatting layers.
 - AC (implemented): **Headings in output** get a blank line before and after,
   and are **capitalized by default** (first letter; applies to renamed/custom
