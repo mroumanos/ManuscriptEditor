@@ -584,8 +584,17 @@ just a rendered blob.
   H2 = body + 2, H3 = body size — Aug 2026, replacing the typed point size,
   which legacy documents without a level still honor). Default: every kind prints its heading
   **except the cover letter**, which exports as a real letter with no
-  "Cover Letter" label (Jul 2026 beta feedback). Margins/columns remain
-  document-level (page geometry). PDF line numbering follows the per-item
+  "Cover Letter" label (Jul 2026 beta feedback). **Section breaks** (Phase 1 of the
+  document/section/page model, Aug 2026): page-break items are now
+  boundaries that both start a new page AND can re-set **margins, columns,
+  and line numbering** for the pages that follow (mini pickers on the
+  break row; nil = inherit the document's first-section settings, which
+  the document header's existing controls define;
+  `ExportItem.sectionMarginInches/-TwoColumn/-LineNumbers`,
+  `PDFPaginator.render(sections:)` applies geometry per section; LaTeX
+  tracks section line numbering; DOCX/RTF keep first-section geometry —
+  the attributed writers can't vary margins mid-file). Per-item Lines
+  toggles still override. PDF line numbering follows the per-item
   effective format (attribute-driven); LaTeX emits
   `\linenumbers`/`\nolinenumbers` transitions.
 - AC (implemented): **Export preview** (Aug 2026). A Preview button beside

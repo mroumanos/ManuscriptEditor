@@ -240,6 +240,15 @@ struct ExportItem: Codable, Identifiable, Sendable, Equatable {
     /// each author's title tags after the name ("Jane Doe, MD, PhD"), false
     /// prints names alone.  Optional for backward-compatible decoding;
     /// nil = titles shown (the historical output).
+    /// Section-break items only (kind == .pageBreak): page geometry for
+    /// the pages that FOLLOW this boundary, until the next break.  nil =
+    /// inherit the document's (first section's) setting.  Phase 1 of the
+    /// document/section/page model (Aug 2026): a break both starts a new
+    /// page and can re-set margins, columns, and line numbering.
+    var sectionMarginInches: Double? = nil
+    var sectionTwoColumn: Bool? = nil
+    var sectionLineNumbers: Bool? = nil
+
     /// References item only: the CSL style the reference list renders in.
     /// nil = the journal's required style (baked in at export).
     var citationStyle: String? = nil
@@ -293,7 +302,7 @@ struct ExportItem: Codable, Identifiable, Sendable, Equatable {
         case .tables:      return "Tables"
         case .references:  return "References"
         case .coverLetter: return "Cover Letter"
-        case .pageBreak:   return "Page Break"
+        case .pageBreak:   return "Section Break"
         }
     }
 

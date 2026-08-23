@@ -248,11 +248,11 @@ struct ExportService {
             let url = folder.appendingPathComponent("\(name).\(document.fileType.ext)")
             switch document.fileType {
             case .pdf:
-                let segments = pageSegments(for: document, content: content, refContext: refContext, figureURL: figureURL, chartImage: chartImage, tableData: tableData, citationStyleDefault: citationStyleDefault)
-                let data = PDFPaginator(format: document.format).render(segments: segments)
+                let sections = pageSegments(for: document, content: content, refContext: refContext, figureURL: figureURL, chartImage: chartImage, tableData: tableData, citationStyleDefault: citationStyleDefault)
+                let data = PDFPaginator(format: document.format).render(sections: sections)
                 try data.write(to: url, options: .atomic)
             case .docx, .rtf:
-                let segments = pageSegments(for: document, content: content, refContext: refContext, figureURL: figureURL, chartImage: chartImage, tableData: tableData, citationStyleDefault: citationStyleDefault)
+                let segments = pageSegments(for: document, content: content, refContext: refContext, figureURL: figureURL, chartImage: chartImage, tableData: tableData, citationStyleDefault: citationStyleDefault).map(\.text)
                 // Form feed is the closest page-break the attributed writers offer.
                 let joined = NSMutableAttributedString()
                 for (i, seg) in segments.enumerated() {
@@ -295,42 +295,64 @@ struct ExportService {
                     chartImage: ((Figure) -> NSImage?)? = nil,
                     tableData: ((ManuscriptTable) -> QueryResult?)? = nil) -> Data {
         let refContext = RefEngine.context(for: content)
-        let segments = pageSegments(for: document, content: content, refContext: refContext,
+        let sections = pageSegments(for: document, content: content, refContext: refContext,
                                     figureURL: figureURL, chartImage: chartImage,
                                     tableData: tableData,
                                     citationStyleDefault: citationStyleDefault)
-        return PDFPaginator(format: document.format).render(segments: segments)
+        return PDFPaginator(format: document.format).render(sections: sections)
     }
 
     // MARK: Outline assembly (attributed)
 
     /// Renders a document's items into attributed segments; a new segment
     /// starts at every page break.
+    /// One rendered section: its text plus the page geometry (margins,
+    /// columns) that section's pages use.
+    struct PageSection {
+        let text: NSAttributedString
+        let marginInches: Double
+        let twoColumn: Bool
+    }
+
     private func pageSegments(for document: ExportDocument, content: Manuscript,
                               refContext: RefEngine.Context,
                               figureURL: ((Figure) -> URL?)? = nil,
                               chartImage: ((Figure) -> NSImage?)? = nil,
                               tableData: ((ManuscriptTable) -> QueryResult?)? = nil,
-                              citationStyleDefault: String = "apa") -> [NSAttributedString] {
+                              citationStyleDefault: String = "apa") -> [PageSection] {
         let builder = OutlineBuilder(format: document.format, refContext: refContext,
                                      fileType: document.fileType,
                                      figureURL: figureURL, chartImage: chartImage, tableData: tableData,
                                      separateAuthors: document.items.contains { $0.kind == .authors },
                                      citationStyleDefault: citationStyleDefault)
-        var segments: [NSAttributedString] = []
+        var sections: [PageSection] = []
         var current = NSMutableAttributedString()
+        // The document's own format is the first section's geometry; each
+        // break re-sets it for what follows (nil fields inherit).
+        var margin = document.format.marginInches
+        var twoCol = document.format.twoColumn
+        var sectionLines: Bool? = nil
+        func flush() {
+            if current.length > 0 {
+                sections.append(PageSection(text: current, marginInches: margin, twoColumn: twoCol))
+            }
+            current = NSMutableAttributedString()
+        }
         for item in document.items {
             if item.kind == .pageBreak {
-                if current.length > 0 { segments.append(current) }
-                current = NSMutableAttributedString()
+                flush()
+                margin = item.sectionMarginInches ?? document.format.marginInches
+                twoCol = item.sectionTwoColumn ?? document.format.twoColumn
+                sectionLines = item.sectionLineNumbers
                 continue
             }
-            if let block = builder.block(for: item, content: content) {
+            if let block = builder.block(for: item, content: content,
+                                         sectionLineNumbers: sectionLines) {
                 current.append(block)
             }
         }
-        if current.length > 0 { segments.append(current) }
-        return segments
+        flush()
+        return sections
     }
 
     // MARK: LaTeX writer
@@ -348,17 +370,21 @@ struct ExportService {
         var out = "\\documentclass[\(options.joined(separator: ","))]{article}\n"
         out += "\\usepackage[margin=\(String(format: "%.2f", f.marginInches))in]{geometry}\n"
         out += "\\usepackage{setspace}\n"
-        let anyLineNumbers = f.lineNumbers || document.items.contains { $0.format?.lineNumbers == true }
+        let anyLineNumbers = f.lineNumbers
+            || document.items.contains { $0.format?.lineNumbers == true || $0.sectionLineNumbers == true }
         if anyLineNumbers { out += "\\usepackage{lineno}\n" }
         out += "\\begin{document}\n"
         if f.lineSpacing >= 2.0 { out += "\\doublespacing\n" }
         else if f.lineSpacing >= 1.3 { out += "\\onehalfspacing\n" }
 
-        // Line numbering follows each item's effective format.
+        // Line numbering follows each item's effective format; section
+        // breaks re-set the default for the items after them.
         var numbering = false
+        var sectionLines: Bool? = nil
         for item in document.items {
+            if item.kind == .pageBreak { sectionLines = item.sectionLineNumbers }
             if anyLineNumbers, item.kind != .pageBreak {
-                let wanted = item.format?.lineNumbers ?? f.lineNumbers
+                let wanted = item.format?.lineNumbers ?? sectionLines ?? f.lineNumbers
                 if wanted != numbering {
                     out += wanted ? "\\linenumbers\n" : "\\nolinenumbers\n"
                     numbering = wanted
@@ -801,8 +827,14 @@ private struct OutlineBuilder {
 
     /// Renders `item`, honoring its format override and custom title, and
     /// stamps the line-number attribute when its effective format asks for it.
-    func block(for item: ExportItem, content m: Manuscript) -> NSAttributedString? {
-        let effective = effectiveFormat(for: item)
+    func block(for item: ExportItem, content m: Manuscript,
+               sectionLineNumbers: Bool? = nil) -> NSAttributedString? {
+        var effective = effectiveFormat(for: item)
+        // Section-break line numbering: the boundary's setting is the
+        // default for the items after it; per-item overrides still win.
+        if item.format?.lineNumbers == nil, let sectionLines = sectionLineNumbers {
+            effective.lineNumbers = sectionLines
+        }
         let builder = OutlineBuilder(format: effective, refContext: refContext, fileType: fileType,
                                      figureURL: figureURL, chartImage: chartImage, tableData: tableData,
                                      separateAuthors: separateAuthors,
@@ -1675,23 +1707,24 @@ private struct PDFPaginator {
 
     private let pageSize = CGSize(width: 612, height: 792)   // US Letter, points
 
-    func render(segments: [NSAttributedString]) -> Data {
+    func render(sections: [ExportService.PageSection]) -> Data {
         let data = NSMutableData()
         var mediaBox = CGRect(origin: .zero, size: pageSize)
         guard let consumer = CGDataConsumer(data: data as CFMutableData),
               let ctx = CGContext(consumer: consumer, mediaBox: &mediaBox, nil)
         else { return Data() }
 
-        let margin = CGFloat(format.marginInches * 72)
-        let contentRect = CGRect(x: margin, y: margin,
-                                 width: pageSize.width - 2 * margin,
-                                 height: pageSize.height - 2 * margin)
-        let columns = format.twoColumn ? 2 : 1
         let gap: CGFloat = 18
-        let columnWidth = (contentRect.width - gap * CGFloat(columns - 1)) / CGFloat(columns)
-
         var lineNumber = 1
-        for raw in segments where raw.length > 0 {
+        for section in sections where section.text.length > 0 {
+            // Each section carries its own page geometry (margins, columns).
+            let raw = section.text
+            let margin = CGFloat(section.marginInches * 72)
+            let contentRect = CGRect(x: margin, y: margin,
+                                     width: pageSize.width - 2 * margin,
+                                     height: pageSize.height - 2 * margin)
+            let columns = section.twoColumn ? 2 : 1
+            let columnWidth = (contentRect.width - gap * CGFloat(columns - 1)) / CGFloat(columns)
             // CoreText ignores NSTextAttachment: without run delegates the
             // layout collapses images (charts, letterheads, signatures,
             // table grids) to nothing.  Reserve their space here and draw

@@ -526,14 +526,14 @@ private struct ExportDocumentCard: View {
             }
             .labelsHidden()
             .fixedSize()
-            .help("Page margins (whole document)")
+            .help("Page margins (first section — Section Breaks can re-set them)")
             Picker("", selection: binding(\.format.twoColumn)) {
                 Text("1 column").tag(false)
                 Text("2 columns").tag(true)
             }
             .labelsHidden()
             .fixedSize()
-            .help("Column layout (whole document) — applies to PDF and LaTeX")
+            .help("Column layout (first section — Section Breaks can re-set it); applies to PDF and LaTeX")
             Button {
                 onDelete()
             } label: {
@@ -600,7 +600,55 @@ private struct ExportDocumentCard: View {
 
             if item.kind == .pageBreak {
                 line
-                Text("Page Break").font(.caption.weight(.medium)).foregroundStyle(.secondary)
+                Text("Section Break").font(.caption.weight(.medium)).foregroundStyle(.secondary)
+                // Geometry for the pages AFTER this boundary (nil = inherit
+                // the document's first-section settings above).
+                Picker("", selection: Binding(
+                    get: { item.sectionMarginInches },
+                    set: { value in
+                        var doc = document
+                        guard doc.items.indices.contains(index) else { return }
+                        doc.items[index].sectionMarginInches = value
+                        onChange(doc)
+                    }
+                )) {
+                    Text("doc margins").tag(Double?.none)
+                    Text("0.75″").tag(Double?.some(0.75))
+                    Text("1″").tag(Double?.some(1.0))
+                    Text("1.25″").tag(Double?.some(1.25))
+                }
+                .labelsHidden().controlSize(.mini).fixedSize()
+                .help("Margins for the pages after this break")
+                Picker("", selection: Binding(
+                    get: { item.sectionTwoColumn },
+                    set: { value in
+                        var doc = document
+                        guard doc.items.indices.contains(index) else { return }
+                        doc.items[index].sectionTwoColumn = value
+                        onChange(doc)
+                    }
+                )) {
+                    Text("doc columns").tag(Bool?.none)
+                    Text("1 col").tag(Bool?.some(false))
+                    Text("2 col").tag(Bool?.some(true))
+                }
+                .labelsHidden().controlSize(.mini).fixedSize()
+                .help("Column layout after this break (PDF and LaTeX)")
+                Picker("", selection: Binding(
+                    get: { item.sectionLineNumbers },
+                    set: { value in
+                        var doc = document
+                        guard doc.items.indices.contains(index) else { return }
+                        doc.items[index].sectionLineNumbers = value
+                        onChange(doc)
+                    }
+                )) {
+                    Text("doc lines").tag(Bool?.none)
+                    Text("lines on").tag(Bool?.some(true))
+                    Text("lines off").tag(Bool?.some(false))
+                }
+                .labelsHidden().controlSize(.mini).fixedSize()
+                .help("Line numbering after this break (per-item Lines toggles still win)")
                 line
             } else {
                 // Click the name to rename the heading in this document
@@ -950,7 +998,7 @@ private struct ExportDocumentCard: View {
             Button {
                 append(ExportItem(kind: .pageBreak))
             } label: {
-                Label("Page Break", systemImage: "arrow.down.to.line.compact")
+                Label("Section Break", systemImage: "arrow.down.to.line.compact")
             }
         } label: {
             Label("Add Item", systemImage: "plus")
