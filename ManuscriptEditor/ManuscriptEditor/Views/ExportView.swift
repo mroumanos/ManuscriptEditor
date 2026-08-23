@@ -530,18 +530,16 @@ private struct ExportDocumentCard: View {
             .help("Page margins, 0.25–2″ (first section — Section Breaks can re-set them)")
             HStack(spacing: 3) {
                 Text("columns:").font(.caption).foregroundStyle(.secondary)
-                Button {
-                    var doc = document
-                    doc.format.twoColumn.toggle()
-                    onChange(doc)
-                } label: {
-                    Text("\(document.format.twoColumn ? 2 : 1)")
-                        .font(.caption)
-                        .foregroundStyle(Color.accentColor)
-                }
-                .buttonStyle(.plain)
+                Text("1").font(.caption)
+                    .foregroundStyle(document.format.twoColumn ? .tertiary : .primary)
+                Toggle("", isOn: binding(\.format.twoColumn))
+                    .toggleStyle(.switch)
+                    .labelsHidden()
+                    .controlSize(.mini)
+                Text("2").font(.caption)
+                    .foregroundStyle(document.format.twoColumn ? .primary : .tertiary)
             }
-            .help("Column layout — click the value to toggle (first section; PDF and LaTeX)")
+            .help("Column layout (first section; PDF and LaTeX)")
             Button {
                 onDelete()
             } label: {
@@ -643,34 +641,38 @@ private struct ExportDocumentCard: View {
                 .help("Margins for the pages after this break (0.25–2″)")
                 HStack(spacing: 3) {
                     Text("columns:").font(.caption).foregroundStyle(.secondary)
-                    Button {
-                        var doc = document
-                        guard doc.items.indices.contains(index) else { return }
-                        doc.items[index].sectionTwoColumn = !effTwoCol
-                        onChange(doc)
-                    } label: {
-                        Text("\(effTwoCol ? 2 : 1)")
-                            .font(.caption)
-                            .foregroundStyle(Color.accentColor)
-                    }
-                    .buttonStyle(.plain)
+                    Text("1").font(.caption).foregroundStyle(effTwoCol ? .tertiary : .primary)
+                    Toggle("", isOn: Binding(
+                        get: { effTwoCol },
+                        set: { on in
+                            var doc = document
+                            guard doc.items.indices.contains(index) else { return }
+                            doc.items[index].sectionTwoColumn = on
+                            onChange(doc)
+                        }
+                    ))
+                    .toggleStyle(.switch)
+                    .labelsHidden()
+                    .controlSize(.mini)
+                    Text("2").font(.caption).foregroundStyle(effTwoCol ? .primary : .tertiary)
                 }
-                .help("Column layout after this break — click the value to toggle (PDF and LaTeX)")
+                .help("Column layout after this break (PDF and LaTeX)")
                 HStack(spacing: 3) {
                     Text("line num.:").font(.caption).foregroundStyle(.secondary)
-                    Button {
-                        var doc = document
-                        guard doc.items.indices.contains(index) else { return }
-                        doc.items[index].sectionLineNumbers = !effLines
-                        onChange(doc)
-                    } label: {
-                        Text(effLines ? "on" : "off")
-                            .font(.caption)
-                            .foregroundStyle(Color.accentColor)
-                    }
-                    .buttonStyle(.plain)
+                    Toggle("", isOn: Binding(
+                        get: { effLines },
+                        set: { on in
+                            var doc = document
+                            guard doc.items.indices.contains(index) else { return }
+                            doc.items[index].sectionLineNumbers = on
+                            onChange(doc)
+                        }
+                    ))
+                    .toggleStyle(.switch)
+                    .labelsHidden()
+                    .controlSize(.mini)
                 }
-                .help("Line numbering after this break — click the value to toggle (per-item Lines toggles still win)")
+                .help("Line numbering after this break (per-item Lines toggles still win)")
                 line
             } else {
                 // Click the name to rename the heading in this document
