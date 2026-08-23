@@ -325,6 +325,9 @@ final class ManuscriptStore {
     func updateTitle(_ title: String)               { touch { $0.title = title } }
     func updateAbout(_ text: String)                { touch { $0.about = text.isEmpty ? nil : text } }
     func updateRunningTitle(_ title: String, ref: VersionRef = .source) { touch(ref) { $0.runningTitle = title } }
+    func updateSubtitle(_ subtitle: String, ref: VersionRef = .source) {
+        touch(ref) { $0.subtitle = subtitle.isEmpty ? nil : subtitle }
+    }
     /// The journal-facing article title — versioned content (Title pane).
     func updateArticleTitle(_ title: String, ref: VersionRef = .source) {
         touch(ref, undoAction: "Edit Title") { $0.articleTitle = title.isEmpty ? nil : title }

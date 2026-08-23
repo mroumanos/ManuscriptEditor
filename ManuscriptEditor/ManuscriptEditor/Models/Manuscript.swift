@@ -126,6 +126,11 @@ struct Manuscript: Codable, Identifiable, Sendable {
     /// nil/empty falls back to the project title in exports.
     var articleTitle: String? = nil
 
+    /// Optional subtitle printed under the title on the title page — NOT
+    /// the running title, which is page-header metadata.  Optional for
+    /// backward-compatible decoding.
+    var subtitle: String? = nil
+
     /// The institution registry (managed in the Authors pane).  Authors
     /// affiliate by referencing these ids; a reference is required.
     var institutions: [Institution] = []

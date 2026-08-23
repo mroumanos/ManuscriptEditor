@@ -351,7 +351,9 @@ struct ExportService {
             let separateAuthors = document.items.contains { $0.kind == .authors }
             switch item.kind {
             case .titlePage:
-                out += "\\title{\(tex(displayTitle(m)))}\n"
+                let subtitleTex = (m.subtitle?.isEmpty == false)
+                    ? " \\\\ \\large \(tex(m.subtitle ?? ""))" : ""
+                out += "\\title{\(tex(displayTitle(m)))\(subtitleTex)}\n"
                 if separateAuthors {
                     // The byline renders from its own item — a removed
                     // authors item makes a blind copy, so keep \author empty.
@@ -955,14 +957,28 @@ private struct OutlineBuilder {
                 titleLine.addAttribute(.paragraphStyle, value: para, range: titleRange)
             }
             doc.append(titleLine)
-            if !m.runningTitle.isEmpty {
-                // Subtitle: one heading level below the title when the
-                // title uses levels; the quiet meta line otherwise.
+            if let subtitle = m.subtitle, !subtitle.isEmpty {
+                // Subtitle: one heading level below the title (H+1) when
+                // the title uses levels; a +2 quiet size otherwise.
                 let subFont: NSFont = hs.level != nil
                     ? scaled(ExportItem.HeadingStyle.sizeDelta(forLevel: min(hs.effectiveLevel + 1, 3)),
                              bold: false)
-                    : meta
-                doc.append(line("Running title: \(m.runningTitle)", font: subFont, color: .darkGray, after: 8))
+                    : scaled(2, bold: false)
+                let subLine = NSMutableAttributedString(attributedString:
+                    line(subtitle, font: subFont, after: 8))
+                if hs.centered,
+                   let para = (subLine.attribute(.paragraphStyle, at: 0, effectiveRange: nil)
+                        as? NSParagraphStyle)?.mutableCopy() as? NSMutableParagraphStyle {
+                    para.alignment = .center
+                    subLine.addAttribute(.paragraphStyle, value: para,
+                                         range: NSRange(location: 0, length: subLine.length))
+                }
+                doc.append(subLine)
+            }
+            if !m.runningTitle.isEmpty {
+                // Running title is page-header METADATA, not a subtitle —
+                // it keeps its quiet labeled line.
+                doc.append(line("Running title: \(m.runningTitle)", font: meta, color: .darkGray, after: 8))
             }
             if !separateAuthors { doc.append(authorsBlock(item, content: m)) }
             doc.append(spacer())

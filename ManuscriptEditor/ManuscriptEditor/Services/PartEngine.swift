@@ -36,6 +36,7 @@ enum PartEngine {
     /// Everything "/" offers, with the label shown in the picker.
     static let catalog: [(path: String, label: String)] = [
         ("title", "Title — article title"),
+        ("title.subtitle", "Title — subtitle"),
         ("title.running", "Title — running title"),
         ("title.project", "Title — project name"),
         ("keywords", "Keywords"),
@@ -65,7 +66,8 @@ enum PartEngine {
     static func children(of path: String) -> [(path: String, label: String)] {
         switch path {
         case "title":
-            return [("title.running", "Running title"),
+            return [("title.subtitle", "Subtitle"),
+                    ("title.running", "Running title"),
                     ("title.project", "Project name")]
         case "authors":
             return [("authors.names", "Names only"),
@@ -156,6 +158,9 @@ enum PartEngine {
             let article = (m.articleTitle ?? "").trimmingCharacters(in: .whitespaces)
             let title = article.isEmpty ? m.title : article
             return title.isEmpty ? [] : [(title, false)]
+        case "title.subtitle":
+            let sub = (m.subtitle ?? "").trimmingCharacters(in: .whitespaces)
+            return sub.isEmpty ? [] : [(sub, false)]
         case "title.running":
             return m.runningTitle.isEmpty ? [] : [(m.runningTitle, false)]
         case "title.project":

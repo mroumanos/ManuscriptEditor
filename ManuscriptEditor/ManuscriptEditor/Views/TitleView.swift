@@ -17,6 +17,7 @@ struct TitleView: View {
 
     @State private var articleTitle = ""
     @State private var runningTitle = ""
+    @State private var subtitle = ""
 
     private var target: Manuscript? { store.manuscript(for: versionRef) }
 
@@ -40,6 +41,19 @@ struct TitleView: View {
                 }
 
                 VStack(alignment: .leading, spacing: 6) {
+                    Text("Subtitle").font(.headline)
+                    TextField("Optional subtitle, printed under the title", text: $subtitle, axis: .vertical)
+                        .textFieldStyle(.roundedBorder)
+                        .lineLimit(1...3)
+                        .onChange(of: subtitle) { _, new in
+                            store.updateSubtitle(new, ref: versionRef)
+                        }
+                    Text("Rendered on the title page one heading level below the title.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
                     Text("Running title").font(.headline)
                     TextField("Shortened title for page headers (often ≤ 50 characters)", text: $runningTitle)
                         .textFieldStyle(.roundedBorder)
@@ -57,11 +71,13 @@ struct TitleView: View {
         .frame(maxWidth: .infinity, alignment: .topLeading)
         .onAppear { syncDrafts() }
         .onChange(of: target?.articleTitle) { _, _ in syncDrafts() }
+        .onChange(of: target?.subtitle)     { _, _ in syncDrafts() }
     }
 
     private func syncDrafts() {
         guard let m = target else { return }
         if articleTitle != (m.articleTitle ?? "") { articleTitle = m.articleTitle ?? "" }
         if runningTitle != m.runningTitle { runningTitle = m.runningTitle }
+        if subtitle != (m.subtitle ?? "") { subtitle = m.subtitle ?? "" }
     }
 }
