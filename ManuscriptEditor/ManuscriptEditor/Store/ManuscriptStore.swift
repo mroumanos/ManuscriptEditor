@@ -765,6 +765,14 @@ final class ManuscriptStore {
             .sorted { $0.createdAt < $1.createdAt }
     }
 
+    /// Unresolved notes on an item — the sidebar badge hides once every
+    /// comment is checked off (resolved = done, no attention needed).
+    func openNoteCount(versionKey: String, itemKey: String) -> Int {
+        (manuscript?.notes ?? []).reduce(0) {
+            $0 + (($1.versionKey == versionKey && $1.itemKey == itemKey && !$1.resolved) ? 1 : 0)
+        }
+    }
+
     /// Total notes on a content item (used for the badge count).
     func noteCount(versionKey: String, itemKey: String) -> Int {
         (manuscript?.notes ?? []).reduce(0) {

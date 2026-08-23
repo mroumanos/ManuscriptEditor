@@ -141,10 +141,24 @@ struct SidebarView: View {
     @ViewBuilder
     private var journalSection: some View {
         Section("Journal") {
-            row(SidebarItem.checks, "Checks", "checklist")
+            row(SidebarItem.checks, checksTitle, "checklist")
             row(SidebarItem.export, "Export", "square.and.arrow.up")
             row(SidebarItem.versions, "Versions (\(versionCount))", "arrow.triangle.branch")
         }
+    }
+
+    /// "Checks (86%)" — the active journal's live pass rate; plain
+    /// "Checks" for Source or when nothing is configured.
+    private var checksTitle: String {
+        guard case .version(let id) = activeRef,
+              let jid = store.versions.first(where: { $0.id == id })?.journalID,
+              let journal = store.manuscript?.journals.first(where: { $0.id == jid }),
+              let content = store.manuscript(for: activeRef)
+        else { return "Checks" }
+        let results = ChecklistService.run(manuscript: content, journal: journal)
+        guard !results.isEmpty else { return "Checks" }
+        let pct = Int((Double(results.filter(\.passed).count) / Double(results.count) * 100).rounded())
+        return "Checks (\(pct)%)"
     }
 
     /// A sidebar row: label plus the trailing comment bubble (only once the
@@ -158,11 +172,12 @@ struct SidebarView: View {
         .tag(item)
     }
 
-    /// Blue comment bubble opening the notes popover, shown only when the
-    /// item has comments in the active version.
+    /// Blue comment bubble opening the notes popover — shown only while the
+    /// item has UNRESOLVED comments in the active version (checked-off
+    /// comments are done and need no attention flag).
     @ViewBuilder
     private func notesBadge(_ item: SidebarItem) -> some View {
-        if store.noteCount(versionKey: activeRef.id, itemKey: item.notesKey) > 0 {
+        if store.openNoteCount(versionKey: activeRef.id, itemKey: item.notesKey) > 0 {
             NotesButton(versionKey: activeRef.id, itemKey: item.notesKey,
                         idleColor: .blue)
         }
