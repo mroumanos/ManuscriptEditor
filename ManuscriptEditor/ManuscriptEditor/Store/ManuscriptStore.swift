@@ -850,13 +850,26 @@ final class ManuscriptStore {
     /// one, or the standard pre-configured outline derived from the content.
     func exportConfig(forJournal journalID: UUID?) -> ExportConfig {
         guard let m = manuscript else { return ExportConfig(documents: []) }
+        var config: ExportConfig
         if let journalID {
             let journal = m.journals.first { $0.id == journalID }
-            if let stored = journal?.exportConfig { return stored }
-            let content = latestVersion(forJournal: journalID)?.content ?? m
-            return .standard(content: content, journal: journal)
+            if let stored = journal?.exportConfig {
+                config = stored
+            } else {
+                let content = latestVersion(forJournal: journalID)?.content ?? m
+                config = .standard(content: content, journal: journal)
+            }
+        } else {
+            config = m.sourceExportConfig ?? .standard(content: m, journal: nil)
         }
-        return m.sourceExportConfig ?? .standard(content: m, journal: nil)
+        // Every document leads with a pinned Section — the format anchor;
+        // configs saved before sections existed gain one here.
+        for i in config.documents.indices
+            where !config.documents[i].items.isEmpty
+                && config.documents[i].items.first?.kind != .pageBreak {
+            config.documents[i].items.insert(ExportItem(kind: .pageBreak), at: 0)
+        }
+        return config
     }
 
     /// Persists a (customized) export outline for a journal or the Source.

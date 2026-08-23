@@ -597,14 +597,23 @@ private struct ExportDocumentCard: View {
     @ViewBuilder
     private func itemRow(_ item: ExportItem, index: Int) -> some View {
         HStack(spacing: 8) {
-            dragHandle(item)
+            if index == 0 && item.kind == .pageBreak {
+                // The document's first Section is pinned: it anchors the
+                // format settings and can't be moved or removed.
+                Image(systemName: "pin")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .frame(width: 16)
+                    .help("The first Section is pinned — it anchors this document's format")
+            } else {
+                dragHandle(item)
+            }
             Image(systemName: item.systemImage)
                 .foregroundStyle(item.kind == .pageBreak ? Color.secondary : Color.accentColor)
                 .frame(width: 20)
 
             if item.kind == .pageBreak {
                 line
-                Text("Section").font(.caption.weight(.medium)).foregroundStyle(.secondary)
                 // Geometry for the pages AFTER this boundary; values show
                 // the effective setting (inheriting the document's until
                 // touched).
@@ -786,15 +795,17 @@ private struct ExportDocumentCard: View {
                 formatColumns(item, index: index)
             }
 
-            Button {
-                var doc = document
-                doc.items.remove(at: index)
-                onChange(doc)
-            } label: {
-                Image(systemName: "xmark.circle.fill").foregroundStyle(.tertiary).font(.caption)
+            if !(index == 0 && item.kind == .pageBreak) {
+                Button {
+                    var doc = document
+                    doc.items.remove(at: index)
+                    onChange(doc)
+                } label: {
+                    Image(systemName: "xmark.circle.fill").foregroundStyle(.tertiary).font(.caption)
+                }
+                .buttonStyle(.plain)
+                .help("Remove from this document")
             }
-            .buttonStyle(.plain)
-            .help("Remove from this document")
         }
         .padding(.horizontal, 12)
         .padding(.vertical, item.kind == .pageBreak ? 4 : 6)
@@ -946,6 +957,8 @@ private struct ExportDocumentCard: View {
         guard let from = doc.items.firstIndex(where: { $0.id == draggedID }),
               let to = doc.items.firstIndex(where: { $0.id == targetID }),
               from != to else { return }
+        // The pinned first Section neither moves nor accepts items above it.
+        if doc.items.first?.kind == .pageBreak, from == 0 || to == 0 { return }
         withAnimation(.easeInOut(duration: 0.15)) {
             doc.items.move(fromOffsets: IndexSet(integer: from), toOffset: to > from ? to + 1 : to)
             onChange(doc)
@@ -999,7 +1012,7 @@ private struct ExportDocumentCard: View {
             Button {
                 append(ExportItem(kind: .pageBreak))
             } label: {
-                Label("Section Break", systemImage: "arrow.down.to.line.compact")
+                Label("Add a Section", systemImage: "arrow.down.to.line.compact")
             }
         } label: {
             Label("Add Item", systemImage: "plus")
