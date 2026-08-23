@@ -924,13 +924,45 @@ private struct OutlineBuilder {
         switch item.kind {
         case .titlePage:
             let doc = NSMutableAttributedString()
-            // An explicit Size on the item wins outright; otherwise the
-            // classic document-font + 8 pt title.
-            doc.append(line(displayTitle(m),
-                            font: titleExactSize ? scaled(0, bold: true) : title,
-                            after: 8))
+            // The title uses the standard heading system: its item's H
+            // level (H1 = body+4 …) / typed size when set, else the item's
+            // Size override, else the classic document-font + 8 pt.
+            let hs = item.effectiveHeadingStyle
+            let titleFont: NSFont
+            if hs.level != nil {
+                titleFont = scaled(ExportItem.HeadingStyle.sizeDelta(forLevel: hs.effectiveLevel),
+                                   bold: hs.bold)
+            } else if let pt = hs.pointSize {
+                var sized = NSFont(descriptor: base.fontDescriptor, size: pt) ?? base
+                if hs.bold { sized = NSFontManager.shared.convert(sized, toHaveTrait: .boldFontMask) }
+                titleFont = sized
+            } else if titleExactSize {
+                titleFont = scaled(0, bold: hs.bold)
+            } else {
+                titleFont = title
+            }
+            let titleLine = NSMutableAttributedString(attributedString:
+                line(displayTitle(m), font: titleFont, after: 8))
+            let titleRange = NSRange(location: 0, length: titleLine.length)
+            if hs.underline {
+                titleLine.addAttribute(.underlineStyle,
+                                       value: NSUnderlineStyle.single.rawValue, range: titleRange)
+            }
+            if hs.centered,
+               let para = (titleLine.attribute(.paragraphStyle, at: 0, effectiveRange: nil)
+                    as? NSParagraphStyle)?.mutableCopy() as? NSMutableParagraphStyle {
+                para.alignment = .center
+                titleLine.addAttribute(.paragraphStyle, value: para, range: titleRange)
+            }
+            doc.append(titleLine)
             if !m.runningTitle.isEmpty {
-                doc.append(line("Running title: \(m.runningTitle)", font: meta, color: .darkGray, after: 8))
+                // Subtitle: one heading level below the title when the
+                // title uses levels; the quiet meta line otherwise.
+                let subFont: NSFont = hs.level != nil
+                    ? scaled(ExportItem.HeadingStyle.sizeDelta(forLevel: min(hs.effectiveLevel + 1, 3)),
+                             bold: false)
+                    : meta
+                doc.append(line("Running title: \(m.runningTitle)", font: subFont, color: .darkGray, after: 8))
             }
             if !separateAuthors { doc.append(authorsBlock(item, content: m)) }
             doc.append(spacer())

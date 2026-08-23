@@ -466,6 +466,11 @@ private struct ExportDocumentCard: View {
                     if item.titleShown {
                         headingStyleControls(item, index: index)
                     }
+                } else if item.kind == .titlePage
+                            && document.items.contains(where: { $0.kind == .authors }) {
+                    // Title-only item: the standard heading controls size it
+                    // (H1/H2/H3 off the document font, bold/underline/center).
+                    headingStyleControls(item, index: index)
                 } else if item.kind == .authors
                             || !document.items.contains(where: { $0.kind == .authors }) {
                     // Append the authors' credentials ("Jane Doe, MD") to

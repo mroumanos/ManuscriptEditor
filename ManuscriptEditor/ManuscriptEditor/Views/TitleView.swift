@@ -50,14 +50,6 @@ struct TitleView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-
-                Divider()
-
-                Text("The project name — \"\(store.manuscript?.title ?? "")\" — names the folder and Welcome-screen entry; change it via File → Manage Manuscripts…")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-
-                Spacer(minLength: 0)
             }
             .padding(24)
             .frame(maxWidth: 720, alignment: .leading)
