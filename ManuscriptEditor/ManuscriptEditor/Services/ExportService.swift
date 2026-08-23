@@ -407,11 +407,7 @@ struct ExportService {
                         out += "\(prefix)\\textit{\(tex(l))}\\\\\n"
                     }
                     if item.correspondingShown, authors.contains(where: \.isCorresponding) {
-                        let details = authors.filter(\.isCorresponding)
-                            .compactMap(\.correspondingDetails)
-                            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-                            .filter { !$0.isEmpty }.joined(separator: "; ")
-                        out += "\\textsuperscript{*} Corresponding author\(details.isEmpty ? "" : " — \(tex(details))")\\\\\n"
+                        out += "\\textsuperscript{*} Corresponding author\\\\\n"
                     }
                     out += "\\end{center}\n"
                 }
@@ -912,14 +908,9 @@ private struct OutlineBuilder {
         }
         // "* Corresponding author" footnote — a line like the institutions'.
         if item.correspondingShown, authors.contains(where: \.isCorresponding) {
-            let details = authors.filter(\.isCorresponding)
-                .compactMap(\.correspondingDetails)
-                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-                .filter { !$0.isEmpty }.joined(separator: "; ")
             doc.append(markerRun("*", para: metaAttrs[.paragraphStyle] as! NSParagraphStyle))
-            doc.append(NSAttributedString(
-                string: " Corresponding author" + (details.isEmpty ? "" : " — \(details)") + "\n",
-                attributes: metaAttrs))
+            doc.append(NSAttributedString(string: " Corresponding author\n",
+                                          attributes: metaAttrs))
         }
         return doc
     }

@@ -178,12 +178,9 @@ enum PartEngine {
                 }
             }
             if !corresponding.isEmpty {
-                let details = corresponding.compactMap(\.correspondingDetails)
-                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-                    .filter { !$0.isEmpty }.joined(separator: "; ")
                 out.append(("\n", false))
                 out.append(("*", true))
-                out.append((" Corresponding author" + (details.isEmpty ? "" : " — \(details)"), false))
+                out.append((" Corresponding author", false))
             }
             return out
         case "authors.names":
