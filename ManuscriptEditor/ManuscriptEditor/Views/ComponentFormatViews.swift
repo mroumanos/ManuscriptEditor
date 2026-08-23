@@ -10,8 +10,8 @@
 //     the title's heading look).  Sits in list components' bottom bars
 //     (Authors, Bibliography, Keywords) and in the pane header for
 //     components without one (Title, Figures, Tables).
-//   ComponentHeadingToggle — the pane-header "H" button (left edge): a
-//     popover with the printed heading's on/off switch and full style set
+//   ComponentHeadingToggle — the pane-header "H" on/off button (left
+//     edge) with the heading's style set to its immediate right while on
 //     (bold/underline/center, H1–H3 level).
 //   ComponentHeadingRow — while the heading is on, its text sits on a
 //     single line right below the button (empty = the component's name),
@@ -284,8 +284,8 @@ struct HeadingStyleControls: View {
 
 // MARK: - ComponentHeadingToggle
 
-/// Pane-header "H" button: pops the printed heading's options — on/off plus
-/// the full style set the Export page used to carry (bold, underline,
+/// Pane-header heading controls: an "H" on/off button at the left edge,
+/// with the style set to its immediate right while on (bold/underline/
 /// center, H1–H3 level).  Hidden for components whose export can't carry a
 /// heading (the title page IS the heading; the byline never prints one).
 struct ComponentHeadingToggle: View {
@@ -294,54 +294,33 @@ struct ComponentHeadingToggle: View {
     let item: SidebarItem
     let versionRef: VersionRef
 
-    @State private var showing = false
-
     var body: some View {
         if let entry = componentExportEntry(store, item: item, ref: versionRef),
            entry.kind != .titlePage, entry.kind != .authors {
-            Button {
-                showing = true
-            } label: {
-                Image(systemName: entry.titleShown ? "h.square.fill" : "h.square")
-                    .foregroundStyle(entry.titleShown
-                        ? Color.accentColor : Color(nsColor: .tertiaryLabelColor))
-            }
-            .buttonStyle(.borderless)
-            .help("Printed heading for this component — on/off and style")
-            .popover(isPresented: $showing, arrowEdge: .bottom) {
-                popover(entry)
-            }
-        }
-    }
-
-    private func mutateItem(_ change: @escaping (inout ExportItem) -> Void) {
-        store.updateExportEntry(for: item, ref: versionRef, mutateItem: change)
-    }
-
-    private func popover(_ entry: ExportItem) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Toggle("Print heading", isOn: Binding(
-                get: { entry.titleShown },
-                set: { on in mutateItem { $0.titleShown = on } }
-            ))
-            .toggleStyle(.switch)
-            .controlSize(.small)
-            .help("Include this component's heading in the export (content always exports)")
-            if entry.titleShown {
-                HeadingStyleControls(style: entry.effectiveHeadingStyle, showLevel: true) { change in
-                    mutateItem { itm in
-                        var hs = itm.effectiveHeadingStyle
-                        change(&hs)
-                        itm.headingStyle = hs
+            HStack(spacing: 6) {
+                Button {
+                    store.updateExportEntry(for: item, ref: versionRef,
+                                            mutateItem: { $0.titleShown.toggle() })
+                } label: {
+                    Image(systemName: entry.titleShown ? "h.square.fill" : "h.square")
+                        .foregroundStyle(entry.titleShown
+                            ? Color.accentColor : Color(nsColor: .tertiaryLabelColor))
+                }
+                .buttonStyle(.borderless)
+                .help(entry.titleShown
+                      ? "Heading prints in the export — click to hide it (content always exports)"
+                      : "Heading hidden in the export — click to print it")
+                if entry.titleShown {
+                    HeadingStyleControls(style: entry.effectiveHeadingStyle, showLevel: true) { change in
+                        store.updateExportEntry(for: item, ref: versionRef, mutateItem: { itm in
+                            var hs = itm.effectiveHeadingStyle
+                            change(&hs)
+                            itm.headingStyle = hs
+                        })
                     }
                 }
-                Text("Edit the heading's text in the line below the button.")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
             }
         }
-        .padding(12)
-        .frame(width: 220)
     }
 }
 

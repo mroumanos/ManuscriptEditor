@@ -570,10 +570,11 @@ just a rendered blob.
   so ids stay stable while editing).
 - AC (implemented): **The Export page reviews; components edit** (Aug 2026
   redesign). A document card is just the output file — **name and file type**
-  — and each item row is a **read-only formatting review in inactive grey**:
-  aligned **Font · Size · Head** columns show every component's
-  effective format at a glance (right-click → "Reset Formatting to
-  Document"). The outline itself (add/remove/reorder, Section rows with
+  — and each item row carries a **read-only, right-justified formatting
+  summary in inactive grey** — "+header H2 / Times / 12pt / 2× spacing",
+  with the component's own options up front ("APA style" on References;
+  delimiter/markers/+corr/+cred on Authors) — so one glance reviews every
+  component (right-click → "Reset Formatting to Document"). The outline itself (add/remove/reorder, Section rows with
   margins/columns/line numbers) still edits here, and it reloads live
   whenever a component changes its formatting, so the review and Preview
   never go stale. **Title and Authors are separate items** (Aug 2026):
@@ -608,13 +609,14 @@ just a rendered blob.
   - **Text editors** (Abstract, body sections, cover letter): the editor's
     **toolbar** carries font family/size (the item's override) and spacing
     (document-uniform).
-  - **Every component pane** has an **"H" heading button at the header's
-    left edge** whose popover holds everything the Export page used to:
-    a Print-heading switch plus bold/underline/center and the **H1→H3
-    level** (`ComponentHeadingToggle`). While the heading is on, its
-    **text sits on a single line right below the button** (empty = the
-    component's name), reflects the style live, and stays within the
-    editor's margin-ruler bounds (`ComponentHeadingRow`).
+  - **Every component pane** has an **"H" on/off button at the header's
+    left edge** with the heading's style set to its **immediate right**
+    while on — bold/underline/center and the **H1→H3 level**
+    (`ComponentHeadingToggle`). The heading's **text sits on a single line
+    right below the button** (empty = the component's name), reflects the
+    style live, and stays within the editor's margin-ruler bounds
+    (`ComponentHeadingRow`). A section **deactivated in the journal hides
+    its heading controls** — it exports nothing there.
   - **List components** (Authors, Bibliography, Keywords) carry a **settings
     gear** in their bottom bar (`ComponentSettingsButton`): typography plus
     the component's own options — the byline's delimiter ("a; b"), marker

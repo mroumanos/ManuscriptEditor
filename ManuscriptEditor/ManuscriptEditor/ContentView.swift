@@ -447,9 +447,13 @@ struct ContentView: View {
     private func versionPane(_ ref: VersionRef, item: SidebarItem) -> some View {
         VStack(spacing: 0) {
             HStack(spacing: 8) {
-                // Heading on/off lives at the pane's left edge; turning it on
-                // reveals the printed-heading row below.
-                ComponentHeadingToggle(item: item, versionRef: ref)
+                // Heading on/off lives at the pane's left edge (style
+                // controls to its right; the text row below).  A section
+                // deactivated in this journal doesn't export, so its
+                // heading controls disappear with it.
+                if !sectionDeactivated(item: item, ref: ref) {
+                    ComponentHeadingToggle(item: item, versionRef: ref)
+                }
                 deactivatedBadge(item: item, ref: ref)
                 Spacer()
                 if let words = wordCount(for: item, ref: ref) {
@@ -473,11 +477,20 @@ struct ContentView: View {
             .padding(.trailing, 12)
             .padding(.vertical, 7)
 
-            ComponentHeadingRow(item: item, versionRef: ref)
+            if !sectionDeactivated(item: item, ref: ref) {
+                ComponentHeadingRow(item: item, versionRef: ref)
+            }
 
             contentView(for: item, ref: ref)
         }
         .id(ref)
+    }
+
+    /// True for a section pane switched off in this journal — it exports
+    /// nothing there, so export-facing controls hide with it.
+    private func sectionDeactivated(item: SidebarItem, ref: VersionRef) -> Bool {
+        guard case .section(let id) = item else { return false }
+        return !(resolvedSection(id, ref)?.active ?? true)
     }
 
     /// Components whose export settings gear lives in the pane header —

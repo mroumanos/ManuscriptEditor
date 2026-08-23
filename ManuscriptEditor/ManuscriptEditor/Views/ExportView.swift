@@ -551,12 +551,6 @@ private struct ExportDocumentCard: View {
 
     // MARK: items
 
-    /// Fixed widths so the per-item format controls align as columns.
-    private var colFont: CGFloat { 108 }
-    private var colSize: CGFloat { 62 }
-    private var colSpacing: CGFloat { 72 }
-    private var colHead: CGFloat { 40 }
-
     private var itemsList: some View {
         VStack(spacing: 0) {
             if document.items.isEmpty {
@@ -564,9 +558,6 @@ private struct ExportDocumentCard: View {
                     .font(.callout)
                     .foregroundStyle(.tertiary)
                     .padding(10)
-            } else {
-                columnHeader
-                Divider()
             }
             ForEach(Array(document.items.enumerated()), id: \.element.id) { index, item in
                 itemRow(item, index: index)
@@ -575,23 +566,6 @@ private struct ExportDocumentCard: View {
                 }
             }
         }
-    }
-
-    /// Column titles above the per-item format controls.
-    private var columnHeader: some View {
-        HStack(spacing: 8) {
-            Color.clear.frame(width: 16 + 20 + 8, height: 1)   // handle + icon
-            Text("Item")
-            Spacer(minLength: 4)
-            Text("Font").frame(width: colFont)
-            Text("Size").frame(width: colSize)
-            Text("Head").frame(width: colHead)
-            Color.clear.frame(width: 16, height: 1)            // remove button
-        }
-        .font(.caption2.weight(.semibold))
-        .foregroundStyle(.secondary)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 5)
     }
 
     @ViewBuilder
@@ -680,8 +654,12 @@ private struct ExportDocumentCard: View {
                     .font(.callout)
                     .foregroundStyle(item.titleShown ? Color.secondary : Color(nsColor: .tertiaryLabelColor))
                     .help(item.titleShown ? "" : "Heading hidden in the export (content still exports)")
-                Spacer(minLength: 4)
-                formatColumns(item, index: index)
+                Spacer(minLength: 8)
+                Text(formatSummary(item))
+                    .font(.caption)
+                    .foregroundStyle(Color(nsColor: .secondaryLabelColor))
+                    .lineLimit(1)
+                    .help("Formatting review (read-only) — edit on the component: its toolbar, heading controls, or settings gear")
             }
 
             if !(index == 0 && item.kind == .pageBreak) {
@@ -716,30 +694,59 @@ private struct ExportDocumentCard: View {
         }
     }
 
-    /// Read-only formatting review, aligned under the column header and
-    /// rendered in an inactive grey: one glance covers every component's
-    /// effective font, size, heading, and line numbering.  Editing happens
-    /// on the components (toolbar, heading row, settings button).
-    private func formatColumns(_ item: ExportItem, index: Int) -> some View {
+    /// One-line, right-justified formatting review in inactive grey —
+    /// "+header H2 / Times / 12pt / 2× spacing" — with the component's own
+    /// options up front (citation style, byline delimiter/markers).
+    /// Editing happens on the component itself.
+    private func formatSummary(_ item: ExportItem) -> String {
+        var parts: [String] = []
+        switch item.kind {
+        case .references:
+            switch item.citationStyle {
+            case nil:                               parts.append("journal style")
+            case "apa":                             parts.append("APA style")
+            case "american-medical-association":    parts.append("AMA style")
+            case "vancouver":                       parts.append("Vancouver style")
+            case "modern-language-association":     parts.append("MLA style")
+            case "chicago-author-date":             parts.append("Chicago style")
+            case "harvard-cite-them-right":         parts.append("Harvard style")
+            case .some(let other):                  parts.append(other)
+            }
+        case .authors:
+            switch item.authorDelimiter ?? "semicolon" {
+            case "comma":   parts.append("\",\" delimiter")
+            case "space":   parts.append("space delimiter")
+            case "slash":   parts.append("\"/\" delimiter")
+            case "hyphen":  parts.append("\"-\" delimiter")
+            case "newline": parts.append("⏎ delimiter")
+            default:        parts.append("\";\" delimiter")
+            }
+            switch item.affiliationMarker ?? "superscript" {
+            case "superscript": parts.append("a¹ markers")
+            case "none":        parts.append("no markers")
+            default:            parts.append("a† markers")
+            }
+            if item.correspondingShown { parts.append("+corr") }
+            if item.authorTitlesShown { parts.append("+cred") }
+        default:
+            break
+        }
+        switch item.kind {
+        case .titlePage:
+            parts.append("H\(item.effectiveHeadingStyle.effectiveLevel) title")
+        case .authors:
+            break
+        default:
+            parts.append(item.titleShown
+                         ? "+header H\(item.effectiveHeadingStyle.effectiveLevel)"
+                         : "no header")
+        }
         let font = item.format?.fontFamily ?? document.format.fontFamily
         let size = Int((item.format?.fontSize ?? document.format.fontSize).rounded())
-        let heading: String = switch item.kind {
-        case .titlePage: "H\(item.effectiveHeadingStyle.effectiveLevel)"
-        case .authors:   "—"
-        default:         item.titleShown ? "H\(item.effectiveHeadingStyle.effectiveLevel)" : "off"
-        }
-        return HStack(spacing: 8) {
-            Text(font.shortLabel)
-                .frame(width: colFont, alignment: .leading)
-            Text("\(size)")
-                .monospacedDigit()
-                .frame(width: colSize, alignment: .trailing)
-            Text(heading)
-                .frame(width: colHead, alignment: .center)
-        }
-        .font(.caption)
-        .foregroundStyle(Color(nsColor: .secondaryLabelColor))
-        .help("Formatting review (read-only) — edit on the component: its toolbar, heading row, or settings button")
+        parts.append(font.shortLabel)
+        parts.append("\(size)pt")
+        parts.append("\(String(format: "%g", document.format.lineSpacing))× spacing")
+        return parts.joined(separator: " / ")
     }
 
     /// The three-line grab handle: drag it to reorder items.
