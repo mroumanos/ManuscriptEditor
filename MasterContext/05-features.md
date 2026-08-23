@@ -587,6 +587,13 @@ just a rendered blob.
   document-level (page geometry). PDF line numbering follows the per-item
   effective format (attribute-driven); LaTeX emits
   `\linenumbers`/`\nolinenumbers` transitions.
+- AC (implemented): **Export preview** (Aug 2026). A Preview button beside
+  the export action renders the outline through the REAL pipeline
+  (`previewPDF`: same segments + `PDFPaginator`) into a PDFKit sheet —
+  per-document segmented picker, continuous pages, auto-scaled. Non-PDF
+  documents preview their layout as PDF (same typography/margins/
+  pagination). Closes the editor↔export WYSIWYG gap without merging the
+  formatting layers.
 - AC (implemented): **Headings in output** get a blank line before and after,
   and are **capitalized by default** (first letter; applies to renamed/custom
   titles too, in attributed output and LaTeX alike).

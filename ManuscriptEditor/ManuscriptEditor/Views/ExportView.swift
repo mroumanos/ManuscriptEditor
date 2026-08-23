@@ -21,6 +21,7 @@
 
 import SwiftUI
 import AppKit
+import PDFKit
 import UniformTypeIdentifiers
 
 struct ExportView: View {
@@ -32,6 +33,8 @@ struct ExportView: View {
     var versionRef: VersionRef? = nil
 
     @State private var lastPackage: URL?
+    /// Drives the export-preview sheet (real pipeline → PDFKit).
+    @State private var showingPreview = false
     @State private var errorMessage: String?
     /// The journal being saved into the global library (drives the sheet).
     @State private var savingToLibrary: Journal?
@@ -92,6 +95,15 @@ struct ExportView: View {
                     Spacer()
 
                     Button {
+                        showingPreview = true
+                    } label: {
+                        Label("Preview", systemImage: "eye")
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(exportContent == nil || config.documents.allSatisfy(\.items.isEmpty))
+                    .help("Render the export exactly as the pipeline will produce it")
+
+                    Button {
                         runExport()
                     } label: {
                         Label("Choose Folder & Export…", systemImage: "square.and.arrow.up")
@@ -130,6 +142,22 @@ struct ExportView: View {
         .onAppear { reloadConfig() }
         .onChange(of: journalID) { _, _ in reloadConfig() }
         .onChange(of: store.manuscript?.id) { _, _ in reloadConfig() }
+        .sheet(isPresented: $showingPreview) {
+            if let content = exportContent {
+                let style = journals.first { $0.id == journalID }?
+                    .requirements.citationStyle.cslID ?? "apa"
+                ExportPreviewSheet(
+                    documents: config.documents.filter { !$0.items.isEmpty },
+                    isPresented: $showingPreview,
+                    render: { document in
+                        service.previewPDF(document: document, content: content,
+                                           citationStyleDefault: style,
+                                           figureURL: { store.figureURL(for: $0) },
+                                           chartImage: { ExportRendering.chartImage(for: $0, store: store) },
+                                           tableData: { ExportRendering.tableData(for: $0, store: store) })
+                    })
+            }
+        }
         .sheet(item: $savingToLibrary) { journal in
             SaveToJournalLibrarySheet(journal: journal, isPresented: Binding(
                 get: { savingToLibrary != nil },
@@ -270,6 +298,90 @@ enum ExportRendering {
         let result = store.runQuery(table.dataQuery ?? "SELECT * FROM data", for: asset)
         return result.errorMessage == nil ? result : nil
     }
+}
+
+// MARK: - ExportPreviewSheet
+
+/// The export rendered through the REAL pipeline (segments + paginator)
+/// into a PDFKit view — what the output will actually look like, per
+/// document.  Documents with non-PDF file types preview their layout as
+/// PDF (same typography, margins, and pagination).
+private struct ExportPreviewSheet: View {
+    let documents: [ExportDocument]
+    @Binding var isPresented: Bool
+    let render: (ExportDocument) -> Data
+
+    @State private var selectedID: UUID?
+    @State private var pdfData: Data?
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 12) {
+                if documents.count > 1 {
+                    Picker("", selection: $selectedID) {
+                        ForEach(documents) { document in
+                            Text(document.name).tag(Optional(document.id))
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .fixedSize()
+                } else {
+                    Text(documents.first?.name ?? "Preview").font(.headline)
+                }
+                Text("rendered with the export pipeline")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button("Done") { isPresented = false }
+                    .keyboardShortcut(.cancelAction)
+            }
+            .padding(12)
+            Divider()
+            if let pdfData {
+                PDFKitView(data: pdfData)
+            } else {
+                ProgressView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+        .frame(width: 780, height: 860)
+        .onAppear {
+            selectedID = documents.first?.id
+            renderSelected()
+        }
+        .onChange(of: selectedID) { _, _ in renderSelected() }
+    }
+
+    private func renderSelected() {
+        guard let document = documents.first(where: { $0.id == selectedID }) else { return }
+        pdfData = nil
+        // Next runloop tick so the spinner paints before the render blocks.
+        DispatchQueue.main.async { pdfData = render(document) }
+    }
+}
+
+/// PDFKit host — auto-scaling, continuous-page view of the rendered data.
+private struct PDFKitView: NSViewRepresentable {
+    let data: Data
+
+    func makeNSView(context: Context) -> PDFView {
+        let view = PDFView()
+        view.autoScales = true
+        view.displayMode = .singlePageContinuous
+        view.document = PDFDocument(data: data)
+        context.coordinator.lastCount = data.count
+        return view
+    }
+
+    func updateNSView(_ view: PDFView, context: Context) {
+        guard context.coordinator.lastCount != data.count else { return }
+        context.coordinator.lastCount = data.count
+        view.document = PDFDocument(data: data)
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+    final class Coordinator { var lastCount = -1 }
 }
 
 // MARK: - ExportDocumentCard

@@ -286,6 +286,22 @@ struct ExportService {
         return folder
     }
 
+    /// Renders one document to PDF data for the on-screen preview — the
+    /// same segments + paginator the real export uses, regardless of the
+    /// document's file type (a DOCX document previews its layout as PDF).
+    func previewPDF(document: ExportDocument, content: Manuscript,
+                    citationStyleDefault: String = "apa",
+                    figureURL: @escaping (Figure) -> URL?,
+                    chartImage: ((Figure) -> NSImage?)? = nil,
+                    tableData: ((ManuscriptTable) -> QueryResult?)? = nil) -> Data {
+        let refContext = RefEngine.context(for: content)
+        let segments = pageSegments(for: document, content: content, refContext: refContext,
+                                    figureURL: figureURL, chartImage: chartImage,
+                                    tableData: tableData,
+                                    citationStyleDefault: citationStyleDefault)
+        return PDFPaginator(format: document.format).render(segments: segments)
+    }
+
     // MARK: Outline assembly (attributed)
 
     /// Renders a document's items into attributed segments; a new segment
