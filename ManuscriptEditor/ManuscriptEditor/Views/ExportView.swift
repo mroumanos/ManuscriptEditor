@@ -556,7 +556,6 @@ private struct ExportDocumentCard: View {
     private var colSize: CGFloat { 62 }
     private var colSpacing: CGFloat { 72 }
     private var colHead: CGFloat { 40 }
-    private var colLines: CGFloat { 40 }
 
     private var itemsList: some View {
         VStack(spacing: 0) {
@@ -587,7 +586,6 @@ private struct ExportDocumentCard: View {
             Text("Font").frame(width: colFont)
             Text("Size").frame(width: colSize)
             Text("Head").frame(width: colHead)
-            Text("Lines").frame(width: colLines)
             Color.clear.frame(width: 16, height: 1)            // remove button
         }
         .font(.caption2.weight(.semibold))
@@ -672,7 +670,7 @@ private struct ExportDocumentCard: View {
                     .labelsHidden()
                     .controlSize(.mini)
                 }
-                .help("Line numbering after this break (per-item Lines toggles still win)")
+                .help("Line numbering for the pages after this break")
                 line
             } else {
                 // Read-only review row: the component's printed heading and
@@ -725,7 +723,6 @@ private struct ExportDocumentCard: View {
     private func formatColumns(_ item: ExportItem, index: Int) -> some View {
         let font = item.format?.fontFamily ?? document.format.fontFamily
         let size = Int((item.format?.fontSize ?? document.format.fontSize).rounded())
-        let lines = item.format?.lineNumbers ?? document.format.lineNumbers
         let heading: String = switch item.kind {
         case .titlePage: "H\(item.effectiveHeadingStyle.effectiveLevel)"
         case .authors:   "—"
@@ -739,8 +736,6 @@ private struct ExportDocumentCard: View {
                 .frame(width: colSize, alignment: .trailing)
             Text(heading)
                 .frame(width: colHead, alignment: .center)
-            Text(lines ? "on" : "off")
-                .frame(width: colLines, alignment: .center)
         }
         .font(.caption)
         .foregroundStyle(Color(nsColor: .secondaryLabelColor))

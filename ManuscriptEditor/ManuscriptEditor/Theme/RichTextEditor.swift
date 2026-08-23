@@ -338,9 +338,9 @@ private struct FormatBar: View {
     }
 
     /// Export typography for this pane: font family and size (the item's
-    /// override), spacing (document-uniform), and the heading level while
-    /// the heading is shown.  The editor re-renders live (it displays the
-    /// document's typography scaled by the personal zoom).
+    /// override) and spacing (document-uniform).  The editor re-renders
+    /// live (it displays the document's typography scaled by the personal
+    /// zoom).  Heading options live in the pane header's "H" popover.
     @ViewBuilder
     private func typographyCluster(_ item: SidebarItem) -> some View {
         let format = store.effectiveExportFormat(for: item, ref: versionRef)
@@ -379,25 +379,6 @@ private struct FormatBar: View {
         }
         .labelsHidden().controlSize(.small).fixedSize()
         .help("Line spacing (document-uniform)")
-        if let entry = componentExportEntry(store, item: item, ref: versionRef),
-           entry.kind != .titlePage, entry.kind != .authors, entry.titleShown {
-            Button {
-                store.updateExportEntry(for: item, ref: versionRef, mutateItem: { itm in
-                    var hs = itm.effectiveHeadingStyle
-                    hs.level = hs.effectiveLevel % 3 + 1
-                    hs.pointSize = nil
-                    itm.headingStyle = hs
-                })
-            } label: {
-                Text("H\(entry.effectiveHeadingStyle.effectiveLevel)")
-                    .font(.caption.weight(.semibold).monospacedDigit())
-                    .foregroundStyle(Color.accentColor)
-                    .frame(width: 26, height: 24)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.borderless)
-            .help("Printed heading level — click to cycle H1 → H2 → H3")
-        }
     }
 
     private func mutateFormat(_ item: SidebarItem,

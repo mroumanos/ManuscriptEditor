@@ -43,11 +43,18 @@ enum ChecklistService {
             ?? ExportConfig.standard(content: manuscript, journal: journal)
         var typography: [(name: String, fontSize: Double, lineSpacing: Double, lineNumbers: Bool)] = []
         for document in exportConfig.documents {
-            for entry in document.items where entry.kind != .pageBreak {
+            // Line numbering is section-level: each break re-sets it for
+            // the entries after it (nil = inherit the document's).
+            var sectionLines = document.format.lineNumbers
+            for entry in document.items {
+                if entry.kind == .pageBreak {
+                    sectionLines = entry.sectionLineNumbers ?? document.format.lineNumbers
+                    continue
+                }
                 typography.append((entry.title(in: manuscript),
                                    entry.format?.fontSize ?? document.format.fontSize,
                                    document.format.lineSpacing,
-                                   entry.format?.lineNumbers ?? document.format.lineNumbers))
+                                   sectionLines))
             }
         }
         var results: [ChecklistResult] = []

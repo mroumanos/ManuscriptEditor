@@ -473,23 +473,11 @@ struct ContentView: View {
             .padding(.trailing, 12)
             .padding(.vertical, 7)
 
-            // Editor-backed panes carry the H1–H3 level in their toolbar,
-            // so their heading row skips it.
-            ComponentHeadingRow(item: item, versionRef: ref,
-                                showLevel: !editorBacked(item))
+            ComponentHeadingRow(item: item, versionRef: ref)
 
             contentView(for: item, ref: ref)
         }
         .id(ref)
-    }
-
-    /// Panes whose content view embeds a RichEditor (its toolbar carries the
-    /// export typography and heading level).
-    private func editorBacked(_ item: SidebarItem) -> Bool {
-        switch item {
-        case .abstract, .section, .letterToEditor: return true
-        default: return false
-        }
     }
 
     /// Components whose export settings gear lives in the pane header —

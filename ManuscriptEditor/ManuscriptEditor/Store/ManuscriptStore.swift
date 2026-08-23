@@ -845,12 +845,13 @@ final class ManuscriptStore {
                 if var override = config.documents[d].items[i].format {
                     if let size = r.requiredFontSize { override.fontSize = size }
                     if let spacing = r.requiredLineSpacing { override.lineSpacing = spacing }
-                    if let lines = r.requiresLineNumbers { override.lineNumbers = lines }
                     config.documents[d].items[i].format = override
                 }
-                if let lines = r.requiresLineNumbers,
+                // Line numbering is section-level: clear the breaks so
+                // every section inherits the document's (required) setting.
+                if r.requiresLineNumbers != nil,
                    config.documents[d].items[i].sectionLineNumbers != nil {
-                    config.documents[d].items[i].sectionLineNumbers = lines
+                    config.documents[d].items[i].sectionLineNumbers = nil
                 }
             }
         }
@@ -940,7 +941,6 @@ final class ManuscriptStore {
             if let override = found.format {
                 format.fontFamily = override.fontFamily
                 format.fontSize = override.fontSize
-                format.lineNumbers = override.lineNumbers
             }
             return format
         }

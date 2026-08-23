@@ -571,7 +571,7 @@ just a rendered blob.
 - AC (implemented): **The Export page reviews; components edit** (Aug 2026
   redesign). A document card is just the output file — **name and file type**
   — and each item row is a **read-only formatting review in inactive grey**:
-  aligned **Font · Size · Head · Lines** columns show every component's
+  aligned **Font · Size · Head** columns show every component's
   effective format at a glance (right-click → "Reset Formatting to
   Document"). The outline itself (add/remove/reorder, Section rows with
   margins/columns/line numbers) still edits here, and it reloads live
@@ -590,28 +590,31 @@ just a rendered blob.
   document/section/page model, Aug 2026): page-break items are now
   boundaries that both start a new page AND can re-set **margins, columns,
   and line numbering** for the pages that follow (mini pickers on the
-  break row; nil = inherit the document's first-section settings, which
-  the document header's existing controls define;
+  break row; nil = inherit the document's format defaults;
   `ExportItem.sectionMarginInches/-TwoColumn/-LineNumbers`,
   `PDFPaginator.render(sections:)` applies geometry per section; LaTeX
   tracks section line numbering; DOCX/RTF keep first-section geometry —
-  the attributed writers can't vary margins mid-file). Per-item Lines
-  toggles still override. PDF line numbering follows the per-item
-  effective format (attribute-driven); LaTeX emits
-  `\linenumbers`/`\nolinenumbers` transitions.
+  the attributed writers can't vary margins mid-file). **Line numbering is
+  section-level ONLY** (Aug 2026): the Section rows are its single home —
+  never per component (a per-item override once shadowed the section
+  toggle whenever typography edits seeded an item format, silently killing
+  first-section numbering). PDF numbering is attribute-driven and
+  continuous; LaTeX emits `\linenumbers`/`\nolinenumbers` transitions.
 - AC (implemented): **Per-component typography, edited on the components**
   (Phase 2 of the document/section/page model, Aug 2026; reshaped by the
   Aug 2026 export-page cleanup). Typography is the journal's medium, so it
   is edited **where the writing happens**, and each surface carries what
   fits it:
   - **Text editors** (Abstract, body sections, cover letter): the editor's
-    **toolbar** carries font family/size (the item's override), spacing
-    (document-uniform), and the printed heading's **H1→H3 level**.
-  - **Every component pane** has an **"H" heading toggle at the header's
-    left edge**; turning it on drops down a single-line **heading row** —
-    the printed heading's text (empty = the component's name) with its
-    bold/underline/center controls inline (`ComponentHeadingRow`; list
-    components also carry the level here, having no toolbar).
+    **toolbar** carries font family/size (the item's override) and spacing
+    (document-uniform).
+  - **Every component pane** has an **"H" heading button at the header's
+    left edge** whose popover holds everything the Export page used to:
+    a Print-heading switch plus bold/underline/center and the **H1→H3
+    level** (`ComponentHeadingToggle`). While the heading is on, its
+    **text sits on a single line right below the button** (empty = the
+    component's name), reflects the style live, and stays within the
+    editor's margin-ruler bounds (`ComponentHeadingRow`).
   - **List components** (Authors, Bibliography, Keywords) carry a **settings
     gear** in their bottom bar (`ComponentSettingsButton`): typography plus
     the component's own options — the byline's delimiter ("a; b"), marker
@@ -633,8 +636,8 @@ just a rendered blob.
   rest:** the export typography checks evaluate **every** document/item's
   effective format and name offenders, and each failure carries a **Fix**
   button (`ChecklistResult.fixID` → `store.applyRequiredTypography`) that
-  aligns all documents, item overrides, and section-break line numbering in
-  one click. Formatting is excluded from sync transplants (it belongs to the
+  aligns all documents and item overrides in one click (section-break line
+  numbering resets to inherit the document's required setting). Formatting is excluded from sync transplants (it belongs to the
   cut, not the content).
 - AC (implemented): **Export preview** (Aug 2026). A Preview button beside
   the export action renders the outline through the REAL pipeline

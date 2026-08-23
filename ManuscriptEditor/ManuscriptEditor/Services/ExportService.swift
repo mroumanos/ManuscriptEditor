@@ -371,20 +371,20 @@ struct ExportService {
         out += "\\usepackage[margin=\(String(format: "%.2f", f.marginInches))in]{geometry}\n"
         out += "\\usepackage{setspace}\n"
         let anyLineNumbers = f.lineNumbers
-            || document.items.contains { $0.format?.lineNumbers == true || $0.sectionLineNumbers == true }
+            || document.items.contains { $0.sectionLineNumbers == true }
         if anyLineNumbers { out += "\\usepackage{lineno}\n" }
         out += "\\begin{document}\n"
         if f.lineSpacing >= 2.0 { out += "\\doublespacing\n" }
         else if f.lineSpacing >= 1.3 { out += "\\onehalfspacing\n" }
 
-        // Line numbering follows each item's effective format; section
-        // breaks re-set the default for the items after them.
+        // Line numbering is section-level: each break re-sets it for the
+        // items after it (nil = inherit the document's).
         var numbering = false
         var sectionLines: Bool? = nil
         for item in document.items {
             if item.kind == .pageBreak { sectionLines = item.sectionLineNumbers }
             if anyLineNumbers, item.kind != .pageBreak {
-                let wanted = item.format?.lineNumbers ?? sectionLines ?? f.lineNumbers
+                let wanted = sectionLines ?? f.lineNumbers
                 if wanted != numbering {
                     out += wanted ? "\\linenumbers\n" : "\\nolinenumbers\n"
                     numbering = wanted
@@ -830,11 +830,10 @@ private struct OutlineBuilder {
     func block(for item: ExportItem, content m: Manuscript,
                sectionLineNumbers: Bool? = nil) -> NSAttributedString? {
         var effective = effectiveFormat(for: item)
-        // Section-break line numbering: the boundary's setting is the
-        // default for the items after it; per-item overrides still win.
-        if item.format?.lineNumbers == nil, let sectionLines = sectionLineNumbers {
-            effective.lineNumbers = sectionLines
-        }
+        // Line numbering is SECTION-level only (Aug 2026): the enclosing
+        // boundary's setting (or the document's) — never the item's own
+        // format, which the typography seeds would otherwise freeze.
+        effective.lineNumbers = sectionLineNumbers ?? format.lineNumbers
         let builder = OutlineBuilder(format: effective, refContext: refContext, fileType: fileType,
                                      figureURL: figureURL, chartImage: chartImage, tableData: tableData,
                                      separateAuthors: separateAuthors,

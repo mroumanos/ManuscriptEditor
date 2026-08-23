@@ -10,12 +10,12 @@
 //     the title's heading look).  Sits in list components' bottom bars
 //     (Authors, Bibliography, Keywords) and in the pane header for
 //     components without one (Title, Figures, Tables).
-//   ComponentHeadingToggle — the pane-header "H" toggle (left edge):
-//     print/hide this component's heading in the export.
-//   ComponentHeadingRow — revealed while the heading is on: a single-line
-//     box editing the printed heading text, with the heading's own editing
-//     features (bold/underline/center, and the H1–H3 level for components
-//     that have no editor toolbar to carry it).
+//   ComponentHeadingToggle — the pane-header "H" button (left edge): a
+//     popover with the printed heading's on/off switch and full style set
+//     (bold/underline/center, H1–H3 level).
+//   ComponentHeadingRow — while the heading is on, its text sits on a
+//     single line right below the button (empty = the component's name),
+//     styled live and bounded by the editor's margin ruler.
 
 import SwiftUI
 
@@ -284,52 +284,86 @@ struct HeadingStyleControls: View {
 
 // MARK: - ComponentHeadingToggle
 
-/// Pane-header "H" toggle: print/hide this component's heading in the
-/// export.  Hidden for components whose export can't carry one (the title
-/// page IS the heading; the byline never prints one).
+/// Pane-header "H" button: pops the printed heading's options — on/off plus
+/// the full style set the Export page used to carry (bold, underline,
+/// center, H1–H3 level).  Hidden for components whose export can't carry a
+/// heading (the title page IS the heading; the byline never prints one).
 struct ComponentHeadingToggle: View {
     @Environment(ManuscriptStore.self) private var store
 
     let item: SidebarItem
     let versionRef: VersionRef
 
+    @State private var showing = false
+
     var body: some View {
         if let entry = componentExportEntry(store, item: item, ref: versionRef),
            entry.kind != .titlePage, entry.kind != .authors {
             Button {
-                store.updateExportEntry(for: item, ref: versionRef,
-                                        mutateItem: { $0.titleShown.toggle() })
+                showing = true
             } label: {
                 Image(systemName: entry.titleShown ? "h.square.fill" : "h.square")
                     .foregroundStyle(entry.titleShown
                         ? Color.accentColor : Color(nsColor: .tertiaryLabelColor))
             }
             .buttonStyle(.borderless)
-            .help(entry.titleShown
-                  ? "Heading prints in the export — click to hide it"
-                  : "Heading hidden in the export — click to print it")
+            .help("Printed heading for this component — on/off and style")
+            .popover(isPresented: $showing, arrowEdge: .bottom) {
+                popover(entry)
+            }
         }
+    }
+
+    private func mutateItem(_ change: @escaping (inout ExportItem) -> Void) {
+        store.updateExportEntry(for: item, ref: versionRef, mutateItem: change)
+    }
+
+    private func popover(_ entry: ExportItem) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Toggle("Print heading", isOn: Binding(
+                get: { entry.titleShown },
+                set: { on in mutateItem { $0.titleShown = on } }
+            ))
+            .toggleStyle(.switch)
+            .controlSize(.small)
+            .help("Include this component's heading in the export (content always exports)")
+            if entry.titleShown {
+                HeadingStyleControls(style: entry.effectiveHeadingStyle, showLevel: true) { change in
+                    mutateItem { itm in
+                        var hs = itm.effectiveHeadingStyle
+                        change(&hs)
+                        itm.headingStyle = hs
+                    }
+                }
+                Text("Edit the heading's text in the line below the button.")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .padding(12)
+        .frame(width: 220)
     }
 }
 
 // MARK: - ComponentHeadingRow
 
-/// The printed heading, revealed under the pane header while its toggle is
-/// on: a single-line box editing the export heading text (empty reverts to
-/// the component's own name) with the heading's editing features inline.
+/// The printed heading's text, revealed right under the "H" button while
+/// the heading is on: a single-line box (empty reverts to the component's
+/// own name) that reflects the heading's style live and stays within the
+/// editor's margin-ruler bounds.
 struct ComponentHeadingRow: View {
     @Environment(ManuscriptStore.self) private var store
 
     let item: SidebarItem
     let versionRef: VersionRef
-    /// Editor-backed panes carry the H1–H3 level in their toolbar instead.
-    var showLevel: Bool = true
+
+    @AppStorage("editorWrapWidth") private var wrapWidth = 650.0
 
     var body: some View {
         if let entry = componentExportEntry(store, item: item, ref: versionRef),
            entry.kind != .titlePage, entry.kind != .authors, entry.titleShown {
             let style = entry.effectiveHeadingStyle
-            HStack(spacing: 8) {
+            HStack(spacing: 0) {
                 TextField("", text: Binding(
                     get: { entry.customTitle ?? "" },
                     set: { text in
@@ -343,14 +377,9 @@ struct ComponentHeadingRow: View {
                               weight: style.bold ? .semibold : .regular))
                 .underline(style.underline)
                 .multilineTextAlignment(style.centered ? .center : .leading)
+                .frame(maxWidth: CGFloat(wrapWidth))
                 .help("The heading printed for this component — empty uses its own name")
-                HeadingStyleControls(style: style, showLevel: showLevel) { change in
-                    store.updateExportEntry(for: item, ref: versionRef, mutateItem: { itm in
-                        var hs = itm.effectiveHeadingStyle
-                        change(&hs)
-                        itm.headingStyle = hs
-                    })
-                }
+                Spacer(minLength: 0)
             }
             .padding(.leading, EditorLayout.leftInset)
             .padding(.trailing, 12)
