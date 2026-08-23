@@ -32,6 +32,7 @@ step "Preflight"
 cd "$REPO_ROOT"
 [ -z "$(git status --porcelain)" ] || { echo "working tree not clean"; exit 1; }
 [ "$(git branch --show-current)" = "main" ] || { echo "not on main"; exit 1; }
+git fetch --tags --quiet   # gh-created release tags live remotely
 PREV_TAG="$(git describe --tags --abbrev=0 2>/dev/null || echo "")"
 echo "previous tag: ${PREV_TAG:-none}"
 
