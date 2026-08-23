@@ -773,6 +773,10 @@ private struct OutlineBuilder {
     /// `.titlePage` must NOT render the byline too (pre-split configs have
     /// no authors item and keep the combined rendering).
     var separateAuthors: Bool = false
+    /// True when the title item carries an explicit Size override — the
+    /// title then renders at EXACTLY that size (bold) instead of the
+    /// default document-font + 8 pt bump.
+    var titleExactSize: Bool = false
     /// CSL style for the reference list when its item doesn't pick one
     /// (the journal's required style, resolved at the export call).
     var citationStyleDefault: String = "apa"
@@ -784,6 +788,7 @@ private struct OutlineBuilder {
         let builder = OutlineBuilder(format: effective, refContext: refContext, fileType: fileType,
                                      figureURL: figureURL, chartImage: chartImage, tableData: tableData,
                                      separateAuthors: separateAuthors,
+                                     titleExactSize: item.format?.fontSize != nil,
                                      citationStyleDefault: citationStyleDefault)
         guard let rendered = builder.renderBlock(item, content: m) else { return nil }
         guard effective.lineNumbers else { return rendered }
@@ -919,7 +924,11 @@ private struct OutlineBuilder {
         switch item.kind {
         case .titlePage:
             let doc = NSMutableAttributedString()
-            doc.append(line(displayTitle(m), font: title, after: 8))
+            // An explicit Size on the item wins outright; otherwise the
+            // classic document-font + 8 pt title.
+            doc.append(line(displayTitle(m),
+                            font: titleExactSize ? scaled(0, bold: true) : title,
+                            after: 8))
             if !m.runningTitle.isEmpty {
                 doc.append(line("Running title: \(m.runningTitle)", font: meta, color: .darkGray, after: 8))
             }
