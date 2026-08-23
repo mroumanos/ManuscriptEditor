@@ -109,6 +109,18 @@ xcodebuild -scheme ManuscriptEditor -destination 'platform=macOS' build
     inside it). Attach each alert to its own node on **sibling branches** —
     never stack them, never nest them.
 
+## Releasing
+
+`scripts/release.sh <version> [notes-file]` runs the whole pipeline: bump
+(MARKETING_VERSION + build number) → signed Release build (Developer ID,
+hardened runtime, `CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO` — a plain build
+injects get-task-allow, which Apple rejects) → DMG with volume icon →
+notarize + staple (keychain profile "notary") → commit/tag/push → GitHub
+release (notes from the given file, else commit subjects since the last
+tag) → Slack announcement (incoming webhook from the Keychain item
+`ManuscriptEditor-slack-webhook`; skipped with instructions when absent).
+Requires: clean tree on main, the Developer ID cert, `gh` auth.
+
 ## Working style for LLM contributors
 
 - Start from this Master Context; don't infer requirements from a single recent
