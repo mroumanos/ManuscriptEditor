@@ -520,7 +520,7 @@ private struct ExportDocumentCard: View {
             .fixedSize()
             .help("Line spacing (whole document — keeps headings and body uniform)")
             HStack(spacing: 2) {
-                Text("margins: \(String(format: "%g", document.format.marginInches))″")
+                Text("margins: \(String(format: "%.2f", document.format.marginInches))″")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Stepper("", value: binding(\.format.marginInches), in: 0.25...2.0, step: 0.25)
@@ -581,7 +581,7 @@ private struct ExportDocumentCard: View {
     private var columnHeader: some View {
         HStack(spacing: 8) {
             Color.clear.frame(width: 16 + 20 + 8, height: 1)   // handle + icon
-            Text("Section")
+            Text("Item")
             Spacer(minLength: 4)
             Text("Font").frame(width: colFont)
             Text("Size").frame(width: colSize)
@@ -604,7 +604,7 @@ private struct ExportDocumentCard: View {
 
             if item.kind == .pageBreak {
                 line
-                Text("Section Break").font(.caption.weight(.medium)).foregroundStyle(.secondary)
+                Text("Section").font(.caption.weight(.medium)).foregroundStyle(.secondary)
                 // Geometry for the pages AFTER this boundary; values show
                 // the effective setting (inheriting the document's until
                 // touched).
@@ -612,7 +612,7 @@ private struct ExportDocumentCard: View {
                 let effTwoCol = item.sectionTwoColumn ?? document.format.twoColumn
                 let effLines = item.sectionLineNumbers ?? document.format.lineNumbers
                 HStack(spacing: 2) {
-                    Text("margins: \(String(format: "%g", effMargin))″")
+                    Text("margins: \(String(format: "%.2f", effMargin))″")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     Stepper("", value: Binding(
@@ -645,7 +645,7 @@ private struct ExportDocumentCard: View {
                     doc.items[index].sectionLineNumbers = !effLines
                     onChange(doc)
                 } label: {
-                    Text("lines: \(effLines ? "on" : "off")").font(.caption)
+                    Text("line num.: \(effLines ? "on" : "off")").font(.caption)
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.mini)

@@ -27,6 +27,9 @@ struct ExportConfig: Codable, Sendable, Equatable {
         let fileType = ExportFileType.preferred(for: journal)
 
         var items: [ExportItem] = [
+            // The outline leads with an explicit first Section (geometry
+            // inherits the document defaults until touched).
+            ExportItem(kind: .pageBreak),
             ExportItem(kind: .titlePage),
             ExportItem(kind: .authors),
             ExportItem(kind: .abstract),
@@ -302,7 +305,7 @@ struct ExportItem: Codable, Identifiable, Sendable, Equatable {
         case .tables:      return "Tables"
         case .references:  return "References"
         case .coverLetter: return "Cover Letter"
-        case .pageBreak:   return "Section Break"
+        case .pageBreak:   return "Section"
         }
     }
 
