@@ -482,12 +482,12 @@ private struct ExportDocumentCard: View {
                             onChange(doc)
                         }
                     )) {
-                        Text("semicolon").tag("semicolon")
-                        Text("comma").tag("comma")
-                        Text("space").tag("space")
-                        Text("slash").tag("slash")
-                        Text("hyphen").tag("hyphen")
-                        Text("newline").tag("newline")
+                        Text("a; b").tag("semicolon")
+                        Text("a, b").tag("comma")
+                        Text("a b").tag("space")
+                        Text("a / b").tag("slash")
+                        Text("a - b").tag("hyphen")
+                        Text("a ⏎ b").tag("newline")
                     }
                     .labelsHidden().controlSize(.small).fixedSize()
                     .help("Delimiter between authors (and affiliation lines)")
@@ -510,6 +510,20 @@ private struct ExportDocumentCard: View {
                     }
                     .labelsHidden().controlSize(.small).fixedSize()
                     .help("How authors link to their institutions — crosshatches escalate †, ‡, ††† with each institution")
+                    Button {
+                        var doc = document
+                        guard doc.items.indices.contains(index) else { return }
+                        doc.items[index].correspondingShown.toggle()
+                        onChange(doc)
+                    } label: {
+                        Text("+ corr")
+                            .font(.caption)
+                            .foregroundStyle(item.correspondingShown
+                                ? Color.accentColor
+                                : Color(nsColor: .tertiaryLabelColor))
+                    }
+                    .buttonStyle(.plain)
+                    .help("Annotate the corresponding author: a raised * on the name (like an institution marker) plus a \"* Corresponding author\" footnote line")
                     Button {
                         var doc = document
                         guard doc.items.indices.contains(index) else { return }

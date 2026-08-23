@@ -90,7 +90,12 @@ Intent: most time is spent here; it must be excellent and AI-optional.
   true superscripts, and LaTeX uses \textsuperscript. Institutions carry
   optional **city/state/country** (`Institution.city/-state/-country`,
   edited in the institution form) and export as
-  "<institute> <city>, <state> <country>" (`displayLine`). The
+  "<institute> <city>, <state> <country>" (`displayLine`). **Delimiter pickers use the "a; b"
+  sample notation everywhere** (Authors item and the [[part]] token menu
+  alike). A **"+ corr" toggle** (default on) annotates the corresponding
+  author with a raised * — styled like an institution marker — plus a
+  "* Corresponding author — <details>" footnote line under the
+  affiliations ([[authors]] tokens render the same). The
   export card's title-page row carries a compact **"+ cred" toggle
   button** (`ExportItem.showAuthorTitles`, default on = the historical
   output) switching the byline between plain names and names + credentials,

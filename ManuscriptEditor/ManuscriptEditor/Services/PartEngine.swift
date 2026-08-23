@@ -163,7 +163,8 @@ enum PartEngine {
                 out.append((a.fullName, false))
                 let mk = markers(a)
                 if !mk.isEmpty { out.append((mk, true)) }
-                if a.isCorresponding { out.append(("*", false)) }
+                // The * annotates like another institution marker (raised).
+                if a.isCorresponding { out.append(("*", true)) }
                 if i < authors.count - 1 { out.append((delim, false)) }
             }
             if !lines.isEmpty {
@@ -175,6 +176,14 @@ enum PartEngine {
                     }
                     out.append((l + (i < lines.count - 1 ? "\n" : ""), false))
                 }
+            }
+            if !corresponding.isEmpty {
+                let details = corresponding.compactMap(\.correspondingDetails)
+                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .filter { !$0.isEmpty }.joined(separator: "; ")
+                out.append(("\n", false))
+                out.append(("*", true))
+                out.append((" Corresponding author" + (details.isEmpty ? "" : " — \(details)"), false))
             }
             return out
         case "authors.names":

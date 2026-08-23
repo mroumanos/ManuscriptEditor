@@ -1317,9 +1317,9 @@ final class CitationTextView: NSTextView {
         menu.addItem(NSMenuItem.sectionHeader(title: "\(part.markerText) — resolved on export"))
         menu.addItem(.separator())
         menu.addItem(NSMenuItem.sectionHeader(title: "Delimiter"))
-        for (tag, name, code) in [(0, "Space", "space"), (1, "Comma", "comma"),
-                                  (2, "Semicolon", "semicolon"), (3, "Slash", "slash"),
-                                  (4, "Hyphen", "hyphen"), (5, "New line", "newline")] {
+        for (tag, name, code) in [(0, "a b", "space"), (1, "a, b", "comma"),
+                                  (2, "a; b", "semicolon"), (3, "a / b", "slash"),
+                                  (4, "a - b", "hyphen"), (5, "a ⏎ b", "newline")] {
             let item = NSMenuItem(title: name, action: #selector(applyPartDelimiter(_:)), keyEquivalent: "")
             item.target = self
             item.tag = tag

@@ -252,6 +252,15 @@ struct ExportItem: Codable, Identifiable, Sendable, Equatable {
     /// or "none" (deduplicated affiliation list, no markers).
     var affiliationMarker: String? = nil
 
+    /// Authors item: annotate the corresponding author with a raised *
+    /// (like an institution marker) plus a "* Corresponding author"
+    /// footnote line.  nil = shown (the historical output).
+    var showCorresponding: Bool? = nil
+    var correspondingShown: Bool {
+        get { showCorresponding ?? true }
+        set { showCorresponding = newValue }
+    }
+
     var showAuthorTitles: Bool? = nil
     var authorTitlesShown: Bool {
         get { showAuthorTitles ?? true }

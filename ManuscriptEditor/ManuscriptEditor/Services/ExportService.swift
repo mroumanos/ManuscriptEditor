@@ -398,13 +398,20 @@ struct ExportService {
                                 .sorted().map(mk).joined(separator: ",")
                             if !ms.isEmpty { s += "\\textsuperscript{\(ms)}" }
                         }
-                        if a.isCorresponding { s += "*" }
+                        if a.isCorresponding, item.correspondingShown { s += "\\textsuperscript{*}" }
                         return s
                     }.joined(separator: delim)
                     out += "\\begin{center}\n\(names)\\\\\n"
                     for (i, l) in affLines.enumerated() {
                         let prefix = markerStyle == "none" ? "" : "\\textsuperscript{\(mk(i))} "
                         out += "\(prefix)\\textit{\(tex(l))}\\\\\n"
+                    }
+                    if item.correspondingShown, authors.contains(where: \.isCorresponding) {
+                        let details = authors.filter(\.isCorresponding)
+                            .compactMap(\.correspondingDetails)
+                            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                            .filter { !$0.isEmpty }.joined(separator: "; ")
+                        out += "\\textsuperscript{*} Corresponding author\(details.isEmpty ? "" : " — \(tex(details))")\\\\\n"
                     }
                     out += "\\end{center}\n"
                 }
@@ -887,8 +894,9 @@ private struct OutlineBuilder {
                                          para: bodyAttrs[.paragraphStyle] as! NSParagraphStyle))
                 }
             }
-            if author.isCorresponding {
-                doc.append(NSAttributedString(string: "*", attributes: bodyAttrs))
+            if author.isCorresponding, item.correspondingShown {
+                // The * annotates like another institution marker (raised).
+                doc.append(markerRun("*", para: bodyAttrs[.paragraphStyle] as! NSParagraphStyle))
             }
             doc.append(NSAttributedString(string: i < authors.count - 1 ? delimiter : "\n",
                                           attributes: bodyAttrs))
@@ -901,6 +909,17 @@ private struct OutlineBuilder {
                 doc.append(NSAttributedString(string: " ", attributes: metaAttrs))
             }
             doc.append(NSAttributedString(string: lineText + "\n", attributes: metaAttrs))
+        }
+        // "* Corresponding author" footnote — a line like the institutions'.
+        if item.correspondingShown, authors.contains(where: \.isCorresponding) {
+            let details = authors.filter(\.isCorresponding)
+                .compactMap(\.correspondingDetails)
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }.joined(separator: "; ")
+            doc.append(markerRun("*", para: metaAttrs[.paragraphStyle] as! NSParagraphStyle))
+            doc.append(NSAttributedString(
+                string: " Corresponding author" + (details.isEmpty ? "" : " — \(details)") + "\n",
+                attributes: metaAttrs))
         }
         return doc
     }
