@@ -519,21 +519,25 @@ private struct ExportDocumentCard: View {
             .labelsHidden()
             .fixedSize()
             .help("Line spacing (whole document — keeps headings and body uniform)")
-            Picker("", selection: binding(\.format.marginInches)) {
-                Text("0.75″ margins").tag(0.75)
-                Text("1″ margins").tag(1.0)
-                Text("1.25″ margins").tag(1.25)
+            HStack(spacing: 2) {
+                Text("margins: \(String(format: "%g", document.format.marginInches))″")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Stepper("", value: binding(\.format.marginInches), in: 0.25...2.0, step: 0.25)
+                    .labelsHidden()
+                    .controlSize(.mini)
             }
-            .labelsHidden()
-            .fixedSize()
-            .help("Page margins (first section — Section Breaks can re-set them)")
-            Picker("", selection: binding(\.format.twoColumn)) {
-                Text("1 column").tag(false)
-                Text("2 columns").tag(true)
+            .help("Page margins, 0.25–2″ (first section — Section Breaks can re-set them)")
+            Button {
+                var doc = document
+                doc.format.twoColumn.toggle()
+                onChange(doc)
+            } label: {
+                Text("columns: \(document.format.twoColumn ? 2 : 1)").font(.caption)
             }
-            .labelsHidden()
-            .fixedSize()
-            .help("Column layout (first section — Section Breaks can re-set it); applies to PDF and LaTeX")
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .help("Column layout — click to toggle (first section; PDF and LaTeX)")
             Button {
                 onDelete()
             } label: {
@@ -601,54 +605,51 @@ private struct ExportDocumentCard: View {
             if item.kind == .pageBreak {
                 line
                 Text("Section Break").font(.caption.weight(.medium)).foregroundStyle(.secondary)
-                // Geometry for the pages AFTER this boundary (nil = inherit
-                // the document's first-section settings above).
-                Picker("", selection: Binding(
-                    get: { item.sectionMarginInches },
-                    set: { value in
-                        var doc = document
-                        guard doc.items.indices.contains(index) else { return }
-                        doc.items[index].sectionMarginInches = value
-                        onChange(doc)
-                    }
-                )) {
-                    Text("doc margins").tag(Double?.none)
-                    Text("0.75″").tag(Double?.some(0.75))
-                    Text("1″").tag(Double?.some(1.0))
-                    Text("1.25″").tag(Double?.some(1.25))
+                // Geometry for the pages AFTER this boundary; values show
+                // the effective setting (inheriting the document's until
+                // touched).
+                let effMargin = item.sectionMarginInches ?? document.format.marginInches
+                let effTwoCol = item.sectionTwoColumn ?? document.format.twoColumn
+                let effLines = item.sectionLineNumbers ?? document.format.lineNumbers
+                HStack(spacing: 2) {
+                    Text("margins: \(String(format: "%g", effMargin))″")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Stepper("", value: Binding(
+                        get: { item.sectionMarginInches ?? document.format.marginInches },
+                        set: { value in
+                            var doc = document
+                            guard doc.items.indices.contains(index) else { return }
+                            doc.items[index].sectionMarginInches = min(max(value, 0.25), 2.0)
+                            onChange(doc)
+                        }
+                    ), in: 0.25...2.0, step: 0.25)
+                    .labelsHidden()
+                    .controlSize(.mini)
                 }
-                .labelsHidden().controlSize(.mini).fixedSize()
-                .help("Margins for the pages after this break")
-                Picker("", selection: Binding(
-                    get: { item.sectionTwoColumn },
-                    set: { value in
-                        var doc = document
-                        guard doc.items.indices.contains(index) else { return }
-                        doc.items[index].sectionTwoColumn = value
-                        onChange(doc)
-                    }
-                )) {
-                    Text("doc columns").tag(Bool?.none)
-                    Text("1 col").tag(Bool?.some(false))
-                    Text("2 col").tag(Bool?.some(true))
+                .help("Margins for the pages after this break (0.25–2″)")
+                Button {
+                    var doc = document
+                    guard doc.items.indices.contains(index) else { return }
+                    doc.items[index].sectionTwoColumn = !effTwoCol
+                    onChange(doc)
+                } label: {
+                    Text("columns: \(effTwoCol ? 2 : 1)").font(.caption)
                 }
-                .labelsHidden().controlSize(.mini).fixedSize()
-                .help("Column layout after this break (PDF and LaTeX)")
-                Picker("", selection: Binding(
-                    get: { item.sectionLineNumbers },
-                    set: { value in
-                        var doc = document
-                        guard doc.items.indices.contains(index) else { return }
-                        doc.items[index].sectionLineNumbers = value
-                        onChange(doc)
-                    }
-                )) {
-                    Text("doc lines").tag(Bool?.none)
-                    Text("lines on").tag(Bool?.some(true))
-                    Text("lines off").tag(Bool?.some(false))
+                .buttonStyle(.bordered)
+                .controlSize(.mini)
+                .help("Column layout after this break — click to toggle (PDF and LaTeX)")
+                Button {
+                    var doc = document
+                    guard doc.items.indices.contains(index) else { return }
+                    doc.items[index].sectionLineNumbers = !effLines
+                    onChange(doc)
+                } label: {
+                    Text("lines: \(effLines ? "on" : "off")").font(.caption)
                 }
-                .labelsHidden().controlSize(.mini).fixedSize()
-                .help("Line numbering after this break (per-item Lines toggles still win)")
+                .buttonStyle(.bordered)
+                .controlSize(.mini)
+                .help("Line numbering after this break — click to toggle (per-item Lines toggles still win)")
                 line
             } else {
                 // Click the name to rename the heading in this document
