@@ -424,7 +424,6 @@ struct SectionPreviewButton: View {
                 showing = true
             } label: {
                 Image(systemName: "doc.text.magnifyingglass")
-                    .foregroundStyle(.secondary)
             }
             .buttonStyle(.borderless)
             .help("Preview this section as it exports (the journal's typography)")

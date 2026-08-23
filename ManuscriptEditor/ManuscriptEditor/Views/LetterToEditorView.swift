@@ -42,26 +42,12 @@ struct LetterToEditorView: View {
 
     /// Mutable working copy to avoid writing to the store on every render.
     @State private var draft: LetterToEditor = .empty()
-    @State private var showPreview = false
     @State private var showSignaturePad = false
 
     var body: some View {
-        VStack(spacing: 0) {
-            toolbar
-            Divider()
-            // Preview rides BESIDE the input (live, same window), never
-            // replacing it — edits reflect immediately on the right.
-            if showPreview {
-                HSplitView {
-                    editorPanel
-                        .frame(minWidth: 380)
-                    previewPanel
-                        .frame(minWidth: 320)
-                }
-            } else {
-                editorPanel
-            }
-        }
+        // Preview lives in the pane header's export-preview button (the
+        // real pipeline), not a bespoke approximation panel here.
+        editorPanel
         .onAppear { syncDraft() }
         // Sync from external changes (e.g. undo, cut switch).
         .onChange(of: store.manuscript(for: versionRef)?.letterToEditor) { _, _ in syncDraft() }
@@ -70,21 +56,6 @@ struct LetterToEditorView: View {
             guard new != store.manuscript(for: versionRef)?.letterToEditor else { return }
             store.updateLetterToEditor(new, ref: versionRef)
         }
-    }
-
-    // MARK: - Toolbar
-
-    private var toolbar: some View {
-        HStack {
-            Spacer()
-            Toggle(isOn: $showPreview) {
-                Label("Preview", systemImage: "eye")
-            }
-            .toggleStyle(.button)
-            .padding(.trailing, 12)
-        }
-        .padding(.vertical, 8)
-        .background(.bar)
     }
 
     // MARK: - Editor panel
@@ -171,56 +142,6 @@ struct LetterToEditorView: View {
             RichEditor(value: $draft.body, placeholder: "Dear Editor,…",
                        versionRef: versionRef, letterMode: true)
         }
-    }
-
-    // MARK: - Preview panel
-
-    /// Read-only assembled preview of the full letter.
-    private var previewPanel: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                if draft.hasHeader {
-                    HStack(alignment: .top, spacing: 16) {
-                        HeaderSlotPreview(slot: draft.headerLeft, alignment: .leading)
-                        HeaderSlotPreview(slot: draft.headerCenter, alignment: .center)
-                        HeaderSlotPreview(slot: draft.headerRight, alignment: .trailing)
-                    }
-                    .padding(.bottom, 8)
-
-                    Divider()
-                }
-
-                // Body — the ⟦Date⟧/⟦Signature⟧ tokens resolve here just
-                // like on export: today's date and the drawn signature.
-                if draft.body.isEmpty {
-                    Text("(letter body is empty)")
-                        .foregroundStyle(.tertiary)
-                        .italic()
-                } else {
-                    let resolved = draft.body.plain.replacingOccurrences(
-                        of: LetterToken.date.marker,
-                        with: Date().formatted(date: .long, time: .omitted))
-                    let parts = resolved.components(separatedBy: LetterToken.signature.marker)
-                    ForEach(Array(parts.enumerated()), id: \.offset) { index, part in
-                        if index > 0 { signaturePreviewImage }
-                        if !part.isEmpty {
-                            Text(part).lineSpacing(4)
-                        }
-                    }
-                }
-
-                // No token placed: the drawn signature still closes the letter.
-                if draft.signatureImageData != nil,
-                   !draft.body.plain.contains(LetterToken.signature.marker) {
-                    Divider()
-                    signaturePreviewImage
-                }
-            }
-            .padding(32)
-            .frame(maxWidth: 680, alignment: .leading)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(nsColor: .textBackgroundColor))
     }
 
     // MARK: - Helpers
@@ -361,40 +282,6 @@ private struct HeaderSlotEditor: View {
         } else if let image = NSImage(contentsOf: url) {
             slot.imageData = image.pngData(maxDimension: 1000)
         }
-    }
-}
-
-// MARK: - HeaderSlotPreview
-
-/// One letterhead slot as it will appear: image above text, slot-aligned.
-struct HeaderSlotPreview: View {
-    let slot: LetterHeaderSlot
-    let alignment: HorizontalAlignment
-
-    private var frameAlignment: Alignment {
-        switch alignment {
-        case .center:   return .center
-        case .trailing: return .trailing
-        default:        return .leading
-        }
-    }
-
-    var body: some View {
-        VStack(alignment: alignment, spacing: 4) {
-            if let data = slot.imageData, let image = NSImage(data: data) {
-                Image(nsImage: image)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(maxHeight: 56)
-            }
-            if !slot.text.isEmpty {
-                Text(slot.text)
-                    .font(.callout)
-                    .multilineTextAlignment(alignment == .center ? .center
-                                            : alignment == .trailing ? .trailing : .leading)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: frameAlignment)
     }
 }
 

@@ -111,9 +111,10 @@ Intent: most time is spent here; it must be excellent and AI-optional.
 - AC: Prose editors are rich text (see §G). Word counts update live.
 - AC: Letter to Editor has a three-slot letterhead (left / center / right —
   each an optional uploaded image plus freeform text, laid out like a real
-  letterhead in editor, preview, and exports), body, and a **drawn-only
-  signature** (drawable pad with Reset — no typed signature box), with a
-  preview toggle. Slot images accept PNG/JPEG/TIFF/HEIC/**SVG** (SVG bytes
+  letterhead in editor and exports), body, and a **drawn-only
+  signature** (drawable pad with Reset — no typed signature box); preview
+  comes from the pane header's export-preview button (the real pipeline —
+  the bespoke approximation panel was retired, Aug 2026). Slot images accept PNG/JPEG/TIFF/HEIC/**SVG** (SVG bytes
   are kept as vectors).
 - AC (implemented): **Section parts** (Aug 2026). The "/" picker lists just the
   referencable SECTIONS (`PartEngine.topLevel` — Title, Authors,
