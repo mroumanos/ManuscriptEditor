@@ -233,7 +233,10 @@ Intent: data lives once; figures/tables reference it; cuts convert only SQL.
   selects, double-click edits, drag / ⇧-click / ⇧-arrows extend the
   selection** (a rectangle; Return edits the anchor; hovered cells tint;
   the arrows arrive via a local key monitor scoped to the visible grid —
-  SwiftUI's focusable/onKeyPress never received them);
+  SwiftUI's focusable/onKeyPress never received them). PERFORMANCE:
+  selection and hover render as OVERLAYS over Equatable row views, and
+  all pointer handling lives on the container — per-cell selection state
+  re-rendered every cell on every mouse tick of a drag;
   the toolbar — and **⌘B/⌘I/⌘U/⌘E** — styles every selected cell (bold /
   italic / underline / **highlight via 5 inline color swatches** / alignment;
   `TableCell.highlightColor`). **Data-linked tables get the SAME grid in
@@ -742,7 +745,10 @@ just a rendered blob.
   titles too, in attributed output and LaTeX alike).
 - AC (implemented): **Document types.** **PDF** (custom dependency-free CoreText
   paginator honoring margins, page breaks, columns, and continuous line
-  numbers), **DOCX**, **RTF** (attributed writers with margins; page breaks as
+  numbers; long tables chunk to page-sized images with the header
+  repeated — the cap follows the document's margins, and the final chunk
+  always keeps ≥ 3 rows so no orphan row prints as its own little table),
+  **DOCX**, **RTF** (attributed writers with margins; page breaks as
   form feeds), and **LaTeX** source (`article` class; `twocolumn`, `geometry`
   margins, `setspace`, `lineno`; body as escaped plain text in v1). HTML/plain
   remain in the legacy ⌘E sheet.

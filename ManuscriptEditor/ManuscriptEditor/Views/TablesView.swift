@@ -805,36 +805,105 @@ struct ManualTableGrid: View {
     }
 
     // MARK: grid body
+    //
+    // PERFORMANCE: selection and hover are OVERLAYS, not per-cell state —
+    // a drag-select over a 300-cell table re-rendered every cell per mouse
+    // tick when each cell's background depended on the selection.  Rows are
+    // Equatable child views (skipped when their data didn't change), and
+    // all pointer handling lives on the container.
+
+    @State private var dragActive = false
 
     private var gridBody: some View {
-        VStack(alignment: .leading, spacing: gap) {
-            ForEach(cells.indices, id: \.self) { r in
-                HStack(spacing: gap) {
-                    ForEach(cells[r].indices, id: \.self) { c in
-                        cellView(r: r, c: c)
-                    }
+        ZStack(alignment: .topLeading) {
+            VStack(alignment: .leading, spacing: gap) {
+                ForEach(cells.indices, id: \.self) { r in
+                    GridRowView(row: cells[r], isHeader: r == 0,
+                                editingCol: editingCell?.r == r ? editingCell?.c : nil,
+                                cellW: cellW, cellH: cellH, gap: gap,
+                                fieldFocused: $fieldFocused,
+                                onTextChange: { c, value in
+                                    guard cells.indices.contains(r), cells[r].indices.contains(c) else { return }
+                                    cells[r][c].text = value
+                                },
+                                onSubmit: { editingCell = nil })
+                        .equatable()
                 }
             }
+            hoverOverlay
+            selectionOverlay
         }
-        .onAppear { installKeyMonitor() }
-        .onDisappear {
-            if let keyMonitor { NSEvent.removeMonitor(keyMonitor) }
-            keyMonitor = nil
+        .contentShape(Rectangle())
+        .onContinuousHover { phase in
+            guard movingRow == nil, movingCol == nil else { return }
+            if case .active(let p) = phase, let cell = cellAt(p), cell != hover {
+                hover = cell
+            }
         }
-        // Drag across cells extends the selection (taps pass through).
-        .simultaneousGesture(
-            DragGesture(minimumDistance: 4, coordinateSpace: .local)
-                .onChanged { value in
-                    guard editingCell == nil else { return }
-                    if anchor == nil || value.translation == .zero {
-                        anchor = cellAt(value.startLocation)
+        .onTapGesture(count: 2) { p in
+            guard structureEditable, let cell = cellAt(p), cell != editingCell else { return }
+            anchor = cell; extent = nil
+            editingCell = cell
+            fieldFocused = true
+        }
+        .simultaneousGesture(pressAndDragGesture)
+    }
+
+    /// One gesture for press-select (mouse-down, no double-click wait) and
+    /// drag-select; skipped entirely inside the cell being edited so the
+    /// text field keeps its own click/drag behavior.
+    private var pressAndDragGesture: some Gesture {
+        DragGesture(minimumDistance: 0)
+            .onChanged { value in
+                let startCell = cellAt(value.startLocation)
+                if let editingCell, startCell == editingCell { return }
+                if !dragActive {
+                    dragActive = true
+                    // Drop any text field's focus so the key monitor
+                    // (which defers to focused text) gets the arrows.
+                    if NSApp.keyWindow?.firstResponder is NSText {
+                        NSApp.keyWindow?.makeFirstResponder(nil)
                     }
-                    if let start = cellAt(value.startLocation) {
-                        anchor = anchor ?? start
+                    if NSEvent.modifierFlags.contains(.shift), anchor != nil {
+                        if let startCell { extent = startCell }
+                    } else if let startCell {
+                        editingCell = nil
+                        anchor = startCell
+                        extent = nil
                     }
-                    extent = cellAt(value.location)
+                    return
                 }
-        )
+                if let cell = cellAt(value.location), cell != (extent ?? anchor) {
+                    extent = cell
+                }
+            }
+            .onEnded { _ in dragActive = false }
+    }
+
+    @ViewBuilder
+    private var selectionOverlay: some View {
+        if let sel = selection {
+            Rectangle()
+                .fill(Color.accentColor.opacity(0.08))
+                .overlay(Rectangle().strokeBorder(Color.accentColor, lineWidth: 1.2))
+                .frame(width: CGFloat(sel.cols.count) * (cellW + gap) - gap,
+                       height: CGFloat(sel.rows.count) * (cellH + gap) - gap)
+                .offset(x: CGFloat(sel.cols.lowerBound) * (cellW + gap),
+                        y: CGFloat(sel.rows.lowerBound) * (cellH + gap))
+                .allowsHitTesting(false)
+        }
+    }
+
+    @ViewBuilder
+    private var hoverOverlay: some View {
+        if let h = hover, selection.map({ !$0.rows.contains(h.r) || !$0.cols.contains(h.c) }) ?? true {
+            Rectangle()
+                .strokeBorder(Color.accentColor.opacity(0.35), lineWidth: 1)
+                .frame(width: cellW, height: cellH)
+                .offset(x: CGFloat(h.c) * (cellW + gap),
+                        y: CGFloat(h.r) * (cellH + gap))
+                .allowsHitTesting(false)
+        }
     }
 
     private func cellAt(_ p: CGPoint) -> CellID? {
@@ -875,96 +944,6 @@ struct ManualTableGrid: View {
         }
     }
 
-    private func isSelected(_ r: Int, _ c: Int) -> Bool {
-        guard let sel = selection else { return false }
-        return sel.rows.contains(r) && sel.cols.contains(c)
-    }
-
-    @ViewBuilder
-    private func cellView(r: Int, c: Int) -> some View {
-        let cell = cells[r][c]
-        let selected = isSelected(r, c)
-        Group {
-            if editingCell == CellID(r: r, c: c) {
-                TextField("", text: Binding(
-                    get: {
-                        guard cells.indices.contains(r), cells[r].indices.contains(c) else { return "" }
-                        return cells[r][c].text
-                    },
-                    set: { value in
-                        guard cells.indices.contains(r), cells[r].indices.contains(c) else { return }
-                        cells[r][c].text = value
-                    }
-                ))
-                .textFieldStyle(.plain)
-                .focused($fieldFocused)
-                .onSubmit { editingCell = nil }
-                .font(cellDisplayFont(cell, header: r == 0))
-                .underline(cell.underline == true)
-                .multilineTextAlignment(cell.align == "center" ? .center
-                                        : cell.align == "right" ? .trailing : .leading)
-            } else {
-                Text(cell.text)
-                    .font(cellDisplayFont(cell, header: r == 0))
-                    .underline(cell.underline == true)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .frame(maxWidth: .infinity,
-                           alignment: cell.align == "center" ? .center
-                                    : cell.align == "right" ? .trailing : .leading)
-                    .contentShape(Rectangle())
-                    .onTapGesture(count: 2) {
-                        guard structureEditable else { return }
-                        anchor = CellID(r: r, c: c); extent = nil
-                        editingCell = CellID(r: r, c: c)
-                        fieldFocused = true
-                    }
-                    // Selection happens on mouse DOWN — no waiting out the
-                    // double-click window, so cell-to-cell feels instant.
-                    // ⇧-click extends the rectangle from the anchor.
-                    .simultaneousGesture(
-                        DragGesture(minimumDistance: 0)
-                            .onChanged { _ in
-                                // Drop any text field's focus so the key
-                                // monitor (which defers to focused text)
-                                // gets the arrows.
-                                if NSApp.keyWindow?.firstResponder is NSText {
-                                    NSApp.keyWindow?.makeFirstResponder(nil)
-                                }
-                                if NSEvent.modifierFlags.contains(.shift), anchor != nil {
-                                    extent = CellID(r: r, c: c)
-                                    editingCell = nil
-                                    return
-                                }
-                                guard anchor != CellID(r: r, c: c) || extent != nil || editingCell != nil else { return }
-                                anchor = CellID(r: r, c: c); extent = nil
-                                editingCell = nil
-                            }
-                    )
-            }
-        }
-        .padding(.horizontal, 6)
-        .frame(width: cellW, height: cellH, alignment: .leading)
-        .background(cellBackground(cell, header: r == 0, selected: selected,
-                                   hovered: hover == CellID(r: r, c: c)))
-        .overlay(
-            Rectangle().strokeBorder(selected ? Color.accentColor : Color.secondary.opacity(0.25),
-                                     lineWidth: selected ? 1.2 : 0.5)
-        )
-        // Sticky: hovering a cell points the gutter controls at its row/
-        // column and keeps them there until another cell takes over — so
-        // the controls survive the trip out to the gutters.
-        .onHover { inside in
-            if inside { hover = CellID(r: r, c: c) }
-        }
-    }
-
-    private func cellDisplayFont(_ cell: TableCell, header: Bool) -> Font {
-        var font: Font = .system(size: 12, weight: (cell.bold ?? header) ? .semibold : .regular)
-        if cell.italic == true { font = font.italic() }
-        return font
-    }
-
     static func highlightColor(_ name: String?) -> Color {
         switch name {
         case "green":  return .green
@@ -975,13 +954,79 @@ struct ManualTableGrid: View {
         }
     }
 
-    private func cellBackground(_ cell: TableCell, header: Bool, selected: Bool,
-                                hovered: Bool = false) -> Color {
-        if cell.highlight == true {
-            return Self.highlightColor(cell.highlightColor).opacity(0.3)
+}
+
+
+// MARK: - GridRowView
+
+/// One grid row — Equatable so rows whose data didn't change are skipped
+/// entirely while selections drag across the table.
+private struct GridRowView: View, Equatable {
+    let row: [TableCell]
+    let isHeader: Bool
+    let editingCol: Int?
+    let cellW: CGFloat
+    let cellH: CGFloat
+    let gap: CGFloat
+    var fieldFocused: FocusState<Bool>.Binding
+    let onTextChange: (Int, String) -> Void
+    let onSubmit: () -> Void
+
+    static func == (a: GridRowView, b: GridRowView) -> Bool {
+        a.row == b.row && a.isHeader == b.isHeader && a.editingCol == b.editingCol
+    }
+
+    var body: some View {
+        HStack(spacing: gap) {
+            ForEach(row.indices, id: \.self) { c in
+                cell(c)
+            }
         }
-        if selected { return Color.accentColor.opacity(0.10) }
-        if hovered { return Color.accentColor.opacity(0.05) }
-        return header ? Color.secondary.opacity(0.12) : Color.secondary.opacity(0.04)
+    }
+
+    @ViewBuilder
+    private func cell(_ c: Int) -> some View {
+        let cell = row[c]
+        Group {
+            if editingCol == c {
+                TextField("", text: Binding(
+                    get: { row.indices.contains(c) ? row[c].text : "" },
+                    set: { onTextChange(c, $0) }
+                ))
+                .textFieldStyle(.plain)
+                .focused(fieldFocused)
+                .onSubmit(onSubmit)
+                .font(font(cell))
+                .underline(cell.underline == true)
+                .multilineTextAlignment(cell.align == "center" ? .center
+                                        : cell.align == "right" ? .trailing : .leading)
+            } else {
+                Text(cell.text)
+                    .font(font(cell))
+                    .underline(cell.underline == true)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .frame(maxWidth: .infinity,
+                           alignment: cell.align == "center" ? .center
+                                    : cell.align == "right" ? .trailing : .leading)
+            }
+        }
+        .padding(.horizontal, 6)
+        .frame(width: cellW, height: cellH, alignment: .leading)
+        .background(background(cell))
+        .overlay(Rectangle().strokeBorder(Color.secondary.opacity(0.25), lineWidth: 0.5))
+    }
+
+    private func font(_ cell: TableCell) -> Font {
+        var f: Font = .system(size: 12, weight: (cell.bold ?? isHeader) ? .semibold : .regular)
+        if cell.italic == true { f = f.italic() }
+        return f
+    }
+
+    private func background(_ cell: TableCell) -> Color {
+        if cell.highlight == true {
+            return ManualTableGrid.highlightColor(cell.highlightColor).opacity(0.3)
+        }
+        return isHeader ? Color.secondary.opacity(0.12) : Color.secondary.opacity(0.04)
     }
 }

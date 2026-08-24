@@ -1735,8 +1735,10 @@ private struct OutlineBuilder {
                 .max()! + pad * 2
         }
 
-        // Chunk rows so each image (header repeated) fits within a page.
-        let maxChunkHeight: CGFloat = 620
+        // Chunk rows so each image (header repeated) fits within a page —
+        // sized from the DOCUMENT's margins, not a fixed guess (a chunk
+        // taller than the content box can't be placed at all).
+        let maxChunkHeight = max(792 - format.marginInches * 144 - 30, 180)
         var chunks: [[Int]] = []
         var current: [Int] = []
         var height = headerHeight
@@ -1750,6 +1752,15 @@ private struct OutlineBuilder {
             height += h
         }
         if !current.isEmpty { chunks.append(current) }
+        // Orphan control: a final chunk of one or two rows reads as its own
+        // little table — pull rows back from the previous chunk so the last
+        // one carries at least three (they only shrink, so both still fit).
+        while chunks.count >= 2,
+              let last = chunks.last, last.count < 3,
+              chunks[chunks.count - 2].count > 3 {
+            let moved = chunks[chunks.count - 2].removeLast()
+            chunks[chunks.count - 1].insert(moved, at: 0)
+        }
 
         func drawChunk(_ indices: [Int]) -> NSImage {
             let heights = [headerHeight] + indices.map { rowHeights[$0] }
