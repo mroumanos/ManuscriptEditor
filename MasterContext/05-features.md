@@ -209,23 +209,34 @@ Intent: data lives once; figures/tables reference it; cuts convert only SQL.
 - AC (implemented, Aug 2026): **Arrangement**. A figure/table exports as
   three SORTABLE pieces — the **title** ("Table 2. Effects…", the index
   folds in), the **asset** (image / table grid), and the **caption** —
-  reordered with arrows in the editor's Arrangement section
+  reordered by DRAGGING their handles in the editor's Arrangement section
   (`arrangement: [String]?`; defaults reproduce the classic output:
   figures image→title→caption, tables title→table→caption). Title and
   caption carry a **print toggle, bold/italic/underline, and
   left/center/right alignment** (`CaptionPartStyle.align`); the table
-  piece carries its **page-width % (25–100)** and alignment
+  piece carries its **page-width % as a slider (25–100)** and alignment
   (`tableWidthPercent`/`tableAlign`), the image piece its alignment
-  (`imageAlign`; size stays with the image fields). Table **footnotes are
+  (`imageAlign`; size stays with the image fields). The title row reads
+  "Title" + its editable text (no number field — the index is
+  reference-ordered). The **caption is a rich box** (`captionText:
+  RichText`, plain `caption` mirrored): character-level bold/italic/
+  underline and alignment via the standard keys (⌘B/⌘I/⌘U, ⌘{ ⌘| ⌘}),
+  rendered through the export at the caption look (`richCaptionBlock`). Table **footnotes are
   no longer edited per table** (a manuscript-wide footnote system is the
   intended replacement; stored footnotes still export as "Note." lines).
-- AC (implemented, Aug 2026): **Manual tables are a GRID, not Markdown**:
-  cells edit in place (row 0 = header), the toolbar adds/removes rows and
-  columns and styles the selected cell — **bold / italic / underline /
-  highlight / alignment** (`ManuscriptTable.cells: [[TableCell]]`; the
-  pipe-Markdown `content` stays as a plain mirror for legacy readers, and
-  legacy content parses into the grid on first edit). Both export writers
-  render the per-cell styles (drawn PDF grid and NSTextTable alike).
+- AC (implemented, Aug 2026): **Manual tables are a GRID, not Markdown**,
+  spreadsheet-style: **click selects, double-click edits, drag or
+  ⇧-arrows extend the selection** (a rectangle; Return edits the anchor);
+  the toolbar — and **⌘B/⌘I/⌘U/⌘E** — styles every selected cell (bold /
+  italic / underline / **highlight in 5 colors** / alignment;
+  `TableCell.highlightColor`). **Hovering a cell** reveals its row's and
+  column's **grab handle (drag to reorder, header pinned)** and **"−"
+  (remove)** in the gutters; thin bars at the **bottom/right illuminate a
+  "+"** to add a row/column. Row 0 = header;
+  `ManuscriptTable.cells: [[TableCell]]` is the source of truth, the
+  pipe-Markdown `content` stays as a plain mirror, and legacy content
+  parses into the grid on first edit. Both export writers render the
+  per-cell styles (drawn PDF grid and NSTextTable alike).
   A data-linked table can **Disconnect from Data** (destructive-confirmed):
   the current query result copies into the manual grid and the link is
   removed — one-way. **Autofit** (Export Formatting): data starts at row
