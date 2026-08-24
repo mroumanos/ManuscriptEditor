@@ -203,6 +203,8 @@ struct FigureEditor: View {
     @State private var draft: Figure
     /// Controls the system file-picker sheet.
     @State private var isImporting = false
+    /// Arrangement piece being dragged to a new position.
+    @State private var draggingPiece: String?
 
     /// Live result of the chart query (when a CSV data source is linked).
     @State private var chartResult: QueryResult = .empty
@@ -374,28 +376,23 @@ struct FigureEditor: View {
     private var arrangementSection: some View {
         Section("Arrangement") {
             let order = draft.arrangement ?? ["image", "title", "caption"]
-            ForEach(Array(order.enumerated()), id: \.element) { index, piece in
+            ForEach(order, id: \.self) { piece in
                 HStack(spacing: 8) {
-                    ArrangementReorderButtons(index: index, count: order.count) { delta in
-                        var next = order
-                        next.swapAt(index, index + delta)
-                        draft.arrangement = next
-                    }
+                    ArrangementDragHandle(piece: piece, dragging: $draggingPiece)
                     switch piece {
                     case "title":
                         CaptionPartToggle(style: $draft.titleStyle)
-                        Text("Figure")
-                        TextField("", value: $draft.number, format: .number)
-                            .frame(width: 40)
-                            .multilineTextAlignment(.trailing)
-                        TextField("Title", text: $draft.title)
+                        Text("Title")
+                        TextField("Title text", text: $draft.title)
                         Spacer()
                         CaptionPartControls(style: $draft.titleStyle, defaultBold: true)
                     case "caption":
                         CaptionPartToggle(style: $draft.captionStyle)
                         Text("Caption")
                         Spacer()
-                        CaptionPartControls(style: $draft.captionStyle, defaultBold: false)
+                        Text("⌘B / ⌘I / ⌘U style the text below")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
                     default:
                         Image(systemName: "photo").foregroundStyle(.secondary)
                         Text("Image")
@@ -407,10 +404,19 @@ struct FigureEditor: View {
                         .help("Image alignment on the page")
                     }
                 }
+                .onDrop(of: [.text], delegate: PieceDropDelegate(
+                    target: piece, dragging: $draggingPiece, order: order,
+                    apply: { draft.arrangement = $0 }))
             }
-            PlainTextEditor(text: $draft.caption)
-                .frame(minHeight: 50)
-            Text("Sort the pieces with the arrows; toggle the title or caption off as needed.")
+            MiniRichEditor(value: Binding(
+                get: { draft.captionText ?? RichText(plain: draft.caption) },
+                set: { rich in
+                    draft.captionText = rich
+                    draft.caption = rich.plain
+                }
+            ))
+            .frame(minHeight: 56)
+            Text("Drag the handles to sort the pieces; toggle the title or caption off as needed.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -781,21 +787,44 @@ struct AlignmentPicker: View {
     }
 }
 
-/// Up/down chevrons that sort an Arrangement row.
-struct ArrangementReorderButtons: View {
-    let index: Int
-    let count: Int
-    let move: (Int) -> Void
+/// The grab handle that sorts an Arrangement row by dragging.
+struct ArrangementDragHandle: View {
+    let piece: String
+    @Binding var dragging: String?
 
     var body: some View {
-        VStack(spacing: 0) {
-            Button { move(-1) } label: { Image(systemName: "chevron.up").font(.caption2) }
-                .disabled(index == 0)
-            Button { move(+1) } label: { Image(systemName: "chevron.down").font(.caption2) }
-                .disabled(index == count - 1)
-        }
-        .buttonStyle(.plain)
-        .foregroundStyle(.secondary)
-        .help("Sort this piece")
+        Image(systemName: "line.3.horizontal")
+            .font(.caption)
+            .foregroundStyle(.tertiary)
+            .contentShape(Rectangle())
+            .onDrag {
+                dragging = piece
+                return NSItemProvider(object: piece as NSString)
+            }
+            .help("Drag to sort this piece")
+    }
+}
+
+/// Move-on-hover drop delegate for the Arrangement rows.
+struct PieceDropDelegate: DropDelegate {
+    let target: String
+    @Binding var dragging: String?
+    let order: [String]
+    let apply: ([String]) -> Void
+
+    func dropEntered(info: DropInfo) {
+        guard let dragging, dragging != target,
+              let from = order.firstIndex(of: dragging),
+              let to = order.firstIndex(of: target) else { return }
+        var next = order
+        next.move(fromOffsets: IndexSet(integer: from), toOffset: to > from ? to + 1 : to)
+        apply(next)
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? { DropProposal(operation: .move) }
+
+    func performDrop(info: DropInfo) -> Bool {
+        dragging = nil
+        return true
     }
 }

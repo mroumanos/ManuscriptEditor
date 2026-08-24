@@ -1072,6 +1072,7 @@ private struct OutlineBuilder {
                     order: f.arrangement ?? ["image", "title", "caption"],
                     titleText: titleText, titleStyle: f.titleStyle,
                     caption: f.caption, captionStyle: f.captionStyle,
+                    captionRich: f.captionText,
                     asset: {
                         guard let image = figureImage(f) else { return nil }
                         let block = NSMutableAttributedString(attributedString: attachmentBlock(image))
@@ -1095,6 +1096,7 @@ private struct OutlineBuilder {
                     order: t.arrangement ?? ["title", "table", "caption"],
                     titleText: titleText, titleStyle: t.titleStyle,
                     caption: t.caption, captionStyle: t.captionStyle,
+                    captionRich: t.captionText,
                     asset: { tableBody(t) }))
                 if !t.footnotes.isEmpty {
                     doc.append(line("Note. \(t.footnotes)", font: meta, color: .darkGray, after: 8))
@@ -1173,6 +1175,7 @@ private struct OutlineBuilder {
     private func arrangedPieces(order: [String], titleText: String,
                                 titleStyle: CaptionPartStyle?, caption: String,
                                 captionStyle: CaptionPartStyle?,
+                                captionRich: RichText? = nil,
                                 asset: () -> NSAttributedString?) -> NSAttributedString {
         let out = NSMutableAttributedString()
         for piece in order {
@@ -1183,13 +1186,54 @@ private struct OutlineBuilder {
                                                 defaultBold: true, metaLook: false, after: 2))
                 }
             case "caption":
-                if captionStyle?.isEnabled ?? true, !caption.isEmpty {
-                    out.append(captionPieceLine(caption, style: captionStyle,
-                                                defaultBold: false, metaLook: true, after: 8))
+                if captionStyle?.isEnabled ?? true {
+                    if let rich = captionRich, rich.rtf != nil, !rich.plain.isEmpty {
+                        out.append(richCaptionBlock(rich))
+                    } else if !caption.isEmpty {
+                        out.append(captionPieceLine(caption, style: captionStyle,
+                                                    defaultBold: false, metaLook: true, after: 8))
+                    }
                 }
             default:
                 if let block = asset() { out.append(block) }
             }
+        }
+        return out
+    }
+
+    /// A rich caption rendered at the meta look: character-level bold/
+    /// italic/underline and paragraph alignment carry straight through;
+    /// fonts normalize to the caption size.
+    private func richCaptionBlock(_ rich: RichText) -> NSAttributedString {
+        guard let rtf = rich.rtf,
+              let loaded = NSAttributedString(rtf: rtf, documentAttributes: nil),
+              loaded.length > 0 else {
+            return captionPieceLine(rich.plain, style: nil,
+                                    defaultBold: false, metaLook: true, after: 8)
+        }
+        let out = NSMutableAttributedString(attributedString: loaded)
+        let full = NSRange(location: 0, length: out.length)
+        let fm = NSFontManager.shared
+        out.enumerateAttribute(.font, in: full) { value, range, _ in
+            let traits = (value as? NSFont)?.fontDescriptor.symbolicTraits ?? []
+            var font = meta
+            if traits.contains(.bold)   { font = fm.convert(font, toHaveTrait: .boldFontMask) }
+            if traits.contains(.italic) { font = fm.convert(font, toHaveTrait: .italicFontMask) }
+            out.addAttribute(.font, value: font, range: range)
+        }
+        out.addAttribute(.foregroundColor, value: NSColor.darkGray, range: full)
+        // Theme ink colors would print near-invisible (same as rich()).
+        out.removeAttribute(.underlineColor, range: full)
+        out.removeAttribute(.strikethroughColor, range: full)
+        out.enumerateAttribute(.paragraphStyle, in: full) { value, range, _ in
+            guard let para = ((value as? NSParagraphStyle) ?? .default)
+                .mutableCopy() as? NSMutableParagraphStyle else { return }
+            para.paragraphSpacing = 8
+            out.addAttribute(.paragraphStyle, value: para, range: range)
+        }
+        if !out.string.hasSuffix("\n") {
+            out.append(NSAttributedString(string: "\n", attributes: [
+                .font: meta, .paragraphStyle: paragraph(after: 8)]))
         }
         return out
     }
@@ -1546,8 +1590,16 @@ private struct OutlineBuilder {
         return attrs
     }
 
-    /// Highlighted-cell fill.
-    private static let cellHighlight = NSColor(red: 1.0, green: 0.95, blue: 0.6, alpha: 1)
+    /// Highlighted-cell fill by color name (yellow default).
+    private static func cellHighlight(_ name: String?) -> NSColor {
+        switch name {
+        case "green":  return NSColor(red: 0.78, green: 0.94, blue: 0.75, alpha: 1)
+        case "blue":   return NSColor(red: 0.75, green: 0.87, blue: 0.98, alpha: 1)
+        case "pink":   return NSColor(red: 0.99, green: 0.80, blue: 0.87, alpha: 1)
+        case "orange": return NSColor(red: 1.00, green: 0.86, blue: 0.67, alpha: 1)
+        default:       return NSColor(red: 1.00, green: 0.95, blue: 0.60, alpha: 1)
+        }
+    }
 
     /// Markdown pipe rows → (header, data rows); nil when it isn't a table.
     static func pipeRows(_ content: String) -> (columns: [String], rows: [[String]])? {
@@ -1631,7 +1683,7 @@ private struct OutlineBuilder {
                 block.setWidth(0.5, type: .absoluteValueType, for: .border)
             }
             if cell.highlight == true {
-                block.backgroundColor = Self.cellHighlight
+                block.backgroundColor = Self.cellHighlight(cell.highlightColor)
             } else if row == 0 {
                 if !open { block.backgroundColor = NSColor(white: 0.92, alpha: 1) }
             } else if shade, row % 2 == 1 {
@@ -1728,7 +1780,7 @@ private struct OutlineBuilder {
                     var x: CGFloat = 0
                     for (col, columnWidth) in widths.enumerated() where col < cells.count {
                         if cells[col].highlight == true {
-                            Self.cellHighlight.setFill()
+                            Self.cellHighlight(cells[col].highlightColor).setFill()
                             NSRect(x: x, y: y, width: columnWidth, height: rowHeight).fill()
                         }
                         (cells[col].text as NSString).draw(
@@ -1829,6 +1881,7 @@ private struct OutlineBuilder {
                 order: figure.arrangement ?? ["image", "title", "caption"],
                 titleText: titleText, titleStyle: figure.titleStyle,
                 caption: figure.caption, captionStyle: figure.captionStyle,
+                captionRich: figure.captionText,
                 asset: {
                     guard let image = figureImage(figure) else { return nil }
                     let block = NSMutableAttributedString(attributedString: attachmentBlock(image))
@@ -1846,6 +1899,7 @@ private struct OutlineBuilder {
                 order: table.arrangement ?? ["title", "table", "caption"],
                 titleText: titleText, titleStyle: table.titleStyle,
                 caption: table.caption, captionStyle: table.captionStyle,
+                captionRich: table.captionText,
                 asset: { tableBody(table) }))
             if !table.footnotes.isEmpty {
                 out.append(line("Note. \(table.footnotes)", font: meta, color: .darkGray, after: 6))

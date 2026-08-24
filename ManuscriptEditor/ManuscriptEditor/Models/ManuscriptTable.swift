@@ -13,8 +13,11 @@ struct TableCell: Codable, Sendable, Equatable {
     var bold: Bool? = nil
     var italic: Bool? = nil
     var underline: Bool? = nil
-    /// Highlighted (light yellow) cell background.
+    /// Highlighted cell background.
     var highlight: Bool? = nil
+    /// Highlight color name ("yellow" default, "green", "blue", "pink",
+    /// "orange") — meaningful while `highlight == true`.
+    var highlightColor: String? = nil
     /// "left" | "center" | "right"; nil = left.
     var align: String? = nil
 }
@@ -72,6 +75,11 @@ struct ManuscriptTable: Codable, Identifiable, Sendable, Equatable {
     /// Table alignment when narrower than the column: "left" | "center" |
     /// "right"; nil = left.
     var tableAlign: String? = nil
+
+    /// Rich caption (character-level bold/italic/underline/alignment).
+    /// When set it is the caption's source of truth; `caption` keeps the
+    /// plain mirror.  nil = legacy plain caption.
+    var captionText: RichText? = nil
 
     /// Export autofit: the 1-based row DATA starts at (the header is row 1).
     /// nil = 2; higher values drop the rows between the header and N.

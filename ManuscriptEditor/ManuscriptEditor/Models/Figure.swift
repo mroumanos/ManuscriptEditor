@@ -83,6 +83,11 @@ struct Figure: Codable, Identifiable, Sendable, Equatable {
     var titleStyle: CaptionPartStyle? = nil
     var captionStyle: CaptionPartStyle? = nil
 
+    /// Rich caption (character-level bold/italic/underline/alignment).
+    /// When set it is the caption's source of truth; `caption` keeps the
+    /// plain mirror.  nil = legacy plain caption.
+    var captionText: RichText? = nil
+
     /// The pieces of the exported figure in print order.  nil = the classic
     /// ["image", "title", "caption"].  The title piece renders
     /// "Figure N. Title" (the index folds in; legacy numberStyle.enabled ==
