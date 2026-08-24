@@ -206,16 +206,31 @@ Intent: data lives once; figures/tables reference it; cuts convert only SQL.
   categories than palette colors, which renders an empty chart — colors
   now also cycle when categories exceed the palette). **Alt text is not
   edited** (print manuscripts; the field survives for old files).
-- AC (implemented, Aug 2026): **Caption parts**. A figure/table caption
-  block has three independent parts — the index ("Figure 1"), the title,
-  and the caption — each with its own **print toggle**, **placement
-  (above / inline / below** the asset; inline joins the previous printed
-  part's line), and **bold/italic/underline** (`CaptionPartStyle`;
-  defaults reproduce the classic output: figures "Figure 1. Title" +
-  caption below the image, tables index+title above the grid, caption
-  below). Table **footnotes are no longer edited per table** (a
-  manuscript-wide footnote system is the intended replacement; stored
-  footnotes still export as "Note." lines).
+- AC (implemented, Aug 2026): **Arrangement**. A figure/table exports as
+  three SORTABLE pieces — the **title** ("Table 2. Effects…", the index
+  folds in), the **asset** (image / table grid), and the **caption** —
+  reordered with arrows in the editor's Arrangement section
+  (`arrangement: [String]?`; defaults reproduce the classic output:
+  figures image→title→caption, tables title→table→caption). Title and
+  caption carry a **print toggle, bold/italic/underline, and
+  left/center/right alignment** (`CaptionPartStyle.align`); the table
+  piece carries its **page-width % (25–100)** and alignment
+  (`tableWidthPercent`/`tableAlign`), the image piece its alignment
+  (`imageAlign`; size stays with the image fields). Table **footnotes are
+  no longer edited per table** (a manuscript-wide footnote system is the
+  intended replacement; stored footnotes still export as "Note." lines).
+- AC (implemented, Aug 2026): **Manual tables are a GRID, not Markdown**:
+  cells edit in place (row 0 = header), the toolbar adds/removes rows and
+  columns and styles the selected cell — **bold / italic / underline /
+  highlight / alignment** (`ManuscriptTable.cells: [[TableCell]]`; the
+  pipe-Markdown `content` stays as a plain mirror for legacy readers, and
+  legacy content parses into the grid on first edit). Both export writers
+  render the per-cell styles (drawn PDF grid and NSTextTable alike).
+  A data-linked table can **Disconnect from Data** (destructive-confirmed):
+  the current query result copies into the manual grid and the link is
+  removed — one-way. **Autofit** (Export Formatting): data starts at row
+  N (default 2; header = row 1) — rows in between are dropped from the
+  export.
 - AC (implemented, Aug 2026): **Data uploads are renameable** (CSV and
   image assets — the header name edits in place; default = file name).
   CSV imports **keep the original CSV** beside the SQLite store, enabling

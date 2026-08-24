@@ -6,6 +6,19 @@
 
 import Foundation
 
+/// One cell of a manually edited table: its text plus optional emphasis.
+/// All style fields optional so older files decode (nil = plain).
+struct TableCell: Codable, Sendable, Equatable {
+    var text: String = ""
+    var bold: Bool? = nil
+    var italic: Bool? = nil
+    var underline: Bool? = nil
+    /// Highlighted (light yellow) cell background.
+    var highlight: Bool? = nil
+    /// "left" | "center" | "right"; nil = left.
+    var align: String? = nil
+}
+
 /// Metadata and content for a single manuscript table.
 struct ManuscriptTable: Codable, Identifiable, Sendable, Equatable {
 
@@ -42,6 +55,28 @@ struct ManuscriptTable: Codable, Identifiable, Sendable, Equatable {
     var titleStyle: CaptionPartStyle? = nil
     var captionStyle: CaptionPartStyle? = nil
 
+    /// Grid-edited cells (first row = header).  When set, this is the
+    /// table's source of truth; `content` keeps a plain pipe-Markdown
+    /// mirror so older readers and word counts keep working.
+    var cells: [[TableCell]]? = nil
+
+    /// The pieces of the exported table in print order.  nil = the classic
+    /// ["title", "table", "caption"].  The title piece renders
+    /// "Table N. Title" (the index folds in; legacy numberStyle.enabled ==
+    /// false drops the prefix).
+    var arrangement: [String]? = nil
+
+    /// Exported table width as a % of the page's text column (25–100).
+    /// nil = 100.
+    var tableWidthPercent: Double? = nil
+    /// Table alignment when narrower than the column: "left" | "center" |
+    /// "right"; nil = left.
+    var tableAlign: String? = nil
+
+    /// Export autofit: the 1-based row DATA starts at (the header is row 1).
+    /// nil = 2; higher values drop the rows between the header and N.
+    var dataStartRow: Int? = nil
+
     // MARK: - Data-linked table fields (optional)
 
     /// When set, table rows are populated by running `dataQuery` against this DataAsset.
@@ -58,6 +93,41 @@ struct ManuscriptTable: Codable, Identifiable, Sendable, Equatable {
 
     /// Light shading on alternating data rows.
     var alternateShading: Bool? = nil
+
+    // MARK: - Grid <-> Markdown
+
+    /// Plain pipe-Markdown mirror of a cell grid.
+    static func markdown(from cells: [[TableCell]]) -> String {
+        guard let header = cells.first else { return "" }
+        var out = "| " + header.map(\.text).joined(separator: " | ") + " |\n"
+        out += "|" + header.map { _ in "---" }.joined(separator: "|") + "|\n"
+        for row in cells.dropFirst() {
+            out += "| " + row.map(\.text).joined(separator: " | ") + " |\n"
+        }
+        return out
+    }
+
+    /// Parses pipe Markdown into a plain cell grid (nil when it isn't one).
+    static func cellGrid(fromPipe content: String) -> [[TableCell]]? {
+        let lines = content.replacingOccurrences(of: "\r\n", with: "\n")
+            .components(separatedBy: "\n")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { $0.contains("|") }
+        let rows: [[String]] = lines.compactMap { lineText in
+            var l = lineText
+            if l.hasPrefix("|") { l.removeFirst() }
+            if l.hasSuffix("|") { l.removeLast() }
+            let cells = l.components(separatedBy: "|").map { $0.trimmingCharacters(in: .whitespaces) }
+            let isRule = cells.allSatisfy { cell in cell.allSatisfy { "-:".contains($0) } }
+                && cells.contains { $0.contains("-") }
+            return isRule ? nil : cells
+        }
+        guard let header = rows.first, !header.isEmpty else { return nil }
+        let width = rows.map(\.count).max() ?? header.count
+        return rows.map { row in
+            (0..<width).map { TableCell(text: $0 < row.count ? row[$0] : "") }
+        }
+    }
 
     // MARK: - Factory
 

@@ -1065,16 +1065,19 @@ private struct OutlineBuilder {
             let doc = NSMutableAttributedString()
             if item.titleShown { doc.append(headingBlock(item.customTitle ?? "Figures", style: item.effectiveHeadingStyle)) }
             for f in figures {
-                let assembly = captionAssembly(
-                    number: "Figure \(refContext.figures[f.id]?.number ?? f.number).",
-                    title: f.title, caption: f.caption,
-                    numberStyle: f.numberStyle, titleStyle: f.titleStyle, captionStyle: f.captionStyle,
-                    defaults: ("below", "inline", "below"))
-                doc.append(assembly.above)
-                if let image = figureImage(f) {
-                    doc.append(attachmentBlock(image))
-                }
-                doc.append(assembly.below)
+                let num = refContext.figures[f.id]?.number ?? f.number
+                let titleText = (f.numberStyle?.isEnabled ?? true)
+                    ? "Figure \(num). \(f.title)" : f.title
+                doc.append(arrangedPieces(
+                    order: f.arrangement ?? ["image", "title", "caption"],
+                    titleText: titleText, titleStyle: f.titleStyle,
+                    caption: f.caption, captionStyle: f.captionStyle,
+                    asset: {
+                        guard let image = figureImage(f) else { return nil }
+                        let block = NSMutableAttributedString(attributedString: attachmentBlock(image))
+                        applyBlockAlignment(f.imageAlign, to: block)
+                        return block
+                    }))
             }
             return doc
         case .tables:
@@ -1085,14 +1088,14 @@ private struct OutlineBuilder {
             let doc = NSMutableAttributedString()
             if item.titleShown { doc.append(headingBlock(item.customTitle ?? "Tables", style: item.effectiveHeadingStyle)) }
             for t in tables {
-                let assembly = captionAssembly(
-                    number: "Table \(refContext.tables[t.id]?.number ?? t.number).",
-                    title: t.title, caption: t.caption,
-                    numberStyle: t.numberStyle, titleStyle: t.titleStyle, captionStyle: t.captionStyle,
-                    defaults: ("above", "inline", "below"))
-                doc.append(assembly.above)
-                doc.append(tableBody(t))
-                doc.append(assembly.below)
+                let num = refContext.tables[t.id]?.number ?? t.number
+                let titleText = (t.numberStyle?.isEnabled ?? true)
+                    ? "Table \(num). \(t.title)" : t.title
+                doc.append(arrangedPieces(
+                    order: t.arrangement ?? ["title", "table", "caption"],
+                    titleText: titleText, titleStyle: t.titleStyle,
+                    caption: t.caption, captionStyle: t.captionStyle,
+                    asset: { tableBody(t) }))
                 if !t.footnotes.isEmpty {
                     doc.append(line("Note. \(t.footnotes)", font: meta, color: .darkGray, after: 8))
                 }
@@ -1133,81 +1136,62 @@ private struct OutlineBuilder {
 
     // MARK: helpers
 
-    /// Assembles a figure/table caption block from its three parts (index,
-    /// title, caption): each part prints independently, resolves its
-    /// placement — above the asset, below it, or INLINE joining the
-    /// previous printed part's line — and carries its own emphasis.
-    /// Defaults reproduce the classic output ("Figure 1. Title" below a
-    /// figure / above a table, caption below).
-    private func captionAssembly(number: String, title: String, caption: String,
-                                 numberStyle: CaptionPartStyle?, titleStyle: CaptionPartStyle?,
-                                 captionStyle: CaptionPartStyle?,
-                                 defaults: (number: String, title: String, caption: String))
-        -> (above: NSAttributedString, below: NSAttributedString) {
-        struct Part {
-            let text: String
-            let style: CaptionPartStyle?
-            let defaultPlacement: String
-            let defaultBold: Bool
-            let metaLook: Bool     // caption: smaller + dark gray
+    /// One arranged caption piece (title or caption) as a styled, aligned
+    /// line.  Title pieces use the body font (bold default); captions the
+    /// meta look (smaller, dark gray).
+    private func captionPieceLine(_ text: String, style: CaptionPartStyle?,
+                                  defaultBold: Bool, metaLook: Bool,
+                                  after: CGFloat) -> NSAttributedString {
+        let fm = NSFontManager.shared
+        var font = metaLook ? meta : base
+        if style?.bold ?? defaultBold {
+            font = fm.convert(font, toHaveTrait: .boldFontMask)
+        } else {
+            font = fm.convert(font, toNotHaveTrait: .boldFontMask)
         }
-        let parts = [
-            Part(text: number, style: numberStyle, defaultPlacement: defaults.number,
-                 defaultBold: true, metaLook: false),
-            Part(text: title, style: titleStyle, defaultPlacement: defaults.title,
-                 defaultBold: true, metaLook: false),
-            Part(text: caption, style: captionStyle, defaultPlacement: defaults.caption,
-                 defaultBold: false, metaLook: true),
+        if style?.italic == true { font = fm.convert(font, toHaveTrait: .italicFontMask) }
+        guard let para = paragraph(after: after).mutableCopy() as? NSMutableParagraphStyle else {
+            return NSAttributedString(string: text + "\n")
+        }
+        switch style?.effectiveAlign {
+        case "center": para.alignment = .center
+        case "right":  para.alignment = .right
+        default:       break
+        }
+        var attrs: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .foregroundColor: metaLook ? NSColor.darkGray : NSColor.black,
+            .paragraphStyle: para,
         ]
-        func styled(_ part: Part) -> NSAttributedString {
-            let fm = NSFontManager.shared
-            var font = part.metaLook ? meta : base
-            if part.style?.bold ?? part.defaultBold {
-                font = fm.convert(font, toHaveTrait: .boldFontMask)
-            } else {
-                font = fm.convert(font, toNotHaveTrait: .boldFontMask)
-            }
-            if part.style?.italic == true { font = fm.convert(font, toHaveTrait: .italicFontMask) }
-            var attrs: [NSAttributedString.Key: Any] = [
-                .font: font,
-                .foregroundColor: part.metaLook ? NSColor.darkGray : NSColor.black,
-            ]
-            if part.style?.underline == true {
-                attrs[.underlineStyle] = NSUnderlineStyle.single.rawValue
-            }
-            return NSAttributedString(string: part.text, attributes: attrs)
-        }
-        var lines: [(place: String, text: NSMutableAttributedString)] = []
-        var lastLine: Int? = nil
-        for part in parts {
-            guard part.style?.isEnabled ?? true, !part.text.isEmpty else { continue }
-            let run = styled(part)
-            var place = part.style?.placement ?? part.defaultPlacement
-            if place == "inline" {
-                if let li = lastLine {
-                    lines[li].text.append(NSAttributedString(string: " "))
-                    lines[li].text.append(run)
-                    continue
+        if style?.underline == true { attrs[.underlineStyle] = NSUnderlineStyle.single.rawValue }
+        return NSAttributedString(string: text + "\n", attributes: attrs)
+    }
+
+    /// A figure/table rendered as its ARRANGED pieces, in order: the title
+    /// line ("Table 2. Effects…" — the index folds in unless a legacy
+    /// numberStyle disabled it), the asset itself, and the caption.
+    private func arrangedPieces(order: [String], titleText: String,
+                                titleStyle: CaptionPartStyle?, caption: String,
+                                captionStyle: CaptionPartStyle?,
+                                asset: () -> NSAttributedString?) -> NSAttributedString {
+        let out = NSMutableAttributedString()
+        for piece in order {
+            switch piece {
+            case "title":
+                if titleStyle?.isEnabled ?? true, !titleText.isEmpty {
+                    out.append(captionPieceLine(titleText, style: titleStyle,
+                                                defaultBold: true, metaLook: false, after: 2))
                 }
-                place = part.defaultPlacement == "inline" ? "below" : part.defaultPlacement
+            case "caption":
+                if captionStyle?.isEnabled ?? true, !caption.isEmpty {
+                    out.append(captionPieceLine(caption, style: captionStyle,
+                                                defaultBold: false, metaLook: true, after: 8))
+                }
+            default:
+                if let block = asset() { out.append(block) }
             }
-            lines.append((place, NSMutableAttributedString(attributedString: run)))
-            lastLine = lines.count - 1
         }
-        func merged(_ place: String, lastAfter: CGFloat) -> NSAttributedString {
-            let out = NSMutableAttributedString()
-            let mine = lines.filter { $0.place == place }
-            for (i, l) in mine.enumerated() {
-                let para = NSMutableAttributedString(attributedString: l.text)
-                para.append(NSAttributedString(string: "\n"))
-                para.addAttribute(.paragraphStyle,
-                                  value: paragraph(after: i == mine.count - 1 ? lastAfter : 2),
-                                  range: NSRange(location: 0, length: para.length))
-                out.append(para)
-            }
-            return out
-        }
-        return (merged("above", lastAfter: 2), merged("below", lastAfter: 8))
+        return out
     }
 
     /// Section headings export with the first letter capitalized by default
@@ -1469,24 +1453,36 @@ private struct OutlineBuilder {
     //   DOCX/RTF  — NSTextTable cells, so Word/Pages get a native table.
     // Sources: the SQL result for data-linked tables, else parsed pipe rows.
 
-    /// The rows of a table: SQL result (data-linked) or parsed pipe syntax.
-    private func tableGrid(_ t: ManuscriptTable) -> (columns: [String], rows: [[String]])? {
+    /// The styled rows of a table: SQL result (data-linked), the manual
+    /// cell grid, or parsed pipe syntax — everything downstream renders
+    /// `TableCell`s so per-cell emphasis carries into the output.
+    private func tableGrid(_ t: ManuscriptTable) -> (columns: [TableCell], rows: [[TableCell]])? {
         if let result = tableData?(t), !result.columns.isEmpty {
-            return (result.columns, result.rows)
+            return (result.columns.map { TableCell(text: $0) },
+                    result.rows.map { row in row.map { TableCell(text: $0) } })
         }
-        return Self.pipeRows(t.content)
+        if let cells = t.cells, let header = cells.first, !header.isEmpty {
+            return (header, Array(cells.dropFirst()))
+        }
+        guard let pipe = Self.pipeRows(t.content) else { return nil }
+        return (pipe.columns.map { TableCell(text: $0) },
+                pipe.rows.map { row in row.map { TableCell(text: $0) } })
     }
 
     /// The table body block for `t`, in the right construction for the
     /// output type; plain mono text only when nothing parses as a table.
+    /// Applies the export autofit (data from row N), the table's width %,
+    /// and its page alignment.
     func tableBody(_ t: ManuscriptTable) -> NSAttributedString {
         guard let grid = tableGrid(t), !grid.columns.isEmpty else {
             return t.content.isEmpty ? NSAttributedString()
                 : line(t.content, font: .monospacedSystemFont(ofSize: format.fontSize - 1, weight: .regular), after: 4)
         }
-        // Normalize row widths; keep runaway result sets bounded.
-        let capped = grid.rows.prefix(200).map { row in
-            grid.columns.indices.map { $0 < row.count ? row[$0] : "" }
+        // Autofit: data starts at row N (header = row 1) — drop the rows in
+        // between.  Then normalize row widths; keep runaway sets bounded.
+        let fitted = Array(grid.rows.dropFirst(max((t.dataStartRow ?? 2) - 2, 0)))
+        let capped = fitted.prefix(200).map { row in
+            grid.columns.indices.map { $0 < row.count ? row[$0] : TableCell() }
         }
         let out = NSMutableAttributedString()
         if fileType == .pdf {
@@ -1494,11 +1490,64 @@ private struct OutlineBuilder {
         } else {
             out.append(textTableBlock(columns: grid.columns, rows: Array(capped), table: t))
         }
-        if grid.rows.count > 200 {
-            out.append(line("… \(grid.rows.count - 200) more rows (see data)", font: meta, color: .darkGray, after: 4))
+        if fitted.count > 200 {
+            out.append(line("… \(fitted.count - 200) more rows (see data)", font: meta, color: .darkGray, after: 4))
         }
+        applyBlockAlignment(t.tableAlign, to: out)
         return out
     }
+
+    /// Fraction of the text column a table occupies (its width %).
+    private func tableWidthFactor(_ t: ManuscriptTable) -> CGFloat {
+        min(max(CGFloat(t.tableWidthPercent ?? 100) / 100, 0.25), 1)
+    }
+
+    /// Applies "center"/"right" paragraph alignment across a block
+    /// (attachment lines included); "left"/nil leaves it alone.
+    private func applyBlockAlignment(_ align: String?, to text: NSMutableAttributedString) {
+        let alignment: NSTextAlignment
+        switch align {
+        case "center": alignment = .center
+        case "right":  alignment = .right
+        default:       return
+        }
+        let full = NSRange(location: 0, length: text.length)
+        text.enumerateAttribute(.paragraphStyle, in: full) { value, range, _ in
+            guard let para = ((value as? NSParagraphStyle) ?? .default)
+                .mutableCopy() as? NSMutableParagraphStyle else { return }
+            para.alignment = alignment
+            text.addAttribute(.paragraphStyle, value: para, range: range)
+        }
+    }
+
+    /// The effective font for one cell (header cells are bold by default).
+    private func cellFont(_ cell: TableCell, header: Bool) -> NSFont {
+        let fm = NSFontManager.shared
+        var font = tableCellFont
+        if cell.bold ?? header { font = fm.convert(font, toHaveTrait: .boldFontMask) }
+        if cell.italic == true { font = fm.convert(font, toHaveTrait: .italicFontMask) }
+        return font
+    }
+
+    /// Draw/text attributes for one cell's content.
+    private func cellAttributes(_ cell: TableCell, header: Bool) -> [NSAttributedString.Key: Any] {
+        var attrs: [NSAttributedString.Key: Any] = [
+            .font: cellFont(cell, header: header),
+            .foregroundColor: NSColor.black,
+        ]
+        if cell.underline == true { attrs[.underlineStyle] = NSUnderlineStyle.single.rawValue }
+        let para = NSMutableParagraphStyle()
+        switch cell.align {
+        case "center": para.alignment = .center
+        case "right":  para.alignment = .right
+        default:       para.alignment = .left
+        }
+        attrs[.paragraphStyle] = para
+        return attrs
+    }
+
+    /// Highlighted-cell fill.
+    private static let cellHighlight = NSColor(red: 1.0, green: 0.95, blue: 0.6, alpha: 1)
 
     /// Markdown pipe rows → (header, data rows); nil when it isn't a table.
     static func pipeRows(_ content: String) -> (columns: [String], rows: [[String]])? {
@@ -1532,15 +1581,16 @@ private struct OutlineBuilder {
 
     /// Column widths as fractions of the table width: natural (widest cell)
     /// widths, capped so one long column can't starve the rest, normalized.
-    private func columnFractions(columns: [String], rows: [[String]]) -> [CGFloat] {
-        let cellFont = tableCellFont
-        let headerFont = NSFontManager.shared.convert(cellFont, toHaveTrait: .boldFontMask)
+    private func columnFractions(columns: [TableCell], rows: [[TableCell]],
+                                 width: CGFloat) -> [CGFloat] {
         var naturals: [CGFloat] = columns.indices.map { i in
-            var w = (columns[i] as NSString).size(withAttributes: [.font: headerFont]).width
+            var w = (columns[i].text as NSString)
+                .size(withAttributes: [.font: cellFont(columns[i], header: true)]).width
             for row in rows {
-                w = max(w, (row[i] as NSString).size(withAttributes: [.font: cellFont]).width)
+                w = max(w, (row[i].text as NSString)
+                    .size(withAttributes: [.font: cellFont(row[i], header: false)]).width)
             }
-            return min(max(w + 12, 34), tableWidth * 0.55)
+            return min(max(w + 12, 34), width * 0.55)
         }
         let total = naturals.reduce(0, +)
         if total <= 0 { naturals = naturals.map { _ in 1 } }
@@ -1548,21 +1598,20 @@ private struct OutlineBuilder {
         return naturals.map { $0 / sum }
     }
 
-    /// DOCX/RTF: a native NSTextTable — bordered cells that wrap values.
-    private func textTableBlock(columns: [String], rows: [[String]], table t: ManuscriptTable) -> NSAttributedString {
-        let cellFont = tableCellFont
-        let headerFont = NSFontManager.shared.convert(cellFont, toHaveTrait: .boldFontMask)
+    /// DOCX/RTF: a native NSTextTable — bordered cells that wrap values,
+    /// carrying each cell's emphasis, highlight, and alignment.
+    private func textTableBlock(columns: [TableCell], rows: [[TableCell]], table t: ManuscriptTable) -> NSAttributedString {
         let open = t.openSides ?? false
         let shade = t.alternateShading ?? false
-        let fractions = columnFractions(columns: columns, rows: rows)
+        let fractions = columnFractions(columns: columns, rows: rows, width: tableWidth)
         let lastRow = rows.count   // header is row 0
 
         let table = NSTextTable()
         table.numberOfColumns = columns.count
-        table.setContentWidth(100, type: .percentageValueType)
+        table.setContentWidth(tableWidthFactor(t) * 100, type: .percentageValueType)
 
         let out = NSMutableAttributedString()
-        func appendCell(_ text: String, row: Int, col: Int) {
+        func appendCell(_ cell: TableCell, row: Int, col: Int) {
             let block = NSTextTableBlock(table: table, startingRow: row, rowSpan: 1,
                                          startingColumn: col, columnSpan: 1)
             block.setValue(fractions[col] * 100, type: .percentageValueType, for: .width)
@@ -1581,23 +1630,25 @@ private struct OutlineBuilder {
             } else {
                 block.setWidth(0.5, type: .absoluteValueType, for: .border)
             }
-            if row == 0 {
+            if cell.highlight == true {
+                block.backgroundColor = Self.cellHighlight
+            } else if row == 0 {
                 if !open { block.backgroundColor = NSColor(white: 0.92, alpha: 1) }
             } else if shade, row % 2 == 1 {
                 block.backgroundColor = NSColor(white: 0.955, alpha: 1)
             }
-            let style = NSMutableParagraphStyle()
-            style.textBlocks = [block]
-            out.append(NSAttributedString(string: text + "\n", attributes: [
-                .font: row == 0 ? headerFont : cellFont,
-                .foregroundColor: NSColor.black,
-                .paragraphStyle: style,
-            ]))
+            var attrs = cellAttributes(cell, header: row == 0)
+            if let para = (attrs[.paragraphStyle] as? NSParagraphStyle)?
+                .mutableCopy() as? NSMutableParagraphStyle {
+                para.textBlocks = [block]
+                attrs[.paragraphStyle] = para
+            }
+            out.append(NSAttributedString(string: cell.text + "\n", attributes: attrs))
         }
 
-        for (col, name) in columns.enumerated() { appendCell(name, row: 0, col: col) }
+        for (col, cell) in columns.enumerated() { appendCell(cell, row: 0, col: col) }
         for (r, row) in rows.enumerated() {
-            for (col, value) in row.enumerated() { appendCell(value, row: r + 1, col: col) }
+            for (col, cell) in row.enumerated() { appendCell(cell, row: r + 1, col: col) }
         }
         out.append(NSAttributedString(string: "\n", attributes: [.font: base]))
         return out
@@ -1606,28 +1657,27 @@ private struct OutlineBuilder {
     /// PDF: the grid drawn into image chunks (vector text isn't available in
     /// the CoreText paginator) — measured columns, wrapped cells, rules and
     /// shading per the table's formatting, split so chunks fit a page.
-    private func drawnTableBlock(columns: [String], rows: [[String]], table t: ManuscriptTable) -> NSAttributedString {
-        let cellFont = tableCellFont
-        let headerFont = NSFontManager.shared.convert(cellFont, toHaveTrait: .boldFontMask)
+    private func drawnTableBlock(columns: [TableCell], rows: [[TableCell]], table t: ManuscriptTable) -> NSAttributedString {
         let open = t.openSides ?? false
         let shade = t.alternateShading ?? false
-        let width = tableWidth
+        let width = tableWidth * tableWidthFactor(t)
         let pad: CGFloat = 5
-        let widths = columnFractions(columns: columns, rows: rows).map { $0 * width }
+        let widths = columnFractions(columns: columns, rows: rows, width: width).map { $0 * width }
 
-        func cellHeight(_ text: String, columnWidth: CGFloat, font: NSFont) -> CGFloat {
-            guard !text.isEmpty else { return ceil(font.ascender - font.descender) }
-            let bounds = (text as NSString).boundingRect(
+        func cellHeight(_ cell: TableCell, columnWidth: CGFloat, header: Bool) -> CGFloat {
+            let font = cellFont(cell, header: header)
+            guard !cell.text.isEmpty else { return ceil(font.ascender - font.descender) }
+            let bounds = (cell.text as NSString).boundingRect(
                 with: NSSize(width: columnWidth - pad * 2, height: .greatestFiniteMagnitude),
                 options: [.usesLineFragmentOrigin, .usesFontLeading],
                 attributes: [.font: font])
             return ceil(bounds.height)
         }
         let headerHeight = columns.indices
-            .map { cellHeight(columns[$0], columnWidth: widths[$0], font: headerFont) }
+            .map { cellHeight(columns[$0], columnWidth: widths[$0], header: true) }
             .max()! + pad * 2
         let rowHeights = rows.map { row in
-            columns.indices.map { cellHeight(row[$0], columnWidth: widths[$0], font: cellFont) }
+            columns.indices.map { cellHeight(row[$0], columnWidth: widths[$0], header: false) }
                 .max()! + pad * 2
         }
 
@@ -1670,17 +1720,21 @@ private struct OutlineBuilder {
                     }
                 }
 
-                // Cell text, wrapped inside its column.
+                // Cell text, wrapped inside its column — each cell drawn
+                // with its own emphasis, alignment, and highlight.
                 y = 0
                 for (rowIndex, rowHeight) in heights.enumerated() {
                     let cells = rowIndex == 0 ? columns : rows[indices[rowIndex - 1]]
-                    let font = rowIndex == 0 ? headerFont : cellFont
                     var x: CGFloat = 0
                     for (col, columnWidth) in widths.enumerated() where col < cells.count {
-                        (cells[col] as NSString).draw(
+                        if cells[col].highlight == true {
+                            Self.cellHighlight.setFill()
+                            NSRect(x: x, y: y, width: columnWidth, height: rowHeight).fill()
+                        }
+                        (cells[col].text as NSString).draw(
                             in: NSRect(x: x + pad, y: y + pad,
                                        width: columnWidth - pad * 2, height: rowHeight - pad * 2),
-                            withAttributes: [.font: font, .foregroundColor: NSColor.black])
+                            withAttributes: cellAttributes(cells[col], header: rowIndex == 0))
                         x += columnWidth
                     }
                     y += rowHeight
@@ -1769,29 +1823,30 @@ private struct OutlineBuilder {
                 return NSAttributedString(string: "")
             }
             let number = refContext.figures[figure.id]?.number ?? figure.number
-            let assembly = captionAssembly(
-                number: "Figure \(number).", title: figure.title, caption: figure.caption,
-                numberStyle: figure.numberStyle, titleStyle: figure.titleStyle,
-                captionStyle: figure.captionStyle,
-                defaults: ("below", "inline", "below"))
-            out.append(assembly.above)
-            if let image = figureImage(figure) {
-                out.append(attachmentBlock(image))
-            }
-            out.append(assembly.below)
+            let titleText = (figure.numberStyle?.isEnabled ?? true)
+                ? "Figure \(number). \(figure.title)" : figure.title
+            out.append(arrangedPieces(
+                order: figure.arrangement ?? ["image", "title", "caption"],
+                titleText: titleText, titleStyle: figure.titleStyle,
+                caption: figure.caption, captionStyle: figure.captionStyle,
+                asset: {
+                    guard let image = figureImage(figure) else { return nil }
+                    let block = NSMutableAttributedString(attributedString: attachmentBlock(image))
+                    applyBlockAlignment(figure.imageAlign, to: block)
+                    return block
+                }))
         case .tablePlacement:
             guard let table = m.tables.first(where: { $0.id == token.targetID }) else {
                 return NSAttributedString(string: "")
             }
             let number = refContext.tables[table.id]?.number ?? table.number
-            let assembly = captionAssembly(
-                number: "Table \(number).", title: table.title, caption: table.caption,
-                numberStyle: table.numberStyle, titleStyle: table.titleStyle,
-                captionStyle: table.captionStyle,
-                defaults: ("above", "inline", "below"))
-            out.append(assembly.above)
-            out.append(tableBody(table))
-            out.append(assembly.below)
+            let titleText = (table.numberStyle?.isEnabled ?? true)
+                ? "Table \(number). \(table.title)" : table.title
+            out.append(arrangedPieces(
+                order: table.arrangement ?? ["title", "table", "caption"],
+                titleText: titleText, titleStyle: table.titleStyle,
+                caption: table.caption, captionStyle: table.captionStyle,
+                asset: { tableBody(table) }))
             if !table.footnotes.isEmpty {
                 out.append(line("Note. \(table.footnotes)", font: meta, color: .darkGray, after: 6))
             }

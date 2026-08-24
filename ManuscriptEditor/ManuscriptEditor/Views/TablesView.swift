@@ -144,6 +144,8 @@ struct TableEditor: View {
 
     /// Live result of the linked data query (when a data source is set).
     @State private var previewResult: QueryResult = .empty
+    /// Confirm for the one-way disconnect-from-data action.
+    @State private var showDisconnectConfirm = false
     /// Debounces query re-runs while the user types SQL.
     @State private var previewTask: Task<Void, Never>?
 
@@ -158,11 +160,11 @@ struct TableEditor: View {
             // MARK: Content: live data preview (linked) or Markdown editor
             VStack(alignment: .leading, spacing: 0) {
                 HStack {
-                    Text(draft.dataAssetID == nil ? "Table Content (Markdown)" : "Data Preview")
+                    Text(draft.dataAssetID == nil ? "Table Content" : "Data Preview")
                         .font(.headline)
                     Spacer()
                     if draft.dataAssetID == nil {
-                        Text("Tip: use | Col1 | Col2 | syntax")
+                        Text("Click a cell to type; select it to style it")
                             .font(.caption)
                             .foregroundStyle(.tertiary)
                     } else {
@@ -187,11 +189,22 @@ struct TableEditor: View {
                         QueryResultTable(result: previewResult)
                     }
                 } else {
-                    // Monospaced font makes pipe-table columns easier to align visually.
-                    PlainTextEditor(text: $draft.content,
-                                    font: .monospacedSystemFont(ofSize: NSFont.systemFontSize, weight: .regular),
-                                    smartSubstitutions: false)
-                        .padding(12)
+                    // Grid editor — no Markdown required.  Cells edit in
+                    // place; the toolbar styles the selected cell and adds/
+                    // removes rows and columns.  `content` keeps a plain
+                    // pipe-Markdown mirror for legacy readers.
+                    ManualTableGrid(cells: Binding(
+                        get: {
+                            draft.cells
+                                ?? ManuscriptTable.cellGrid(fromPipe: draft.content)
+                                ?? [[TableCell(text: "Column 1"), TableCell(text: "Column 2")],
+                                    [TableCell(), TableCell()]]
+                        },
+                        set: { grid in
+                            draft.cells = grid
+                            draft.content = ManuscriptTable.markdown(from: grid)
+                        }
+                    ))
                 }
             }
             .frame(minHeight: 200)
@@ -199,8 +212,26 @@ struct TableEditor: View {
             // MARK: Metadata form
             Form {
                 dataSourceSection
-                captionSection
+                arrangementSection
                 Section("Export Formatting") {
+                    HStack(spacing: 4) {
+                        Text("Autofit — data starts at row")
+                        TextField("", value: Binding(
+                            get: { draft.dataStartRow ?? 2 },
+                            set: { draft.dataStartRow = $0 <= 2 ? nil : min($0, 200) }
+                        ), format: .number)
+                        .frame(width: 40)
+                        .multilineTextAlignment(.trailing)
+                        Stepper("", value: Binding(
+                            get: { draft.dataStartRow ?? 2 },
+                            set: { draft.dataStartRow = $0 <= 2 ? nil : $0 }
+                        ), in: 2...200)
+                        .labelsHidden()
+                        .controlSize(.small)
+                    }
+                    Text("Row 1 is the header; rows between it and row N are dropped from the export.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                     Toggle("Open sides (horizontal rules only — journal style)", isOn: Binding(
                         get: { draft.openSides ?? false },
                         set: { draft.openSides = $0 ? true : nil }
@@ -235,6 +266,12 @@ struct TableEditor: View {
             refreshPreview()
         }
         .onAppear                         { refreshPreview() }
+        .alert("Disconnect from Data Source?", isPresented: $showDisconnectConfirm) {
+            Button("Disconnect", role: .destructive) { disconnectFromData() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("The current query result is copied into a manual table and the data link is removed. The table will no longer update with the data, and this cannot be reversed.")
+        }
     }
 
     // MARK: - Live data preview
@@ -259,36 +296,62 @@ struct TableEditor: View {
         }
     }
 
-    /// The caption block, one row per part: print toggle, the part's
-    /// content, placement (above/inline/below), and emphasis.  Table
-    /// defaults: index+title above the grid, caption below.
+    /// Arrangement: the three exported pieces — title, the table grid, and
+    /// the caption — sorted with the arrows.  Title/caption carry emphasis
+    /// + alignment; the grid carries its page-width % and alignment.
     @ViewBuilder
-    private var captionSection: some View {
-        Section("Caption") {
-            HStack(spacing: 8) {
-                CaptionPartToggle(style: $draft.numberStyle)
-                Text("Index")
-                TextField("", value: $draft.number, format: .number)
-                    .frame(width: 44)
-                    .multilineTextAlignment(.trailing)
-                Spacer()
-                CaptionPartControls(style: $draft.numberStyle, defaultPlacement: "above", defaultBold: true)
-            }
-            HStack(spacing: 8) {
-                CaptionPartToggle(style: $draft.titleStyle)
-                TextField("Title", text: $draft.title)
-                Spacer()
-                CaptionPartControls(style: $draft.titleStyle, defaultPlacement: "inline", defaultBold: true)
-            }
-            HStack(spacing: 8) {
-                CaptionPartToggle(style: $draft.captionStyle)
-                Text("Caption")
-                Spacer()
-                CaptionPartControls(style: $draft.captionStyle, defaultPlacement: "below", defaultBold: false)
+    private var arrangementSection: some View {
+        Section("Arrangement") {
+            let order = draft.arrangement ?? ["title", "table", "caption"]
+            ForEach(Array(order.enumerated()), id: \.element) { index, piece in
+                HStack(spacing: 8) {
+                    ArrangementReorderButtons(index: index, count: order.count) { delta in
+                        var next = order
+                        next.swapAt(index, index + delta)
+                        draft.arrangement = next
+                    }
+                    switch piece {
+                    case "title":
+                        CaptionPartToggle(style: $draft.titleStyle)
+                        Text("Table")
+                        TextField("", value: $draft.number, format: .number)
+                            .frame(width: 40)
+                            .multilineTextAlignment(.trailing)
+                        TextField("Title", text: $draft.title)
+                        Spacer()
+                        CaptionPartControls(style: $draft.titleStyle, defaultBold: true)
+                    case "caption":
+                        CaptionPartToggle(style: $draft.captionStyle)
+                        Text("Caption")
+                        Spacer()
+                        CaptionPartControls(style: $draft.captionStyle, defaultBold: false)
+                    default:
+                        Image(systemName: "tablecells").foregroundStyle(.secondary)
+                        Text("Table grid")
+                        Spacer()
+                        HStack(spacing: 2) {
+                            Text("width \(Int(draft.tableWidthPercent ?? 100))%")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Stepper("", value: Binding(
+                                get: { draft.tableWidthPercent ?? 100 },
+                                set: { draft.tableWidthPercent = $0 >= 99.5 ? nil : $0 }
+                            ), in: 25...100, step: 5)
+                            .labelsHidden()
+                            .controlSize(.mini)
+                        }
+                        .help("Exported table width as a % of the page's text column")
+                        AlignmentPicker(align: Binding(
+                            get: { draft.tableAlign },
+                            set: { draft.tableAlign = $0 }
+                        ))
+                        .help("Table alignment when narrower than the column")
+                    }
+                }
             }
             PlainTextEditor(text: $draft.caption)
-                .frame(minHeight: 60)
-            Text("Each part prints independently — toggle it, place it above/inline/below the table, and style it (inline joins the previous printed part's line).")
+                .frame(minHeight: 50)
+            Text("Sort the pieces with the arrows; toggle the title or caption off as needed.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -319,10 +382,183 @@ struct TableEditor: View {
                     get: { draft.dataQuery ?? "SELECT * FROM data" },
                     set: { draft.dataQuery = $0 }
                 ))
-                Text("The query result populates the table. Markdown content is ignored when a data source is linked.")
+                Text("The query result populates the table; manual content is ignored while linked.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                Button("Disconnect from Data…", role: .destructive) {
+                    showDisconnectConfirm = true
+                }
+                .help("Copy the current result into a manual table and unlink the data source")
             }
         }
+    }
+
+    /// Copies the live query result into the manual grid and unlinks the
+    /// data source — the one-way door the confirm warns about.
+    private func disconnectFromData() {
+        var result = previewResult
+        if result.columns.isEmpty || result.errorMessage != nil,
+           let assetID = draft.dataAssetID,
+           let asset = store.manuscript?.dataAssets.first(where: { $0.id == assetID }) {
+            result = store.runQuery(draft.dataQuery ?? "SELECT * FROM data", for: asset)
+        }
+        if result.errorMessage == nil, !result.columns.isEmpty {
+            var grid: [[TableCell]] = [result.columns.map { TableCell(text: $0) }]
+            grid += result.rows.map { row in row.map { TableCell(text: $0) } }
+            draft.cells = grid
+            draft.content = ManuscriptTable.markdown(from: grid)
+        }
+        draft.dataAssetID = nil
+        draft.dataQuery = nil
+    }
+}
+
+
+// MARK: - ManualTableGrid
+
+/// Direct grid editing — no Markdown.  Cells are text fields; the toolbar
+/// styles the SELECTED cell (bold/italic/underline/highlight/alignment)
+/// and adds or removes rows and columns.  Row 0 is the header.
+struct ManualTableGrid: View {
+    @Binding var cells: [[TableCell]]
+
+    struct CellID: Hashable { let r: Int; let c: Int }
+    @FocusState private var focused: CellID?
+    /// Sticky selection: styling buttons act on the last focused cell even
+    /// if clicking the button moves focus.
+    @State private var selected: CellID?
+
+    var body: some View {
+        VStack(spacing: 0) {
+            toolbar
+            Divider()
+            ScrollView([.horizontal, .vertical]) {
+                VStack(alignment: .leading, spacing: 1) {
+                    ForEach(cells.indices, id: \.self) { r in
+                        HStack(spacing: 1) {
+                            ForEach(cells[r].indices, id: \.self) { c in
+                                cellField(r: r, c: c)
+                            }
+                        }
+                    }
+                }
+                .padding(12)
+            }
+        }
+        .onChange(of: focused) { _, new in if let new { selected = new } }
+    }
+
+    private var currentCell: TableCell? {
+        guard let s = selected, cells.indices.contains(s.r),
+              cells[s.r].indices.contains(s.c) else { return nil }
+        return cells[s.r][s.c]
+    }
+
+    private func mutateSelected(_ change: (inout TableCell) -> Void) {
+        guard let s = selected, cells.indices.contains(s.r),
+              cells[s.r].indices.contains(s.c) else { return }
+        change(&cells[s.r][s.c])
+    }
+
+    // MARK: toolbar
+
+    private var toolbar: some View {
+        HStack(spacing: 4) {
+            Button {
+                cells.append(Array(repeating: TableCell(), count: cells.first?.count ?? 1))
+            } label: { Label("Row", systemImage: "plus") }
+            .help("Add a row")
+            Button {
+                for r in cells.indices { cells[r].append(TableCell()) }
+            } label: { Label("Column", systemImage: "plus.rectangle.portrait") }
+            .help("Add a column")
+            Button {
+                guard let s = selected, cells.count > 1, cells.indices.contains(s.r) else { return }
+                cells.remove(at: s.r)
+                selected = nil
+            } label: { Image(systemName: "minus.circle") }
+            .disabled(selected == nil || cells.count <= 1)
+            .help("Delete the selected cell's row")
+            Button {
+                guard let s = selected, (cells.first?.count ?? 0) > 1 else { return }
+                for r in cells.indices where cells[r].indices.contains(s.c) {
+                    cells[r].remove(at: s.c)
+                }
+                selected = nil
+            } label: { Image(systemName: "minus.circle.fill") }
+            .disabled(selected == nil || (cells.first?.count ?? 0) <= 1)
+            .help("Delete the selected cell's column")
+
+            Divider().frame(height: 16).padding(.horizontal, 4)
+
+            styleButton("bold", currentCell?.bold ?? (selected?.r == 0), "Bold") {
+                $0.bold = ($0.bold ?? (selected?.r == 0)) ? false : true
+            }
+            styleButton("italic", currentCell?.italic == true, "Italic") {
+                $0.italic = ($0.italic ?? false) ? nil : true
+            }
+            styleButton("underline", currentCell?.underline == true, "Underline") {
+                $0.underline = ($0.underline ?? false) ? nil : true
+            }
+            styleButton("highlighter", currentCell?.highlight == true, "Highlight cell") {
+                $0.highlight = ($0.highlight ?? false) ? nil : true
+            }
+            AlignmentPicker(align: Binding(
+                get: { currentCell?.align },
+                set: { value in mutateSelected { $0.align = value } }
+            ))
+            .disabled(selected == nil)
+            .help("Cell text alignment")
+
+            Spacer()
+        }
+        .buttonStyle(.borderless)
+        .controlSize(.small)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+    }
+
+    private func styleButton(_ symbol: String, _ active: Bool, _ help: String,
+                             _ change: @escaping (inout TableCell) -> Void) -> some View {
+        Button { mutateSelected(change) } label: {
+            Image(systemName: symbol)
+                .foregroundStyle(active ? Color.accentColor : Color.primary)
+        }
+        .disabled(selected == nil)
+        .help(help)
+    }
+
+    // MARK: cells
+
+    private func cellField(r: Int, c: Int) -> some View {
+        let cell = cells[r][c]
+        var font: Font = .system(size: 12, weight: (cell.bold ?? (r == 0)) ? .semibold : .regular)
+        if cell.italic == true { font = font.italic() }
+        let isSelected = selected == CellID(r: r, c: c)
+        return TextField("", text: Binding(
+            get: {
+                guard cells.indices.contains(r), cells[r].indices.contains(c) else { return "" }
+                return cells[r][c].text
+            },
+            set: { value in
+                guard cells.indices.contains(r), cells[r].indices.contains(c) else { return }
+                cells[r][c].text = value
+            }
+        ))
+        .textFieldStyle(.plain)
+        .focused($focused, equals: CellID(r: r, c: c))
+        .font(font)
+        .underline(cell.underline == true)
+        .multilineTextAlignment(cell.align == "center" ? .center
+                                : cell.align == "right" ? .trailing : .leading)
+        .padding(6)
+        .frame(width: 132, alignment: .leading)
+        .background(cell.highlight == true
+                    ? Color.yellow.opacity(0.3)
+                    : (r == 0 ? Color.secondary.opacity(0.12) : Color.secondary.opacity(0.04)))
+        .overlay(
+            Rectangle().strokeBorder(isSelected ? Color.accentColor : Color.secondary.opacity(0.25),
+                                     lineWidth: isSelected ? 1.5 : 0.5)
+        )
     }
 }

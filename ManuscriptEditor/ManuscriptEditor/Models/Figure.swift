@@ -15,14 +15,17 @@ import CoreGraphics
 struct CaptionPartStyle: Codable, Sendable, Equatable {
     /// nil = on.
     var enabled: Bool? = nil
-    /// "above" | "inline" | "below"; nil = the part's default position.
-    /// "inline" joins the previous printed part's line.
+    /// Legacy placement ("above"/"inline"/"below") — superseded by the
+    /// piece ORDER in `arrangement`; kept so Aug 2026 files decode.
     var placement: String? = nil
     var bold: Bool? = nil
     var italic: Bool? = nil
     var underline: Bool? = nil
+    /// "left" | "center" | "right"; nil = left.
+    var align: String? = nil
 
     var isEnabled: Bool { enabled ?? true }
+    var effectiveAlign: String { align ?? "left" }
 }
 
 /// Metadata for a single manuscript figure, plus an optional link to its image file.
@@ -79,6 +82,14 @@ struct Figure: Codable, Identifiable, Sendable, Equatable {
     var numberStyle: CaptionPartStyle? = nil
     var titleStyle: CaptionPartStyle? = nil
     var captionStyle: CaptionPartStyle? = nil
+
+    /// The pieces of the exported figure in print order.  nil = the classic
+    /// ["image", "title", "caption"].  The title piece renders
+    /// "Figure N. Title" (the index folds in; legacy numberStyle.enabled ==
+    /// false drops the prefix).
+    var arrangement: [String]? = nil
+    /// Image alignment on the page: "left" | "center" | "right"; nil = left.
+    var imageAlign: String? = nil
 
     // MARK: - Data-derived chart fields (optional)
 

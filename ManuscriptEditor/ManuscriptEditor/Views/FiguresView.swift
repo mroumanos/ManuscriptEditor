@@ -231,7 +231,7 @@ struct FigureEditor: View {
 
                 Form {
                     dataSection
-                    captionSection
+                    arrangementSection
                 }
                 .formStyle(.grouped)
             }
@@ -366,35 +366,51 @@ struct FigureEditor: View {
             .foregroundStyle(.secondary)
     }
 
-    /// The caption block, one row per part: print toggle, the part's
-    /// content, placement (above/inline/below), and emphasis.
+    /// Arrangement: the three exported pieces — the image, the title
+    /// ("Figure N. Title"), and the caption — sorted with the arrows.
+    /// Title/caption carry emphasis + alignment; the image its alignment
+    /// (its size lives with the image fields above).
     @ViewBuilder
-    private var captionSection: some View {
-        Section("Caption") {
-            HStack(spacing: 8) {
-                CaptionPartToggle(style: $draft.numberStyle)
-                Text("Index")
-                TextField("", value: $draft.number, format: .number)
-                    .frame(width: 44)
-                    .multilineTextAlignment(.trailing)
-                Spacer()
-                CaptionPartControls(style: $draft.numberStyle, defaultPlacement: "below", defaultBold: true)
-            }
-            HStack(spacing: 8) {
-                CaptionPartToggle(style: $draft.titleStyle)
-                TextField("Title", text: $draft.title)
-                Spacer()
-                CaptionPartControls(style: $draft.titleStyle, defaultPlacement: "inline", defaultBold: true)
-            }
-            HStack(spacing: 8) {
-                CaptionPartToggle(style: $draft.captionStyle)
-                Text("Caption")
-                Spacer()
-                CaptionPartControls(style: $draft.captionStyle, defaultPlacement: "below", defaultBold: false)
+    private var arrangementSection: some View {
+        Section("Arrangement") {
+            let order = draft.arrangement ?? ["image", "title", "caption"]
+            ForEach(Array(order.enumerated()), id: \.element) { index, piece in
+                HStack(spacing: 8) {
+                    ArrangementReorderButtons(index: index, count: order.count) { delta in
+                        var next = order
+                        next.swapAt(index, index + delta)
+                        draft.arrangement = next
+                    }
+                    switch piece {
+                    case "title":
+                        CaptionPartToggle(style: $draft.titleStyle)
+                        Text("Figure")
+                        TextField("", value: $draft.number, format: .number)
+                            .frame(width: 40)
+                            .multilineTextAlignment(.trailing)
+                        TextField("Title", text: $draft.title)
+                        Spacer()
+                        CaptionPartControls(style: $draft.titleStyle, defaultBold: true)
+                    case "caption":
+                        CaptionPartToggle(style: $draft.captionStyle)
+                        Text("Caption")
+                        Spacer()
+                        CaptionPartControls(style: $draft.captionStyle, defaultBold: false)
+                    default:
+                        Image(systemName: "photo").foregroundStyle(.secondary)
+                        Text("Image")
+                        Spacer()
+                        AlignmentPicker(align: Binding(
+                            get: { draft.imageAlign },
+                            set: { draft.imageAlign = $0 }
+                        ))
+                        .help("Image alignment on the page")
+                    }
+                }
             }
             PlainTextEditor(text: $draft.caption)
-                .frame(minHeight: 60)
-            Text("Each part prints independently — toggle it, place it above/inline/below the figure, and style it (inline joins the previous printed part's line).")
+                .frame(minHeight: 50)
+            Text("Sort the pieces with the arrows; toggle the title or caption off as needed.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -698,10 +714,9 @@ struct CaptionPartToggle: View {
     }
 }
 
-/// One caption part's placement (above/inline/below) and emphasis (B/I/U).
+/// One caption part's emphasis (B/I/U) and alignment.
 struct CaptionPartControls: View {
     @Binding var style: CaptionPartStyle?
-    var defaultPlacement: String
     var defaultBold: Bool
 
     private var current: CaptionPartStyle { style ?? CaptionPartStyle() }
@@ -714,16 +729,6 @@ struct CaptionPartControls: View {
 
     var body: some View {
         HStack(spacing: 4) {
-            Picker("", selection: Binding(
-                get: { current.placement ?? defaultPlacement },
-                set: { value in mutate { $0.placement = value } }
-            )) {
-                Text("above").tag("above")
-                Text("inline").tag("inline")
-                Text("below").tag("below")
-            }
-            .labelsHidden().controlSize(.small).fixedSize()
-            .help("Where this part sits — inline joins the previous printed part's line")
             styleButton("bold", current.bold ?? defaultBold, "Bold") {
                 $0.bold = ($0.bold ?? defaultBold) ? false : true
             }
@@ -733,6 +738,11 @@ struct CaptionPartControls: View {
             styleButton("underline", current.underline ?? false, "Underline") {
                 $0.underline = ($0.underline ?? false) ? nil : true
             }
+            AlignmentPicker(align: Binding(
+                get: { current.align },
+                set: { value in mutate { $0.align = value } }
+            ))
+            .help("Alignment on the page")
         }
         .disabled(!(style?.isEnabled ?? true))
     }
@@ -746,5 +756,46 @@ struct CaptionPartControls: View {
         }
         .buttonStyle(.plain)
         .help(help)
+    }
+}
+
+
+/// Left/center/right segmented picker over an optional alignment
+/// (nil = left) — shared by caption parts, table grids, and cells.
+struct AlignmentPicker: View {
+    @Binding var align: String?
+
+    var body: some View {
+        Picker("", selection: Binding(
+            get: { align ?? "left" },
+            set: { align = $0 == "left" ? nil : $0 }
+        )) {
+            Image(systemName: "text.alignleft").tag("left")
+            Image(systemName: "text.aligncenter").tag("center")
+            Image(systemName: "text.alignright").tag("right")
+        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .controlSize(.mini)
+        .fixedSize()
+    }
+}
+
+/// Up/down chevrons that sort an Arrangement row.
+struct ArrangementReorderButtons: View {
+    let index: Int
+    let count: Int
+    let move: (Int) -> Void
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Button { move(-1) } label: { Image(systemName: "chevron.up").font(.caption2) }
+                .disabled(index == 0)
+            Button { move(+1) } label: { Image(systemName: "chevron.down").font(.caption2) }
+                .disabled(index == count - 1)
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(.secondary)
+        .help("Sort this piece")
     }
 }
