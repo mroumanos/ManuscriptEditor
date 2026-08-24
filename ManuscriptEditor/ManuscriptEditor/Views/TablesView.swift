@@ -451,6 +451,7 @@ struct ManualTableGrid: View {
 
     @State private var hover: CellID?
     @State private var hoverBottomBar = false
+    @State private var showHighlightColors = false
     @State private var hoverRightBar = false
 
     /// Live row/column drag: (original index, current index).
@@ -501,11 +502,12 @@ struct ManualTableGrid: View {
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
-                // Sticky within the grid; gone once the cursor leaves it.
-                .onHover { inside in
-                    if !inside, movingRow == nil, movingCol == nil { hover = nil }
-                }
             }
+        }
+        // Sticky until the cursor leaves the whole view box — clearing at
+        // any inner boundary made the buttons vanish mid-reach.
+        .onHover { inside in
+            if !inside, movingRow == nil, movingCol == nil { hover = nil }
         }
         .onChange(of: cells.count) { _, _ in clampSelection() }
         .onChange(of: colCount) { _, _ in clampSelection() }
@@ -574,8 +576,24 @@ struct ManualTableGrid: View {
         .help(help)
     }
 
-    /// Inline highlight swatches: five colored boxes plus a "none".
+    /// The highlighter button: pops the color swatches under the icon.
     private var highlightMenu: some View {
+        Button {
+            showHighlightColors = true
+        } label: {
+            Image(systemName: "highlighter")
+                .foregroundStyle(firstSelected?.highlight == true
+                    ? Self.highlightColor(firstSelected?.highlightColor) : Color.primary)
+        }
+        .disabled(selection == nil)
+        .help("Highlight the selected cells")
+        .popover(isPresented: $showHighlightColors, arrowEdge: .bottom) {
+            highlightSwatches.padding(10)
+        }
+    }
+
+    /// Five colored, selectable boxes plus a "none".
+    private var highlightSwatches: some View {
         HStack(spacing: 3) {
             ForEach(["yellow", "green", "blue", "pink", "orange"], id: \.self) { name in
                 let active = firstSelected?.highlight == true
@@ -606,7 +624,6 @@ struct ManualTableGrid: View {
             .buttonStyle(.plain)
             .help("No highlight")
         }
-        .disabled(selection == nil)
     }
 
     private func mutateSelection(_ change: (inout TableCell) -> Void) {
@@ -908,6 +925,12 @@ struct ManualTableGrid: View {
                     .simultaneousGesture(
                         DragGesture(minimumDistance: 0)
                             .onChanged { _ in
+                                // Drop any text field's focus so the key
+                                // monitor (which defers to focused text)
+                                // gets the arrows.
+                                if NSApp.keyWindow?.firstResponder is NSText {
+                                    NSApp.keyWindow?.makeFirstResponder(nil)
+                                }
                                 if NSEvent.modifierFlags.contains(.shift), anchor != nil {
                                     extent = CellID(r: r, c: c)
                                     editingCell = nil
