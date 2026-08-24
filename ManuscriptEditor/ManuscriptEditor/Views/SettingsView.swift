@@ -54,7 +54,7 @@ struct SettingsView: View {
             Section("Citations") {
                 // App-wide: every in-text citation (single or multi) in
                 // every manuscript renders with this format.
-                Picker("Citation format", selection: $citationStyle) {
+                Picker("Default citation format", selection: $citationStyle) {
                     Text("Numeric — [1]").tag("n")
                     Text("Parenthesized — (1)").tag("p")
                     Text("Superscript — ¹").tag("s")

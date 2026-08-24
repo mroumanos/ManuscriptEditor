@@ -112,9 +112,11 @@ struct ChecksView: View {
             if !manualRules.isEmpty {
                 sectionHeader("Manual", note: "tick each box once you've verified it yourself")
                 ForEach(manualRules) { result in
-                    ChecklistRow(result: result) {
+                    // Label the argument: an unlabeled trailing closure can
+                    // bind to fixAction, turning checkboxes into Fix buttons.
+                    ChecklistRow(result: result, onToggle: {
                         store.toggleManualCheck(journalID: journal.id, rule: result.rule)
-                    }
+                    })
                 }
             }
             if results.isEmpty {

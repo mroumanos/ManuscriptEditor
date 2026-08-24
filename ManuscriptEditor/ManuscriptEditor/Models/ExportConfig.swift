@@ -215,6 +215,14 @@ struct ExportItem: Codable, Identifiable, Sendable, Equatable {
         var bold: Bool = true
         var underline: Bool = false
         var centered: Bool = false
+        /// Italic heading.  Optional for backward-compatible decoding.
+        var italic: Bool? = nil
+        /// "left" | "center" | "right"; nil = the legacy `centered` flag
+        /// decides.  Writers keep `centered` in sync when this is set.
+        var alignment: String? = nil
+
+        var italicOn: Bool { italic ?? false }
+        var effectiveAlignment: String { alignment ?? (centered ? "center" : "left") }
         /// Print the heading in ALL CAPS.  Optional for backward-compatible
         /// decoding of already-saved styles.
         var allCaps: Bool? = nil

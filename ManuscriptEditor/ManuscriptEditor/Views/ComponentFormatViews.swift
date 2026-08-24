@@ -10,12 +10,9 @@
 //     the title's heading look).  Sits in list components' bottom bars
 //     (Authors, Bibliography, Keywords) and in the pane header for
 //     components without one (Title, Figures, Tables).
-//   ComponentHeadingToggle — the pane-header "H" on/off button (left
-//     edge) with the heading's style set to its immediate right while on
-//     (bold/underline/center, H1–H3 level).
-//   ComponentHeadingRow — while the heading is on, its text sits on a
-//     single line right below the button (empty = the component's name),
-//     styled live and bounded by the editor's margin ruler.
+//   Every component's heading (print on/off, text, style) configures in
+//   the gear too — one place, one look, for text and list components
+//   alike.
 
 import SwiftUI
 
@@ -82,22 +79,30 @@ struct ComponentSettingsButton: View {
     private var popover: some View {
         VStack(alignment: .leading, spacing: 10) {
             if let entry {
-                typographySection
+                // Every component's heading configures HERE (one place, one
+                // look).  Text components carry nothing else — their
+                // typography lives in the editor toolbar; other components
+                // add their own settings (typography, style, delimiters).
                 switch item {
-                case .authors:      authorsSection(entry)
-                case .bibliography: referencesSection(entry)
-                case .keywords:     keywordsSection(entry)
-                case .title:        titleHeadingSection(entry)
-                default:            EmptyView()
-                }
-                // List components' heading options live here — an inline
-                // header bar looked out of place over a list.  (Title IS
-                // the heading; the byline never prints one.)
-                switch item {
-                case .keywords, .bibliography, .figures, .tables:
+                case .abstract, .section, .letterToEditor:
+                    headingSection(entry)
+                case .authors:
+                    typographySection
+                    authorsSection(entry)
+                case .title:
+                    typographySection
+                    titleHeadingSection(entry)
+                case .keywords:
+                    typographySection
+                    keywordsSection(entry)
+                    headingSection(entry)
+                case .bibliography:
+                    typographySection
+                    referencesSection(entry)
                     headingSection(entry)
                 default:
-                    EmptyView()
+                    typographySection
+                    headingSection(entry)
                 }
                 Text("Applies to this journal's export (reviewed read-only in Export).")
                     .font(.caption2)
@@ -109,7 +114,7 @@ struct ComponentSettingsButton: View {
             }
         }
         .padding(14)
-        .frame(width: 320)
+        .frame(width: 340)
     }
 
     @ViewBuilder
@@ -255,11 +260,13 @@ struct ComponentSettingsButton: View {
         .help("Delimiter between the exported keywords")
     }
 
-    /// Heading options for components without an editor pane to carry
-    /// them: print on/off, style, and the printed text.
+    /// The component's heading configuration: print on/off, the printed
+    /// text, and its style (bold/italic/underline, alignment, level).
     @ViewBuilder
     private func headingSection(_ entry: ExportItem) -> some View {
-        Divider()
+        Text("Heading")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.secondary)
         Toggle("Print heading", isOn: Binding(
             get: { entry.titleShown },
             set: { on in mutateItem { $0.titleShown = on } }
@@ -317,8 +324,21 @@ struct HeadingStyleControls: View {
     var body: some View {
         HStack(spacing: 3) {
             toggle("bold", style.bold, "Bold heading") { $0.bold.toggle() }
+            toggle("italic", style.italicOn, "Italic heading") { $0.italic = ($0.italic ?? false) ? nil : true }
             toggle("underline", style.underline, "Underlined heading") { $0.underline.toggle() }
-            toggle("text.aligncenter", style.centered, "Centered heading") { $0.centered.toggle() }
+            Picker("", selection: Binding(
+                get: { style.effectiveAlignment },
+                set: { align in mutate { $0.alignment = align; $0.centered = align == "center" } }
+            )) {
+                Image(systemName: "text.alignleft").tag("left")
+                Image(systemName: "text.aligncenter").tag("center")
+                Image(systemName: "text.alignright").tag("right")
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .controlSize(.mini)
+            .fixedSize()
+            .help("Heading alignment")
             if showLevel {
                 Button {
                     mutate {
@@ -345,93 +365,5 @@ struct HeadingStyleControls: View {
         }
         .buttonStyle(.plain)
         .help(help)
-    }
-}
-
-// MARK: - ComponentHeadingToggle
-
-/// Pane-header heading controls: an "H" on/off button at the left edge,
-/// with the style set to its immediate right while on (bold/underline/
-/// center, H1–H3 level).  Hidden for components whose export can't carry a
-/// heading (the title page IS the heading; the byline never prints one).
-struct ComponentHeadingToggle: View {
-    @Environment(ManuscriptStore.self) private var store
-
-    let item: SidebarItem
-    let versionRef: VersionRef
-
-    var body: some View {
-        if let entry = componentExportEntry(store, item: item, ref: versionRef),
-           entry.kind != .titlePage, entry.kind != .authors {
-            HStack(spacing: 6) {
-                Button {
-                    store.updateExportEntry(for: item, ref: versionRef,
-                                            mutateItem: { $0.titleShown.toggle() })
-                } label: {
-                    Image(systemName: entry.titleShown ? "h.square.fill" : "h.square")
-                        .foregroundStyle(entry.titleShown
-                            ? Color.accentColor : Color(nsColor: .tertiaryLabelColor))
-                }
-                .buttonStyle(.borderless)
-                .help(entry.titleShown
-                      ? "Heading prints in the export — click to hide it (content always exports)"
-                      : "Heading hidden in the export — click to print it")
-                if entry.titleShown {
-                    HeadingStyleControls(style: entry.effectiveHeadingStyle, showLevel: true) { change in
-                        store.updateExportEntry(for: item, ref: versionRef, mutateItem: { itm in
-                            var hs = itm.effectiveHeadingStyle
-                            change(&hs)
-                            itm.headingStyle = hs
-                        })
-                    }
-                }
-            }
-        }
-    }
-}
-
-// MARK: - ComponentHeadingRow
-
-/// The printed heading's text, revealed right under the "H" button while
-/// the heading is on: a single-line box (empty reverts to the component's
-/// own name) that reflects the heading's style live and stays within the
-/// editor's margin-ruler bounds.
-struct ComponentHeadingRow: View {
-    @Environment(ManuscriptStore.self) private var store
-
-    let item: SidebarItem
-    let versionRef: VersionRef
-
-    @AppStorage("editorWrapWidth") private var wrapWidth = 650.0
-
-    var body: some View {
-        if let entry = componentExportEntry(store, item: item, ref: versionRef),
-           entry.kind != .titlePage, entry.kind != .authors, entry.titleShown {
-            let style = entry.effectiveHeadingStyle
-            HStack(spacing: 0) {
-                TextField("", text: Binding(
-                    get: { entry.customTitle ?? "" },
-                    set: { text in
-                        store.updateExportEntry(for: item, ref: versionRef, mutateItem: {
-                            $0.customTitle = text.isEmpty ? nil : text
-                        })
-                    }
-                ), prompt: Text(entry.title(in: store.manuscript(for: versionRef))))
-                .textFieldStyle(.plain)
-                .font(.system(size: 13 + CGFloat(ExportItem.HeadingStyle.sizeDelta(forLevel: style.effectiveLevel)),
-                              weight: style.bold ? .semibold : .regular))
-                .underline(style.underline)
-                .multilineTextAlignment(style.centered ? .center : .leading)
-                // Rebuild the field when the style changes — a focused
-                // NSTextField won't restyle (underline lagged) otherwise.
-                .id("heading-\(style.bold)-\(style.underline)-\(style.centered)-\(style.effectiveLevel)")
-                .frame(maxWidth: CGFloat(wrapWidth))
-                .help("The heading printed for this component — empty uses its own name")
-                Spacer(minLength: 0)
-            }
-            .padding(.leading, EditorLayout.leftInset)
-            .padding(.trailing, 12)
-            .padding(.bottom, 6)
-        }
     }
 }

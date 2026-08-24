@@ -482,7 +482,10 @@ struct SectionPreviewButton: View {
                         citationStyleDefault: style,
                         figureURL: { store.figureURL(for: $0) },
                         chartImage: { ExportRendering.chartImage(for: $0, store: store) },
-                        tableData: { ExportRendering.tableData(for: $0, store: store) })
+                        tableData: { ExportRendering.tableData(for: $0, store: store) },
+                        // The Title pane previews the title alone — never
+                        // the byline (pre-split configs bundle it in).
+                        separateAuthorsOverride: baseItem.kind == .titlePage ? true : nil)
                 })
         }
     }

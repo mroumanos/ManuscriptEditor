@@ -312,6 +312,25 @@ private struct FormatBar: View {
 
                 button("list.bullet", "Bulleted list") { controller.toggleBulletList() }
 
+                Divider().frame(height: 18).padding(.horizontal, 4)
+
+                // Manual in-text headers: style the current paragraph.
+                Menu {
+                    Button("Heading 1") { controller.applyHeading(1) }
+                    Button("Heading 2") { controller.applyHeading(2) }
+                    Button("Heading 3") { controller.applyHeading(3) }
+                    Divider()
+                    Button("Body") { controller.applyHeading(0) }
+                } label: {
+                    Image(systemName: "textformat.size")
+                        .frame(width: 26, height: 24)
+                        .contentShape(Rectangle())
+                }
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+                .fixedSize()
+                .help("Paragraph style — make this paragraph a header (H1–H3) or body text")
+
                 if let formatItem, ManuscriptStore.exportItemKey(for: formatItem) != nil {
                     Divider().frame(height: 18).padding(.horizontal, 4)
                     typographyCluster(formatItem)
@@ -486,6 +505,39 @@ final class RichTextController {
                                : fm.convert(font, toHaveTrait: mask)
             storage.addAttribute(.font, value: next, range: sub)
         }
+        storage.endEditing()
+        notifyChange()
+    }
+
+    /// Styles the current paragraph as a manual header: H1/H2/H3 scale the
+    /// base font up (16/14/13 over a 12-pt body) and bold it; level 0
+    /// ("Body") resets the paragraph to the base font.  The scale is
+    /// relative, so zoom and journal typography keep it proportional
+    /// (applyTypography preserves run scale around the dominant size).
+    func applyHeading(_ level: Int) {
+        guard let tv = textView, let storage = tv.textStorage else { return }
+        let base = (tv.typingAttributes[.font] as? NSFont).map {
+            // Strip any local traits back to the editor's base face.
+            NSFont(descriptor: $0.fontDescriptor.withSymbolicTraits([]), size: $0.pointSize) ?? $0
+        } ?? tv.font ?? .systemFont(ofSize: NSFont.systemFontSize)
+        let factor: CGFloat
+        switch level {
+        case 1:  factor = 16.0 / 12.0
+        case 2:  factor = 14.0 / 12.0
+        case 3:  factor = 13.0 / 12.0
+        default: factor = 1
+        }
+        var font = NSFont(descriptor: base.fontDescriptor, size: base.pointSize * factor) ?? base
+        if (1...3).contains(level) {
+            font = NSFontManager.shared.convert(font, toHaveTrait: .boldFontMask)
+        }
+        let range = (storage.string as NSString).paragraphRange(for: tv.selectedRange())
+        guard range.length > 0 else {
+            tv.typingAttributes[.font] = font
+            return
+        }
+        storage.beginEditing()
+        storage.addAttribute(.font, value: font, range: range)
         storage.endEditing()
         notifyChange()
     }
@@ -810,10 +862,24 @@ private struct RichTextRepresentable: NSViewRepresentable {
             guard let storage = textView.textStorage else { return }
             let full = NSRange(location: 0, length: storage.length)
             let fm = NSFontManager.shared
+            // The dominant point size (by character count) is the body:
+            // runs normalize RELATIVE to it, so manual headers (and any
+            // intentionally-scaled run) keep their proportion across zoom,
+            // journal-typography, and reload — instead of being flattened.
+            var sizeWeights: [CGFloat: Int] = [:]
+            storage.enumerateAttribute(.font, in: full) { value, range, _ in
+                if let font = value as? NSFont { sizeWeights[font.pointSize, default: 0] += range.length }
+            }
+            let dominant = sizeWeights.max { $0.value < $1.value }?.key ?? baseFont.pointSize
             storage.beginEditing()
             storage.enumerateAttribute(.font, in: full) { value, range, _ in
-                let traits = (value as? NSFont)?.fontDescriptor.symbolicTraits ?? []
-                var font = baseFont
+                let old = value as? NSFont
+                let traits = old?.fontDescriptor.symbolicTraits ?? []
+                let ratio = dominant > 0 ? (old?.pointSize ?? dominant) / dominant : 1
+                var font = abs(ratio - 1) < 0.01
+                    ? baseFont
+                    : (NSFont(descriptor: baseFont.fontDescriptor,
+                              size: baseFont.pointSize * min(max(ratio, 0.5), 3)) ?? baseFont)
                 if traits.contains(.bold)   { font = fm.convert(font, toHaveTrait: .boldFontMask) }
                 if traits.contains(.italic) { font = fm.convert(font, toHaveTrait: .italicFontMask) }
                 storage.addAttribute(.font, value: font, range: range)

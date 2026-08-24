@@ -293,12 +293,14 @@ struct ExportService {
                     citationStyleDefault: String = "apa",
                     figureURL: @escaping (Figure) -> URL?,
                     chartImage: ((Figure) -> NSImage?)? = nil,
-                    tableData: ((ManuscriptTable) -> QueryResult?)? = nil) -> Data {
+                    tableData: ((ManuscriptTable) -> QueryResult?)? = nil,
+                    separateAuthorsOverride: Bool? = nil) -> Data {
         let refContext = RefEngine.context(for: content)
         let sections = pageSegments(for: document, content: content, refContext: refContext,
                                     figureURL: figureURL, chartImage: chartImage,
                                     tableData: tableData,
-                                    citationStyleDefault: citationStyleDefault)
+                                    citationStyleDefault: citationStyleDefault,
+                                    separateAuthorsOverride: separateAuthorsOverride)
         return PDFPaginator(format: document.format).render(sections: sections)
     }
 
@@ -319,11 +321,13 @@ struct ExportService {
                               figureURL: ((Figure) -> URL?)? = nil,
                               chartImage: ((Figure) -> NSImage?)? = nil,
                               tableData: ((ManuscriptTable) -> QueryResult?)? = nil,
-                              citationStyleDefault: String = "apa") -> [PageSection] {
+                              citationStyleDefault: String = "apa",
+                              separateAuthorsOverride: Bool? = nil) -> [PageSection] {
         let builder = OutlineBuilder(format: document.format, refContext: refContext,
                                      fileType: document.fileType,
                                      figureURL: figureURL, chartImage: chartImage, tableData: tableData,
-                                     separateAuthors: document.items.contains { $0.kind == .authors },
+                                     separateAuthors: separateAuthorsOverride
+                                        ?? document.items.contains { $0.kind == .authors },
                                      citationStyleDefault: citationStyleDefault)
         var sections: [PageSection] = []
         var current = NSMutableAttributedString()
@@ -984,7 +988,7 @@ private struct OutlineBuilder {
             // level (H1 = body+4 …) / typed size when set, else the item's
             // Size override, else the classic document-font + 8 pt.
             let hs = item.effectiveHeadingStyle
-            let titleFont: NSFont
+            var titleFont: NSFont
             if hs.level != nil {
                 titleFont = scaled(ExportItem.HeadingStyle.sizeDelta(forLevel: hs.effectiveLevel),
                                    bold: hs.bold)
@@ -997,6 +1001,7 @@ private struct OutlineBuilder {
             } else {
                 titleFont = title
             }
+            if hs.italicOn { titleFont = NSFontManager.shared.convert(titleFont, toHaveTrait: .italicFontMask) }
             let titleLine = NSMutableAttributedString(attributedString:
                 line(displayTitle(m), font: titleFont, after: 8))
             let titleRange = NSRange(location: 0, length: titleLine.length)
@@ -1004,12 +1009,7 @@ private struct OutlineBuilder {
                 titleLine.addAttribute(.underlineStyle,
                                        value: NSUnderlineStyle.single.rawValue, range: titleRange)
             }
-            if hs.centered,
-               let para = (titleLine.attribute(.paragraphStyle, at: 0, effectiveRange: nil)
-                    as? NSParagraphStyle)?.mutableCopy() as? NSMutableParagraphStyle {
-                para.alignment = .center
-                titleLine.addAttribute(.paragraphStyle, value: para, range: titleRange)
-            }
+            applyHeadingAlignment(hs, to: titleLine)
             doc.append(titleLine)
             if let subtitle = m.subtitle, !subtitle.isEmpty {
                 // Subtitle: one heading level below the title (H+1) when
@@ -1020,13 +1020,7 @@ private struct OutlineBuilder {
                     : scaled(2, bold: false)
                 let subLine = NSMutableAttributedString(attributedString:
                     line(subtitle, font: subFont, after: 8))
-                if hs.centered,
-                   let para = (subLine.attribute(.paragraphStyle, at: 0, effectiveRange: nil)
-                        as? NSParagraphStyle)?.mutableCopy() as? NSMutableParagraphStyle {
-                    para.alignment = .center
-                    subLine.addAttribute(.paragraphStyle, value: para,
-                                         range: NSRange(location: 0, length: subLine.length))
-                }
+                applyHeadingAlignment(hs, to: subLine)
                 doc.append(subLine)
             }
             if !m.runningTitle.isEmpty {
@@ -1188,9 +1182,26 @@ private struct OutlineBuilder {
 
     /// A section title with a blank line before and after it, styled per the
     /// item's heading format (bold/underline/centered/size).
+    /// Applies the heading's left/center/right alignment to a rendered line.
+    private func applyHeadingAlignment(_ style: ExportItem.HeadingStyle,
+                                       to text: NSMutableAttributedString) {
+        let align: NSTextAlignment
+        switch style.effectiveAlignment {
+        case "center": align = .center
+        case "right":  align = .right
+        default:       return
+        }
+        guard text.length > 0,
+              let para = (text.attribute(.paragraphStyle, at: 0, effectiveRange: nil)
+                as? NSParagraphStyle)?.mutableCopy() as? NSMutableParagraphStyle else { return }
+        para.alignment = align
+        text.addAttribute(.paragraphStyle, value: para,
+                          range: NSRange(location: 0, length: text.length))
+    }
+
     private func headingBlock(_ raw: String,
                               style: ExportItem.HeadingStyle = .init()) -> NSAttributedString {
-        let font: NSFont
+        var font: NSFont
         if style.level != nil {
             // Word-style level sizing (H1/H2/H3 off the document body font).
             font = scaled(ExportItem.HeadingStyle.sizeDelta(forLevel: style.effectiveLevel),
@@ -1203,6 +1214,7 @@ private struct OutlineBuilder {
         } else {
             font = scaled(style.sizeDelta, bold: style.bold)
         }
+        if style.italicOn { font = NSFontManager.shared.convert(font, toHaveTrait: .italicFontMask) }
         let out = NSMutableAttributedString()
         // The blank line after a heading must carry the document's
         // paragraph style — bare \n renders single-spaced and made the
@@ -1219,11 +1231,7 @@ private struct OutlineBuilder {
             text.addAttribute(.underlineStyle,
                               value: NSUnderlineStyle.single.rawValue, range: full)
         }
-        if style.centered, let para = (text.attribute(.paragraphStyle, at: 0, effectiveRange: nil)
-                as? NSParagraphStyle)?.mutableCopy() as? NSMutableParagraphStyle {
-            para.alignment = .center
-            text.addAttribute(.paragraphStyle, value: para, range: full)
-        }
+        applyHeadingAlignment(style, to: text)
         out.append(text)
         out.append(blank)
         return out

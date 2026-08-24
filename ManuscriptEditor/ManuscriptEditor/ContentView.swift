@@ -447,26 +447,20 @@ struct ContentView: View {
     private func versionPane(_ ref: VersionRef, item: SidebarItem) -> some View {
         VStack(spacing: 0) {
             HStack(spacing: 8) {
-                // Heading on/off lives at the pane's left edge (style
-                // controls to its right; the text row below) — but only on
-                // editor panes: list components keep their heading options
-                // in the settings gear, and a section deactivated in this
-                // journal doesn't export, so its controls disappear too.
-                if editorBacked(item), !sectionDeactivated(item: item, ref: ref) {
-                    ComponentHeadingToggle(item: item, versionRef: ref)
-                }
-                deactivatedBadge(item: item, ref: ref)
-                Spacer()
+                // Facts on the left, functions on the right.
                 if let words = wordCount(for: item, ref: ref) {
-                    Label("\(words) words", systemImage: "text.word.spacing")
+                    Text("\(words) words")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .monospacedDigit()
                 }
+                deactivatedBadge(item: item, ref: ref)
+                Spacer()
                 sectionActivationControl(item: item, ref: ref)
-                // Components without their own settings spot (list views
-                // carry a gear in their bottom bars) get it in the header.
-                if headerCarriesSettings(item) {
+                // Every component's export settings (heading config at
+                // minimum) live in the gear beside the preview.  A section
+                // deactivated in this journal exports nothing — no gear.
+                if !sectionDeactivated(item: item, ref: ref) {
                     ComponentSettingsButton(item: item, versionRef: ref)
                 }
                 SectionPreviewButton(item: item, versionRef: ref)
@@ -478,22 +472,9 @@ struct ContentView: View {
             .padding(.trailing, 12)
             .padding(.vertical, 7)
 
-            if editorBacked(item), !sectionDeactivated(item: item, ref: ref) {
-                ComponentHeadingRow(item: item, versionRef: ref)
-            }
-
             contentView(for: item, ref: ref)
         }
         .id(ref)
-    }
-
-    /// Panes whose content view embeds a RichEditor — the only ones that
-    /// carry the inline heading bar (list components use their gear).
-    private func editorBacked(_ item: SidebarItem) -> Bool {
-        switch item {
-        case .abstract, .section, .letterToEditor: return true
-        default: return false
-        }
     }
 
     /// True for a section pane switched off in this journal — it exports
@@ -501,16 +482,6 @@ struct ContentView: View {
     private func sectionDeactivated(item: SidebarItem, ref: VersionRef) -> Bool {
         guard case .section(let id) = item else { return false }
         return !(resolvedSection(id, ref)?.active ?? true)
-    }
-
-    /// Components whose export settings gear lives in the pane header —
-    /// list views (Authors, Bibliography, Keywords) have their own spot,
-    /// and editor panes edit typography from their toolbar.
-    private func headerCarriesSettings(_ item: SidebarItem) -> Bool {
-        switch item {
-        case .title, .figures, .tables: return true
-        default: return false
-        }
     }
 
     /// A quiet "deactivated" marker for sections switched off in this journal —

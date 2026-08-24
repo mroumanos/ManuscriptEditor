@@ -102,10 +102,9 @@ struct AuthorsView: View {
                         .help("Institutions are referenced by authors — every author needs at least one")
 
                         Spacer()
-                        // Byline export settings (delimiters, markers,
-                        // +corr/+cred, typography) — edited here, on the
-                        // component; Export only reviews them.
-                        ComponentSettingsButton(item: .authors, versionRef: versionRef)
+                        Text("\(authors.count) author\(authors.count == 1 ? "" : "s")")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                             .padding(.trailing, 10)
                     }
                     .background(Color(NSColor.windowBackgroundColor))

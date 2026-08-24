@@ -59,9 +59,9 @@ struct KeywordsView: View {
                         .padding(.leading, 10)
 
                         Spacer()
-                        // Keyword-line export settings (typography) — edited
-                        // here, on the component; Export only reviews them.
-                        ComponentSettingsButton(item: .keywords, versionRef: versionRef)
+                        Text("\(keywords.count) keyword\(keywords.count == 1 ? "" : "s")")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                             .padding(.trailing, 10)
                     }
                     .background(Color(NSColor.windowBackgroundColor))
