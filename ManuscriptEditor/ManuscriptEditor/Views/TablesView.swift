@@ -180,8 +180,10 @@ struct TableEditor: View {
                 .padding(.bottom, 8)
                 Divider()
                 if draft.dataAssetID != nil {
-                    // The linked query's rows ARE the table — rendered with the
-                    // same component as the Data pane.
+                    // The linked query's rows ARE the table.  The same grid
+                    // as manual tables, in styling-only mode: the data owns
+                    // the shape and text; `draft.cells` persists a style
+                    // OVERLAY aligned to the result (row 0 = header).
                     if let error = previewResult.errorMessage {
                         Label(error, systemImage: "exclamationmark.triangle")
                             .font(.caption)
@@ -189,7 +191,10 @@ struct TableEditor: View {
                             .padding(12)
                         Spacer(minLength: 0)
                     } else {
-                        QueryResultTable(result: previewResult)
+                        ManualTableGrid(cells: Binding(
+                            get: { ManuscriptTable.styledGrid(result: previewResult, overlay: draft.cells) },
+                            set: { draft.cells = $0 }
+                        ), structureEditable: false)
                     }
                 } else {
                     // Grid editor — no Markdown required.  Cells edit in
@@ -408,8 +413,7 @@ struct TableEditor: View {
             result = store.runQuery(draft.dataQuery ?? "SELECT * FROM data", for: asset)
         }
         if result.errorMessage == nil, !result.columns.isEmpty {
-            var grid: [[TableCell]] = [result.columns.map { TableCell(text: $0) }]
-            grid += result.rows.map { row in row.map { TableCell(text: $0) } }
+            let grid = ManuscriptTable.styledGrid(result: result, overlay: draft.cells)
             draft.cells = grid
             draft.content = ManuscriptTable.markdown(from: grid)
         }
@@ -429,6 +433,10 @@ struct TableEditor: View {
 /// right illuminate a "+" to add a row or column.  Row 0 is the header.
 struct ManualTableGrid: View {
     @Binding var cells: [[TableCell]]
+    /// false = CSV-backed styling mode: the shape and text come from the
+    /// data (no gutters, add bars, reordering, or cell editing) — only the
+    /// formatting toolbar and selection remain.
+    var structureEditable: Bool = true
 
     struct CellID: Hashable { let r: Int; let c: Int }
 
@@ -437,7 +445,9 @@ struct ManualTableGrid: View {
     @State private var extent: CellID?
     @State private var editingCell: CellID?
     @FocusState private var fieldFocused: Bool
-    @FocusState private var gridFocused: Bool
+    /// Local keyDown monitor for arrow-key selection (installed while the
+    /// grid is on screen).
+    @State private var keyMonitor: Any?
 
     @State private var hover: CellID?
     @State private var hoverBottomBar = false
@@ -471,22 +481,30 @@ struct ManualTableGrid: View {
             Divider()
             ScrollView([.horizontal, .vertical]) {
                 VStack(alignment: .leading, spacing: 0) {
-                    HStack(spacing: 0) {
-                        Color.clear.frame(width: gutterW, height: gutterH)
-                        columnGutter
+                    if structureEditable {
+                        HStack(spacing: 0) {
+                            Color.clear.frame(width: gutterW, height: gutterH)
+                            columnGutter
+                        }
                     }
                     HStack(alignment: .top, spacing: 0) {
-                        rowGutter
+                        if structureEditable { rowGutter }
                         gridBody
-                        addColumnBar
+                        if structureEditable { addColumnBar }
                     }
-                    HStack(spacing: 0) {
-                        Color.clear.frame(width: gutterW, height: 1)
-                        addRowBar
+                    if structureEditable {
+                        HStack(spacing: 0) {
+                            Color.clear.frame(width: gutterW, height: 1)
+                            addRowBar
+                        }
                     }
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
+                // Sticky within the grid; gone once the cursor leaves it.
+                .onHover { inside in
+                    if !inside, movingRow == nil, movingCol == nil { hover = nil }
+                }
             }
         }
         .onChange(of: cells.count) { _, _ in clampSelection() }
@@ -529,7 +547,9 @@ struct ManualTableGrid: View {
             .opacity(0)
 
             Spacer()
-            Text("click selects · double-click edits · drag or ⇧-arrows extend")
+            Text(structureEditable
+                 ? "click selects · double-click edits · drag, ⇧-click, or ⇧-arrows extend"
+                 : "styling only — the data supplies the cells · ⇧-click / ⇧-arrows extend")
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
         }
@@ -554,28 +574,39 @@ struct ManualTableGrid: View {
         .help(help)
     }
 
+    /// Inline highlight swatches: five colored boxes plus a "none".
     private var highlightMenu: some View {
-        Menu {
+        HStack(spacing: 3) {
             ForEach(["yellow", "green", "blue", "pink", "orange"], id: \.self) { name in
+                let active = firstSelected?.highlight == true
+                    && (firstSelected?.highlightColor ?? "yellow") == name
                 Button {
                     mutateSelection { $0.highlight = true; $0.highlightColor = name == "yellow" ? nil : name }
                 } label: {
-                    Label(name.capitalized, systemImage: "square.fill")
+                    RoundedRectangle(cornerRadius: 3)
+                        .fill(Self.highlightColor(name).opacity(0.55))
+                        .frame(width: 14, height: 14)
+                        .overlay(RoundedRectangle(cornerRadius: 3)
+                            .strokeBorder(active ? Color.accentColor : Color.secondary.opacity(0.4),
+                                          lineWidth: active ? 1.5 : 0.5))
                 }
+                .buttonStyle(.plain)
+                .help("Highlight \(name)")
             }
-            Divider()
-            Button("No highlight") {
+            Button {
                 mutateSelection { $0.highlight = nil; $0.highlightColor = nil }
+            } label: {
+                RoundedRectangle(cornerRadius: 3)
+                    .strokeBorder(Color.secondary.opacity(0.4), lineWidth: 0.5)
+                    .frame(width: 14, height: 14)
+                    .overlay(Image(systemName: "line.diagonal")
+                        .font(.system(size: 8))
+                        .foregroundStyle(.secondary))
             }
-        } label: {
-            Image(systemName: "highlighter")
-                .foregroundStyle(firstSelected?.highlight == true ? Color.accentColor : Color.primary)
+            .buttonStyle(.plain)
+            .help("No highlight")
         }
-        .menuStyle(.borderlessButton)
-        .menuIndicator(.hidden)
-        .fixedSize()
         .disabled(selection == nil)
-        .help("Highlight the selected cells")
     }
 
     private func mutateSelection(_ change: (inout TableCell) -> Void) {
@@ -652,8 +683,11 @@ struct ManualTableGrid: View {
         .frame(width: gutterW)
     }
 
-    private var hoverRow: Int? { movingRow?.current ?? hover?.r }
-    private var hoverColumn: Int? { movingCol?.current ?? hover?.c }
+    /// While dragging, the gutter controls stay at the START index — the
+    /// gesture's coordinate space must not move with the reordered row or
+    /// the translation jumps and the row hunts between two positions.
+    private var hoverRow: Int? { movingRow?.start ?? hover?.r }
+    private var hoverColumn: Int? { movingCol?.start ?? hover?.c }
 
     // MARK: add bars
 
@@ -725,7 +759,10 @@ struct ManualTableGrid: View {
                     movingRow = m
                 }
             }
-            .onEnded { _ in movingRow = nil }
+            .onEnded { _ in
+                if let m = movingRow { hover = CellID(r: m.current, c: hover?.c ?? 0) }
+                movingRow = nil
+            }
     }
 
     private func columnDragGesture(from col: Int) -> some Gesture {
@@ -744,7 +781,10 @@ struct ManualTableGrid: View {
                     movingCol = m
                 }
             }
-            .onEnded { _ in movingCol = nil }
+            .onEnded { _ in
+                if let m = movingCol { hover = CellID(r: hover?.r ?? 0, c: m.current) }
+                movingCol = nil
+            }
     }
 
     // MARK: grid body
@@ -759,10 +799,11 @@ struct ManualTableGrid: View {
                 }
             }
         }
-        .focusable(true, interactions: .activate)
-        .focused($gridFocused)
-        .focusEffectDisabled()
-        .onKeyPress(phases: .down) { press in handleKey(press) }
+        .onAppear { installKeyMonitor() }
+        .onDisappear {
+            if let keyMonitor { NSEvent.removeMonitor(keyMonitor) }
+            keyMonitor = nil
+        }
         // Drag across cells extends the selection (taps pass through).
         .simultaneousGesture(
             DragGesture(minimumDistance: 4, coordinateSpace: .local)
@@ -775,7 +816,6 @@ struct ManualTableGrid: View {
                         anchor = anchor ?? start
                     }
                     extent = cellAt(value.location)
-                    gridFocused = true
                 }
         )
     }
@@ -787,29 +827,35 @@ struct ManualTableGrid: View {
         return CellID(r: r, c: c)
     }
 
-    private func handleKey(_ press: KeyPress) -> KeyPress.Result {
-        guard editingCell == nil, let a = anchor else { return .ignored }
-        let base = press.modifiers.contains(.shift) ? (extent ?? a) : a
-        var next = base
-        switch press.key {
-        case .upArrow:    next = CellID(r: max(base.r - 1, 0), c: base.c)
-        case .downArrow:  next = CellID(r: min(base.r + 1, rowCount - 1), c: base.c)
-        case .leftArrow:  next = CellID(r: base.r, c: max(base.c - 1, 0))
-        case .rightArrow: next = CellID(r: base.r, c: min(base.c + 1, colCount - 1))
-        case .return:
-            editingCell = a
-            fieldFocused = true
-            return .handled
-        default:
-            return .ignored
+    /// SwiftUI's focusable/onKeyPress never reliably saw the arrows here
+    /// (ScrollView + AppKit focus), so a LOCAL key monitor handles them:
+    /// active only while a selection exists, no edit is in flight, and no
+    /// text control holds first responder (captions, cells, SQL boxes keep
+    /// their own keys).
+    private func installKeyMonitor() {
+        guard keyMonitor == nil else { return }
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            guard editingCell == nil, let a = anchor,
+                  !(NSApp.keyWindow?.firstResponder is NSText) else { return event }
+            let shift = event.modifierFlags.contains(.shift)
+            let base = shift ? (extent ?? a) : a
+            var next = base
+            switch event.keyCode {
+            case 126: next = CellID(r: max(base.r - 1, 0), c: base.c)                // ↑
+            case 125: next = CellID(r: min(base.r + 1, rowCount - 1), c: base.c)     // ↓
+            case 123: next = CellID(r: base.r, c: max(base.c - 1, 0))                // ←
+            case 124: next = CellID(r: base.r, c: min(base.c + 1, colCount - 1))     // →
+            case 36:                                                                  // ⏎
+                guard structureEditable else { return event }
+                editingCell = a
+                fieldFocused = true
+                return nil
+            default:
+                return event
+            }
+            if shift { extent = next } else { anchor = next; extent = nil }
+            return nil
         }
-        if press.modifiers.contains(.shift) {
-            extent = next
-        } else {
-            anchor = next
-            extent = nil
-        }
-        return .handled
     }
 
     private func isSelected(_ r: Int, _ c: Int) -> Bool {
@@ -835,7 +881,7 @@ struct ManualTableGrid: View {
                 ))
                 .textFieldStyle(.plain)
                 .focused($fieldFocused)
-                .onSubmit { editingCell = nil; gridFocused = true }
+                .onSubmit { editingCell = nil }
                 .font(cellDisplayFont(cell, header: r == 0))
                 .underline(cell.underline == true)
                 .multilineTextAlignment(cell.align == "center" ? .center
@@ -851,19 +897,25 @@ struct ManualTableGrid: View {
                                     : cell.align == "right" ? .trailing : .leading)
                     .contentShape(Rectangle())
                     .onTapGesture(count: 2) {
+                        guard structureEditable else { return }
                         anchor = CellID(r: r, c: c); extent = nil
                         editingCell = CellID(r: r, c: c)
                         fieldFocused = true
                     }
                     // Selection happens on mouse DOWN — no waiting out the
                     // double-click window, so cell-to-cell feels instant.
+                    // ⇧-click extends the rectangle from the anchor.
                     .simultaneousGesture(
                         DragGesture(minimumDistance: 0)
                             .onChanged { _ in
+                                if NSEvent.modifierFlags.contains(.shift), anchor != nil {
+                                    extent = CellID(r: r, c: c)
+                                    editingCell = nil
+                                    return
+                                }
                                 guard anchor != CellID(r: r, c: c) || extent != nil || editingCell != nil else { return }
                                 anchor = CellID(r: r, c: c); extent = nil
                                 editingCell = nil
-                                gridFocused = true
                             }
                     )
             }

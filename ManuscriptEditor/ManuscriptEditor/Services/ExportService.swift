@@ -1502,8 +1502,10 @@ private struct OutlineBuilder {
     /// `TableCell`s so per-cell emphasis carries into the output.
     private func tableGrid(_ t: ManuscriptTable) -> (columns: [TableCell], rows: [[TableCell]])? {
         if let result = tableData?(t), !result.columns.isEmpty {
-            return (result.columns.map { TableCell(text: $0) },
-                    result.rows.map { row in row.map { TableCell(text: $0) } })
+            // Data-linked: text from the query; `cells` is a style OVERLAY
+            // aligned to the result (what you style in the editor prints).
+            let merged = ManuscriptTable.styledGrid(result: result, overlay: t.cells)
+            return (merged[0], Array(merged.dropFirst()))
         }
         if let cells = t.cells, let header = cells.first, !header.isEmpty {
             return (header, Array(cells.dropFirst()))

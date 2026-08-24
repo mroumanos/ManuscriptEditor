@@ -230,15 +230,24 @@ Intent: data lives once; figures/tables reference it; cuts convert only SQL.
   intended replacement; stored footnotes still export as "Note." lines).
 - AC (implemented, Aug 2026): **Manual tables are a GRID, not Markdown**,
   spreadsheet-style: **click (on mouse-down — no double-click wait)
-  selects, double-click edits, drag or ⇧-arrows extend the selection**
-  (a rectangle; Return edits the anchor; hovered cells tint);
+  selects, double-click edits, drag / ⇧-click / ⇧-arrows extend the
+  selection** (a rectangle; Return edits the anchor; hovered cells tint;
+  the arrows arrive via a local key monitor scoped to the visible grid —
+  SwiftUI's focusable/onKeyPress never received them);
   the toolbar — and **⌘B/⌘I/⌘U/⌘E** — styles every selected cell (bold /
-  italic / underline / **highlight in 5 colors** / alignment;
-  `TableCell.highlightColor`). **Hovering a cell** reveals its row's and
+  italic / underline / **highlight via 5 inline color swatches** / alignment;
+  `TableCell.highlightColor`). **Data-linked tables get the SAME grid in
+  styling-only mode** (no gutters/add bars/editing — the data owns shape
+  and text): `cells` persists a style OVERLAY aligned to the query result
+  (row 0 = header), merged at render so what you style is what prints
+  (`ManuscriptTable.styledGrid`); Disconnect-from-Data keeps the overlay
+  styles on the copied cells. **Hovering a cell** reveals its row's and
   column's **grab handle (drag to reorder, header pinned)** and **"−"
   (remove)** in the gutters — the "−" sits FARTHER from the table than
-  the handle (no accidental deletes), and the controls stay put for the
-  last hovered cell so the trip out to the gutter can't lose them; thin bars at the **bottom/right illuminate a
+  the handle (no accidental deletes), the controls stay put for the last
+  hovered cell (cleared only when the cursor leaves the grid), and while
+  dragging they anchor at the START index — moving them with the row
+  shifted the gesture's coordinate space and made the row hunt; thin bars at the **bottom/right illuminate a
   "+"** to add a row/column. Row 0 = header;
   `ManuscriptTable.cells: [[TableCell]]` is the source of truth, the
   pipe-Markdown `content` stays as a plain mirror, and legacy content

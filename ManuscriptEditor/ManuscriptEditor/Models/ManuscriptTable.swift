@@ -102,6 +102,24 @@ struct ManuscriptTable: Codable, Identifiable, Sendable, Equatable {
     /// Light shading on alternating data rows.
     var alternateShading: Bool? = nil
 
+    /// A query result merged with a style overlay: texts from the data,
+    /// styles from `overlay` at the same coordinates (row 0 = header).
+    /// Used by the styling-only grid for data-linked tables and by the
+    /// export, so what you style is what prints.
+    static func styledGrid(result: QueryResult, overlay: [[TableCell]]?) -> [[TableCell]] {
+        func styled(_ text: String, _ r: Int, _ c: Int) -> TableCell {
+            var cell = (overlay?.indices.contains(r) == true
+                        && overlay![r].indices.contains(c)) ? overlay![r][c] : TableCell()
+            cell.text = text
+            return cell
+        }
+        var grid: [[TableCell]] = [result.columns.enumerated().map { styled($0.1, 0, $0.0) }]
+        grid += result.rows.enumerated().map { ri, row in
+            row.enumerated().map { styled($0.1, ri + 1, $0.0) }
+        }
+        return grid
+    }
+
     // MARK: - Grid <-> Markdown
 
     /// Plain pipe-Markdown mirror of a cell grid.
