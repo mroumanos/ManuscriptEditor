@@ -613,20 +613,24 @@ private struct ExportDocumentCard: View {
                 .help("Margins for the pages after this break (0.25–2″)")
                 HStack(spacing: 3) {
                     Text("columns:").font(.caption).foregroundStyle(.secondary)
-                    Text("1").font(.caption).foregroundStyle(effTwoCol ? .tertiary : .primary)
-                    Toggle("", isOn: Binding(
+                    // Two equal modes, not an on/off state — a segmented
+                    // control keeps neither side looking "active".
+                    Picker("", selection: Binding(
                         get: { effTwoCol },
-                        set: { on in
+                        set: { two in
                             var doc = document
                             guard doc.items.indices.contains(index) else { return }
-                            doc.items[index].sectionTwoColumn = on
+                            doc.items[index].sectionTwoColumn = two
                             onChange(doc)
                         }
-                    ))
-                    .toggleStyle(.switch)
+                    )) {
+                        Text("1").tag(false)
+                        Text("2").tag(true)
+                    }
+                    .pickerStyle(.segmented)
                     .labelsHidden()
                     .controlSize(.mini)
-                    Text("2").font(.caption).foregroundStyle(effTwoCol ? .primary : .tertiary)
+                    .fixedSize()
                 }
                 .help("Column layout after this break (PDF and LaTeX)")
                 HStack(spacing: 3) {
