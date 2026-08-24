@@ -390,7 +390,7 @@ struct FigureEditor: View {
                         CaptionPartToggle(style: $draft.captionStyle)
                         Text("Caption")
                         Spacer()
-                        Text("⌘B / ⌘I / ⌘U style the text below")
+                        Text("styled in the box below")
                             .font(.caption2)
                             .foregroundStyle(.tertiary)
                     default:
@@ -408,14 +408,13 @@ struct FigureEditor: View {
                     target: piece, dragging: $draggingPiece, order: order,
                     apply: { draft.arrangement = $0 }))
             }
-            MiniRichEditor(value: Binding(
+            CaptionRichBox(value: Binding(
                 get: { draft.captionText ?? RichText(plain: draft.caption) },
                 set: { rich in
                     draft.captionText = rich
                     draft.caption = rich.plain
                 }
             ))
-            .frame(minHeight: 56)
             Text("Drag the handles to sort the pieces; toggle the title or caption off as needed.")
                 .font(.caption)
                 .foregroundStyle(.secondary)

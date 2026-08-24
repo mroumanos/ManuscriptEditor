@@ -220,18 +220,25 @@ Intent: data lives once; figures/tables reference it; cuts convert only SQL.
   "Title" + its editable text (no number field — the index is
   reference-ordered). The **caption is a rich box** (`captionText:
   RichText`, plain `caption` mirrored): character-level bold/italic/
-  underline and alignment via the standard keys (⌘B/⌘I/⌘U, ⌘{ ⌘| ⌘}),
-  rendered through the export at the caption look (`richCaptionBlock`). Table **footnotes are
+  underline and alignment via a visible mini toolbar AND the standard
+  keys (⌘B/⌘I/⌘U, ⌘E center), which the caption text view intercepts
+  itself (`performKeyEquivalent`) — the app has no Format menu to route
+  them, and interception keeps ⌘B away from the grid's scene-wide
+  shortcuts while a caption is focused. Rendered through the export at
+  the caption look (`richCaptionBlock`). Table **footnotes are
   no longer edited per table** (a manuscript-wide footnote system is the
   intended replacement; stored footnotes still export as "Note." lines).
 - AC (implemented, Aug 2026): **Manual tables are a GRID, not Markdown**,
-  spreadsheet-style: **click selects, double-click edits, drag or
-  ⇧-arrows extend the selection** (a rectangle; Return edits the anchor);
+  spreadsheet-style: **click (on mouse-down — no double-click wait)
+  selects, double-click edits, drag or ⇧-arrows extend the selection**
+  (a rectangle; Return edits the anchor; hovered cells tint);
   the toolbar — and **⌘B/⌘I/⌘U/⌘E** — styles every selected cell (bold /
   italic / underline / **highlight in 5 colors** / alignment;
   `TableCell.highlightColor`). **Hovering a cell** reveals its row's and
   column's **grab handle (drag to reorder, header pinned)** and **"−"
-  (remove)** in the gutters; thin bars at the **bottom/right illuminate a
+  (remove)** in the gutters — the "−" sits FARTHER from the table than
+  the handle (no accidental deletes), and the controls stay put for the
+  last hovered cell so the trip out to the gutter can't lose them; thin bars at the **bottom/right illuminate a
   "+"** to add a row/column. Row 0 = header;
   `ManuscriptTable.cells: [[TableCell]]` is the source of truth, the
   pipe-Markdown `content` stays as a plain mirror, and legacy content

@@ -320,7 +320,7 @@ struct TableEditor: View {
                         CaptionPartToggle(style: $draft.captionStyle)
                         Text("Caption")
                         Spacer()
-                        Text("⌘B / ⌘I / ⌘U style the text below")
+                        Text("styled in the box below")
                             .font(.caption2)
                             .foregroundStyle(.tertiary)
                     default:
@@ -349,16 +349,13 @@ struct TableEditor: View {
                     target: piece, dragging: $draggingPiece, order: order,
                     apply: { draft.arrangement = $0 }))
             }
-            // Rich caption: character-level styling via the standard keys
-            // (⌘B/⌘I/⌘U; ⌘{ ⌘| ⌘} align).
-            MiniRichEditor(value: Binding(
+            CaptionRichBox(value: Binding(
                 get: { draft.captionText ?? RichText(plain: draft.caption) },
                 set: { rich in
                     draft.captionText = rich
                     draft.caption = rich.plain
                 }
             ))
-            .frame(minHeight: 56)
             Text("Drag the handles to sort the pieces; toggle the title or caption off as needed.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -454,7 +451,8 @@ struct ManualTableGrid: View {
     private let cellW: CGFloat = 132
     private let cellH: CGFloat = 28
     private let gap: CGFloat = 1
-    private let gutter: CGFloat = 22
+    private let gutterW: CGFloat = 40   // left: [− ≡] side by side
+    private let gutterH: CGFloat = 30   // top:  − above ≡
 
     private var rowCount: Int { cells.count }
     private var colCount: Int { cells.first?.count ?? 0 }
@@ -474,7 +472,7 @@ struct ManualTableGrid: View {
             ScrollView([.horizontal, .vertical]) {
                 VStack(alignment: .leading, spacing: 0) {
                     HStack(spacing: 0) {
-                        Color.clear.frame(width: gutter, height: gutter)
+                        Color.clear.frame(width: gutterW, height: gutterH)
                         columnGutter
                     }
                     HStack(alignment: .top, spacing: 0) {
@@ -483,7 +481,7 @@ struct ManualTableGrid: View {
                         addColumnBar
                     }
                     HStack(spacing: 0) {
-                        Color.clear.frame(width: gutter, height: 1)
+                        Color.clear.frame(width: gutterW, height: 1)
                         addRowBar
                     }
                 }
@@ -591,17 +589,14 @@ struct ManualTableGrid: View {
 
     // MARK: gutters (hover: drag handle + remove)
 
-    /// Top gutter: the hovered COLUMN's grab handle and "−".
+    /// Top gutter: the hovered COLUMN's "−" (outermost, so a miss doesn't
+    /// delete) above its grab handle.  Sticky — it stays for the last
+    /// hovered column even after the cursor leaves the table.
     private var columnGutter: some View {
         ZStack(alignment: .topLeading) {
-            Color.clear.frame(width: gridW, height: gutter)
+            Color.clear.frame(width: gridW, height: gutterH)
             if let h = hoverColumn {
-                HStack(spacing: 3) {
-                    Image(systemName: "line.3.horizontal")
-                        .font(.system(size: 9))
-                        .foregroundStyle(.secondary)
-                        .help("Drag to reorder this column")
-                        .gesture(columnDragGesture(from: h))
+                VStack(spacing: 1) {
                     Button {
                         removeColumn(h)
                     } label: {
@@ -612,41 +607,49 @@ struct ManualTableGrid: View {
                     .buttonStyle(.plain)
                     .disabled(colCount <= 1)
                     .help("Remove this column")
+                    Image(systemName: "line.3.horizontal")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.secondary)
+                        .contentShape(Rectangle())
+                        .help("Drag to reorder this column")
+                        .gesture(columnDragGesture(from: h))
                 }
                 .frame(width: cellW)
-                .offset(x: CGFloat(h) * (cellW + gap), y: 4)
+                .offset(x: CGFloat(h) * (cellW + gap), y: 0)
             }
         }
-        .frame(height: gutter)
+        .frame(height: gutterH)
     }
 
-    /// Left gutter: the hovered ROW's grab handle and "−".
+    /// Left gutter: the hovered ROW's "−" (outermost) left of its grab
+    /// handle.  Sticky like the column gutter.
     private var rowGutter: some View {
         ZStack(alignment: .topLeading) {
-            Color.clear.frame(width: gutter, height: gridH)
+            Color.clear.frame(width: gutterW, height: gridH)
             if let h = hoverRow {
-                VStack(spacing: 1) {
-                    Image(systemName: "line.3.horizontal")
-                        .font(.system(size: 8))
-                        .foregroundStyle(.secondary)
-                        .help("Drag to reorder this row")
-                        .gesture(rowDragGesture(from: h))
+                HStack(spacing: 4) {
                     Button {
                         removeRow(h)
                     } label: {
                         Image(systemName: "minus.circle.fill")
-                            .font(.system(size: 9))
+                            .font(.system(size: 10))
                             .foregroundStyle(.secondary)
                     }
                     .buttonStyle(.plain)
                     .disabled(rowCount <= 1)
                     .help("Remove this row")
+                    Image(systemName: "line.3.horizontal")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.secondary)
+                        .contentShape(Rectangle())
+                        .help("Drag to reorder this row")
+                        .gesture(rowDragGesture(from: h))
                 }
                 .frame(height: cellH)
                 .offset(x: 2, y: CGFloat(h) * (cellH + gap))
             }
         }
-        .frame(width: gutter)
+        .frame(width: gutterW)
     }
 
     private var hoverRow: Int? { movingRow?.current ?? hover?.r }
@@ -756,10 +759,10 @@ struct ManualTableGrid: View {
                 }
             }
         }
-        .focusable()
+        .focusable(true, interactions: .activate)
         .focused($gridFocused)
         .focusEffectDisabled()
-        .onKeyPress { press in handleKey(press) }
+        .onKeyPress(phases: .down) { press in handleKey(press) }
         // Drag across cells extends the selection (taps pass through).
         .simultaneousGesture(
             DragGesture(minimumDistance: 4, coordinateSpace: .local)
@@ -834,6 +837,9 @@ struct ManualTableGrid: View {
                 .focused($fieldFocused)
                 .onSubmit { editingCell = nil; gridFocused = true }
                 .font(cellDisplayFont(cell, header: r == 0))
+                .underline(cell.underline == true)
+                .multilineTextAlignment(cell.align == "center" ? .center
+                                        : cell.align == "right" ? .trailing : .leading)
             } else {
                 Text(cell.text)
                     .font(cellDisplayFont(cell, header: r == 0))
@@ -849,23 +855,32 @@ struct ManualTableGrid: View {
                         editingCell = CellID(r: r, c: c)
                         fieldFocused = true
                     }
-                    .onTapGesture {
-                        anchor = CellID(r: r, c: c); extent = nil
-                        editingCell = nil
-                        gridFocused = true
-                    }
+                    // Selection happens on mouse DOWN — no waiting out the
+                    // double-click window, so cell-to-cell feels instant.
+                    .simultaneousGesture(
+                        DragGesture(minimumDistance: 0)
+                            .onChanged { _ in
+                                guard anchor != CellID(r: r, c: c) || extent != nil || editingCell != nil else { return }
+                                anchor = CellID(r: r, c: c); extent = nil
+                                editingCell = nil
+                                gridFocused = true
+                            }
+                    )
             }
         }
         .padding(.horizontal, 6)
         .frame(width: cellW, height: cellH, alignment: .leading)
-        .background(cellBackground(cell, header: r == 0, selected: selected))
+        .background(cellBackground(cell, header: r == 0, selected: selected,
+                                   hovered: hover == CellID(r: r, c: c)))
         .overlay(
             Rectangle().strokeBorder(selected ? Color.accentColor : Color.secondary.opacity(0.25),
                                      lineWidth: selected ? 1.2 : 0.5)
         )
+        // Sticky: hovering a cell points the gutter controls at its row/
+        // column and keeps them there until another cell takes over — so
+        // the controls survive the trip out to the gutters.
         .onHover { inside in
             if inside { hover = CellID(r: r, c: c) }
-            else if hover == CellID(r: r, c: c) { hover = nil }
         }
     }
 
@@ -885,11 +900,13 @@ struct ManualTableGrid: View {
         }
     }
 
-    private func cellBackground(_ cell: TableCell, header: Bool, selected: Bool) -> Color {
+    private func cellBackground(_ cell: TableCell, header: Bool, selected: Bool,
+                                hovered: Bool = false) -> Color {
         if cell.highlight == true {
             return Self.highlightColor(cell.highlightColor).opacity(0.3)
         }
         if selected { return Color.accentColor.opacity(0.10) }
+        if hovered { return Color.accentColor.opacity(0.05) }
         return header ? Color.secondary.opacity(0.12) : Color.secondary.opacity(0.04)
     }
 }
