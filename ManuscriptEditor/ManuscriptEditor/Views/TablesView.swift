@@ -198,24 +198,8 @@ struct TableEditor: View {
 
             // MARK: Metadata form
             Form {
-                Section("Metadata") {
-                    LabeledContent("Number") {
-                        TextField("", value: $draft.number, format: .number)
-                            .multilineTextAlignment(.trailing)
-                    }
-                    TextField("Title", text: $draft.title)
-                }
-                Section("Caption") {
-                    PlainTextEditor(text: $draft.caption)
-                        .frame(minHeight: 60)
-                }
-                Section("Footnotes") {
-                    PlainTextEditor(text: $draft.footnotes)
-                        .frame(minHeight: 40)
-                    Text("Exports as a \"Note.\" paragraph beneath the table.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+                dataSourceSection
+                captionSection
                 Section("Export Formatting") {
                     Toggle("Open sides (horizontal rules only — journal style)", isOn: Binding(
                         get: { draft.openSides ?? false },
@@ -229,20 +213,20 @@ struct TableEditor: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-                dataSourceSection
             }
             .formStyle(.grouped)
             .frame(minHeight: 200)
         }
-        .onChange(of: draft.openSides)        { _, _ in store.updateTable(draft, ref: versionRef) }
-        .onChange(of: draft.alternateShading) { _, _ in store.updateTable(draft, ref: versionRef) }
-        .onChange(of: draft.content)      { _, _ in store.updateTable(draft, ref: versionRef) }
-        .onChange(of: draft.title)        { _, _ in store.updateTable(draft, ref: versionRef) }
-        .onChange(of: draft.caption)      { _, _ in store.updateTable(draft, ref: versionRef) }
-        .onChange(of: draft.footnotes)    { _, _ in store.updateTable(draft, ref: versionRef) }
-        .onChange(of: draft.number)       { _, _ in store.updateTable(draft, ref: versionRef) }
-        .onChange(of: draft.dataAssetID)  { _, _ in store.updateTable(draft, ref: versionRef); refreshPreview() }
-        .onChange(of: draft.dataQuery)    { _, _ in store.updateTable(draft, ref: versionRef); refreshPreview(debounced: true) }
+        // One draft observer (ManuscriptTable is Equatable) — the per-field
+        // chain didn't scale to the caption-part fields.
+        .onChange(of: draft) { old, new in
+            store.updateTable(new, ref: versionRef)
+            if old.dataAssetID != new.dataAssetID {
+                refreshPreview()
+            } else if old.dataQuery != new.dataQuery {
+                refreshPreview(debounced: true)
+            }
+        }
         .onChange(of: table) { _, new in
             // External change (selection switch or document undo) — the form's
             // own commits arrive back equal to the draft and are skipped.
@@ -272,6 +256,41 @@ struct TableEditor: View {
                 guard !Task.isCancelled else { return }
             }
             previewResult = store.runQuery(sql, for: asset)
+        }
+    }
+
+    /// The caption block, one row per part: print toggle, the part's
+    /// content, placement (above/inline/below), and emphasis.  Table
+    /// defaults: index+title above the grid, caption below.
+    @ViewBuilder
+    private var captionSection: some View {
+        Section("Caption") {
+            HStack(spacing: 8) {
+                CaptionPartToggle(style: $draft.numberStyle)
+                Text("Index")
+                TextField("", value: $draft.number, format: .number)
+                    .frame(width: 44)
+                    .multilineTextAlignment(.trailing)
+                Spacer()
+                CaptionPartControls(style: $draft.numberStyle, defaultPlacement: "above", defaultBold: true)
+            }
+            HStack(spacing: 8) {
+                CaptionPartToggle(style: $draft.titleStyle)
+                TextField("Title", text: $draft.title)
+                Spacer()
+                CaptionPartControls(style: $draft.titleStyle, defaultPlacement: "inline", defaultBold: true)
+            }
+            HStack(spacing: 8) {
+                CaptionPartToggle(style: $draft.captionStyle)
+                Text("Caption")
+                Spacer()
+                CaptionPartControls(style: $draft.captionStyle, defaultPlacement: "below", defaultBold: false)
+            }
+            PlainTextEditor(text: $draft.caption)
+                .frame(minHeight: 60)
+            Text("Each part prints independently — toggle it, place it above/inline/below the table, and style it (inline joins the previous printed part's line).")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
     }
 

@@ -75,31 +75,16 @@ struct DataService: Sendable {
         else {
             throw DataServiceError.csvParseFailed("Unsupported text encoding — save the file as UTF-8 CSV and retry.")
         }
-        let parsed = parseCSV(text)
-        guard !parsed.isEmpty else { throw DataServiceError.emptyFile }
-
-        let header = parsed[0]
-        let dataRows = Array(parsed.dropFirst())
-
-        // SQLite tables cap at 2000 columns; a count anywhere near that almost
-        // always means the file didn't parse as expected.
-        guard header.count <= 2000 else {
-            throw DataServiceError.csvParseFailed(
-                "The header parsed to \(header.count) columns (SQLite supports 2000). Check the file's delimiter and quoting.")
-        }
 
         let assetID = UUID()
         let dbFileName = "\(assetID.uuidString).sqlite"
         let dbURL = dataDirectory.appendingPathComponent(dbFileName)
+        try buildDatabase(from: text, at: dbURL, dataStartRow: 2)
 
-        do {
-            try createSQLiteTable(at: dbURL, columns: header, rows: dataRows)
-        } catch {
-            // A failed CREATE leaves a 0-byte .sqlite behind (sqlite3_open
-            // touches the file before the schema commits) — don't orphan it.
-            try? FileManager.default.removeItem(at: dbURL)
-            throw error
-        }
+        // Keep the original CSV beside the database so "data starts at row
+        // N" can rebuild the table later without re-importing.
+        try? Data(text.utf8).write(
+            to: dataDirectory.appendingPathComponent("\(assetID.uuidString).csv"), options: .atomic)
 
         let name = sourceURL.deletingPathExtension().lastPathComponent
         return DataAsset(
@@ -110,6 +95,55 @@ struct DataService: Sendable {
             importedAt: Date(),
             lastQuery: "SELECT * FROM data"
         )
+    }
+
+    /// True when the asset's original CSV was kept (imports since Aug 2026)
+    /// — the precondition for re-fitting the data start row.
+    func hasSourceCSV(for asset: DataAsset, dataDirectory: URL) -> Bool {
+        FileManager.default.fileExists(
+            atPath: dataDirectory.appendingPathComponent("\(asset.id.uuidString).csv").path)
+    }
+
+    /// Rebuilds the asset's SQLite table from its kept CSV with the data
+    /// starting at `dataStartRow` (1-based; the header is the row above).
+    func refitCSV(asset: DataAsset, dataStartRow: Int, dataDirectory: URL) throws {
+        let csvURL = dataDirectory.appendingPathComponent("\(asset.id.uuidString).csv")
+        guard FileManager.default.fileExists(atPath: csvURL.path) else {
+            throw DataServiceError.fileNotFound("The original CSV was not kept for this asset — re-import it to change the start row.")
+        }
+        let text = try String(contentsOf: csvURL, encoding: .utf8)
+        let dbURL = dataDirectory.appendingPathComponent(asset.fileName)
+        try buildDatabase(from: text, at: dbURL, dataStartRow: dataStartRow)
+    }
+
+    /// Parses CSV text and (re)creates the SQLite table: rows before the
+    /// header (the row above `dataStartRow`) are skipped as preamble.
+    private func buildDatabase(from text: String, at dbURL: URL, dataStartRow: Int) throws {
+        let parsed = parseCSV(text)
+        guard !parsed.isEmpty else { throw DataServiceError.emptyFile }
+
+        let skip = max(dataStartRow, 2) - 2
+        guard parsed.count > skip else {
+            throw DataServiceError.csvParseFailed("The file has only \(parsed.count) rows — can't start data at row \(dataStartRow).")
+        }
+        let header = parsed[skip]
+        let dataRows = Array(parsed.dropFirst(skip + 1))
+
+        // SQLite tables cap at 2000 columns; a count anywhere near that almost
+        // always means the file didn't parse as expected.
+        guard header.count <= 2000 else {
+            throw DataServiceError.csvParseFailed(
+                "The header parsed to \(header.count) columns (SQLite supports 2000). Check the file's delimiter and quoting.")
+        }
+
+        do {
+            try createSQLiteTable(at: dbURL, columns: header, rows: dataRows)
+        } catch {
+            // A failed CREATE leaves a 0-byte .sqlite behind (sqlite3_open
+            // touches the file before the schema commits) — don't orphan it.
+            try? FileManager.default.removeItem(at: dbURL)
+            throw error
+        }
     }
 
     // MARK: - Image Import

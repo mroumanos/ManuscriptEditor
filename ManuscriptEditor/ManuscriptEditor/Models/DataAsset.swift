@@ -71,6 +71,11 @@ struct DataAsset: Codable, Identifiable, Sendable {
     /// The last SQL query the user ran against this asset (CSV only).
     var lastQuery: String
 
+    /// 1-based CSV row the DATA starts at (the header is the row above it).
+    /// nil = 2 (row 1 is the header).  Changing it rebuilds the SQLite
+    /// store from the kept original CSV.
+    var dataStartRow: Int? = nil
+
     // MARK: - Factory
 
     static func emptyCSV(name: String) -> DataAsset {

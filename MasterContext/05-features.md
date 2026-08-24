@@ -194,7 +194,35 @@ Intent: data lives once; figures/tables reference it; cuts convert only SQL.
   instead of the Markdown editor, updating as the SQL changes.
 - AC: **Figure image adjustments are non-destructive**: crop, resize (10–100%),
   and **black & white** each apply to the figure's rendering (previews,
-  thumbnails, export) only — the original image in Data never changes.
+  thumbnails, export) only — the original image in Data never changes. The
+  crop editor stays **inside its preview box** (clipped) and uses **one
+  unified gesture** — drag near a corner resizes, drag inside moves.
+- AC (implemented, Aug 2026): **One Data picker per figure** — a single
+  "From Data library" list spanning CSVs and images; the fields below
+  follow the picked asset's TYPE (CSV → chart type/colors/SQL, image →
+  size/crop/B&W). The Data section comes FIRST in figure and table
+  editors. Chart **series come only from an exactly-3-column SELECT**
+  (wider results are table-shaped; guessing a series once produced more
+  categories than palette colors, which renders an empty chart — colors
+  now also cycle when categories exceed the palette). **Alt text is not
+  edited** (print manuscripts; the field survives for old files).
+- AC (implemented, Aug 2026): **Caption parts**. A figure/table caption
+  block has three independent parts — the index ("Figure 1"), the title,
+  and the caption — each with its own **print toggle**, **placement
+  (above / inline / below** the asset; inline joins the previous printed
+  part's line), and **bold/italic/underline** (`CaptionPartStyle`;
+  defaults reproduce the classic output: figures "Figure 1. Title" +
+  caption below the image, tables index+title above the grid, caption
+  below). Table **footnotes are no longer edited per table** (a
+  manuscript-wide footnote system is the intended replacement; stored
+  footnotes still export as "Note." lines).
+- AC (implemented, Aug 2026): **Data uploads are renameable** (CSV and
+  image assets — the header name edits in place; default = file name).
+  CSV imports **keep the original CSV** beside the SQLite store, enabling
+  **"data starts at row N"** (default 2; header = the row above; earlier
+  rows are preamble and skipped) — changing it rebuilds the table
+  (`DataService.refitCSV`; hidden for pre-Aug-2026 imports whose CSV
+  wasn't kept). The **SQL box drags taller** by its grabber.
 - AC: Changing journals/cuts never alters underlying data — only the SQL/format.
 - AC: Each data asset has a delete affordance.
 

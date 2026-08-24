@@ -680,6 +680,26 @@ final class ManuscriptStore {
         return dataService.runQuery(sql, asset: asset, dataDirectory: dataDir)
     }
 
+    /// Whether the asset's original CSV was kept (enables re-fitting).
+    func hasSourceCSV(for asset: DataAsset) -> Bool {
+        guard let dataDir = dataDirectoryURL else { return false }
+        return dataService.hasSourceCSV(for: asset, dataDirectory: dataDir)
+    }
+
+    /// Rebuilds a CSV asset's table with the data starting at `row`
+    /// (1-based; the header is the row above it).
+    func setDataStartRow(_ row: Int, for asset: DataAsset) {
+        guard let dataDir = dataDirectoryURL else { return }
+        do {
+            try dataService.refitCSV(asset: asset, dataStartRow: row, dataDirectory: dataDir)
+            var updated = asset
+            updated.dataStartRow = row == 2 ? nil : row
+            updateDataAsset(updated)
+        } catch {
+            dataError = error.localizedDescription
+        }
+    }
+
     /// Returns the image URL for a DataAsset of type `.image`.
     func dataImageURL(for asset: DataAsset) -> URL? {
         guard let manuscriptID = manuscript?.id, !asset.fileName.isEmpty else { return nil }

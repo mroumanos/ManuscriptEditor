@@ -1065,12 +1065,16 @@ private struct OutlineBuilder {
             let doc = NSMutableAttributedString()
             if item.titleShown { doc.append(headingBlock(item.customTitle ?? "Figures", style: item.effectiveHeadingStyle)) }
             for f in figures {
+                let assembly = captionAssembly(
+                    number: "Figure \(refContext.figures[f.id]?.number ?? f.number).",
+                    title: f.title, caption: f.caption,
+                    numberStyle: f.numberStyle, titleStyle: f.titleStyle, captionStyle: f.captionStyle,
+                    defaults: ("below", "inline", "below"))
+                doc.append(assembly.above)
                 if let image = figureImage(f) {
                     doc.append(attachmentBlock(image))
                 }
-                doc.append(line("Figure \(refContext.figures[f.id]?.number ?? f.number). \(f.title)",
-                                font: NSFontManager.shared.convert(base, toHaveTrait: .boldFontMask), after: 2))
-                if !f.caption.isEmpty { doc.append(line(f.caption, font: meta, color: .darkGray, after: 8)) }
+                doc.append(assembly.below)
             }
             return doc
         case .tables:
@@ -1081,10 +1085,14 @@ private struct OutlineBuilder {
             let doc = NSMutableAttributedString()
             if item.titleShown { doc.append(headingBlock(item.customTitle ?? "Tables", style: item.effectiveHeadingStyle)) }
             for t in tables {
-                doc.append(line("Table \(refContext.tables[t.id]?.number ?? t.number). \(t.title)",
-                                font: NSFontManager.shared.convert(base, toHaveTrait: .boldFontMask), after: 2))
+                let assembly = captionAssembly(
+                    number: "Table \(refContext.tables[t.id]?.number ?? t.number).",
+                    title: t.title, caption: t.caption,
+                    numberStyle: t.numberStyle, titleStyle: t.titleStyle, captionStyle: t.captionStyle,
+                    defaults: ("above", "inline", "below"))
+                doc.append(assembly.above)
                 doc.append(tableBody(t))
-                if !t.caption.isEmpty { doc.append(line(t.caption, font: meta, color: .darkGray, after: 2)) }
+                doc.append(assembly.below)
                 if !t.footnotes.isEmpty {
                     doc.append(line("Note. \(t.footnotes)", font: meta, color: .darkGray, after: 8))
                 }
@@ -1124,6 +1132,83 @@ private struct OutlineBuilder {
     }
 
     // MARK: helpers
+
+    /// Assembles a figure/table caption block from its three parts (index,
+    /// title, caption): each part prints independently, resolves its
+    /// placement — above the asset, below it, or INLINE joining the
+    /// previous printed part's line — and carries its own emphasis.
+    /// Defaults reproduce the classic output ("Figure 1. Title" below a
+    /// figure / above a table, caption below).
+    private func captionAssembly(number: String, title: String, caption: String,
+                                 numberStyle: CaptionPartStyle?, titleStyle: CaptionPartStyle?,
+                                 captionStyle: CaptionPartStyle?,
+                                 defaults: (number: String, title: String, caption: String))
+        -> (above: NSAttributedString, below: NSAttributedString) {
+        struct Part {
+            let text: String
+            let style: CaptionPartStyle?
+            let defaultPlacement: String
+            let defaultBold: Bool
+            let metaLook: Bool     // caption: smaller + dark gray
+        }
+        let parts = [
+            Part(text: number, style: numberStyle, defaultPlacement: defaults.number,
+                 defaultBold: true, metaLook: false),
+            Part(text: title, style: titleStyle, defaultPlacement: defaults.title,
+                 defaultBold: true, metaLook: false),
+            Part(text: caption, style: captionStyle, defaultPlacement: defaults.caption,
+                 defaultBold: false, metaLook: true),
+        ]
+        func styled(_ part: Part) -> NSAttributedString {
+            let fm = NSFontManager.shared
+            var font = part.metaLook ? meta : base
+            if part.style?.bold ?? part.defaultBold {
+                font = fm.convert(font, toHaveTrait: .boldFontMask)
+            } else {
+                font = fm.convert(font, toNotHaveTrait: .boldFontMask)
+            }
+            if part.style?.italic == true { font = fm.convert(font, toHaveTrait: .italicFontMask) }
+            var attrs: [NSAttributedString.Key: Any] = [
+                .font: font,
+                .foregroundColor: part.metaLook ? NSColor.darkGray : NSColor.black,
+            ]
+            if part.style?.underline == true {
+                attrs[.underlineStyle] = NSUnderlineStyle.single.rawValue
+            }
+            return NSAttributedString(string: part.text, attributes: attrs)
+        }
+        var lines: [(place: String, text: NSMutableAttributedString)] = []
+        var lastLine: Int? = nil
+        for part in parts {
+            guard part.style?.isEnabled ?? true, !part.text.isEmpty else { continue }
+            let run = styled(part)
+            var place = part.style?.placement ?? part.defaultPlacement
+            if place == "inline" {
+                if let li = lastLine {
+                    lines[li].text.append(NSAttributedString(string: " "))
+                    lines[li].text.append(run)
+                    continue
+                }
+                place = part.defaultPlacement == "inline" ? "below" : part.defaultPlacement
+            }
+            lines.append((place, NSMutableAttributedString(attributedString: run)))
+            lastLine = lines.count - 1
+        }
+        func merged(_ place: String, lastAfter: CGFloat) -> NSAttributedString {
+            let out = NSMutableAttributedString()
+            let mine = lines.filter { $0.place == place }
+            for (i, l) in mine.enumerated() {
+                let para = NSMutableAttributedString(attributedString: l.text)
+                para.append(NSAttributedString(string: "\n"))
+                para.addAttribute(.paragraphStyle,
+                                  value: paragraph(after: i == mine.count - 1 ? lastAfter : 2),
+                                  range: NSRange(location: 0, length: para.length))
+                out.append(para)
+            }
+            return out
+        }
+        return (merged("above", lastAfter: 2), merged("below", lastAfter: 8))
+    }
 
     /// Section headings export with the first letter capitalized by default
     /// (custom titles and renamed sections included).
@@ -1684,23 +1769,29 @@ private struct OutlineBuilder {
                 return NSAttributedString(string: "")
             }
             let number = refContext.figures[figure.id]?.number ?? figure.number
+            let assembly = captionAssembly(
+                number: "Figure \(number).", title: figure.title, caption: figure.caption,
+                numberStyle: figure.numberStyle, titleStyle: figure.titleStyle,
+                captionStyle: figure.captionStyle,
+                defaults: ("below", "inline", "below"))
+            out.append(assembly.above)
             if let image = figureImage(figure) {
                 out.append(attachmentBlock(image))
             }
-            out.append(line("Figure \(number). \(figure.title)", font: meta, color: .darkGray, after: 2))
-            if !figure.caption.isEmpty {
-                out.append(line(figure.caption, font: meta, color: .darkGray, after: 6))
-            }
+            out.append(assembly.below)
         case .tablePlacement:
             guard let table = m.tables.first(where: { $0.id == token.targetID }) else {
                 return NSAttributedString(string: "")
             }
             let number = refContext.tables[table.id]?.number ?? table.number
-            out.append(line("Table \(number). \(table.title)", font: meta, color: .darkGray, after: 2))
+            let assembly = captionAssembly(
+                number: "Table \(number).", title: table.title, caption: table.caption,
+                numberStyle: table.numberStyle, titleStyle: table.titleStyle,
+                captionStyle: table.captionStyle,
+                defaults: ("above", "inline", "below"))
+            out.append(assembly.above)
             out.append(tableBody(table))
-            if !table.caption.isEmpty {
-                out.append(line(table.caption, font: meta, color: .darkGray, after: 2))
-            }
+            out.append(assembly.below)
             if !table.footnotes.isEmpty {
                 out.append(line("Note. \(table.footnotes)", font: meta, color: .darkGray, after: 6))
             }

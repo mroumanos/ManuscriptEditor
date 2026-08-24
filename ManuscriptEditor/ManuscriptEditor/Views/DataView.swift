@@ -249,13 +249,38 @@ struct CSVAssetDetail: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header toolbar
+            // Header toolbar — the name edits in place (renaming an upload
+            // beats living with its file name forever).
             HStack(spacing: 12) {
-                Text(asset.name)
-                    .font(.headline)
+                TextField("Name", text: Binding(
+                    get: { asset.name },
+                    set: { name in
+                        var updated = asset
+                        updated.name = name
+                        store.updateDataAsset(updated)
+                    }
+                ))
+                .textFieldStyle(.plain)
+                .font(.headline)
+                .frame(maxWidth: 220)
+                .help("Rename this data upload")
                 Text("SQLite · \(queryResult.rows.count) row\(queryResult.rows.count == 1 ? "" : "s")")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                if store.hasSourceCSV(for: asset) {
+                    HStack(spacing: 2) {
+                        Text("data starts at row \(asset.dataStartRow ?? 2)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Stepper("", value: Binding(
+                            get: { asset.dataStartRow ?? 2 },
+                            set: { store.setDataStartRow(max($0, 2), for: asset) }
+                        ), in: 2...200)
+                        .labelsHidden()
+                        .controlSize(.mini)
+                    }
+                    .help("1-based row the data begins at — the header is the row above it; rows before that are skipped as preamble")
+                }
                 Spacer()
                 Picker("", selection: $mode) {
                     Label("Table", systemImage: "tablecells").tag(ViewMode.table)
@@ -303,6 +328,7 @@ struct CSVAssetDetail: View {
             queryDraft = asset.lastQuery.isEmpty ? "SELECT * FROM data" : asset.lastQuery
             runQuery()
         }
+        .onChange(of: asset.dataStartRow) { _, _ in runQuery() }
     }
 
     // MARK: - Table results
@@ -445,10 +471,25 @@ struct DataChartView: View {
         yColumn ?? result.columns.dropFirst().first ?? result.columns.first ?? ""
     }
 
-    /// A third SELECT column (when x/y are the defaults) becomes the series.
+    /// A third SELECT column (when x/y are the defaults) becomes the series
+    /// — ONLY with exactly three columns: a wider SELECT is a table-shaped
+    /// query, and guessing a series from it once turned a 6-column query
+    /// into 51 "categories" (more than the palette had colors, which kills
+    /// the whole chart — it rendered empty).
     private var seriesColumn: String? {
-        guard xColumn == nil, yColumn == nil, result.columns.count >= 3 else { return nil }
+        guard xColumn == nil, yColumn == nil, result.columns.count == 3 else { return nil }
         return result.columns[2]
+    }
+
+    /// Palette colors cycled to cover every category — a foreground-style
+    /// scale with fewer range values than categories renders nothing.
+    private var seriesColors: [Color] {
+        let base = palette.colors
+        guard let sIdx = seriesColumn.flatMap({ result.columns.firstIndex(of: $0) }) else { return base }
+        var seen = Set<String>()
+        for row in result.rows where row.indices.contains(sIdx) { seen.insert(row[sIdx]) }
+        guard seen.count > base.count else { return base }
+        return (0..<seen.count).map { base[$0 % base.count] }
     }
 
     private var points: [ChartPoint] {
@@ -495,7 +536,7 @@ struct DataChartView: View {
                         // Zero pinned to the axis line; the top gridline sits
                         // below the plot edge so its label never clips.
                         .chartYScale(range: .plotDimension(startPadding: 0, endPadding: 12))
-                        .chartForegroundStyleScale(range: palette.colors)
+                        .chartForegroundStyleScale(range: seriesColors)
                         // Floor low enough that the whole view (plot + X title
                         // + padding) fits the figure editor's 220pt preview
                         // box — a 220 floor here made the chart overflow it.
@@ -562,8 +603,18 @@ struct ImageAssetDetail: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Text(asset.name)
-                    .font(.headline)
+                TextField("Name", text: Binding(
+                    get: { asset.name },
+                    set: { name in
+                        var updated = asset
+                        updated.name = name
+                        store.updateDataAsset(updated)
+                    }
+                ))
+                .textFieldStyle(.plain)
+                .font(.headline)
+                .frame(maxWidth: 260)
+                .help("Rename this data upload")
                 Spacer()
                 Text(asset.importedAt, style: .date)
                     .font(.caption)

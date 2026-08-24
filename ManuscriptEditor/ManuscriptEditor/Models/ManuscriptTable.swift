@@ -31,7 +31,16 @@ struct ManuscriptTable: Codable, Identifiable, Sendable, Equatable {
     var content: String
 
     /// Notes that appear below the table (e.g. abbreviation key, statistical notes).
+    /// No longer edited per table (a manuscript-wide footnote system will
+    /// replace it) but kept so older files decode and still export.
     var footnotes: String
+
+    /// Per-part caption styling (index / title / caption): print toggle,
+    /// above/inline/below placement, and emphasis.  nil = defaults
+    /// (index+title inline above the table, caption below).
+    var numberStyle: CaptionPartStyle? = nil
+    var titleStyle: CaptionPartStyle? = nil
+    var captionStyle: CaptionPartStyle? = nil
 
     // MARK: - Data-linked table fields (optional)
 

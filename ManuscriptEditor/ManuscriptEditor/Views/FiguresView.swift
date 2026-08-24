@@ -221,27 +221,17 @@ struct FigureEditor: View {
                 // Image preview / drop zone.
                 imageZone
                     .frame(maxWidth: .infinity)
-                    .frame(height: 220)
+                    .frame(height: 280)
                     .background(.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
+                    // Clip: the crop editor must stay inside its box.
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
                     .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.secondary.opacity(0.2)))
                     // Accept files dragged from Finder.
                     .onDrop(of: [.fileURL], isTargeted: nil) { providers in handleDrop(providers) }
 
                 Form {
-                    imageSourceSection
-                    Section("Metadata") {
-                        LabeledContent("Number") {
-                            TextField("", value: $draft.number, format: .number)
-                                .multilineTextAlignment(.trailing)
-                        }
-                        TextField("Title", text: $draft.title)
-                        TextField("Alt text (accessibility)", text: $draft.altText)
-                    }
-                    Section("Caption") {
-                        PlainTextEditor(text: $draft.caption)
-                            .frame(minHeight: 80)
-                    }
-                    dataSourceSection
+                    dataSection
+                    captionSection
                 }
                 .formStyle(.grouped)
             }
@@ -284,23 +274,40 @@ struct FigureEditor: View {
     private var hasImage: Bool { store.figureURL(for: draft) != nil }
 
     @ViewBuilder
-    private var imageSourceSection: some View {
-        Section("Image") {
-            if !imageAssets.isEmpty {
-                Picker("From Data library", selection: Binding(
-                    get: { draft.imageAssetID },
-                    set: { newValue in
-                        draft.imageAssetID = newValue
-                        draft.crop = nil          // crop is per-image
-                    }
-                )) {
-                    Text(draft.fileName != nil ? "Imported file" : "None").tag(Optional<UUID>.none)
-                    ForEach(imageAssets) { asset in
-                        Text(asset.name).tag(Optional(asset.id))
+    private var dataSection: some View {
+        Section("Data") {
+            // One picker across the whole Data library; the fields below
+            // follow the picked asset's TYPE (CSV → chart, image → crop/
+            // size/black & white).
+            Picker("From Data library", selection: Binding(
+                get: { draft.dataAssetID ?? draft.imageAssetID },
+                set: { id in
+                    let asset = (store.manuscript?.dataAssets ?? []).first { $0.id == id }
+                    draft.crop = nil          // crop is per-image
+                    switch asset?.type {
+                    case .csv:
+                        draft.dataAssetID = id
+                        draft.imageAssetID = nil
+                    case .image:
+                        draft.imageAssetID = id
+                        draft.dataAssetID = nil
+                    case nil:
+                        draft.dataAssetID = nil
+                        draft.imageAssetID = nil
                     }
                 }
+            )) {
+                Text(draft.fileName != nil ? "Imported file" : "None").tag(Optional<UUID>.none)
+                ForEach(csvAssets) { asset in
+                    Label(asset.name, systemImage: "tablecells").tag(Optional(asset.id))
+                }
+                ForEach(imageAssets) { asset in
+                    Label(asset.name, systemImage: "photo").tag(Optional(asset.id))
+                }
             }
-            if hasImage {
+            if draft.dataAssetID != nil {
+                chartFields
+            } else if hasImage {
                 LabeledContent("Size") {
                     HStack(spacing: 8) {
                         Slider(value: Binding(
@@ -333,50 +340,72 @@ struct FigureEditor: View {
         }
     }
 
+    /// Chart configuration for a CSV-backed figure.
+    @ViewBuilder
+    private var chartFields: some View {
+        Picker("Chart Type", selection: Binding(
+            get: { draft.chartType == .histogram ? .bar : (draft.chartType ?? .bar) },
+            set: { draft.chartType = $0 }
+        )) {
+            ForEach(ChartType.selectable, id: \.self) { ct in
+                Label(ct.label, systemImage: ct.systemImage).tag(ct)
+            }
+        }
+        Picker("Colors", selection: Binding(
+            get: { ChartPalette(rawValue: draft.chartPalette ?? "") ?? .standard },
+            set: { draft.chartPalette = $0 == .standard ? nil : $0.rawValue }
+        )) {
+            ForEach(ChartPalette.allCases) { p in Text(p.rawValue).tag(p) }
+        }
+        SQLEditor(text: Binding(
+            get: { draft.chartQuery ?? "SELECT * FROM data" },
+            set: { draft.chartQuery = $0 }
+        ))
+        Text("Column aliases name the axes (1st = X, 2nd = Y); a 3-column SELECT colors lines/bars by the 3rd column.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+    }
+
+    /// The caption block, one row per part: print toggle, the part's
+    /// content, placement (above/inline/below), and emphasis.
+    @ViewBuilder
+    private var captionSection: some View {
+        Section("Caption") {
+            HStack(spacing: 8) {
+                CaptionPartToggle(style: $draft.numberStyle)
+                Text("Index")
+                TextField("", value: $draft.number, format: .number)
+                    .frame(width: 44)
+                    .multilineTextAlignment(.trailing)
+                Spacer()
+                CaptionPartControls(style: $draft.numberStyle, defaultPlacement: "below", defaultBold: true)
+            }
+            HStack(spacing: 8) {
+                CaptionPartToggle(style: $draft.titleStyle)
+                TextField("Title", text: $draft.title)
+                Spacer()
+                CaptionPartControls(style: $draft.titleStyle, defaultPlacement: "inline", defaultBold: true)
+            }
+            HStack(spacing: 8) {
+                CaptionPartToggle(style: $draft.captionStyle)
+                Text("Caption")
+                Spacer()
+                CaptionPartControls(style: $draft.captionStyle, defaultPlacement: "below", defaultBold: false)
+            }
+            PlainTextEditor(text: $draft.caption)
+                .frame(minHeight: 60)
+            Text("Each part prints independently — toggle it, place it above/inline/below the figure, and style it (inline joins the previous printed part's line).")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
     // MARK: - Data source section
 
     private var csvAssets: [DataAsset] {
         // Data is global: every journal reads the shared Data repository —
         // only the view on it (SQL, formatting) is journal-specific.
         (store.manuscript?.dataAssets ?? []).filter { $0.type == .csv }
-    }
-
-    @ViewBuilder
-    private var dataSourceSection: some View {
-        Section("Data Source (Chart)") {
-            Picker("CSV Data", selection: Binding(
-                get: { draft.dataAssetID },
-                set: { draft.dataAssetID = $0 }
-            )) {
-                Text("None (imported image)").tag(Optional<UUID>.none)
-                ForEach(csvAssets) { asset in
-                    Text(asset.name).tag(Optional(asset.id))
-                }
-            }
-            if draft.dataAssetID != nil {
-                Picker("Chart Type", selection: Binding(
-                    get: { draft.chartType == .histogram ? .bar : (draft.chartType ?? .bar) },
-                    set: { draft.chartType = $0 }
-                )) {
-                    ForEach(ChartType.selectable, id: \.self) { ct in
-                        Label(ct.label, systemImage: ct.systemImage).tag(ct)
-                    }
-                }
-                Picker("Colors", selection: Binding(
-                    get: { ChartPalette(rawValue: draft.chartPalette ?? "") ?? .standard },
-                    set: { draft.chartPalette = $0 == .standard ? nil : $0.rawValue }
-                )) {
-                    ForEach(ChartPalette.allCases) { p in Text(p.rawValue).tag(p) }
-                }
-                SQLEditor(text: Binding(
-                    get: { draft.chartQuery ?? "SELECT * FROM data" },
-                    set: { draft.chartQuery = $0 }
-                ))
-                Text("Column aliases name the axes (1st = X, 2nd = Y); an optional 3rd column colors multiple lines/bars by category.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-        }
     }
 
     /// Shows the live chart (data-linked figure), the crop editor over the
@@ -502,21 +531,22 @@ struct CropAdjustView: View {
                 // Dim everything outside the crop frame.
                 dimming(around: frame, in: fitted)
 
-                // The crop frame: draggable body + corner handles.
                 Rectangle()
                     .strokeBorder(Color.accentColor, lineWidth: 1.5)
-                    .background(Color.clear)
                     .frame(width: frame.width, height: frame.height)
                     .offset(x: frame.minX, y: frame.minY)
-                    .contentShape(Rectangle())
-                    .gesture(moveGesture(in: fitted))
+                    .allowsHitTesting(false)
 
                 ForEach(Corner.allCases, id: \.self) { corner in
-                    handle(corner, frame: frame, fitted: fitted)
+                    handleDot(corner, frame: frame)
                 }
             }
+            // ONE gesture decides by hit point: near a corner → resize it,
+            // inside the frame → move it.  (Separate per-view gestures left
+            // dragging-to-move dead in practice.)
+            .contentShape(Rectangle())
+            .gesture(unifiedGesture(in: fitted))
         }
-        .frame(height: 240)
     }
 
     // MARK: geometry
@@ -562,66 +592,79 @@ struct CropAdjustView: View {
 
     // MARK: gestures
 
-    private func moveGesture(in fitted: CGRect) -> some Gesture {
-        DragGesture()
-            .onChanged { value in
-                if dragStart == nil { dragStart = effectiveCrop }
-                guard let start = dragStart else { return }
-                var c = start
-                c.origin.x = min(max(start.minX + value.translation.width / fitted.width, 0), 1 - c.width)
-                c.origin.y = min(max(start.minY + value.translation.height / fitted.height, 0), 1 - c.height)
-                live = c
-            }
-            .onEnded { _ in commit() }
+    private enum Corner: CaseIterable { case topLeft, topRight, bottomLeft, bottomRight }
+    private enum DragMode { case move, resize(Corner) }
+    @State private var mode: DragMode?
+
+    private func cornerPoint(_ corner: Corner, _ frame: CGRect) -> CGPoint {
+        switch corner {
+        case .topLeft:     return CGPoint(x: frame.minX, y: frame.minY)
+        case .topRight:    return CGPoint(x: frame.maxX, y: frame.minY)
+        case .bottomLeft:  return CGPoint(x: frame.minX, y: frame.maxY)
+        case .bottomRight: return CGPoint(x: frame.maxX, y: frame.maxY)
+        }
     }
 
-    private enum Corner: CaseIterable { case topLeft, topRight, bottomLeft, bottomRight }
-
-    private func handle(_ corner: Corner, frame: CGRect, fitted: CGRect) -> some View {
-        let point: CGPoint
-        switch corner {
-        case .topLeft:     point = CGPoint(x: frame.minX, y: frame.minY)
-        case .topRight:    point = CGPoint(x: frame.maxX, y: frame.minY)
-        case .bottomLeft:  point = CGPoint(x: frame.minX, y: frame.maxY)
-        case .bottomRight: point = CGPoint(x: frame.maxX, y: frame.maxY)
-        }
-        return Circle()
+    /// Visual-only handle; hits route through the unified gesture.
+    private func handleDot(_ corner: Corner, frame: CGRect) -> some View {
+        Circle()
             .fill(Color.accentColor)
             .frame(width: 11, height: 11)
             .overlay(Circle().strokeBorder(.white, lineWidth: 1.5))
-            .position(point)
-            .gesture(resizeGesture(corner, in: fitted))
+            .position(cornerPoint(corner, frame))
+            .allowsHitTesting(false)
     }
 
-    private func resizeGesture(_ corner: Corner, in fitted: CGRect) -> some Gesture {
-        DragGesture()
+    private func unifiedGesture(in fitted: CGRect) -> some Gesture {
+        DragGesture(minimumDistance: 1)
             .onChanged { value in
-                if dragStart == nil { dragStart = effectiveCrop }
-                guard let start = dragStart else { return }
+                if mode == nil {
+                    let start = effectiveCrop
+                    dragStart = start
+                    let frame = viewRect(for: start, in: fitted)
+                    let grab: CGFloat = 14
+                    if let corner = Corner.allCases.first(where: {
+                        let p = cornerPoint($0, frame)
+                        return hypot(value.startLocation.x - p.x, value.startLocation.y - p.y) <= grab
+                    }) {
+                        mode = .resize(corner)
+                    } else if frame.insetBy(dx: -4, dy: -4).contains(value.startLocation) {
+                        mode = .move
+                    } else {
+                        return
+                    }
+                }
+                guard let start = dragStart, let mode, fitted.width > 0, fitted.height > 0 else { return }
                 let dx = value.translation.width / fitted.width
                 let dy = value.translation.height / fitted.height
                 let minSize: CGFloat = 0.05
                 var c = start
-                switch corner {
-                case .topLeft:
+                switch mode {
+                case .move:
+                    c.origin.x = min(max(start.minX + dx, 0), 1 - c.width)
+                    c.origin.y = min(max(start.minY + dy, 0), 1 - c.height)
+                case .resize(.topLeft):
                     let nx = min(max(start.minX + dx, 0), start.maxX - minSize)
                     let ny = min(max(start.minY + dy, 0), start.maxY - minSize)
                     c = CGRect(x: nx, y: ny, width: start.maxX - nx, height: start.maxY - ny)
-                case .topRight:
+                case .resize(.topRight):
                     let nw = min(max(start.width + dx, minSize), 1 - start.minX)
                     let ny = min(max(start.minY + dy, 0), start.maxY - minSize)
                     c = CGRect(x: start.minX, y: ny, width: nw, height: start.maxY - ny)
-                case .bottomLeft:
+                case .resize(.bottomLeft):
                     let nx = min(max(start.minX + dx, 0), start.maxX - minSize)
                     let nh = min(max(start.height + dy, minSize), 1 - start.minY)
                     c = CGRect(x: nx, y: start.minY, width: start.maxX - nx, height: nh)
-                case .bottomRight:
+                case .resize(.bottomRight):
                     c.size.width  = min(max(start.width + dx, minSize), 1 - start.minX)
                     c.size.height = min(max(start.height + dy, minSize), 1 - start.minY)
                 }
                 live = c
             }
-            .onEnded { _ in commit() }
+            .onEnded { _ in
+                commit()
+                mode = nil
+            }
     }
 
     /// Commits the in-flight crop to the binding; a full-image crop becomes nil.
@@ -630,5 +673,78 @@ struct CropAdjustView: View {
         guard let final = live else { return }
         let full = CGRect(x: 0, y: 0, width: 1, height: 1)
         crop = final.insetBy(dx: -0.005, dy: -0.005).contains(full) ? nil : final
+    }
+}
+
+
+// MARK: - Caption part controls (shared with TablesView)
+
+/// Checkbox for one caption part's print toggle.
+struct CaptionPartToggle: View {
+    @Binding var style: CaptionPartStyle?
+
+    var body: some View {
+        Toggle("", isOn: Binding(
+            get: { style?.isEnabled ?? true },
+            set: { on in
+                var s = style ?? CaptionPartStyle()
+                s.enabled = on ? nil : false
+                style = s
+            }
+        ))
+        .toggleStyle(.checkbox)
+        .labelsHidden()
+        .help("Print this caption part")
+    }
+}
+
+/// One caption part's placement (above/inline/below) and emphasis (B/I/U).
+struct CaptionPartControls: View {
+    @Binding var style: CaptionPartStyle?
+    var defaultPlacement: String
+    var defaultBold: Bool
+
+    private var current: CaptionPartStyle { style ?? CaptionPartStyle() }
+
+    private func mutate(_ change: (inout CaptionPartStyle) -> Void) {
+        var s = current
+        change(&s)
+        style = s
+    }
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Picker("", selection: Binding(
+                get: { current.placement ?? defaultPlacement },
+                set: { value in mutate { $0.placement = value } }
+            )) {
+                Text("above").tag("above")
+                Text("inline").tag("inline")
+                Text("below").tag("below")
+            }
+            .labelsHidden().controlSize(.small).fixedSize()
+            .help("Where this part sits — inline joins the previous printed part's line")
+            styleButton("bold", current.bold ?? defaultBold, "Bold") {
+                $0.bold = ($0.bold ?? defaultBold) ? false : true
+            }
+            styleButton("italic", current.italic ?? false, "Italic") {
+                $0.italic = ($0.italic ?? false) ? nil : true
+            }
+            styleButton("underline", current.underline ?? false, "Underline") {
+                $0.underline = ($0.underline ?? false) ? nil : true
+            }
+        }
+        .disabled(!(style?.isEnabled ?? true))
+    }
+
+    private func styleButton(_ symbol: String, _ active: Bool, _ help: String,
+                             _ change: @escaping (inout CaptionPartStyle) -> Void) -> some View {
+        Button { mutate(change) } label: {
+            Image(systemName: symbol)
+                .font(.caption)
+                .foregroundStyle(active ? Color.accentColor : Color(nsColor: .tertiaryLabelColor))
+        }
+        .buttonStyle(.plain)
+        .help(help)
     }
 }

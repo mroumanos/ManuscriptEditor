@@ -7,6 +7,24 @@
 import Foundation
 import CoreGraphics
 
+/// Styling for one part of a figure/table caption block — the index
+/// ("Figure 1"), the title, or the caption paragraph.  Each part prints
+/// independently, sits above/inline/below the asset, and carries its own
+/// emphasis.  All fields optional so older files keep decoding (nil = the
+/// part's default).
+struct CaptionPartStyle: Codable, Sendable, Equatable {
+    /// nil = on.
+    var enabled: Bool? = nil
+    /// "above" | "inline" | "below"; nil = the part's default position.
+    /// "inline" joins the previous printed part's line.
+    var placement: String? = nil
+    var bold: Bool? = nil
+    var italic: Bool? = nil
+    var underline: Bool? = nil
+
+    var isEnabled: Bool { enabled ?? true }
+}
+
 /// Metadata for a single manuscript figure, plus an optional link to its image file.
 ///
 /// Image files are stored separately from the JSON to keep the manuscript file small.
@@ -51,8 +69,16 @@ struct Figure: Codable, Identifiable, Sendable, Equatable {
     /// the original image in the Data library is never modified.
     var monochrome: Bool? = nil
 
-    /// Text description for accessibility / screen readers.  Some journals require this.
+    /// Text description for accessibility / screen readers.  No longer
+    /// edited (these are print manuscripts) but kept so older files decode.
     var altText: String
+
+    /// Per-part caption styling (index / title / caption): print toggle,
+    /// above/inline/below placement, and emphasis.  nil = defaults
+    /// (index+title inline below the figure, caption below).
+    var numberStyle: CaptionPartStyle? = nil
+    var titleStyle: CaptionPartStyle? = nil
+    var captionStyle: CaptionPartStyle? = nil
 
     // MARK: - Data-derived chart fields (optional)
 
