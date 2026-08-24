@@ -610,31 +610,37 @@ just a rendered blob.
     **toolbar** carries font family, size, AND spacing — each the item's
     own override, managed per component (Aug 2026; the earlier
     document-uniform spacing rule is gone — LaTeX output still applies the
-    document's spacing globally, like its margins).
-  - **Editor panes** (Abstract, body sections, cover letter) have an
-    **"H" on/off button at the header's left edge** with the heading's
-    style set to its **immediate right** while on — bold/underline/center
-    and the **H1→H3→Body level** (`ComponentHeadingToggle`). The heading's
-    **text sits on a single line right below the button** (empty = the
-    component's name), reflects the style live, and stays within the
-    editor's margin-ruler bounds (`ComponentHeadingRow`). A section
-    **deactivated in the journal hides its heading controls** — it exports
-    nothing there. **List components keep their heading options in the
-    settings gear instead** (print on/off, text, style) — an inline header
-    bar looked out of place over a list.
-  - **List components** (Authors, Bibliography, Keywords) carry a **settings
-    gear** in their bottom bar (`ComponentSettingsButton`): typography plus
-    the component's own options — the byline's delimiter ("a; b"), marker
-    (a¹/a†/none), +corr and +cred on Authors; the citation style on
+    document's spacing globally, like its margins). The toolbar also has a
+    **paragraph-style menu (H1/H2/H3/Body)** for manual in-text headers —
+    relative scale (16/14/13 over a 12-pt body) plus bold, and the editor's
+    typography normalization is **scale-preserving** (runs normalize
+    relative to the dominant point size), so manual headers survive zoom,
+    journal-typography, and reload.
+  - **Every component pane** carries the **settings gear at the top right,
+    beside the preview icon** (`ComponentSettingsButton` — uniform across
+    text and list components; hidden for a section deactivated in the
+    journal, which exports nothing). At minimum it holds the **heading
+    configuration**: a Print-heading switch, the printed text (empty = the
+    component's name), and the style — **bold / italic / underline, a
+    left/center/right alignment segment, and the H1→H2→H3→B(ody) level**
+    (`HeadingStyle.italic`/`alignment`, `centered` kept in sync for legacy
+    readers). **Text components carry nothing else** in the gear (their
+    typography lives in the toolbar); other components add their own
+    settings: typography everywhere, the byline's delimiter ("a; b"),
+    marker (a¹/a†/none), +corr/+cred on Authors; the citation style on
     Bibliography; the **keyword-line delimiter** on Keywords (comma
-    default; stored in the same `authorDelimiter` field and honored by the
-    attributed and LaTeX writers). For **pre-split configs** (no `.authors`
-    item — the Title renders the byline) the Authors pane's gear and the
-    Export summary map the byline options to the Title item. Title, Figures, and Tables carry the same gear in their
-    pane header (the Title's gear also holds its heading level/emphasis).
+    default; same `authorDelimiter` field, honored by the attributed and
+    LaTeX writers); the Title's heading look on Title. For **pre-split
+    configs** (no `.authors` item — the Title renders the byline) the
+    Authors pane's gear and the Export summary map the byline options to
+    the Title item.
+  - **Pane headers read facts-left, functions-right**: the word count sits
+    plainly on the left; activation, gear, preview, and notes on the right.
+    The **Title pane's preview renders the title alone** — never the byline
+    (`separateAuthorsOverride`), even on pre-split configs whose export
+    bundles it into the title block.
   - **Keywords** is a list component like Authors: list on the left with
-    add/remove/reorder, the selected keyword's editor on the right, gear in
-    the bottom bar.
+    add/remove/reorder, the selected keyword's editor on the right.
   **Editors render the document's typography**
   (`store.effectiveExportFormat(for:ref:)` → export face, size, spacing)
   scaled by a personal **display zoom** (Settings → Editor, 100–200%,
