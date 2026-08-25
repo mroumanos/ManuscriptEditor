@@ -156,6 +156,7 @@ struct TableEditor: View {
     @State private var draggingPiece: String?
     /// The grid's selection, shared with the formatting toolbar.
     @State private var gridSelection = GridSelection()
+    @State private var showHighlightColors = false
     /// Debounces query re-runs while the user types SQL.
     @State private var previewTask: Task<Void, Never>?
 
@@ -529,24 +530,61 @@ extension TableEditor {
     }
 
     private var highlightButton: some View {
-        Menu {
-            ForEach(["yellow", "green", "blue", "pink", "orange"], id: \.self) { name in
-                Button(name.capitalized) {
-                    styleSelection { $0.highlight = true; $0.highlightColor = name == "yellow" ? nil : name }
-                }
-            }
-            Divider()
-            Button("No highlight") {
-                styleSelection { $0.highlight = nil; $0.highlightColor = nil }
-            }
+        Button {
+            showHighlightColors = true
         } label: {
             Image(systemName: "highlighter")
-                .foregroundStyle(firstSelectedCell?.highlight == true ? Color.accentColor : Color.primary)
+                .foregroundStyle(firstSelectedCell?.highlight == true
+                                 ? swatchColor(firstSelectedCell?.highlightColor) : Color.primary)
         }
-        .menuStyle(.borderlessButton)
-        .menuIndicator(.hidden)
-        .fixedSize()
         .disabled(selectedRange == nil)
         .help("Highlight the selected cells")
+        .popover(isPresented: $showHighlightColors, arrowEdge: .bottom) {
+            // Colors as colors — the palette reads faster than a list of
+            // their names.
+            HStack(spacing: 4) {
+                ForEach(["yellow", "green", "blue", "pink", "orange"], id: \.self) { name in
+                    let active = firstSelectedCell?.highlight == true
+                        && (firstSelectedCell?.highlightColor ?? "yellow") == name
+                    Button {
+                        styleSelection { $0.highlight = true; $0.highlightColor = name == "yellow" ? nil : name }
+                        showHighlightColors = false
+                    } label: {
+                        RoundedRectangle(cornerRadius: 3)
+                            .fill(swatchColor(name).opacity(0.55))
+                            .frame(width: 18, height: 18)
+                            .overlay(RoundedRectangle(cornerRadius: 3)
+                                .strokeBorder(active ? Color.accentColor : Color.secondary.opacity(0.4),
+                                              lineWidth: active ? 2 : 0.5))
+                    }
+                    .buttonStyle(.plain)
+                    .help(name.capitalized)
+                }
+                Button {
+                    styleSelection { $0.highlight = nil; $0.highlightColor = nil }
+                    showHighlightColors = false
+                } label: {
+                    RoundedRectangle(cornerRadius: 3)
+                        .strokeBorder(Color.secondary.opacity(0.4), lineWidth: 0.5)
+                        .frame(width: 18, height: 18)
+                        .overlay(Image(systemName: "line.diagonal")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary))
+                }
+                .buttonStyle(.plain)
+                .help("No highlight")
+            }
+            .padding(10)
+        }
+    }
+
+    private func swatchColor(_ name: String?) -> Color {
+        switch name {
+        case "green":  return .green
+        case "blue":   return .blue
+        case "pink":   return .pink
+        case "orange": return .orange
+        default:       return .yellow
+        }
     }
 }
