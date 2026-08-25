@@ -434,18 +434,16 @@ propagate by explicit, individual fast-forwards.
   **Three configuration files per journal, in one folder** (Aug 2026):
   `requirements.json` (the journal's instructions as **bullets** plus the
   link they came from), `checks.json` (the rules the app evaluates), and
-  `structure.json` (everything a submission is made of). They
+  `structure.json` (the sections a submission is expected to have). They
   are split so a difference shows WHICH half moved.
-  **Structure covers the whole document, in two kinds.** **Core** sections
-  are the app's fixed parts — title, subtitle, authors, abstract, keywords,
-  figures, tables, references, cover letter (`CoreSection`) — and a journal
-  only says whether it REQUIRES each; it cannot rename, reorder, or invent
-  them, because they aren't prose. **Text** sections are the configurable
-  half: body prose a journal names, orders, and adds to freely
-  ("Public Health Implications"). The structure editor shows the two as
-  separate groups, and `STRUCTURE` checks both — a required core part fails
-  when its content is empty (verified: emptying Authors fails, emptying an
-  optional Keywords does not). All three share an
+  **Structure lists only the CONFIGURABLE sections.** Title, authors,
+  abstract, keywords, figures, tables, bibliography, and the cover letter
+  come with every manuscript whatever the journal, so a structure file has
+  nothing to say about them — it names the prose sections, their order, and
+  which are required. A structure file that also listed the fixed parts
+  (briefly, Aug 2026) still decodes: those entries are dropped on read and
+  never written back, which keeps fingerprints stable so no phantom
+  "structure differs" warning appears. All three share an
   `id` — the profile's **GUID**, which is the identity: one journal can
   carry several profiles (article types), a rename must not orphan a
   manuscript's copy, and the GUID is what maps a journal to a library
@@ -500,8 +498,7 @@ propagate by explicit, individual fast-forwards.
   **The structure file is checked too**: the `STRUCTURE` metric compares
   the manuscript's active, non-empty sections against the sections marked
   required in `structure.json`, and `ViewConfig.from(journal:)` seeds a new
-  cut's outline from its TEXT sections (the export places the core parts
-  itself) — which is how a journal-named section
+  cut's outline from it — which is how a journal-named section
   ("Public Health Implications") reaches a cut at all, since the typed
   `requiredSections` can only express the IMRAD enum.
   **Configurable checks** (Aug 2026): a journal carries

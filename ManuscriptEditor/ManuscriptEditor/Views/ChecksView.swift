@@ -497,23 +497,19 @@ struct StructureEditorSheet: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 6) {
-                    groupHeader("Core", note: "the parts every manuscript has — the journal decides which it requires")
-                    ForEach(CoreSection.allCases, id: \.self) { core in
-                        coreRow(core)
-                    }
-
-                    groupHeader("Sections", note: "prose sections — rename, reorder, and add whatever this journal names")
-                        .padding(.top, 10)
-                    if textSections.isEmpty {
+                    Text("The sections this journal expects, in order. Title, authors, abstract, keywords, figures, tables, bibliography, and the cover letter come with every manuscript, so they aren't listed here.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.bottom, 4)
+                    if sections.isEmpty {
                         Text("No sections yet — add the ones this journal expects below.")
                             .font(.callout)
                             .foregroundStyle(.tertiary)
                             .padding(.vertical, 6)
                     }
                     ForEach($sections) { $section in
-                        if $section.wrappedValue.kind != .core {
-                            textRow($section)
-                        }
+                        sectionRow($section)
                     }
                 }
                 .padding(14)
@@ -529,63 +525,19 @@ struct StructureEditorSheet: View {
             }
             .padding(14)
         }
-        .frame(width: 580, height: 520)
+        .frame(width: 560, height: 480)
         .onAppear { sections = journal.structure?.sections ?? [] }
-    }
-
-    private var textSections: [StructureSection] {
-        sections.filter { $0.kind != .core }
-    }
-
-    private func groupHeader(_ title: String, note: String) -> some View {
-        VStack(alignment: .leading, spacing: 1) {
-            Text(title).font(.subheadline.weight(.semibold))
-            Text(note).font(.caption).foregroundStyle(.secondary)
-        }
     }
 
     private func add() {
         let title = newTitle.trimmingCharacters(in: .whitespaces)
-        guard !title.isEmpty,
-              !sections.contains(where: { $0.id == "text:\(title.lowercased())" })
-        else { return }
+        guard !title.isEmpty, !sections.contains(where: { $0.id == title.lowercased() }) else { return }
         sections.append(StructureSection(title: title))
         newTitle = ""
     }
 
-    // MARK: rows
-
-    /// A fixed part: the journal only says whether it is required, so there
-    /// is nothing to rename, reorder, or delete.
     @ViewBuilder
-    private func coreRow(_ core: CoreSection) -> some View {
-        let index = sections.firstIndex { $0.core == core }
-        HStack(spacing: 8) {
-            Image(systemName: core.systemImage)
-                .foregroundStyle(.secondary)
-                .frame(width: 18)
-            Text(core.label)
-            Spacer()
-            Toggle("Required", isOn: Binding(
-                get: { index.map { sections[$0].required } ?? false },
-                set: { required in
-                    if let index {
-                        sections[index].required = required
-                    } else {
-                        sections.append(StructureSection(core: core, required: required))
-                    }
-                }
-            ))
-            .toggleStyle(.checkbox)
-            .help("Required parts fail a STRUCTURE check when empty")
-        }
-        .controlSize(.small)
-        .padding(8)
-        .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
-    }
-
-    @ViewBuilder
-    private func textRow(_ section: Binding<StructureSection>) -> some View {
+    private func sectionRow(_ section: Binding<StructureSection>) -> some View {
         HStack(spacing: 8) {
             Image(systemName: "text.alignleft")
                 .foregroundStyle(.tertiary)
@@ -600,12 +552,12 @@ struct StructureEditorSheet: View {
                 move(section.wrappedValue, by: -1)
             } label: { Image(systemName: "chevron.up") }
                 .buttonStyle(.borderless)
-                .disabled(textSections.first?.id == section.wrappedValue.id)
+                .disabled(sections.first?.id == section.wrappedValue.id)
             Button {
                 move(section.wrappedValue, by: 1)
             } label: { Image(systemName: "chevron.down") }
                 .buttonStyle(.borderless)
-                .disabled(textSections.last?.id == section.wrappedValue.id)
+                .disabled(sections.last?.id == section.wrappedValue.id)
             Button(role: .destructive) {
                 sections.removeAll { $0.id == section.wrappedValue.id }
             } label: { Image(systemName: "trash") }
@@ -619,13 +571,10 @@ struct StructureEditorSheet: View {
     /// Reorders within the prose sections only — moving past a core entry
     /// would be meaningless, since the export places those itself.
     private func move(_ section: StructureSection, by offset: Int) {
-        let prose = textSections
-        guard let among = prose.firstIndex(where: { $0.id == section.id }),
-              prose.indices.contains(among + offset),
-              let here = sections.firstIndex(where: { $0.id == section.id }),
-              let there = sections.firstIndex(where: { $0.id == prose[among + offset].id })
-        else { return }
-        sections.swapAt(here, there)
+        guard let index = sections.firstIndex(where: { $0.id == section.id }) else { return }
+        let target = index + offset
+        guard sections.indices.contains(target) else { return }
+        sections.swapAt(index, target)
     }
 }
 

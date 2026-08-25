@@ -85,7 +85,7 @@ struct ViewConfig: Codable, Identifiable, Sendable {
         // The journal's STRUCTURE file, when it has one, is what a cut starts
         // from: it names sections the typed `requiredSections` cannot express
         // ("Public Health Implications") and carries the journal's order.
-        let structured = journal.structure?.textSections ?? []
+        let structured = journal.structure?.sections ?? []
         let mainSections: [ViewSectionConfig] = structured.isEmpty
             ? sectionTypes.enumerated().map { i, type in
                 ViewSectionConfig(

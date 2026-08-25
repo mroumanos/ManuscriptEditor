@@ -97,19 +97,12 @@ struct JournalProfileReview: View {
         if profile.structure.isEmpty {
             empty("No structure recorded for this journal.")
         } else {
-            let core = profile.structure.coreSections
-            let text = profile.structure.textSections
-            if !core.isEmpty {
-                groupLabel("Core")
-                ForEach(core) { section in
-                    structureRow(section, icon: section.core?.systemImage ?? "square")
-                }
-            }
-            if !text.isEmpty {
-                groupLabel("Sections").padding(.top, 6)
-                ForEach(text) { section in
-                    structureRow(section, icon: "text.alignleft")
-                }
+            Text("Sections this journal expects, in order. Title, authors, abstract, keywords, figures, tables, bibliography, and the cover letter come with every manuscript.")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+                .fixedSize(horizontal: false, vertical: true)
+            ForEach(profile.structure.sections) { section in
+                structureRow(section, icon: "text.alignleft")
             }
         }
     }

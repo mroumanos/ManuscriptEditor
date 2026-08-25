@@ -43,15 +43,31 @@ environment beside Source's. There is never a journal dropdown inside these
 panes.
 
 **Content** (version-comparable items — these render side-by-side per open tab)
+
+Split in two by a **soft rule** — a hairline, not a header, so the division is
+felt rather than announced. Above it, the parts every manuscript has, in a
+fixed order; below it, the sections the author actually shapes.
+
+*Fixed* — cannot be reordered, deactivated, or removed (a manuscript without a
+title or a bibliography isn't a manuscript). Renaming a pane is still allowed:
+that changes the label, not whether the part exists.
+- Title
 - Authors (N)
 - Abstract
 - Keywords (N)
-- the body **sections** in order (Introduction, Methods, …, each shows its word
-  count badge)
 - Figures (N)
 - Tables (N)
 - Bibliography (N)
 - Letter to Editor
+
+— soft rule —
+
+*Configurable* — the body **sections** in order (Introduction, Methods, …, each
+shows its word count badge). **Drag to reorder**, **deactivate per journal**
+(dimmed with an orange `eye.slash`; the text is preserved, and Checks/Export
+filter on the flag, never on emptiness), rename, delete. These are exactly what
+a journal's `structure.json` describes.
+- "Add Section" closes the list.
 
 **The Content section is always available** — tabs load automatically, so at
 least the Source tab always exists.

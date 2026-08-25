@@ -128,105 +128,75 @@ struct SourceRequirements: Codable, Sendable, Equatable {
 
 // MARK: - JournalStructure
 
-/// The fixed parts of a manuscript — the ones every manuscript has and the
-/// app owns a pane for.  A journal says whether it REQUIRES each of these;
-/// it cannot invent, rename, or reorder them, because they aren't prose.
-enum CoreSection: String, Codable, CaseIterable, Sendable {
-    case title, subtitle, authors, abstract, keywords
-    case figures, tables, references, coverLetter
-
-    var label: String {
-        switch self {
-        case .title:       return "Title"
-        case .subtitle:    return "Subtitle"
-        case .authors:     return "Authors"
-        case .abstract:    return "Abstract"
-        case .keywords:    return "Keywords"
-        case .figures:     return "Figures"
-        case .tables:      return "Tables"
-        case .references:  return "References"
-        case .coverLetter: return "Cover letter"
-        }
-    }
-
-    var systemImage: String {
-        switch self {
-        case .title, .subtitle: return "textformat"
-        case .authors:          return "person.2"
-        case .abstract:         return "text.alignleft"
-        case .keywords:         return "tag"
-        case .figures:          return "photo"
-        case .tables:           return "tablecells"
-        case .references:       return "books.vertical"
-        case .coverLetter:      return "envelope"
-        }
-    }
-}
-
-/// One section a manuscript for this journal is expected to have.
+/// One prose section a manuscript for this journal is expected to have.
 ///
-/// Two kinds, because they behave differently: a **core** section is one of
-/// the app's fixed parts (authors, figures, references…) and a journal only
-/// decides whether it is required; a **text** section is body prose, which a
-/// journal can name, order, and invent freely ("Public Health Implications").
+/// Only the CONFIGURABLE sections live here.  The fixed parts of a manuscript
+/// — title, authors, abstract, keywords, figures, tables, bibliography, cover
+/// letter — come with every manuscript regardless of journal, so a structure
+/// file has nothing to say about them.
 struct StructureSection: Codable, Sendable, Equatable, Identifiable {
-
-    enum Kind: String, Codable, Sendable { case core, text }
-
     var title: String
-    /// Defaults to `.text` so structure files written before core sections
-    /// existed keep meaning what they meant.
-    var kind: Kind = .text
-    /// Which fixed part this is, when `kind == .core`.
-    var core: CoreSection? = nil
     /// Required sections fail a structure check when missing; optional ones
     /// are part of the journal's shape but never fail.
     var required: Bool = true
     /// Why the journal asks for it — shown in the structure editor.
     var note: String? = nil
 
-    var id: String { core.map { "core:\($0.rawValue)" } ?? "text:\(title.lowercased())" }
+    /// Set when this entry came from a file that also listed the app's fixed
+    /// parts.  Those are dropped on read and never written again; the flag
+    /// exists only so the filtering can happen at one place.
+    var isFixedPart: Bool = false
 
-    private enum CodingKeys: String, CodingKey { case title, kind, core, required, note }
+    var id: String { title.lowercased() }
 
-    init(title: String, kind: Kind = .text, core: CoreSection? = nil,
-         required: Bool = true, note: String? = nil) {
-        self.title = title; self.kind = kind; self.core = core
-        self.required = required; self.note = note
-    }
+    private enum CodingKeys: String, CodingKey { case title, required, note, kind, core }
 
-    init(core: CoreSection, required: Bool = true, note: String? = nil) {
-        self.init(title: core.label, kind: .core, core: core, required: required, note: note)
+    init(title: String, required: Bool = true, note: String? = nil) {
+        self.title = title; self.required = required; self.note = note
     }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         title = try c.decode(String.self, forKey: .title)
-        core = try c.decodeIfPresent(CoreSection.self, forKey: .core)
-        kind = try c.decodeIfPresent(Kind.self, forKey: .kind) ?? (core == nil ? .text : .core)
         required = try c.decodeIfPresent(Bool.self, forKey: .required) ?? true
         note = try c.decodeIfPresent(String.self, forKey: .note)
+        isFixedPart = (try? c.decodeIfPresent(String.self, forKey: .kind)) == "core"
+            || (try? c.decodeIfPresent(String.self, forKey: .core)) != nil
+    }
+
+    /// `isFixedPart` is deliberately absent: it is a read-time concern, and
+    /// encoding it would change every profile's fingerprint.
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(title, forKey: .title)
+        try c.encode(required, forKey: .required)
+        try c.encodeIfPresent(note, forKey: .note)
     }
 }
 
-/// Everything a manuscript for this journal is made of, in order.
+/// The configurable sections a manuscript for this journal is expected to
+/// have, in order.
 struct JournalStructure: Codable, Sendable, Equatable {
     var sections: [StructureSection] = []
 
     var isEmpty: Bool { sections.isEmpty }
-
-    /// The app's fixed parts, with this journal's verdict on each.
-    var coreSections: [StructureSection] { sections.filter { $0.kind == .core } }
-
-    /// The prose sections — the configurable half.
-    var textSections: [StructureSection] { sections.filter { $0.kind != .core } }
-
     var requiredTitles: [String] { sections.filter(\.required).map(\.title) }
 
-    /// A journal's verdict on one fixed part, defaulting to "not required"
-    /// for a structure that predates core sections.
-    func requires(_ core: CoreSection) -> Bool {
-        sections.first { $0.core == core }?.required ?? false
+    init(sections: [StructureSection] = []) {
+        self.sections = StructureSection.configurable(sections)
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        sections = StructureSection.configurable(
+            try c.decodeIfPresent([StructureSection].self, forKey: .sections) ?? [])
+    }
+}
+
+extension StructureSection {
+    /// Drops entries describing the app's fixed parts.
+    static func configurable(_ sections: [StructureSection]) -> [StructureSection] {
+        sections.filter { !$0.isFixedPart }
     }
 }
 

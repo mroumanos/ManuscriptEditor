@@ -247,6 +247,11 @@ struct SidebarView: View {
         }
     }
 
+    /// Content splits in two.  FIRST the parts every manuscript has, in a
+    /// fixed order — they can't be reordered or switched off, because a
+    /// manuscript without a title or a bibliography isn't a manuscript.
+    /// THEN, past a soft rule, the sections the author actually shapes:
+    /// drag to reorder, deactivate per journal, rename, delete.
     @ViewBuilder
     private var contentSection: some View {
         Section("Content") {
@@ -254,32 +259,28 @@ struct SidebarView: View {
             row(SidebarItem.authors, "Authors (\(active?.authors.count ?? 0))", "person.2")
             row(SidebarItem.abstract, "Abstract", "text.quote")
             row(SidebarItem.keywords, "Keywords (\(active?.keywords.count ?? 0))", "tag")
-            bodySection
-
             ForEach(fixedPanes, id: \.key) { pane in
-                if !store.isPaneHidden(pane.key) {
-                    fixedPaneRow(pane)
-                }
+                fixedPaneRow(pane)
             }
+
+            sectionsDelimiter
+
+            bodySection
 
             // Inline "add section" row at the very bottom of the Content list.
             addSectionRow
-
-            // Removed panes come back from here.
-            ForEach(fixedPanes, id: \.key) { pane in
-                if store.isPaneHidden(pane.key) {
-                    Button {
-                        store.setPaneHidden(pane.key, hidden: false)
-                    } label: {
-                        Label("Show \(store.paneTitle(pane.key, default: defaultPaneName(pane.key)))",
-                              systemImage: "eye.slash")
-                            .foregroundStyle(.tertiary)
-                    }
-                    .buttonStyle(.plain)
-                    .help("Restore this pane to the sidebar")
-                }
-            }
         }
+    }
+
+    /// The soft rule between the two halves — a hairline, not a header: the
+    /// split is meant to be felt, not announced.
+    private var sectionsDelimiter: some View {
+        Divider()
+            .padding(.vertical, 2)
+            .opacity(0.6)
+            .listRowSeparator(.hidden)
+            .selectionDisabled()
+            .accessibilityLabel("Sections")
     }
 
     /// A fixed pane row with rename/remove context actions (mirrors sections).
@@ -299,10 +300,6 @@ struct SidebarView: View {
                 Button("Rename…") {
                     renameDraft = custom ?? defaultPaneName(pane.key)
                     renamingPaneKey = pane.key
-                }
-                Button("Remove from Sidebar", role: .destructive) {
-                    if selection == pane.item { selection = .overview }
-                    store.setPaneHidden(pane.key, hidden: true)
                 }
             }
             .alert("Rename Pane", isPresented: Binding(
@@ -343,9 +340,19 @@ struct SidebarView: View {
     // MARK: - Row helpers
 
     private func sectionRow(_ section: ManuscriptSection) -> some View {
-        HStack {
+        // Activation is PER JOURNAL, so it reads from the active tab's copy
+        // rather than from Source's.
+        let isActive = active?.sections.first { $0.id == section.id }?.active ?? section.active
+        return HStack {
             Label(section.title, systemImage: section.type.systemImage)
+                .foregroundStyle(isActive ? .primary : .tertiary)
             Spacer()
+            if !isActive {
+                Image(systemName: "eye.slash")
+                    .foregroundStyle(.orange)
+                    .font(.caption)
+                    .help("Deactivated in this journal — its text is kept")
+            }
             notesBadge(.section(section.id))
         }
         .tag(SidebarItem.section(section.id))
@@ -359,6 +366,9 @@ struct SidebarView: View {
             Button("Rename Section…") {
                 renameDraft = section.title
                 renamingSectionID = section.id
+            }
+            Button(isActive ? "Deactivate in This Journal" : "Activate in This Journal") {
+                store.setSectionActive(!isActive, id: section.id, ref: activeRef)
             }
             Button("Delete Section", role: .destructive) { deleteSection(section) }
         }
