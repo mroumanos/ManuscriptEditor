@@ -157,6 +157,8 @@ final class SpreadsheetGridView: NSView {
     var onWidthChanged: ((Int, CGFloat) -> Void)?
     var onClearCells: (() -> Void)?
     var onPaste: ((String, CellRef) -> Void)?
+    /// ⌘B / ⌘I / ⌘U over the selection ("bold" | "italic" | "underline").
+    var onStyleKey: ((String) -> Void)?
 
     static let headerHeight: CGFloat = 26
     static let gutterWidth: CGFloat = 36
@@ -591,6 +593,22 @@ final class SpreadsheetGridView: NSView {
 
     // MARK: keyboard
 
+    /// The app has no Format menu to route ⌘B/I/U, and the grid is not a
+    /// text view, so it claims them itself while it has focus.
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        guard event.modifierFlags.intersection([.command, .option, .control]) == .command,
+              editor == nil, selection?.anchor != nil,
+              let key = event.charactersIgnoringModifiers?.lowercased() else {
+            return super.performKeyEquivalent(with: event)
+        }
+        switch key {
+        case "b": onStyleKey?("bold"); return true
+        case "i": onStyleKey?("italic"); return true
+        case "u": onStyleKey?("underline"); return true
+        default:  return super.performKeyEquivalent(with: event)
+        }
+    }
+
     override func keyDown(with event: NSEvent) {
         guard let selection, let anchor = selection.anchor else {
             super.keyDown(with: event)
@@ -712,6 +730,9 @@ struct SpreadsheetGrid: NSViewRepresentable {
     @Binding var columnWidths: [Double]?
     var selection: GridSelection
     var structureEditable: Bool = true
+    /// Called when the user drags a column width, so the table can switch
+    /// off autofit (a manual width and autofit are contradictory).
+    var onManualWidths: (() -> Void)?
 
     func makeNSView(context: Context) -> NSScrollView {
         let scroll = NSScrollView()
@@ -807,9 +828,13 @@ struct SpreadsheetGrid: NSViewRepresentable {
                     let row = cells.remove(at: from)
                     cells.insert(row, at: to)
                 }
-                guard let parent = self?.parent else { return }
+                guard let self, let parent = self.parent else { return }
                 parent.selection.anchor = CellRef(row: to, col: 0)
                 parent.selection.extent = CellRef(row: to, col: max((parent.cells.first?.count ?? 1) - 1, 0))
+                // Push the moved data into the view NOW: waiting for
+                // SwiftUI's update drew the new selection over the old
+                // rows, so the highlight looked one row off mid-drag.
+                self.sync()
             }
             grid.onMoveColumn = { [weak self] from, to in
                 self?.edit { cells in
@@ -823,9 +848,10 @@ struct SpreadsheetGrid: NSViewRepresentable {
                     stored.insert(w, at: min(to, stored.count))
                     self?.parent?.columnWidths = stored
                 }
-                guard let parent = self?.parent else { return }
+                guard let self, let parent = self.parent else { return }
                 parent.selection.anchor = CellRef(row: 0, col: to)
                 parent.selection.extent = CellRef(row: max(parent.cells.count - 1, 0), col: to)
+                self.sync()
             }
             grid.onWidthChanged = { [weak self] col, width in
                 guard let self, let parent = self.parent, let grid = self.grid else { return }
@@ -834,6 +860,12 @@ struct SpreadsheetGrid: NSViewRepresentable {
                 guard stored.indices.contains(col) else { return }
                 stored[col] = Double(width)
                 parent.columnWidths = stored
+                // Setting a width by hand IS the instruction to stop
+                // auto-sizing — otherwise the drag persists but the export
+                // keeps computing its own widths and nothing appears to
+                // happen.
+                parent.onManualWidths?()
+                self.sync()
             }
             grid.onClearCells = { [weak self] in
                 guard let self, let parent = self.parent,
@@ -849,6 +881,25 @@ struct SpreadsheetGrid: NSViewRepresentable {
                 }
             }
             grid.onPaste = { [weak self] text, origin in self?.paste(text, at: origin) }
+            grid.onStyleKey = { [weak self] key in
+                guard let self, let parent = self.parent,
+                      let range = parent.selection.range(rows: parent.cells.count,
+                                                         cols: parent.cells.first?.count ?? 0)
+                else { return }
+                self.edit { cells in
+                    for r in range.rows where cells.indices.contains(r) {
+                        for c in range.cols where cells[r].indices.contains(c) {
+                            switch key {
+                            case "bold":      cells[r][c].bold = (cells[r][c].bold ?? false) ? false : true
+                            case "italic":    cells[r][c].italic = (cells[r][c].italic ?? false) ? nil : true
+                            case "underline": cells[r][c].underline = (cells[r][c].underline ?? false) ? nil : true
+                            default: break
+                            }
+                        }
+                    }
+                }
+                self.sync()
+            }
         }
 
         private func edit(_ change: (inout [[TableCell]]) -> Void) {

@@ -276,14 +276,20 @@ Intent: data lives once; figures/tables reference it; cuts convert only SQL.
   section geometry, not the document's static format, so a table in a
   1.5″ section spans exactly that section's column (verified at the pixel
   level: 108→503 for 100%, 108→305 for 50%). **Autofit** (Export
-  Formatting, on by default, toggleable) decides how that width is
-  DIVIDED, never whether the table fills it: column widths follow each
-  column's widest cell measured from row N down (default 2; header =
-  row 1; no rows are ever dropped), scaled to fill, with fair-share
-  capping so narrow columns never wrap when content overflows. Autofit
-  OFF divides the same width by the ratios of the **drag-adjustable
-  column widths** (dividers over the grid's header row;
-  `ManuscriptTable.columnWidths`). Multi-cell styling writes ONE snapshot (per-cell binding writes
+  Formatting, on by default) decides how that width is DIVIDED, never
+  whether the table fills it. A column's natural width is its widest DATA
+  cell (measured from row N down; default 2, no rows are ever dropped)
+  and its header's **longest word** — a header may wrap between words, a
+  number may not. When the naturals still overflow, autofit **shrinks the
+  cell font** (to 62% at most) before it will wrap anything, then
+  fair-share caps what remains. Autofit OFF divides the same width by the
+  ratios of the **drag-adjustable column widths**
+  (`ManuscriptTable.columnWidths`); **dragging a column width switches
+  autofit off automatically**, since a hand-set width and auto-sizing are
+  contradictory (the drags persisted but the export kept computing its
+  own widths, so nothing appeared to happen). A stored-width count that
+  no longer matches the query's columns is trimmed or padded rather than
+  discarded. Multi-cell styling writes ONE snapshot (per-cell binding writes
   re-read stale state — only the last cell survived). The **preview
   always renders the PDF construction** — CoreText ignores NSTextTable,
   so a DOCX/RTF document's tables previewed as newline soup. Figure/table

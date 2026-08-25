@@ -1601,18 +1601,55 @@ private struct OutlineBuilder {
     }
 
     /// The effective font for one cell (header cells are bold by default).
-    private func cellFont(_ cell: TableCell, header: Bool) -> NSFont {
+    /// `scale` is the autofit shrink factor for wide tables.
+    private func cellFont(_ cell: TableCell, header: Bool, scale: CGFloat = 1) -> NSFont {
         let fm = NSFontManager.shared
         var font = tableCellFont
+        if scale < 0.999 {
+            font = NSFont(descriptor: font.fontDescriptor,
+                          size: max(font.pointSize * scale, 6)) ?? font
+        }
         if cell.bold ?? header { font = fm.convert(font, toHaveTrait: .boldFontMask) }
         if cell.italic == true { font = fm.convert(font, toHaveTrait: .italicFontMask) }
         return font
     }
 
+    /// A header may wrap BETWEEN words, so its contribution to a column's
+    /// natural width is its longest word — data cells (numbers) can't wrap
+    /// at all and need their full width.
+    private func headerDemand(_ cell: TableCell, scale: CGFloat) -> CGFloat {
+        let font = cellFont(cell, header: true, scale: scale)
+        let words = cell.text.split(whereSeparator: { $0 == " " || $0 == "\n" })
+        let longest = words.map { ($0 as NSString).size(withAttributes: [.font: font]).width }.max()
+        return longest ?? (cell.text as NSString).size(withAttributes: [.font: font]).width
+    }
+
+    /// Autofit shrink: when the columns' natural widths overflow the table,
+    /// scale the cell font down (to 62% at most) so values stay on one
+    /// line instead of wrapping mid-number.
+    private func autofitScale(columns: [TableCell], rows: [[TableCell]],
+                              width: CGFloat, table t: ManuscriptTable) -> CGFloat {
+        guard t.autofitOn else { return 1 }
+        let skip = max((t.dataStartRow ?? 2) - 2, 0)
+        let measured = rows.dropFirst(skip)
+        var total: CGFloat = 0
+        for i in columns.indices {
+            var w = headerDemand(columns[i], scale: 1)
+            for row in measured where row.indices.contains(i) {
+                w = max(w, (row[i].text as NSString)
+                    .size(withAttributes: [.font: cellFont(row[i], header: false)]).width)
+            }
+            total += max(w + 10, 30)
+        }
+        guard total > width, total > 0 else { return 1 }
+        return max(width / total, 0.62)
+    }
+
     /// Draw/text attributes for one cell's content.
-    private func cellAttributes(_ cell: TableCell, header: Bool) -> [NSAttributedString.Key: Any] {
+    private func cellAttributes(_ cell: TableCell, header: Bool,
+                                scale: CGFloat = 1) -> [NSAttributedString.Key: Any] {
         var attrs: [NSAttributedString.Key: Any] = [
-            .font: cellFont(cell, header: header),
+            .font: cellFont(cell, header: header, scale: scale),
             .foregroundColor: NSColor.black,
         ]
         if cell.underline == true { attrs[.underlineStyle] = NSUnderlineStyle.single.rawValue }
@@ -1676,24 +1713,31 @@ private struct OutlineBuilder {
     /// Autofit OFF: the editor-adjusted `columnWidths` ratios fill the
     /// available width directly.
     private func columnFractions(columns: [TableCell], rows: [[TableCell]],
-                                 width: CGFloat, table t: ManuscriptTable) -> [CGFloat] {
-        if !t.autofitOn, let stored = t.columnWidths, stored.count == columns.count,
-           stored.reduce(0, +) > 0 {
+                                 width: CGFloat, table t: ManuscriptTable,
+                                 scale: CGFloat = 1) -> [CGFloat] {
+        if !t.autofitOn, var stored = t.columnWidths, stored.contains(where: { $0 > 0 }) {
+            // A count mismatch (the query gained or lost a column since the
+            // widths were dragged) trims or pads rather than discarding the
+            // user's widths entirely.
+            let fallback = stored.reduce(0, +) / Double(max(stored.count, 1))
+            while stored.count < columns.count { stored.append(fallback) }
+            stored = Array(stored.prefix(columns.count))
             let sum = stored.reduce(0, +)
-            return stored.map { CGFloat(max($0, 1)) / CGFloat(sum) }
+            if sum > 0 { return stored.map { CGFloat(max($0, 1)) / CGFloat(sum) } }
         }
         // Measure from row N (1-based; header = row 1).  The header still
         // counts at a floor so an empty column keeps a readable label.
         let skip = max((t.dataStartRow ?? 2) - 2, 0)
         let measured = rows.dropFirst(skip)
         var naturals: [CGFloat] = columns.indices.map { i in
-            var w = (columns[i].text as NSString)
-                .size(withAttributes: [.font: cellFont(columns[i], header: true)]).width * 0.6
-            for row in measured {
+            // Header: its longest WORD (headers wrap between words).
+            // Data: full width (a number must never wrap).
+            var w = headerDemand(columns[i], scale: scale)
+            for row in measured where row.indices.contains(i) {
                 w = max(w, (row[i].text as NSString)
-                    .size(withAttributes: [.font: cellFont(row[i], header: false)]).width)
+                    .size(withAttributes: [.font: cellFont(row[i], header: false, scale: scale)]).width)
             }
-            return max(w + 12, 34)
+            return max(w + 10, 30)
         }
         let total = naturals.reduce(0, +)
         guard total > 0 else { return columns.map { _ in 1 / CGFloat(max(columns.count, 1)) } }
@@ -1731,8 +1775,11 @@ private struct OutlineBuilder {
                                 leading: NSAttributedString? = nil) -> NSAttributedString {
         let open = t.openSides ?? false
         let shade = t.alternateShading ?? false
+        let scale = autofitScale(columns: columns, rows: rows,
+                                 width: tableWidth * tableWidthFactor(t), table: t)
         var fractions = columnFractions(columns: columns, rows: rows,
-                                        width: tableWidth * tableWidthFactor(t), table: t)
+                                        width: tableWidth * tableWidthFactor(t),
+                                        table: t, scale: scale)
         let fractionSum = fractions.reduce(0, +)
         if fractionSum > 0 { fractions = fractions.map { $0 / fractionSum } }
         // A merged title becomes the table's own first row (see below), so
@@ -1791,7 +1838,7 @@ private struct OutlineBuilder {
             } else if shade, (row - headerRow) % 2 == 1 {
                 block.backgroundColor = NSColor(white: 0.955, alpha: 1)
             }
-            var attrs = cellAttributes(cell, header: row == headerRow)
+            var attrs = cellAttributes(cell, header: row == headerRow, scale: scale)
             if let para = (attrs[.paragraphStyle] as? NSParagraphStyle)?
                 .mutableCopy() as? NSMutableParagraphStyle {
                 para.textBlocks = [block]
@@ -1817,14 +1864,17 @@ private struct OutlineBuilder {
         let shade = t.alternateShading ?? false
         let available = tableWidth * tableWidthFactor(t)
         let pad: CGFloat = 5
-        let widths = columnFractions(columns: columns, rows: rows, width: available, table: t)
+        // Wide tables shrink their type rather than wrap their numbers.
+        let scale = autofitScale(columns: columns, rows: rows, width: available, table: t)
+        let widths = columnFractions(columns: columns, rows: rows, width: available,
+                                     table: t, scale: scale)
             .map { $0 * available }
         // Autofit can come out narrower than the available width — the
         // drawn grid hugs its columns.
         let width = widths.reduce(0, +)
 
         func cellHeight(_ cell: TableCell, columnWidth: CGFloat, header: Bool) -> CGFloat {
-            let font = cellFont(cell, header: header)
+            let font = cellFont(cell, header: header, scale: scale)
             guard !cell.text.isEmpty else { return ceil(font.ascender - font.descender) }
             let bounds = (cell.text as NSString).boundingRect(
                 with: NSSize(width: columnWidth - pad * 2, height: .greatestFiniteMagnitude),
@@ -1921,7 +1971,8 @@ private struct OutlineBuilder {
                         (cells[col].text as NSString).draw(
                             in: NSRect(x: x + pad, y: y + pad,
                                        width: columnWidth - pad * 2, height: rowHeight - pad * 2),
-                            withAttributes: cellAttributes(cells[col], header: rowIndex == 0))
+                            withAttributes: cellAttributes(cells[col], header: rowIndex == 0,
+                                                           scale: scale))
                         x += columnWidth
                     }
                     y += rowHeight

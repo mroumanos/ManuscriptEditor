@@ -206,7 +206,8 @@ struct TableEditor: View {
                         ), columnWidths: Binding(
                             get: { draft.columnWidths },
                             set: { draft.columnWidths = $0 }
-                        ), selection: gridSelection, structureEditable: false)
+                        ), selection: gridSelection, structureEditable: false,
+                           onManualWidths: { draft.autofit = false })
                     }
                 } else {
                     // Grid editor — no Markdown required.  Cells edit in
@@ -229,7 +230,8 @@ struct TableEditor: View {
                     ), columnWidths: Binding(
                         get: { draft.columnWidths },
                         set: { draft.columnWidths = $0 }
-                    ), selection: gridSelection)
+                    ), selection: gridSelection,
+                       onManualWidths: { draft.autofit = false })
                 }
             }
             .frame(minHeight: 200)
@@ -239,7 +241,7 @@ struct TableEditor: View {
                 dataSourceSection
                 arrangementSection
                 Section("Export Formatting") {
-                    Toggle("Autofit column widths", isOn: Binding(
+                    Toggle("Autofit column widths (dragging a column turns this off)", isOn: Binding(
                         get: { draft.autofitOn },
                         set: { draft.autofit = $0 ? nil : false }
                     ))
