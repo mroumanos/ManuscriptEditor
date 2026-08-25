@@ -887,8 +887,6 @@ struct ManualTableGrid: View {
     // Equatable child views (skipped when their data didn't change), and
     // all pointer handling lives on the container.
 
-    @State private var dragActive = false
-
     private var gridBody: some View {
         ZStack(alignment: .topLeading) {
             VStack(alignment: .leading, spacing: gap) {
@@ -949,34 +947,44 @@ struct ManualTableGrid: View {
     }
 
     /// One gesture for press-select (mouse-down, no double-click wait) and
-    /// drag-select; skipped entirely inside the cell being edited so the
-    /// text field keeps its own click/drag behavior.
+    /// drag-select.  STATELESS per tick: the anchor always derives from the
+    /// gesture's own start location — a tracked "is dragging" flag could
+    /// stick when a simultaneous child gesture (a column divider) claimed
+    /// the drag and our onEnded was skipped, after which every click only
+    /// extended the old selection.  Skipped inside the cell being edited
+    /// and over the divider strips.
     private var pressAndDragGesture: some Gesture {
         DragGesture(minimumDistance: 0)
             .onChanged { value in
+                // Dead zone: the resize dividers sit on the header row's
+                // column boundaries — their drags must not select.
+                if isOnDivider(value.startLocation) { return }
                 let startCell = cellAt(value.startLocation)
                 if let editingCell, startCell == editingCell { return }
-                if !dragActive {
-                    dragActive = true
-                    // Drop any text field's focus so the key monitor
-                    // (which defers to focused text) gets the arrows.
-                    if NSApp.keyWindow?.firstResponder is NSText {
-                        NSApp.keyWindow?.makeFirstResponder(nil)
-                    }
-                    if NSEvent.modifierFlags.contains(.shift), anchor != nil {
-                        if let startCell { extent = startCell }
-                    } else if let startCell {
-                        editingCell = nil
-                        anchor = startCell
-                        extent = nil
-                    }
+                guard let startCell else { return }
+                if NSApp.keyWindow?.firstResponder is NSText {
+                    NSApp.keyWindow?.makeFirstResponder(nil)
+                }
+                if NSEvent.modifierFlags.contains(.shift), let a = anchor, a != startCell {
+                    let target = cellAt(value.location) ?? startCell
+                    if extent != target { extent = target }
+                    if editingCell != nil { editingCell = nil }
                     return
                 }
-                if let cell = cellAt(value.location), cell != (extent ?? anchor) {
-                    extent = cell
-                }
+                if editingCell != nil { editingCell = nil }
+                if anchor != startCell { anchor = startCell }
+                let current = cellAt(value.location)
+                let newExtent = current == startCell ? nil : current
+                if extent != newExtent { extent = newExtent }
             }
-            .onEnded { _ in dragActive = false }
+    }
+
+    /// True when the point sits on a column-resize divider strip (header
+    /// row, near a column boundary).
+    private func isOnDivider(_ p: CGPoint) -> Bool {
+        guard structureEditable || true, p.y <= cellH else { return false }
+        let xs = colX
+        return (1...colCount).contains { abs(p.x - (xs[$0] - gap / 2)) <= 5 }
     }
 
     @ViewBuilder
