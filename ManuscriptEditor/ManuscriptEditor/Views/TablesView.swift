@@ -887,18 +887,14 @@ struct ManualTableGrid: View {
     // Equatable child views (skipped when their data didn't change), and
     // all pointer handling lives on the container.
 
-    /// The grid's top-left in SCREEN coordinates, tracked live.  Every
-    /// pointer computation runs in global space minus this origin: a
-    /// scroll-view-local space shifts when the content resizes (exactly
-    /// what dragging a column divider does), so a wide, horizontally
-    /// scrolled table mapped the same screen point to a different cell
-    /// mid-drag — the selection "a few rows below" that survived every
-    /// earlier fix.
-    @State private var gridOrigin: CGPoint = .zero
-
-    private func gridPoint(_ global: CGPoint) -> CGPoint {
-        CGPoint(x: global.x - gridOrigin.x, y: global.y - gridOrigin.y)
-    }
+    // POINTER MATH: every cell computation runs in the ROWS' OWN local
+    // space — self-relative, so it survives scrolling, layout shifts, and
+    // the content resize a column drag causes.  (A captured global origin
+    // went stale on a transient layout pass during a resize and never
+    // corrected, so every later click landed a constant two rows off; a
+    // scroll-view-local named space moved under the gesture for the same
+    // reason.)  Only the divider's DELTA uses global space, where it is
+    // pure mouse travel.
 
     private var gridBody: some View {
         ZStack(alignment: .topLeading) {
@@ -922,21 +918,16 @@ struct ManualTableGrid: View {
                 }
             }
             .contentShape(Rectangle())
-            .background(GeometryReader { geo in
-                Color.clear
-                    .onAppear { gridOrigin = geo.frame(in: .global).origin }
-                    .onChange(of: geo.frame(in: .global).origin) { _, new in gridOrigin = new }
-            })
             // Hover feeds the GUTTER controls only — a per-cell hover
             // outline froze mid-drag and read as a stray active cell.
-            .onContinuousHover(coordinateSpace: .global) { phase in
+            .onContinuousHover(coordinateSpace: .local) { phase in
                 guard movingRow == nil, movingCol == nil, resizingCol == nil else { return }
-                if case .active(let p) = phase, let cell = cellAt(gridPoint(p)), cell != hover {
+                if case .active(let p) = phase, let cell = cellAt(p), cell != hover {
                     hover = cell
                 }
             }
-            .onTapGesture(count: 2, coordinateSpace: .global) { p in
-                guard structureEditable, let cell = cellAt(gridPoint(p)), cell != editingCell else { return }
+            .onTapGesture(count: 2, coordinateSpace: .local) { p in
+                guard structureEditable, let cell = cellAt(p), cell != editingCell else { return }
                 anchor = cell; extent = nil
                 editingCell = cell
                 fieldFocused = true
@@ -976,7 +967,7 @@ struct ManualTableGrid: View {
     /// extended the old selection.  Skipped inside the cell being edited
     /// and over the divider strips.
     private var pressAndDragGesture: some Gesture {
-        DragGesture(minimumDistance: 0, coordinateSpace: .global)
+        DragGesture(minimumDistance: 0, coordinateSpace: .local)
             .onChanged { value in
                 // A divider resize owns the drag outright: resizingCol is
                 // the divider gesture's own state, so it stays valid even
@@ -987,7 +978,7 @@ struct ManualTableGrid: View {
                 if resizingCol != nil { return }
                 // Dead zone for the FIRST tick, before the divider gesture
                 // reaches its minimum distance and sets resizingCol.
-                let start = gridPoint(value.startLocation)
+                let start = value.startLocation
                 if isOnDivider(start) { return }
                 let startCell = cellAt(start)
                 if let editingCell, startCell == editingCell { return }
@@ -996,14 +987,14 @@ struct ManualTableGrid: View {
                     NSApp.keyWindow?.makeFirstResponder(nil)
                 }
                 if NSEvent.modifierFlags.contains(.shift), let a = anchor, a != startCell {
-                    let target = cellAt(gridPoint(value.location)) ?? startCell
+                    let target = cellAt(value.location) ?? startCell
                     if extent != target { extent = target }
                     if editingCell != nil { editingCell = nil }
                     return
                 }
                 if editingCell != nil { editingCell = nil }
                 if anchor != startCell { anchor = startCell }
-                let current = cellAt(gridPoint(value.location))
+                let current = cellAt(value.location)
                 let newExtent = current == startCell ? nil : current
                 if extent != newExtent { extent = newExtent }
             }
@@ -1014,7 +1005,7 @@ struct ManualTableGrid: View {
     private func isOnDivider(_ p: CGPoint) -> Bool {
         guard p.y <= cellH else { return false }
         let xs = colX
-        return (1...colCount).contains { abs(p.x - (xs[$0] - gap / 2)) <= 5 }
+        return (1...colCount).contains { abs(p.x - (xs[$0] - gap / 2)) <= 7 }
     }
 
     @ViewBuilder
@@ -1041,12 +1032,12 @@ struct ManualTableGrid: View {
             ForEach(0..<colCount, id: \.self) { c in
                 Rectangle()
                     .fill(Color.clear)
-                    .frame(width: 7, height: cellH)
+                    .frame(width: 11, height: cellH)
                     .contentShape(Rectangle())
                     .overlay(Rectangle()
                         .fill(Color.secondary.opacity(resizingCol == c ? 0.7 : 0.25))
                         .frame(width: resizingCol == c ? 2 : 1))
-                    .offset(x: xs[c + 1] - gap / 2 - 3.5, y: 0)
+                    .offset(x: xs[c + 1] - gap / 2 - 5.5, y: 0)
                     .gesture(
                         DragGesture(minimumDistance: 1, coordinateSpace: .global)
                             .onChanged { value in
@@ -1066,6 +1057,7 @@ struct ManualTableGrid: View {
                                 columnWidths = widths
                             }
                             .onEnded { _ in
+                                NSCursor.arrow.set()
                                 // Clear a runloop tick late: the simultaneous
                                 // selection gesture can still deliver a final
                                 // onChanged after this, and it must still see
