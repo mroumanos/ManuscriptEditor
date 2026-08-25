@@ -128,7 +128,21 @@ xcodebuild -scheme ManuscriptEditor -destination 'platform=macOS' build
     chunk image (one unbreakable attachment); attributed writers make it
     the table's own full-width, borderless first row.
 
-15. **Don't hit-test a scrolling grid from its container.** Any pointer
+15. **A spreadsheet grid belongs in AppKit, not SwiftUI.** SwiftUI's
+    mapping between where scrolling content DRAWS and where it HIT-TESTS
+    goes stale after a structural change to that content (resizing a
+    column, deleting a row or column). The symptom is a CONSTANT offset —
+    clicks landing two rows below the cursor — that heals on scroll or
+    when the view is recreated, and only reproduces on content wide
+    enough to scroll. Five variants of the pointer math all drifted the
+    same way (container-local, named space, global minus a captured
+    origin, and finally per-cell reporting), because the defect was never
+    in our arithmetic. `SpreadsheetGrid` is now an `NSScrollView` +
+    custom `NSView`: `convert(_:from: nil)` is computed from the live
+    hierarchy at event time and cannot be stale, the header is a real
+    `addFloatingSubview(_:for: .vertical)`, and only visible rows draw.
+    The superseded rule, kept because it still applies to any grid-like
+    SwiftUI view: **don't hit-test a scrolling grid from its container.** Any pointer
     math that converts a point into a container's space — `.local`,
     `.named`, or `.global` minus a captured origin — drifts when that
     container's content size changes mid-interaction (dragging a column

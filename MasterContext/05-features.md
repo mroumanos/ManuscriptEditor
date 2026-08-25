@@ -229,14 +229,19 @@ Intent: data lives once; figures/tables reference it; cuts convert only SQL.
   no longer edited per table** (a manuscript-wide footnote system is the
   intended replacement; stored footnotes still export as "Note." lines).
 - AC (implemented, Aug 2026): **Manual tables are a GRID, not Markdown**,
-  spreadsheet-style: **click (on mouse-down — no double-click wait)
-  selects, double-click edits, drag / ⇧-click / ⇧-arrows extend the
-  selection** (a rectangle; Return edits the anchor; hovered cells tint;
-  the arrows arrive via a local key monitor scoped to the visible grid —
-  SwiftUI's focusable/onKeyPress never received them). PERFORMANCE:
-  selection and hover render as OVERLAYS over Equatable row views, and
-  all pointer handling lives on the container — per-cell selection state
-  re-rendered every cell on every mouse tick of a drag;
+  built on AppKit (`SpreadsheetGrid`: `NSScrollView` + custom `NSView`;
+  see gotcha 15 for why SwiftUI couldn't hold it). The grid **fills its
+  pane** (columns share the visible width until dragged), the **header
+  row stays frozen** while the rows scroll under it, and hovering the
+  **bottom edge adds a row / the right edge adds a column**. Columns
+  resize by dragging a header boundary; right-click offers add/delete of
+  the row or column under the pointer. Editing and navigation are
+  **click selects, double-click (or Return, or just typing) edits, and
+  drag / ⇧-click / ⇧-arrows extend the selection** as a rectangle; Tab
+  and ⇧Tab move across, ↑/↓ move down and up, ⌫ clears the selected
+  cells, and ⌘V pastes a spreadsheet block (TSV) from the anchor,
+  growing the grid as needed. Only visible rows draw, so a long result
+  costs the same as a screenful;
   the toolbar — and **⌘B/⌘I/⌘U/⌘E** — styles every selected cell (bold /
   italic / underline / **highlight via 5 inline color swatches** / alignment;
   `TableCell.highlightColor`). **Data-linked tables get the SAME grid in
