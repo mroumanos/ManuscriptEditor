@@ -753,11 +753,15 @@ just a rendered blob.
   titles too, in attributed output and LaTeX alike).
 - AC (implemented): **Document types.** **PDF** (custom dependency-free CoreText
   paginator honoring margins, page breaks, columns, and continuous line
-  numbers; long tables chunk to page-sized images with the header
+  numbers; a table's TITLE is drawn into its first chunk so a page break
+  can never strand it (attributed writers make the title the table's own
+  first row instead); long tables chunk to page-sized images with the header
   repeated — the cap follows the document's margins, and the final chunk
   always keeps ≥ 3 rows so no orphan row prints as its own little table),
   **DOCX**, **RTF** (attributed writers with margins; page breaks as
-  form feeds), and **LaTeX** source (`article` class; `twocolumn`, `geometry`
+  form feeds — note the verified AppKit limits: DOCX carries neither
+  tables nor images, RTF carries tables but not images; see gotcha 13 in
+  [08](08-engineering-standards.md)), and **LaTeX** source (`article` class; `twocolumn`, `geometry`
   margins, `setspace`, `lineno`; body as escaped plain text in v1). HTML/plain
   remain in the legacy ⌘E sheet.
 - AC: **Package, not one file.** Export writes a folder containing every

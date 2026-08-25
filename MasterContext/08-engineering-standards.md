@@ -109,6 +109,25 @@ xcodebuild -scheme ManuscriptEditor -destination 'platform=macOS' build
     inside it). Attach each alert to its own node on **sibling branches** —
     never stack them, never nest them.
 
+13. **AppKit's `officeOpenXML` writer drops tables AND images.** Verified
+    with minimal, textbook AppKit code (no app involvement): an
+    `NSTextTable` written to `.docx` produces **zero** `<w:tbl>` elements —
+    just one paragraph per cell — and an `NSTextAttachment` image produces
+    no `word/media/` entry and no `<w:drawing>`. Plain `.rtf` DOES emit
+    real tables (`\trowd`) but also drops attachment images (only `.rtfd`
+    packages them, and that's a bundle Word can't read). So the DOCX path
+    is text + character formatting only; **real Word tables/figures need a
+    hand-written WordprocessingML writer** (document.xml + rels +
+    `[Content_Types].xml` in a zip container), not a tweak to the AppKit
+    call. PDF is unaffected — it's our own paginator.
+
+14. **A preceding paragraph strands from what follows it.** Neither
+    CoreText nor NSTextTable has "keep with next", so a table title
+    written as its own paragraph stays behind when the table reflows to
+    the next page. Fix per writer: PDF draws the title INTO the first
+    chunk image (one unbreakable attachment); attributed writers make it
+    the table's own full-width, borderless first row.
+
 ## Releasing
 
 `scripts/release.sh <version> [notes-file]` runs the whole pipeline: bump

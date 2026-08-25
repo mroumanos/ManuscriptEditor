@@ -1553,10 +1553,8 @@ private struct OutlineBuilder {
             out.append(drawnTableBlock(columns: grid.columns, rows: Array(capped), table: t,
                                        leading: leading))
         } else {
-            // Native Word/RTF tables reflow on their own — the title stays
-            // a normal paragraph there.
-            if let leading { out.append(leading) }
-            out.append(textTableBlock(columns: grid.columns, rows: Array(capped), table: t))
+            out.append(textTableBlock(columns: grid.columns, rows: Array(capped), table: t,
+                                      leading: leading))
         }
         if grid.rows.count > 200 {
             out.append(line("… \(grid.rows.count - 200) more rows (see data)", font: meta, color: .darkGray, after: 4))
@@ -1715,20 +1713,44 @@ private struct OutlineBuilder {
 
     /// DOCX/RTF: a native NSTextTable — bordered cells that wrap values,
     /// carrying each cell's emphasis, highlight, and alignment.
-    private func textTableBlock(columns: [TableCell], rows: [[TableCell]], table t: ManuscriptTable) -> NSAttributedString {
+    private func textTableBlock(columns: [TableCell], rows: [[TableCell]], table t: ManuscriptTable,
+                                leading: NSAttributedString? = nil) -> NSAttributedString {
         let open = t.openSides ?? false
         let shade = t.alternateShading ?? false
         var fractions = columnFractions(columns: columns, rows: rows,
                                         width: tableWidth * tableWidthFactor(t), table: t)
         let fractionSum = fractions.reduce(0, +)
         if fractionSum > 0 { fractions = fractions.map { $0 / fractionSum } }
-        let lastRow = rows.count   // header is row 0
+        // A merged title becomes the table's own first row (see below), so
+        // the header and last-row indices shift down by one.
+        let headerRow = leading == nil ? 0 : 1
+        let lastRow = rows.count + headerRow
 
         let table = NSTextTable()
         table.numberOfColumns = columns.count
         table.setContentWidth(tableWidthFactor(t) * 100, type: .percentageValueType)
 
         let out = NSMutableAttributedString()
+
+        // Keep-with-next for native tables: a preceding PARAGRAPH strands
+        // at the bottom of a page when the table reflows past it, so the
+        // title rides along as a full-width, borderless first row.
+        if let leading {
+            let block = NSTextTableBlock(table: table, startingRow: 0, rowSpan: 1,
+                                         startingColumn: 0, columnSpan: max(columns.count, 1))
+            block.setWidth(0, type: .absoluteValueType, for: .border)
+            block.setWidth(2, type: .absoluteValueType, for: .padding)
+            let titled = NSMutableAttributedString(attributedString: leading)
+            let full = NSRange(location: 0, length: titled.length)
+            titled.enumerateAttribute(.paragraphStyle, in: full) { value, range, _ in
+                guard let para = ((value as? NSParagraphStyle) ?? .default)
+                    .mutableCopy() as? NSMutableParagraphStyle else { return }
+                para.textBlocks = [block]
+                titled.addAttribute(.paragraphStyle, value: para, range: range)
+            }
+            out.append(titled)
+        }
+
         func appendCell(_ cell: TableCell, row: Int, col: Int) {
             let block = NSTextTableBlock(table: table, startingRow: row, rowSpan: 1,
                                          startingColumn: col, columnSpan: 1)
@@ -1738,7 +1760,7 @@ private struct OutlineBuilder {
             if open {
                 // Journal style: horizontal rules only.
                 block.setWidth(0, type: .absoluteValueType, for: .border)
-                if row == 0 {
+                if row == headerRow {
                     block.setWidth(1, type: .absoluteValueType, for: .border, edge: .minY)
                     block.setWidth(0.75, type: .absoluteValueType, for: .border, edge: .maxY)
                 }
@@ -1750,12 +1772,12 @@ private struct OutlineBuilder {
             }
             if cell.highlight == true {
                 block.backgroundColor = Self.cellHighlight(cell.highlightColor)
-            } else if row == 0 {
+            } else if row == headerRow {
                 if !open { block.backgroundColor = NSColor(white: 0.92, alpha: 1) }
-            } else if shade, row % 2 == 1 {
+            } else if shade, (row - headerRow) % 2 == 1 {
                 block.backgroundColor = NSColor(white: 0.955, alpha: 1)
             }
-            var attrs = cellAttributes(cell, header: row == 0)
+            var attrs = cellAttributes(cell, header: row == headerRow)
             if let para = (attrs[.paragraphStyle] as? NSParagraphStyle)?
                 .mutableCopy() as? NSMutableParagraphStyle {
                 para.textBlocks = [block]
@@ -1764,9 +1786,9 @@ private struct OutlineBuilder {
             out.append(NSAttributedString(string: cell.text + "\n", attributes: attrs))
         }
 
-        for (col, cell) in columns.enumerated() { appendCell(cell, row: 0, col: col) }
+        for (col, cell) in columns.enumerated() { appendCell(cell, row: headerRow, col: col) }
         for (r, row) in rows.enumerated() {
-            for (col, cell) in row.enumerated() { appendCell(cell, row: r + 1, col: col) }
+            for (col, cell) in row.enumerated() { appendCell(cell, row: r + headerRow + 1, col: col) }
         }
         out.append(NSAttributedString(string: "\n", attributes: [.font: base]))
         return out
@@ -1804,13 +1826,23 @@ private struct OutlineBuilder {
                 .max()! + pad * 2
         }
 
+        // The title merged into chunk 0 (keep-with-next): measure its
+        // height so the grid draws below it in the same image, and so the
+        // chunk budget accounts for it.
+        let leadingHeight: CGFloat = leading.map {
+            ceil($0.boundingRect(with: NSSize(width: width, height: .greatestFiniteMagnitude),
+                                 options: [.usesLineFragmentOrigin, .usesFontLeading]).height) + 4
+        } ?? 0
+        let leadingEstimate = leadingHeight
+
         // Chunk rows so each image (header repeated) fits within a page —
         // sized from the DOCUMENT's margins, not a fixed guess (a chunk
         // taller than the content box can't be placed at all).
         let maxChunkHeight = max(792 - format.marginInches * 144 - 30, 180)
         var chunks: [[Int]] = []
         var current: [Int] = []
-        var height = headerHeight
+        // Chunk 0 also carries the merged title (see leadingHeight below).
+        var height = headerHeight + (leading == nil ? 0 : leadingEstimate)
         for (i, h) in rowHeights.enumerated() {
             if !current.isEmpty, height + h > maxChunkHeight {
                 chunks.append(current)
@@ -1830,13 +1862,6 @@ private struct OutlineBuilder {
             let moved = chunks[chunks.count - 2].removeLast()
             chunks[chunks.count - 1].insert(moved, at: 0)
         }
-
-        // The title merged into chunk 0 (keep-with-next): measure its
-        // height so the grid draws below it in the same image.
-        let leadingHeight: CGFloat = leading.map {
-            ceil($0.boundingRect(with: NSSize(width: width, height: .greatestFiniteMagnitude),
-                                 options: [.usesLineFragmentOrigin, .usesFontLeading]).height) + 4
-        } ?? 0
 
         func drawChunk(_ indices: [Int], isFirst: Bool) -> NSImage {
             let heights = [headerHeight] + indices.map { rowHeights[$0] }

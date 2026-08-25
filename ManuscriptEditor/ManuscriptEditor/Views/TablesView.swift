@@ -887,8 +887,18 @@ struct ManualTableGrid: View {
     // Equatable child views (skipped when their data didn't change), and
     // all pointer handling lives on the container.
 
+    /// One stable space for every pointer computation here.  The grid's
+    /// top-left origin never moves (columns grow rightward), so points in
+    /// this space stay meaningful DURING a resize — unlike a view's own
+    /// local space, which slides out from under the gesture as the view
+    /// it's attached to moves.
+    private static let gridSpace = "manuscript.table.grid"
+
     private var gridBody: some View {
         ZStack(alignment: .topLeading) {
+            // Pointer handling lives on the ROWS, not the container: the
+            // dividers are siblings drawn on top, so a press on a divider
+            // hits the divider alone and can never also drive selection.
             VStack(alignment: .leading, spacing: gap) {
                 ForEach(cells.indices, id: \.self) { r in
                     GridRowView(row: cells[r], isHeader: r == 0,
@@ -905,25 +915,27 @@ struct ManualTableGrid: View {
                         .equatable()
                 }
             }
+            .contentShape(Rectangle())
+            // Hover feeds the GUTTER controls only — a per-cell hover
+            // outline froze mid-drag and read as a stray active cell.
+            .onContinuousHover(coordinateSpace: .named(Self.gridSpace)) { phase in
+                guard movingRow == nil, movingCol == nil, resizingCol == nil else { return }
+                if case .active(let p) = phase, let cell = cellAt(p), cell != hover {
+                    hover = cell
+                }
+            }
+            .onTapGesture(count: 2, coordinateSpace: .named(Self.gridSpace)) { p in
+                guard structureEditable, let cell = cellAt(p), cell != editingCell else { return }
+                anchor = cell; extent = nil
+                editingCell = cell
+                fieldFocused = true
+            }
+            .simultaneousGesture(pressAndDragGesture)
+
             selectionOverlay
             columnDividers
         }
-        .contentShape(Rectangle())
-        // Hover feeds the GUTTER controls only — a per-cell hover outline
-        // froze mid-drag and read as a stray active cell.
-        .onContinuousHover { phase in
-            guard movingRow == nil, movingCol == nil, resizingCol == nil else { return }
-            if case .active(let p) = phase, let cell = cellAt(p), cell != hover {
-                hover = cell
-            }
-        }
-        .onTapGesture(count: 2) { p in
-            guard structureEditable, let cell = cellAt(p), cell != editingCell else { return }
-            anchor = cell; extent = nil
-            editingCell = cell
-            fieldFocused = true
-        }
-        .simultaneousGesture(pressAndDragGesture)
+        .coordinateSpace(.named(Self.gridSpace))
         .onAppear { installKeyMonitor() }
         .onDisappear {
             if let keyMonitor { NSEvent.removeMonitor(keyMonitor) }
@@ -954,7 +966,7 @@ struct ManualTableGrid: View {
     /// extended the old selection.  Skipped inside the cell being edited
     /// and over the divider strips.
     private var pressAndDragGesture: some Gesture {
-        DragGesture(minimumDistance: 0)
+        DragGesture(minimumDistance: 0, coordinateSpace: .named(Self.gridSpace))
             .onChanged { value in
                 // A divider resize owns the drag outright: resizingCol is
                 // the divider gesture's own state, so it stays valid even
@@ -1025,7 +1037,7 @@ struct ManualTableGrid: View {
                         .frame(width: resizingCol == c ? 2 : 1))
                     .offset(x: xs[c + 1] - gap / 2 - 3.5, y: 0)
                     .gesture(
-                        DragGesture(minimumDistance: 1)
+                        DragGesture(minimumDistance: 1, coordinateSpace: .named(Self.gridSpace))
                             .onChanged { value in
                                 if resizingCol == nil {
                                     resizingCol = c
@@ -1034,10 +1046,26 @@ struct ManualTableGrid: View {
                                 guard resizingCol == c, let base = resizeBase else { return }
                                 var widths = columnWidths ?? (0..<colCount).map { Double(colW($0)) }
                                 while widths.count < colCount { widths.append(Double(cellW)) }
-                                widths[c] = Double(min(max(base + value.translation.width, 50), 480))
+                                // Grid-space delta: the divider view itself
+                                // slides right as the column grows, so its
+                                // LOCAL translation feeds back on itself.
+                                let delta = value.location.x - value.startLocation.x
+                                widths[c] = Double(min(max(base + delta, 50), 480))
                                 columnWidths = widths
                             }
-                            .onEnded { _ in resizingCol = nil; resizeBase = nil }
+                            .onEnded { _ in
+                                // Clear a runloop tick late: the simultaneous
+                                // selection gesture can still deliver a final
+                                // onChanged after this, and it must still see
+                                // a resize in progress.
+                                let finished = resizingCol
+                                DispatchQueue.main.async {
+                                    if resizingCol == finished {
+                                        resizingCol = nil
+                                        resizeBase = nil
+                                    }
+                                }
+                            }
                     )
                     .onHover { inside in
                         if inside { NSCursor.resizeLeftRight.set() } else { NSCursor.arrow.set() }
