@@ -1,6 +1,6 @@
 // SpreadsheetGrid.swift
 //
-// The table grid, rebuilt on AppKit.
+// The table grid: ONE AppKit view inside an NSScrollView.
 //
 // WHY NOT SWIFTUI
 // ─────────────────────────────────────────────────────────────────────────────
@@ -8,30 +8,27 @@
 // STRUCTURAL change inside a horizontally scrollable table — resizing a
 // column, deleting a column, deleting a row — clicks landed a constant two
 // rows below the cursor, healing only on a scroll or when the view was
-// recreated.  Every variant of the pointer math drifted the same way
-// (container-local, named space, global minus a captured origin, finally
-// per-cell reporting), because the thing going stale was SwiftUI's own
-// mapping between where the content DRAWS and where it HIT-TESTS once the
-// scroll view's content size changed mid-interaction.
+// recreated.  Every variant of the pointer math drifted the same way,
+// because what went stale was SwiftUI's own mapping between where scrolling
+// content DRAWS and where it HIT-TESTS.  AppKit computes
+// `convert(_:from: nil)` from the live view hierarchy at event time, so it
+// cannot be stale by construction.
 //
-// AppKit computes `convert(_:from: nil)` from the live view hierarchy at
-// event time, so it cannot be stale by construction.  That, plus real
-// floating header support and draw-only-what's-visible rendering, is why
-// the grid lives here now.
-//
-// LAYOUT
+// WHY ONE VIEW
 // ─────────────────────────────────────────────────────────────────────────────
-//   SpreadsheetContainerView
-//     ├── SpreadsheetHeaderView   (model row 0, pinned above the scroll view)
-//     └── NSScrollView → SpreadsheetBodyView  (model rows 1…)
-// The header is a SIBLING of the scroll view, not a floating subview:
-// `addFloatingSubview(_:for:)` installs a full-size
-// `_NSScrollViewFloatingSubviewsContainerView` over the clip view, and that
-// container hid the document view entirely (verified — the body rendered
-// correctly on its own and vanished in the composite).  The header mirrors
-// the clip view's horizontal offset through its own `bounds.origin.x`, so
-// it scrolls with the columns and stays put vertically.  Model row 0 is the
-// header everywhere; the body maps y → row + 1.
+// The frozen header and the row-number rail are DRAWN by this view at the
+// current scroll offset instead of being separate pinned views.  Two
+// arrangements failed to composite at all: `addFloatingSubview` installs a
+// full-size container over the clip view and the document view vanished
+// entirely, and a sibling header stacked above the scroll view rendered
+// blank inside its container.  Drawing them here means one coordinate
+// space, one hit test, and nothing to composite.
+//
+// LAYOUT (document coordinates, flipped)
+//   x: 0…gutterWidth      row numbers (sticky to the viewport's left edge)
+//      gutterWidth…       columns
+//   y: 0…headerHeight     header = model row 0 (sticky to the viewport's top)
+//      headerHeight…      model rows 1…
 
 import SwiftUI
 import AppKit
@@ -71,49 +68,9 @@ final class GridSelection {
     }
 }
 
-// MARK: - Geometry
-
-/// Column layout shared by the body and header views.
-struct GridMetrics {
-    var widths: [CGFloat] = []
-    var rowHeight: CGFloat = 26
-
-    /// Leading edge of every column; `offsets[count]` is the total width.
-    var offsets: [CGFloat] {
-        var out: [CGFloat] = [0]
-        for w in widths { out.append(out[out.count - 1] + w) }
-        return out
-    }
-
-    var totalWidth: CGFloat { offsets.last ?? 0 }
-
-    func columnAt(_ x: CGFloat) -> Int? {
-        let xs = offsets
-        guard xs.count > 1, x >= 0, x < xs[xs.count - 1] else { return nil }
-        for c in 0..<widths.count where x < xs[c + 1] { return c }
-        return widths.count - 1
-    }
-
-    /// Column boundary within `tolerance` of `x` (1...count — never 0, the
-    /// left edge isn't draggable), for the header's resize handles.
-    func boundary(near x: CGFloat, tolerance: CGFloat = 4) -> Int? {
-        let xs = offsets
-        for b in 1..<max(xs.count, 1) where abs(x - xs[b]) <= tolerance { return b }
-        return nil
-    }
-
-    func rect(row: Int, col: Int) -> CGRect {
-        let xs = offsets
-        guard col < widths.count else { return .zero }
-        return CGRect(x: xs[col], y: CGFloat(row) * rowHeight,
-                      width: widths[col], height: rowHeight)
-    }
-}
-
-// MARK: - Cell drawing
+// MARK: - Style
 
 enum GridStyle {
-    static let border = NSColor.separatorColor
     static let headerFill = NSColor.controlBackgroundColor
     static let rowFill = NSColor.textBackgroundColor
     static let addStrip: CGFloat = 18
@@ -150,7 +107,6 @@ enum GridStyle {
         return attrs
     }
 
-    /// Paints one cell's background, border, and text into `rect`.
     static func draw(_ cell: TableCell, in rect: CGRect, isHeader: Bool, selected: Bool) {
         if cell.highlight == true {
             highlight(cell.highlightColor).setFill()
@@ -161,67 +117,293 @@ enum GridStyle {
         }
         rect.fill()
         if selected {
-            NSColor.controlAccentColor.withAlphaComponent(0.12).setFill()
+            NSColor.controlAccentColor.withAlphaComponent(0.14).setFill()
             rect.fill()
         }
-        border.setStroke()
-        let path = NSBezierPath(rect: rect.insetBy(dx: 0.25, dy: 0.25))
-        path.lineWidth = 0.5
-        path.stroke()
+        NSColor.separatorColor.setStroke()
+        let border = NSBezierPath(rect: rect.insetBy(dx: 0.25, dy: 0.25))
+        border.lineWidth = 0.5
+        border.stroke()
 
-        let text = rect.insetBy(dx: 6, dy: 0)
+        let box = rect.insetBy(dx: 6, dy: 0)
         let attrs = attributes(cell, isHeader: isHeader)
         let size = (cell.text as NSString).size(withAttributes: attrs)
-        let y = text.midY - size.height / 2
-        (cell.text as NSString).draw(in: CGRect(x: text.minX, y: y,
-                                                width: text.width, height: size.height),
+        (cell.text as NSString).draw(in: CGRect(x: box.minX, y: box.midY - size.height / 2,
+                                                width: box.width, height: size.height),
                                      withAttributes: attrs)
     }
 }
 
-// MARK: - SpreadsheetBodyView
+// MARK: - SpreadsheetGridView
 
-/// Draws every row and owns all pointer/keyboard input.
-final class SpreadsheetBodyView: NSView, NSTextFieldDelegate {
+/// The whole grid: sticky header, sticky row rail, cells, and every
+/// interaction.
+final class SpreadsheetGridView: NSView {
 
     var cells: [[TableCell]] = [] { didSet { needsDisplay = true } }
-    var metrics = GridMetrics() { didSet { needsDisplay = true } }
+    var widths: [CGFloat] = [] { didSet { needsDisplay = true } }
     var selection: GridSelection?
-    var structureEditable = true
+    /// false = data-linked styling mode: the query owns the shape and text.
+    var structureEditable = true { didSet { needsDisplay = true } }
 
-    /// Callbacks into SwiftUI.
     var onSelectionChanged: (() -> Void)?
     var onCommit: ((Int, Int, String) -> Void)?
     var onAddRow: (() -> Void)?
     var onAddColumn: (() -> Void)?
     var onDeleteRow: ((Int) -> Void)?
     var onDeleteColumn: ((Int) -> Void)?
+    var onMoveRow: ((Int, Int) -> Void)?
+    var onMoveColumn: ((Int, Int) -> Void)?
+    var onWidthChanged: ((Int, CGFloat) -> Void)?
     var onClearCells: (() -> Void)?
     var onPaste: ((String, CellRef) -> Void)?
 
+    static let headerHeight: CGFloat = 26
+    static let gutterWidth: CGFloat = 36
+    static let rowHeight: CGFloat = 26
+
     private var editor: NSTextField?
     private var editing: CellRef?
-    private var hoveringAddRow = false
-    private var hoveringAddColumn = false
+    private var resizingColumn: Int?
+    private var resizeStartX: CGFloat = 0
+    private var resizeStartWidth: CGFloat = 0
+    private var reorderRow: Int?
+    private var reorderColumn: Int?
+    private var reorderStart: CGPoint = .zero
+    private var hoverAddRow = false
+    private var hoverAddColumn = false
 
     override var isFlipped: Bool { true }
     override var acceptsFirstResponder: Bool { true }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
-    /// Model row 0 is the header and lives in the pinned header view, so
-    /// the body draws rows 1… at y = (row - 1) * rowHeight.
+    // MARK: geometry
+
+    private var rowCount: Int { cells.count }
+    private var colCount: Int { widths.count }
     private var dataRows: Int { max(cells.count - 1, 0) }
 
-    func rect(modelRow row: Int, col: Int) -> CGRect {
-        var r = metrics.rect(row: max(row - 1, 0), col: col)
-        if row == 0 { r.origin.y = 0 }
-        return r
+    /// Leading edge of each column, measured from the rail.
+    private var offsets: [CGFloat] {
+        var out: [CGFloat] = [Self.gutterWidth]
+        for w in widths { out.append(out[out.count - 1] + w) }
+        return out
     }
 
+    private var totalWidth: CGFloat { offsets.last ?? Self.gutterWidth }
+
     var contentSize: CGSize {
-        CGSize(width: metrics.totalWidth + (structureEditable ? GridStyle.addStrip : 0),
-               height: CGFloat(dataRows) * metrics.rowHeight
+        CGSize(width: totalWidth + (structureEditable ? GridStyle.addStrip : 0),
+               height: Self.headerHeight + CGFloat(dataRows) * Self.rowHeight
                    + (structureEditable ? GridStyle.addStrip : 0))
+    }
+
+    /// What the scroll view is showing; the sticky header and rail pin
+    /// themselves to its edges.
+    private var viewport: CGRect {
+        enclosingScrollView?.contentView.bounds ?? bounds
+    }
+
+    private func columnX(_ c: Int) -> CGFloat { offsets[min(max(c, 0), colCount)] }
+
+    private func cellRect(row: Int, col: Int) -> CGRect {
+        CGRect(x: columnX(col), y: Self.headerHeight + CGFloat(row - 1) * Self.rowHeight,
+               width: col < colCount ? widths[col] : 0, height: Self.rowHeight)
+    }
+
+    private func headerRect(col: Int) -> CGRect {
+        CGRect(x: columnX(col), y: viewport.minY,
+               width: col < colCount ? widths[col] : 0, height: Self.headerHeight)
+    }
+
+    private func railRect(row: Int) -> CGRect {
+        CGRect(x: viewport.minX, y: Self.headerHeight + CGFloat(row - 1) * Self.rowHeight,
+               width: Self.gutterWidth, height: Self.rowHeight)
+    }
+
+    private var addRowRect: CGRect {
+        CGRect(x: Self.gutterWidth, y: Self.headerHeight + CGFloat(dataRows) * Self.rowHeight,
+               width: max(totalWidth - Self.gutterWidth, 1), height: GridStyle.addStrip)
+    }
+
+    private var addColumnRect: CGRect {
+        CGRect(x: totalWidth, y: Self.headerHeight, width: GridStyle.addStrip,
+               height: max(CGFloat(dataRows) * Self.rowHeight, 1))
+    }
+
+    // MARK: hit testing — one space, one set of rules
+
+    private enum Region {
+        case corner
+        case header(Int)
+        case rail(Int)
+        case cell(CellRef)
+        case addRow
+        case addColumn
+        case none
+    }
+
+    private func region(at p: CGPoint) -> Region {
+        let vp = viewport
+        let inHeader = p.y < vp.minY + Self.headerHeight
+        let inRail = p.x < vp.minX + Self.gutterWidth
+        if inHeader && inRail { return .corner }
+        if inHeader {
+            guard let c = column(at: p.x) else { return .none }
+            return .header(c)
+        }
+        if inRail {
+            guard let r = dataRow(at: p.y) else { return .none }
+            return .rail(r)
+        }
+        if structureEditable, addRowRect.contains(p) { return .addRow }
+        if structureEditable, addColumnRect.contains(p) { return .addColumn }
+        guard let c = column(at: p.x), let r = dataRow(at: p.y) else { return .none }
+        return .cell(CellRef(row: r, col: c))
+    }
+
+    private func column(at x: CGFloat) -> Int? {
+        let xs = offsets
+        guard colCount > 0, x >= xs[0], x < xs[colCount] else { return nil }
+        for c in 0..<colCount where x < xs[c + 1] { return c }
+        return colCount - 1
+    }
+
+    private func dataRow(at y: CGFloat) -> Int? {
+        let row = Int((y - Self.headerHeight) / Self.rowHeight) + 1
+        guard row >= 1, row < rowCount else { return nil }
+        return row
+    }
+
+    /// Nearest valid cell for a drag; dragging up into the header reaches
+    /// model row 0.
+    private func clampedCell(at p: CGPoint) -> CellRef {
+        let vp = viewport
+        let col = column(at: min(max(p.x, offsets[0]), max(totalWidth - 1, offsets[0]))) ?? 0
+        if p.y < vp.minY + Self.headerHeight { return CellRef(row: 0, col: col) }
+        let row = min(max(Int((p.y - Self.headerHeight) / Self.rowHeight) + 1, 1),
+                      max(rowCount - 1, 1))
+        return CellRef(row: row, col: col)
+    }
+
+    private func boundary(near x: CGFloat) -> Int? {
+        let xs = offsets
+        guard colCount > 0 else { return nil }
+        for b in 1...colCount where b < xs.count && abs(x - xs[b]) <= 4 { return b - 1 }
+        return nil
+    }
+
+    // MARK: drawing
+
+    override func draw(_ dirtyRect: NSRect) {
+        NSColor.textBackgroundColor.setFill()
+        dirtyRect.fill()
+        guard rowCount > 0, colCount > 0 else { return }
+        let range = selection?.range(rows: rowCount, cols: colCount)
+
+        // Data cells: only the band that intersects the dirty rect.
+        let first = max(Int((dirtyRect.minY - Self.headerHeight) / Self.rowHeight) + 1, 1)
+        let last = min(Int((dirtyRect.maxY - Self.headerHeight) / Self.rowHeight) + 1, rowCount - 1)
+        if first <= last {
+            for r in first...last {
+                for c in 0..<min(cells[r].count, colCount) {
+                    let selected = range.map { $0.rows.contains(r) && $0.cols.contains(c) } ?? false
+                    GridStyle.draw(cells[r][c], in: cellRect(row: r, col: c),
+                                   isHeader: false, selected: selected)
+                }
+            }
+        }
+
+        if structureEditable {
+            drawAddStrip(addRowRect, hovering: hoverAddRow)
+            drawAddStrip(addColumnRect, hovering: hoverAddColumn)
+        }
+
+        drawRail(range: range)
+        drawHeader(range: range)
+
+        // The corner sits over both.
+        let vp = viewport
+        let corner = CGRect(x: vp.minX, y: vp.minY,
+                            width: Self.gutterWidth, height: Self.headerHeight)
+        GridStyle.headerFill.setFill()
+        corner.fill()
+        NSColor.separatorColor.setStroke()
+        NSBezierPath(rect: corner.insetBy(dx: 0.25, dy: 0.25)).stroke()
+
+        if let range { drawSelectionOutline(range) }
+    }
+
+    private func drawSelectionOutline(_ range: (rows: ClosedRange<Int>, cols: ClosedRange<Int>)) {
+        let vp = viewport
+        let top = range.rows.lowerBound == 0
+            ? vp.minY
+            : Self.headerHeight + CGFloat(range.rows.lowerBound - 1) * Self.rowHeight
+        let bottom = Self.headerHeight + CGFloat(range.rows.upperBound) * Self.rowHeight
+        let rect = CGRect(x: columnX(range.cols.lowerBound), y: top,
+                          width: columnX(range.cols.upperBound + 1) - columnX(range.cols.lowerBound),
+                          height: max(bottom - top, Self.rowHeight))
+        NSColor.controlAccentColor.setStroke()
+        let path = NSBezierPath(rect: rect.insetBy(dx: 0.75, dy: 0.75))
+        path.lineWidth = 1.5
+        path.stroke()
+    }
+
+    private func drawHeader(range: (rows: ClosedRange<Int>, cols: ClosedRange<Int>)?) {
+        guard let header = cells.first else { return }
+        for c in 0..<min(header.count, colCount) {
+            let selected = range.map { $0.rows.contains(0) && $0.cols.contains(c) } ?? false
+            GridStyle.draw(header[c], in: headerRect(col: c), isHeader: true, selected: selected)
+        }
+        let vp = viewport
+        NSColor.separatorColor.setStroke()
+        let rule = NSBezierPath()
+        rule.lineWidth = 1
+        rule.move(to: CGPoint(x: vp.minX, y: vp.minY + Self.headerHeight - 0.5))
+        rule.line(to: CGPoint(x: vp.maxX, y: vp.minY + Self.headerHeight - 0.5))
+        rule.stroke()
+    }
+
+    /// Row numbers: an editing aid only — never part of `cells`, never
+    /// exported.
+    private func drawRail(range: (rows: ClosedRange<Int>, cols: ClosedRange<Int>)?) {
+        guard dataRows > 0 else { return }
+        for r in 1..<rowCount {
+            let rect = railRect(row: r)
+            GridStyle.headerFill.setFill()
+            rect.fill()
+            if range?.rows.contains(r) == true {
+                NSColor.controlAccentColor.withAlphaComponent(0.20).setFill()
+                rect.fill()
+            }
+            NSColor.separatorColor.setStroke()
+            let path = NSBezierPath(rect: rect.insetBy(dx: 0.25, dy: 0.25))
+            path.lineWidth = 0.5
+            path.stroke()
+            let label = "\(r)" as NSString
+            let attrs: [NSAttributedString.Key: Any] = [
+                .font: NSFont.systemFont(ofSize: 10),
+                .foregroundColor: NSColor.secondaryLabelColor,
+            ]
+            let size = label.size(withAttributes: attrs)
+            label.draw(at: CGPoint(x: rect.midX - size.width / 2, y: rect.midY - size.height / 2),
+                       withAttributes: attrs)
+        }
+    }
+
+    private func drawAddStrip(_ rect: CGRect, hovering: Bool) {
+        guard rect.width > 0, rect.height > 0 else { return }
+        (hovering ? NSColor.controlAccentColor.withAlphaComponent(0.18)
+                  : NSColor.separatorColor.withAlphaComponent(0.14)).setFill()
+        NSBezierPath(roundedRect: rect.insetBy(dx: 2, dy: 2), xRadius: 4, yRadius: 4).fill()
+        let plus = "+" as NSString
+        let attrs: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 11, weight: .semibold),
+            .foregroundColor: hovering ? NSColor.controlAccentColor : NSColor.tertiaryLabelColor,
+        ]
+        let size = plus.size(withAttributes: attrs)
+        plus.draw(at: CGPoint(x: rect.midX - size.width / 2, y: rect.midY - size.height / 2),
+                  withAttributes: attrs)
     }
 
     // MARK: tracking
@@ -236,135 +418,117 @@ final class SpreadsheetBodyView: NSView, NSTextFieldDelegate {
     }
 
     override func mouseMoved(with event: NSEvent) {
-        guard structureEditable else { return }
         let p = convert(event.locationInWindow, from: nil)
-        let inRow = addRowRect.contains(p)
-        let inCol = addColumnRect.contains(p)
-        if inRow != hoveringAddRow || inCol != hoveringAddColumn {
-            hoveringAddRow = inRow
-            hoveringAddColumn = inCol
-            needsDisplay = true
+        if structureEditable {
+            let row = addRowRect.contains(p), col = addColumnRect.contains(p)
+            if row != hoverAddRow || col != hoverAddColumn {
+                hoverAddRow = row
+                hoverAddColumn = col
+                needsDisplay = true
+            }
+        }
+        if p.y < viewport.minY + Self.headerHeight, boundary(near: p.x) != nil {
+            NSCursor.resizeLeftRight.set()
+        } else {
+            NSCursor.arrow.set()
         }
     }
 
     override func mouseExited(with event: NSEvent) {
-        guard hoveringAddRow || hoveringAddColumn else { return }
-        hoveringAddRow = false
-        hoveringAddColumn = false
+        NSCursor.arrow.set()
+        guard hoverAddRow || hoverAddColumn else { return }
+        hoverAddRow = false
+        hoverAddColumn = false
         needsDisplay = true
-    }
-
-    private var addRowRect: CGRect {
-        CGRect(x: 0, y: CGFloat(dataRows) * metrics.rowHeight,
-               width: max(metrics.totalWidth, 1), height: GridStyle.addStrip)
-    }
-
-    private var addColumnRect: CGRect {
-        CGRect(x: metrics.totalWidth, y: 0, width: GridStyle.addStrip,
-               height: max(CGFloat(dataRows) * metrics.rowHeight, 1))
-    }
-
-    // MARK: drawing
-
-    override func draw(_ dirtyRect: NSRect) {
-        NSColor.textBackgroundColor.setFill()
-        dirtyRect.fill()
-        guard !cells.isEmpty, !metrics.widths.isEmpty else { return }
-
-        let range = selection?.range(rows: cells.count, cols: metrics.widths.count)
-        // Only the rows that intersect the dirty rect are drawn — a 2,000-row
-        // result costs the same as a screenful.
-        let first = max(Int(dirtyRect.minY / metrics.rowHeight) + 1, 1)
-        let last = min(Int(dirtyRect.maxY / metrics.rowHeight) + 1, cells.count - 1)
-        guard first <= last else { return }
-
-        for r in first...last {
-            for c in cells[r].indices where c < metrics.widths.count {
-                let selected = range.map { $0.rows.contains(r) && $0.cols.contains(c) } ?? false
-                GridStyle.draw(cells[r][c], in: rect(modelRow: r, col: c),
-                               isHeader: false, selected: selected)
-            }
-        }
-
-        // The selection outline covers only the part below the header.
-        if let range, range.rows.upperBound >= 1 {
-            let xs = metrics.offsets
-            let top = max(range.rows.lowerBound, 1)
-            let rect = CGRect(x: xs[range.cols.lowerBound],
-                              y: CGFloat(top - 1) * metrics.rowHeight,
-                              width: xs[range.cols.upperBound + 1] - xs[range.cols.lowerBound],
-                              height: CGFloat(range.rows.upperBound - top + 1) * metrics.rowHeight)
-            NSColor.controlAccentColor.setStroke()
-            let path = NSBezierPath(rect: rect.insetBy(dx: 0.75, dy: 0.75))
-            path.lineWidth = 1.5
-            path.stroke()
-        }
-
-        if structureEditable {
-            drawAddStrip(addRowRect, hovering: hoveringAddRow)
-            drawAddStrip(addColumnRect, hovering: hoveringAddColumn)
-        }
-    }
-
-    private func drawAddStrip(_ rect: CGRect, hovering: Bool) {
-        guard rect.width > 0, rect.height > 0 else { return }
-        (hovering ? NSColor.controlAccentColor.withAlphaComponent(0.18)
-                  : NSColor.separatorColor.withAlphaComponent(0.12)).setFill()
-        NSBezierPath(roundedRect: rect.insetBy(dx: 2, dy: 2), xRadius: 4, yRadius: 4).fill()
-        let plus = "+" as NSString
-        let attrs: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 11, weight: .semibold),
-            .foregroundColor: hovering ? NSColor.controlAccentColor : NSColor.tertiaryLabelColor,
-        ]
-        let size = plus.size(withAttributes: attrs)
-        plus.draw(at: CGPoint(x: rect.midX - size.width / 2, y: rect.midY - size.height / 2),
-                  withAttributes: attrs)
-    }
-
-    // MARK: hit testing — AppKit converts from the live hierarchy at event
-    // time, so this cannot go stale the way the SwiftUI mapping did.
-
-    private func cell(at point: CGPoint) -> CellRef? {
-        guard let col = metrics.columnAt(point.x) else { return nil }
-        let row = Int(point.y / metrics.rowHeight) + 1     // row 0 is the header view's
-        guard row >= 1, row < cells.count else { return nil }
-        return CellRef(row: row, col: col)
-    }
-
-    private func clampedCell(at point: CGPoint) -> CellRef {
-        let col = metrics.columnAt(min(max(point.x, 0), max(metrics.totalWidth - 1, 0))) ?? 0
-        let row = min(max(Int(point.y / metrics.rowHeight) + 1, 1), max(cells.count - 1, 1))
-        return CellRef(row: row, col: col)
     }
 
     // MARK: mouse
 
     override func mouseDown(with event: NSEvent) {
         window?.makeFirstResponder(self)
-        let p = convert(event.locationInWindow, from: nil)
-
-        if structureEditable, addRowRect.contains(p) { commitEditing(); onAddRow?(); return }
-        if structureEditable, addColumnRect.contains(p) { commitEditing(); onAddColumn?(); return }
-
-        guard let ref = cell(at: p), let selection else { return }
-        if event.clickCount >= 2, structureEditable {
-            beginEditing(ref)
-            return
-        }
         commitEditing()
-        if event.modifierFlags.contains(.shift), selection.anchor != nil {
-            selection.extent = ref
-        } else {
-            selection.anchor = ref
-            selection.extent = nil
+        let p = convert(event.locationInWindow, from: nil)
+        guard let selection else { return }
+        let shift = event.modifierFlags.contains(.shift)
+
+        switch region(at: p) {
+        case .header(let col):
+            if let b = boundary(near: p.x) {
+                resizingColumn = b
+                resizeStartX = p.x
+                resizeStartWidth = widths[b]
+                return
+            }
+            if event.clickCount >= 2, structureEditable {
+                beginEditing(CellRef(row: 0, col: col))
+                return
+            }
+            // A header press selects the WHOLE column and primes a reorder.
+            if shift, selection.anchor != nil {
+                selection.extent = CellRef(row: max(rowCount - 1, 0), col: col)
+            } else {
+                selection.anchor = CellRef(row: 0, col: col)
+                selection.extent = CellRef(row: max(rowCount - 1, 0), col: col)
+            }
+            if structureEditable {
+                reorderColumn = col
+                reorderStart = p
+            }
+        case .rail(let row):
+            if shift, selection.anchor != nil {
+                selection.extent = CellRef(row: row, col: max(colCount - 1, 0))
+            } else {
+                selection.anchor = CellRef(row: row, col: 0)
+                selection.extent = CellRef(row: row, col: max(colCount - 1, 0))
+            }
+            if structureEditable {
+                reorderRow = row
+                reorderStart = p
+            }
+        case .cell(let ref):
+            if event.clickCount >= 2, structureEditable {
+                beginEditing(ref)
+                return
+            }
+            if shift, selection.anchor != nil {
+                selection.extent = ref
+            } else {
+                selection.anchor = ref
+                selection.extent = nil
+            }
+        case .addRow:    onAddRow?(); return
+        case .addColumn: onAddColumn?(); return
+        case .corner, .none: return
         }
         needsDisplay = true
         onSelectionChanged?()
     }
 
     override func mouseDragged(with event: NSEvent) {
+        let p = convert(event.locationInWindow, from: nil)
+        if let col = resizingColumn {
+            onWidthChanged?(col, min(max(resizeStartWidth + (p.x - resizeStartX), 44), 520))
+            return
+        }
+        if let from = reorderColumn, abs(p.x - reorderStart.x) > 5 {
+            if let to = column(at: min(max(p.x, offsets[0]), max(totalWidth - 1, offsets[0]))),
+               to != from {
+                onMoveColumn?(from, to)
+                reorderColumn = to
+            }
+            return
+        }
+        if let from = reorderRow, abs(p.y - reorderStart.y) > 5 {
+            let to = min(max(Int((p.y - Self.headerHeight) / Self.rowHeight) + 1, 1),
+                         max(rowCount - 1, 1))
+            if to != from {
+                onMoveRow?(from, to)
+                reorderRow = to
+            }
+            return
+        }
         guard editing == nil, let selection, selection.anchor != nil else { return }
-        let ref = clampedCell(at: convert(event.locationInWindow, from: nil))
+        let ref = clampedCell(at: p)
         guard selection.extent != ref else { return }
         selection.extent = ref
         needsDisplay = true
@@ -372,43 +536,55 @@ final class SpreadsheetBodyView: NSView, NSTextFieldDelegate {
         autoscroll(with: event)
     }
 
+    override func mouseUp(with event: NSEvent) {
+        resizingColumn = nil
+        reorderColumn = nil
+        reorderRow = nil
+    }
+
     override func rightMouseDown(with event: NSEvent) {
         guard structureEditable else { return }
         let p = convert(event.locationInWindow, from: nil)
-        guard let ref = cell(at: p), let selection else { return }
-        selection.anchor = ref
-        selection.extent = nil
-        needsDisplay = true
-        onSelectionChanged?()
-
+        var row: Int?
+        var col: Int?
+        switch region(at: p) {
+        case .header(let c): col = c
+        case .rail(let r):   row = r
+        case .cell(let ref): row = ref.row; col = ref.col
+        default: break
+        }
         let menu = NSMenu()
-        if ref.row > 0 {
-            let item = NSMenuItem(title: "Delete Row", action: #selector(deleteRowAction), keyEquivalent: "")
+        if let row {
+            let item = NSMenuItem(title: "Delete Row \(row)",
+                                  action: #selector(deleteRowAction), keyEquivalent: "")
             item.target = self
-            item.representedObject = ref.row
+            item.representedObject = row
             menu.addItem(item)
         }
-        let col = NSMenuItem(title: "Delete Column", action: #selector(deleteColumnAction), keyEquivalent: "")
-        col.target = self
-        col.representedObject = ref.col
-        menu.addItem(col)
+        if let col {
+            let item = NSMenuItem(title: "Delete Column",
+                                  action: #selector(deleteColumnAction), keyEquivalent: "")
+            item.target = self
+            item.representedObject = col
+            menu.addItem(item)
+        }
         menu.addItem(.separator())
-        let add = NSMenuItem(title: "Add Row", action: #selector(addRowAction), keyEquivalent: "")
-        add.target = self
-        menu.addItem(add)
+        let addRow = NSMenuItem(title: "Add Row", action: #selector(addRowAction), keyEquivalent: "")
+        addRow.target = self
+        menu.addItem(addRow)
         let addCol = NSMenuItem(title: "Add Column", action: #selector(addColumnAction), keyEquivalent: "")
         addCol.target = self
         menu.addItem(addCol)
         NSMenu.popUpContextMenu(menu, with: event, for: self)
     }
 
-    @objc private func deleteRowAction(_ sender: NSMenuItem) {
+    @objc private func deleteRowAction(_ s: NSMenuItem) {
         commitEditing()
-        if let row = sender.representedObject as? Int { onDeleteRow?(row) }
+        if let r = s.representedObject as? Int { onDeleteRow?(r) }
     }
-    @objc private func deleteColumnAction(_ sender: NSMenuItem) {
+    @objc private func deleteColumnAction(_ s: NSMenuItem) {
         commitEditing()
-        if let col = sender.representedObject as? Int { onDeleteColumn?(col) }
+        if let c = s.representedObject as? Int { onDeleteColumn?(c) }
     }
     @objc private func addRowAction() { commitEditing(); onAddRow?() }
     @objc private func addColumnAction() { commitEditing(); onAddColumn?() }
@@ -424,12 +600,14 @@ final class SpreadsheetBodyView: NSView, NSTextFieldDelegate {
         let base = shift ? (selection.extent ?? anchor) : anchor
 
         func move(_ dr: Int, _ dc: Int) {
-            let next = CellRef(row: min(max(base.row + dr, 1), cells.count - 1),
-                               col: min(max(base.col + dc, 0), metrics.widths.count - 1))
+            let next = CellRef(row: min(max(base.row + dr, 0), max(rowCount - 1, 0)),
+                               col: min(max(base.col + dc, 0), max(colCount - 1, 0)))
             if shift { selection.extent = next } else { selection.anchor = next; selection.extent = nil }
             needsDisplay = true
             onSelectionChanged?()
-            scrollToVisible(rect(modelRow: next.row, col: next.col).insetBy(dx: -8, dy: -8))
+            if next.row > 0 {
+                scrollToVisible(cellRect(row: next.row, col: next.col).insetBy(dx: -8, dy: -8))
+            }
         }
 
         switch event.keyCode {
@@ -437,21 +615,16 @@ final class SpreadsheetBodyView: NSView, NSTextFieldDelegate {
         case 125: move(1, 0)
         case 123: move(0, -1)
         case 124: move(0, 1)
-        case 36:                                  // ⏎ — edit, or commit and step down
-            if structureEditable { beginEditing(anchor) }
-        case 48:                                  // ⇥ / ⇧⇥
-            move(0, shift ? -1 : 1)
-        case 51, 117:                             // ⌫ / ⌦ — clear the selection's text
-            if structureEditable { onClearCells?() }
+        case 36:  if structureEditable { beginEditing(anchor) }
+        case 48:  move(0, shift ? -1 : 1)
+        case 51, 117: if structureEditable { onClearCells?() }
         default:
             if event.modifierFlags.contains(.command),
                event.charactersIgnoringModifiers?.lowercased() == "v",
-               structureEditable,
-               let text = NSPasteboard.general.string(forType: .string) {
+               structureEditable, let text = NSPasteboard.general.string(forType: .string) {
                 onPaste?(text, anchor)
                 return
             }
-            // Typing over a cell starts editing with that character.
             if structureEditable, !event.modifierFlags.contains(.command),
                let chars = event.characters, chars.count == 1,
                let scalar = chars.unicodeScalars.first,
@@ -464,16 +637,15 @@ final class SpreadsheetBodyView: NSView, NSTextFieldDelegate {
         }
     }
 
-    // MARK: in-cell editing
+    // MARK: editing
 
     func beginEditing(_ ref: CellRef, seed: String? = nil) {
         commitEditing()
-        guard ref.row < cells.count, ref.col < cells[ref.row].count,
-              ref.col < metrics.widths.count else { return }
-        let rect = rect(modelRow: ref.row, col: ref.col)
+        guard ref.row < rowCount, ref.col < colCount, ref.col < cells[ref.row].count else { return }
+        let rect = ref.row == 0 ? headerRect(col: ref.col) : cellRect(row: ref.row, col: ref.col)
         let field = NSTextField(frame: rect.insetBy(dx: 1, dy: 1))
         field.stringValue = seed ?? cells[ref.row][ref.col].text
-        field.font = NSFont.systemFont(ofSize: 12)
+        field.font = NSFont.systemFont(ofSize: 12, weight: ref.row == 0 ? .semibold : .regular)
         field.isBordered = false
         field.focusRingType = .none
         field.drawsBackground = true
@@ -491,11 +663,8 @@ final class SpreadsheetBodyView: NSView, NSTextFieldDelegate {
         needsDisplay = true
     }
 
-    @objc private func editorCommitted() {
-        commitEditing(thenMove: (1, 0))
-    }
+    @objc private func editorCommitted() { commitEditing(thenMove: (1, 0)) }
 
-    /// Writes the field's text back and (optionally) steps to a neighbour.
     func commitEditing(thenMove step: (Int, Int)? = nil) {
         guard let field = editor, let ref = editing else { return }
         let text = field.stringValue
@@ -505,32 +674,25 @@ final class SpreadsheetBodyView: NSView, NSTextFieldDelegate {
         editing = nil
         onCommit?(ref.row, ref.col, text)
         if let step, let selection {
-            let next = CellRef(row: min(max(ref.row + step.0, 1), cells.count - 1),
-                               col: min(max(ref.col + step.1, 0), metrics.widths.count - 1))
+            let next = CellRef(row: min(max(ref.row + step.0, 0), max(rowCount - 1, 0)),
+                               col: min(max(ref.col + step.1, 0), max(colCount - 1, 0)))
             selection.anchor = next
             selection.extent = nil
             onSelectionChanged?()
-            scrollToVisible(rect(modelRow: next.row, col: next.col).insetBy(dx: -8, dy: -8))
         }
         window?.makeFirstResponder(self)
         needsDisplay = true
     }
+}
 
+extension SpreadsheetGridView: NSTextFieldDelegate {
     func control(_ control: NSControl, textView: NSTextView,
                  doCommandBy selector: Selector) -> Bool {
         switch selector {
-        case #selector(NSResponder.insertTab(_:)):
-            commitEditing(thenMove: (0, 1))
-            return true
-        case #selector(NSResponder.insertBacktab(_:)):
-            commitEditing(thenMove: (0, -1))
-            return true
-        case #selector(NSResponder.moveUp(_:)):
-            commitEditing(thenMove: (-1, 0))
-            return true
-        case #selector(NSResponder.moveDown(_:)):
-            commitEditing(thenMove: (1, 0))
-            return true
+        case #selector(NSResponder.insertTab(_:)):     commitEditing(thenMove: (0, 1)); return true
+        case #selector(NSResponder.insertBacktab(_:)): commitEditing(thenMove: (0, -1)); return true
+        case #selector(NSResponder.moveUp(_:)):        commitEditing(thenMove: (-1, 0)); return true
+        case #selector(NSResponder.moveDown(_:)):      commitEditing(thenMove: (1, 0)); return true
         case #selector(NSResponder.cancelOperation(_:)):
             editor?.delegate = nil
             editor?.removeFromSuperview()
@@ -538,97 +700,8 @@ final class SpreadsheetBodyView: NSView, NSTextFieldDelegate {
             editing = nil
             window?.makeFirstResponder(self)
             return true
-        default:
-            return false
+        default: return false
         }
-    }
-}
-
-// MARK: - SpreadsheetHeaderView
-
-/// The pinned copy of row 0.  Owns column resizing: dragging a boundary is
-/// tracked in this view's own coordinates, which never move vertically.
-final class SpreadsheetHeaderView: NSView {
-
-    var cells: [TableCell] = [] { didSet { needsDisplay = true } }
-    var metrics = GridMetrics() { didSet { needsDisplay = true } }
-    var selection: GridSelection?
-    var resizable = true
-
-    var onWidthChanged: ((Int, CGFloat) -> Void)?
-    var onSelectHeader: ((Int, Bool) -> Void)?
-
-    /// Horizontal scroll offset, mirrored from the clip view so the header
-    /// tracks the columns while staying pinned vertically.
-    var scrollOffsetX: CGFloat = 0 {
-        didSet { bounds.origin.x = scrollOffsetX; needsDisplay = true }
-    }
-
-    private var dragColumn: Int?
-    private var dragStartX: CGFloat = 0
-    private var dragStartWidth: CGFloat = 0
-
-    override var isFlipped: Bool { true }
-    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
-
-    override func draw(_ dirtyRect: NSRect) {
-        GridStyle.headerFill.setFill()
-        dirtyRect.fill()
-        // Bounds are shifted by the scroll offset, so drawing in "content"
-        // coordinates lines the header up with the columns below it.
-        let range = selection?.range(rows: max(cells.count, 1), cols: metrics.widths.count)
-        for c in cells.indices where c < metrics.widths.count {
-            var rect = metrics.rect(row: 0, col: c)
-            rect.origin.y = bounds.origin.y
-            rect.size.height = bounds.height
-            let selected = range.map { $0.rows.contains(0) && $0.cols.contains(c) } ?? false
-            GridStyle.draw(cells[c], in: rect, isHeader: true, selected: selected)
-        }
-        // A firmer rule under the header so it reads as pinned while the
-        // rows scroll beneath it.
-        NSColor.separatorColor.setStroke()
-        let rule = NSBezierPath()
-        rule.lineWidth = 1
-        rule.move(to: CGPoint(x: bounds.minX, y: bounds.maxY - 0.5))
-        rule.line(to: CGPoint(x: bounds.maxX, y: bounds.maxY - 0.5))
-        rule.stroke()
-    }
-
-    override func resetCursorRects() {
-        discardCursorRects()
-        guard resizable else { return }
-        for b in metrics.offsets.dropFirst() {
-            addCursorRect(CGRect(x: b - 4, y: bounds.origin.y, width: 8, height: bounds.height),
-                          cursor: .resizeLeftRight)
-        }
-    }
-
-    override func mouseDown(with event: NSEvent) {
-        let p = convert(event.locationInWindow, from: nil)
-        if resizable, let boundary = metrics.boundary(near: p.x) {
-            dragColumn = boundary - 1
-            dragStartX = p.x
-            dragStartWidth = metrics.widths[boundary - 1]
-            return
-        }
-        if let col = metrics.columnAt(p.x) {
-            onSelectHeader?(col, event.modifierFlags.contains(.shift))
-        }
-    }
-
-    override func mouseDragged(with event: NSEvent) {
-        guard let column = dragColumn else { return }
-        // The delta is measured in this view's own space, and this view
-        // never moves vertically or resizes horizontally under the cursor
-        // mid-drag, so the value stays true for the whole gesture.
-        let p = convert(event.locationInWindow, from: nil)
-        let width = min(max(dragStartWidth + (p.x - dragStartX), 44), 520)
-        onWidthChanged?(column, width)
-    }
-
-    override func mouseUp(with event: NSEvent) {
-        dragColumn = nil
-        window?.invalidateCursorRects(for: self)
     }
 }
 
@@ -638,26 +711,31 @@ struct SpreadsheetGrid: NSViewRepresentable {
     @Binding var cells: [[TableCell]]
     @Binding var columnWidths: [Double]?
     var selection: GridSelection
-    /// false = data-linked styling mode: the query owns the shape and the
-    /// text, so rows/columns can't be added, removed, or typed into.
     var structureEditable: Bool = true
 
-    static let headerHeight: CGFloat = 26
+    func makeNSView(context: Context) -> NSScrollView {
+        let scroll = NSScrollView()
+        scroll.hasVerticalScroller = true
+        scroll.hasHorizontalScroller = true
+        scroll.autohidesScrollers = true
+        scroll.drawsBackground = true
+        scroll.backgroundColor = .textBackgroundColor
+        scroll.borderType = .noBorder
 
-    func makeNSView(context: Context) -> SpreadsheetContainerView {
-        let container = SpreadsheetContainerView(frame: .zero)
-        context.coordinator.scroll = container.scroll
-        context.coordinator.body = container.body
-        context.coordinator.header = container.header
-        container.onLayout = { [weak coordinator = context.coordinator] in
-            coordinator?.sync()
-        }
+        let grid = SpreadsheetGridView(frame: .zero)
+        scroll.documentView = grid
+        // The header and rail draw at the scroll offset, so every scroll
+        // needs a repaint.
+        scroll.contentView.postsBoundsChangedNotifications = true
+        context.coordinator.observe(scroll)
+        context.coordinator.scroll = scroll
+        context.coordinator.grid = grid
         context.coordinator.attach(self)
         context.coordinator.sync()
-        return container
+        return scroll
     }
 
-    func updateNSView(_ container: SpreadsheetContainerView, context: Context) {
+    func updateNSView(_ scroll: NSScrollView, context: Context) {
         context.coordinator.attach(self)
         context.coordinator.sync()
     }
@@ -667,54 +745,97 @@ struct SpreadsheetGrid: NSViewRepresentable {
     @MainActor
     final class Coordinator {
         var scroll: NSScrollView?
-        var body: SpreadsheetBodyView?
-        var header: SpreadsheetHeaderView?
+        var grid: SpreadsheetGridView?
         private var parent: SpreadsheetGrid?
+        private var observer: NSObjectProtocol?
+
+        func observe(_ scroll: NSScrollView) {
+            observer = NotificationCenter.default.addObserver(
+                forName: NSView.boundsDidChangeNotification,
+                object: scroll.contentView, queue: .main) { [weak self] _ in
+                    MainActor.assumeIsolated { self?.grid?.needsDisplay = true }
+                }
+        }
 
         func attach(_ parent: SpreadsheetGrid) {
             self.parent = parent
-            guard let body, let header else { return }
-            body.selection = parent.selection
-            header.selection = parent.selection
-            body.structureEditable = parent.structureEditable
-            header.resizable = true
+            guard let grid else { return }
+            grid.selection = parent.selection
+            grid.structureEditable = parent.structureEditable
 
-            body.onSelectionChanged = { [weak self] in self?.header?.needsDisplay = true }
-            body.onCommit = { [weak self] r, c, text in
+            grid.onCommit = { [weak self] r, c, text in
                 self?.edit { cells in
                     guard cells.indices.contains(r), cells[r].indices.contains(c) else { return }
                     cells[r][c].text = text
                 }
             }
-            body.onAddRow = { [weak self] in
+            grid.onAddRow = { [weak self] in
                 self?.edit { cells in
                     cells.append(Array(repeating: TableCell(), count: cells.first?.count ?? 1))
                 }
             }
-            body.onAddColumn = { [weak self] in
-                self?.edit { cells in
-                    for r in cells.indices { cells[r].append(TableCell()) }
+            grid.onAddColumn = { [weak self] in
+                self?.edit { cells in for r in cells.indices { cells[r].append(TableCell()) } }
+                if var stored = self?.parent?.columnWidths {
+                    stored.append(120)
+                    self?.parent?.columnWidths = stored
                 }
-                self?.appendWidth()
             }
-            body.onDeleteRow = { [weak self] row in
+            grid.onDeleteRow = { [weak self] row in
                 self?.edit { cells in
-                    guard cells.count > 1, cells.indices.contains(row) else { return }
+                    guard cells.count > 2, cells.indices.contains(row), row >= 1 else { return }
                     cells.remove(at: row)
                 }
                 self?.parent?.selection.clear()
             }
-            body.onDeleteColumn = { [weak self] col in
+            grid.onDeleteColumn = { [weak self] col in
                 self?.edit { cells in
                     guard (cells.first?.count ?? 0) > 1 else { return }
                     for r in cells.indices where cells[r].indices.contains(col) {
                         cells[r].remove(at: col)
                     }
                 }
-                self?.removeWidth(col)
+                if var stored = self?.parent?.columnWidths, stored.indices.contains(col) {
+                    stored.remove(at: col)
+                    self?.parent?.columnWidths = stored
+                }
                 self?.parent?.selection.clear()
             }
-            body.onClearCells = { [weak self] in
+            grid.onMoveRow = { [weak self] from, to in
+                self?.edit { cells in
+                    guard cells.indices.contains(from), from >= 1, to >= 1, to < cells.count else { return }
+                    let row = cells.remove(at: from)
+                    cells.insert(row, at: to)
+                }
+                guard let parent = self?.parent else { return }
+                parent.selection.anchor = CellRef(row: to, col: 0)
+                parent.selection.extent = CellRef(row: to, col: max((parent.cells.first?.count ?? 1) - 1, 0))
+            }
+            grid.onMoveColumn = { [weak self] from, to in
+                self?.edit { cells in
+                    for r in cells.indices where cells[r].indices.contains(from) {
+                        let cell = cells[r].remove(at: from)
+                        cells[r].insert(cell, at: min(to, cells[r].count))
+                    }
+                }
+                if var stored = self?.parent?.columnWidths, stored.indices.contains(from) {
+                    let w = stored.remove(at: from)
+                    stored.insert(w, at: min(to, stored.count))
+                    self?.parent?.columnWidths = stored
+                }
+                guard let parent = self?.parent else { return }
+                parent.selection.anchor = CellRef(row: 0, col: to)
+                parent.selection.extent = CellRef(row: max(parent.cells.count - 1, 0), col: to)
+            }
+            grid.onWidthChanged = { [weak self] col, width in
+                guard let self, let parent = self.parent, let grid = self.grid else { return }
+                var stored = parent.columnWidths ?? grid.widths.map { Double($0) }
+                while stored.count < grid.widths.count { stored.append(120) }
+                guard stored.indices.contains(col) else { return }
+                stored[col] = Double(width)
+                parent.columnWidths = stored
+            }
+            grid.onClearCells = { [weak self] in
                 guard let self, let parent = self.parent,
                       let range = parent.selection.range(rows: parent.cells.count,
                                                          cols: parent.cells.first?.count ?? 0)
@@ -727,27 +848,8 @@ struct SpreadsheetGrid: NSViewRepresentable {
                     }
                 }
             }
-            body.onPaste = { [weak self] text, origin in
-                self?.paste(text, at: origin)
-            }
-
-            header.onWidthChanged = { [weak self] col, width in
-                self?.setWidth(col, width)
-            }
-            header.onSelectHeader = { [weak self] col, shift in
-                guard let selection = self?.parent?.selection else { return }
-                if shift, selection.anchor != nil {
-                    selection.extent = CellRef(row: selection.extent?.row ?? 0, col: col)
-                } else {
-                    selection.anchor = CellRef(row: 0, col: col)
-                    selection.extent = nil
-                }
-                self?.body?.needsDisplay = true
-                self?.header?.needsDisplay = true
-            }
+            grid.onPaste = { [weak self] text, origin in self?.paste(text, at: origin) }
         }
-
-        // MARK: model edits
 
         private func edit(_ change: (inout [[TableCell]]) -> Void) {
             guard let parent else { return }
@@ -756,38 +858,6 @@ struct SpreadsheetGrid: NSViewRepresentable {
             parent.cells = cells
         }
 
-        private func widths(for count: Int, available: CGFloat) -> [CGFloat] {
-            if let stored = parent?.columnWidths, stored.count == count, stored.allSatisfy({ $0 > 0 }) {
-                return stored.map { CGFloat($0) }
-            }
-            // Default: share the visible width so the grid fills its pane.
-            let width = max(available / CGFloat(max(count, 1)), 90)
-            return Array(repeating: width, count: count)
-        }
-
-        private func setWidth(_ col: Int, _ width: CGFloat) {
-            guard let parent, let body else { return }
-            var stored = parent.columnWidths ?? body.metrics.widths.map { Double($0) }
-            while stored.count < body.metrics.widths.count { stored.append(Double(body.metrics.widths.count)) }
-            guard stored.indices.contains(col) else { return }
-            stored[col] = Double(width)
-            parent.columnWidths = stored
-        }
-
-        private func appendWidth() {
-            guard let parent, var stored = parent.columnWidths else { return }
-            stored.append(120)
-            parent.columnWidths = stored
-        }
-
-        private func removeWidth(_ col: Int) {
-            guard let parent, var stored = parent.columnWidths, stored.indices.contains(col) else { return }
-            stored.remove(at: col)
-            parent.columnWidths = stored
-        }
-
-        /// Spreadsheet paste: tab-separated columns, newline rows, growing
-        /// the grid as needed.
         private func paste(_ text: String, at origin: CellRef) {
             let rows = text
                 .replacingOccurrences(of: "\r\n", with: "\n")
@@ -814,82 +884,26 @@ struct SpreadsheetGrid: NSViewRepresentable {
             }
         }
 
-        // MARK: sync
-
         func sync() {
-            guard let parent, let scroll, let body, let header else { return }
+            guard let parent, let scroll, let grid else { return }
             let count = parent.cells.first?.count ?? 0
-            let available = scroll.contentSize.width - (parent.structureEditable ? GridStyle.addStrip : 0)
-            var metrics = GridMetrics()
-            metrics.widths = widths(for: count, available: max(available, 200))
-            metrics.rowHeight = 26
-
-            body.cells = parent.cells
-            body.metrics = metrics
-            header.cells = parent.cells.first ?? []
-            header.metrics = metrics
-
-            let size = body.contentSize
-            body.frame = CGRect(origin: .zero,
+            // Columns share the visible width until one is dragged, so the
+            // grid fills its pane.
+            let available = scroll.contentSize.width - SpreadsheetGridView.gutterWidth
+                - (parent.structureEditable ? GridStyle.addStrip : 0)
+            let widths: [CGFloat]
+            if let stored = parent.columnWidths, stored.count == count, stored.allSatisfy({ $0 > 0 }) {
+                widths = stored.map { CGFloat($0) }
+            } else {
+                widths = Array(repeating: max(available / CGFloat(max(count, 1)), 90), count: count)
+            }
+            grid.cells = parent.cells
+            grid.widths = widths
+            let size = grid.contentSize
+            grid.frame = CGRect(origin: .zero,
                                 size: CGSize(width: max(size.width, scroll.contentSize.width),
                                              height: max(size.height, scroll.contentSize.height)))
-            body.needsDisplay = true
-            header.needsDisplay = true
-            scroll.window?.invalidateCursorRects(for: header)
+            grid.needsDisplay = true
         }
-    }
-}
-
-
-// MARK: - SpreadsheetContainerView
-
-/// Stacks the pinned header above the scrolling body and keeps the two
-/// horizontally in step.
-final class SpreadsheetContainerView: NSView {
-
-    let header = SpreadsheetHeaderView(frame: .zero)
-    let scroll = NSScrollView(frame: .zero)
-    let body = SpreadsheetBodyView(frame: .zero)
-
-    /// Called after every layout so the grid can recompute default column
-    /// widths against the new visible width.
-    var onLayout: (() -> Void)?
-
-    override init(frame: NSRect) {
-        super.init(frame: frame)
-        scroll.hasVerticalScroller = true
-        scroll.hasHorizontalScroller = true
-        scroll.autohidesScrollers = true
-        scroll.drawsBackground = true
-        scroll.backgroundColor = .textBackgroundColor
-        scroll.borderType = .noBorder
-        scroll.documentView = body
-        addSubview(header)
-        addSubview(scroll)
-
-        // Mirror the horizontal scroll offset into the header's own bounds.
-        scroll.contentView.postsBoundsChangedNotifications = true
-        NotificationCenter.default.addObserver(
-            self, selector: #selector(clipBoundsChanged),
-            name: NSView.boundsDidChangeNotification, object: scroll.contentView)
-    }
-
-    required init?(coder: NSCoder) { fatalError("init(coder:) unavailable") }
-
-    deinit { NotificationCenter.default.removeObserver(self) }
-
-    @objc private func clipBoundsChanged() {
-        header.scrollOffsetX = scroll.contentView.bounds.origin.x
-    }
-
-    override var isFlipped: Bool { true }
-
-    override func layout() {
-        super.layout()
-        let h = SpreadsheetGrid.headerHeight
-        header.frame = CGRect(x: 0, y: 0, width: bounds.width, height: h)
-        scroll.frame = CGRect(x: 0, y: h, width: bounds.width, height: max(bounds.height - h, 0))
-        header.scrollOffsetX = scroll.contentView.bounds.origin.x
-        onLayout?()
     }
 }

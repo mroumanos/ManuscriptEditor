@@ -229,13 +229,20 @@ Intent: data lives once; figures/tables reference it; cuts convert only SQL.
   no longer edited per table** (a manuscript-wide footnote system is the
   intended replacement; stored footnotes still export as "Note." lines).
 - AC (implemented, Aug 2026): **Manual tables are a GRID, not Markdown**,
-  built on AppKit (`SpreadsheetGrid`: `NSScrollView` + custom `NSView`;
-  see gotcha 15 for why SwiftUI couldn't hold it). The grid **fills its
-  pane** (columns share the visible width until dragged), the **header
-  row stays frozen** while the rows scroll under it, and hovering the
-  **bottom edge adds a row / the right edge adds a column**. Columns
-  resize by dragging a header boundary; right-click offers add/delete of
-  the row or column under the pointer. Editing and navigation are
+  built on AppKit — ONE `NSView` inside an `NSScrollView`
+  (`SpreadsheetGrid`; see gotcha 15 for why SwiftUI couldn't hold it, and
+  why the header can't be a separate pinned view). The grid **fills its
+  pane** (columns share the visible width until dragged); the **header
+  row and a numbered row rail stay frozen** at the viewport's edges,
+  drawn at the current scroll offset by the same view that owns hit
+  testing. **Row numbers are an editing aid only — never part of `cells`,
+  never exported.** Clicking a header selects the WHOLE column and
+  dragging it reorders; clicking a row number selects the whole row and
+  dragging reorders; selections extend into the header row (drag up or
+  ⇧↑) so headers can be styled. Columns resize by dragging a header
+  boundary, hovering the **bottom edge adds a row / the right edge adds a
+  column**, double-clicking a header renames it, and right-click offers
+  add/delete for the row or column under the pointer. Editing and navigation are
   **click selects, double-click (or Return, or just typing) edits, and
   drag / ⇧-click / ⇧-arrows extend the selection** as a rectangle; Tab
   and ⇧Tab move across, ↑/↓ move down and up, ⌫ clears the selected

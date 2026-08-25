@@ -140,13 +140,15 @@ xcodebuild -scheme ManuscriptEditor -destination 'platform=macOS' build
     in our arithmetic. `SpreadsheetGrid` is now an `NSScrollView` +
     custom `NSView`: `convert(_:from: nil)` is computed from the live
     hierarchy at event time and cannot be stale, and only visible rows
-    draw. **Do NOT use `addFloatingSubview(_:for:)` for the frozen
-    header**: it installs a full-size
-    `_NSScrollViewFloatingSubviewsContainerView` over the clip view, which
-    hid the document view entirely (verified — the body rendered correctly
-    on its own and vanished in the composite, so the grid showed a header
-    and no data). The header is a SIBLING above the scroll view, mirroring
-    the clip view's horizontal offset into its own `bounds.origin.x`.
+    draw. **The frozen header and row rail are DRAWN by the grid
+    view itself**, at the current scroll offset. Two attempts to make them
+    separate views both failed to composite: `addFloatingSubview(_:for:)`
+    installs a full-size `_NSScrollViewFloatingSubviewsContainerView` over
+    the clip view and the document view vanished entirely, and a sibling
+    header stacked above the scroll view rendered blank inside its
+    container (both verified by rendering the same view standalone — it
+    painted every row — and in the composite, where it didn't). One view
+    means one coordinate space, one hit test, and nothing to composite.
     The superseded rule, kept because it still applies to any grid-like
     SwiftUI view: **don't hit-test a scrolling grid from its container.** Any pointer
     math that converts a point into a container's space — `.local`,
