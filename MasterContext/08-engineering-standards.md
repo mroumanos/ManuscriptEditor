@@ -139,8 +139,14 @@ xcodebuild -scheme ManuscriptEditor -destination 'platform=macOS' build
     origin, and finally per-cell reporting), because the defect was never
     in our arithmetic. `SpreadsheetGrid` is now an `NSScrollView` +
     custom `NSView`: `convert(_:from: nil)` is computed from the live
-    hierarchy at event time and cannot be stale, the header is a real
-    `addFloatingSubview(_:for: .vertical)`, and only visible rows draw.
+    hierarchy at event time and cannot be stale, and only visible rows
+    draw. **Do NOT use `addFloatingSubview(_:for:)` for the frozen
+    header**: it installs a full-size
+    `_NSScrollViewFloatingSubviewsContainerView` over the clip view, which
+    hid the document view entirely (verified — the body rendered correctly
+    on its own and vanished in the composite, so the grid showed a header
+    and no data). The header is a SIBLING above the scroll view, mirroring
+    the clip view's horizontal offset into its own `bounds.origin.x`.
     The superseded rule, kept because it still applies to any grid-like
     SwiftUI view: **don't hit-test a scrolling grid from its container.** Any pointer
     math that converts a point into a container's space — `.local`,

@@ -21,11 +21,17 @@
 //
 // LAYOUT
 // ─────────────────────────────────────────────────────────────────────────────
-//   NSScrollView
-//     documentView  → SpreadsheetBodyView   (every row, including row 0)
-//     floatingSubview → SpreadsheetHeaderView (a pinned copy of row 0)
-// The header copy is opaque and covers the real row 0 when scrolled to the
-// top, which keeps row indexing identical everywhere (row 0 IS the header).
+//   SpreadsheetContainerView
+//     ├── SpreadsheetHeaderView   (model row 0, pinned above the scroll view)
+//     └── NSScrollView → SpreadsheetBodyView  (model rows 1…)
+// The header is a SIBLING of the scroll view, not a floating subview:
+// `addFloatingSubview(_:for:)` installs a full-size
+// `_NSScrollViewFloatingSubviewsContainerView` over the clip view, and that
+// container hid the document view entirely (verified — the body rendered
+// correctly on its own and vanished in the composite).  The header mirrors
+// the clip view's horizontal offset through its own `bounds.origin.x`, so
+// it scrolls with the columns and stays put vertically.  Model row 0 is the
+// header everywhere; the body maps y → row + 1.
 
 import SwiftUI
 import AppKit
@@ -202,9 +208,19 @@ final class SpreadsheetBodyView: NSView, NSTextFieldDelegate {
     override var acceptsFirstResponder: Bool { true }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
+    /// Model row 0 is the header and lives in the pinned header view, so
+    /// the body draws rows 1… at y = (row - 1) * rowHeight.
+    private var dataRows: Int { max(cells.count - 1, 0) }
+
+    func rect(modelRow row: Int, col: Int) -> CGRect {
+        var r = metrics.rect(row: max(row - 1, 0), col: col)
+        if row == 0 { r.origin.y = 0 }
+        return r
+    }
+
     var contentSize: CGSize {
         CGSize(width: metrics.totalWidth + (structureEditable ? GridStyle.addStrip : 0),
-               height: CGFloat(cells.count) * metrics.rowHeight
+               height: CGFloat(dataRows) * metrics.rowHeight
                    + (structureEditable ? GridStyle.addStrip : 0))
     }
 
@@ -239,13 +255,13 @@ final class SpreadsheetBodyView: NSView, NSTextFieldDelegate {
     }
 
     private var addRowRect: CGRect {
-        CGRect(x: 0, y: CGFloat(cells.count) * metrics.rowHeight,
+        CGRect(x: 0, y: CGFloat(dataRows) * metrics.rowHeight,
                width: max(metrics.totalWidth, 1), height: GridStyle.addStrip)
     }
 
     private var addColumnRect: CGRect {
         CGRect(x: metrics.totalWidth, y: 0, width: GridStyle.addStrip,
-               height: max(CGFloat(cells.count) * metrics.rowHeight, 1))
+               height: max(CGFloat(dataRows) * metrics.rowHeight, 1))
     }
 
     // MARK: drawing
@@ -258,24 +274,26 @@ final class SpreadsheetBodyView: NSView, NSTextFieldDelegate {
         let range = selection?.range(rows: cells.count, cols: metrics.widths.count)
         // Only the rows that intersect the dirty rect are drawn — a 2,000-row
         // result costs the same as a screenful.
-        let first = max(Int(dirtyRect.minY / metrics.rowHeight), 0)
-        let last = min(Int(dirtyRect.maxY / metrics.rowHeight), cells.count - 1)
+        let first = max(Int(dirtyRect.minY / metrics.rowHeight) + 1, 1)
+        let last = min(Int(dirtyRect.maxY / metrics.rowHeight) + 1, cells.count - 1)
         guard first <= last else { return }
 
         for r in first...last {
             for c in cells[r].indices where c < metrics.widths.count {
                 let selected = range.map { $0.rows.contains(r) && $0.cols.contains(c) } ?? false
-                GridStyle.draw(cells[r][c], in: metrics.rect(row: r, col: c),
-                               isHeader: r == 0, selected: selected)
+                GridStyle.draw(cells[r][c], in: rect(modelRow: r, col: c),
+                               isHeader: false, selected: selected)
             }
         }
 
-        if let range {
+        // The selection outline covers only the part below the header.
+        if let range, range.rows.upperBound >= 1 {
             let xs = metrics.offsets
+            let top = max(range.rows.lowerBound, 1)
             let rect = CGRect(x: xs[range.cols.lowerBound],
-                              y: CGFloat(range.rows.lowerBound) * metrics.rowHeight,
+                              y: CGFloat(top - 1) * metrics.rowHeight,
                               width: xs[range.cols.upperBound + 1] - xs[range.cols.lowerBound],
-                              height: CGFloat(range.rows.count) * metrics.rowHeight)
+                              height: CGFloat(range.rows.upperBound - top + 1) * metrics.rowHeight)
             NSColor.controlAccentColor.setStroke()
             let path = NSBezierPath(rect: rect.insetBy(dx: 0.75, dy: 0.75))
             path.lineWidth = 1.5
@@ -308,14 +326,14 @@ final class SpreadsheetBodyView: NSView, NSTextFieldDelegate {
 
     private func cell(at point: CGPoint) -> CellRef? {
         guard let col = metrics.columnAt(point.x) else { return nil }
-        let row = Int(point.y / metrics.rowHeight)
-        guard row >= 0, row < cells.count else { return nil }
+        let row = Int(point.y / metrics.rowHeight) + 1     // row 0 is the header view's
+        guard row >= 1, row < cells.count else { return nil }
         return CellRef(row: row, col: col)
     }
 
     private func clampedCell(at point: CGPoint) -> CellRef {
         let col = metrics.columnAt(min(max(point.x, 0), max(metrics.totalWidth - 1, 0))) ?? 0
-        let row = min(max(Int(point.y / metrics.rowHeight), 0), max(cells.count - 1, 0))
+        let row = min(max(Int(point.y / metrics.rowHeight) + 1, 1), max(cells.count - 1, 1))
         return CellRef(row: row, col: col)
     }
 
@@ -406,12 +424,12 @@ final class SpreadsheetBodyView: NSView, NSTextFieldDelegate {
         let base = shift ? (selection.extent ?? anchor) : anchor
 
         func move(_ dr: Int, _ dc: Int) {
-            let next = CellRef(row: min(max(base.row + dr, 0), cells.count - 1),
+            let next = CellRef(row: min(max(base.row + dr, 1), cells.count - 1),
                                col: min(max(base.col + dc, 0), metrics.widths.count - 1))
             if shift { selection.extent = next } else { selection.anchor = next; selection.extent = nil }
             needsDisplay = true
             onSelectionChanged?()
-            scrollToVisible(metrics.rect(row: next.row, col: next.col).insetBy(dx: -8, dy: -8))
+            scrollToVisible(rect(modelRow: next.row, col: next.col).insetBy(dx: -8, dy: -8))
         }
 
         switch event.keyCode {
@@ -452,7 +470,7 @@ final class SpreadsheetBodyView: NSView, NSTextFieldDelegate {
         commitEditing()
         guard ref.row < cells.count, ref.col < cells[ref.row].count,
               ref.col < metrics.widths.count else { return }
-        let rect = metrics.rect(row: ref.row, col: ref.col)
+        let rect = rect(modelRow: ref.row, col: ref.col)
         let field = NSTextField(frame: rect.insetBy(dx: 1, dy: 1))
         field.stringValue = seed ?? cells[ref.row][ref.col].text
         field.font = NSFont.systemFont(ofSize: 12)
@@ -487,12 +505,12 @@ final class SpreadsheetBodyView: NSView, NSTextFieldDelegate {
         editing = nil
         onCommit?(ref.row, ref.col, text)
         if let step, let selection {
-            let next = CellRef(row: min(max(ref.row + step.0, 0), cells.count - 1),
+            let next = CellRef(row: min(max(ref.row + step.0, 1), cells.count - 1),
                                col: min(max(ref.col + step.1, 0), metrics.widths.count - 1))
             selection.anchor = next
             selection.extent = nil
             onSelectionChanged?()
-            scrollToVisible(metrics.rect(row: next.row, col: next.col).insetBy(dx: -8, dy: -8))
+            scrollToVisible(rect(modelRow: next.row, col: next.col).insetBy(dx: -8, dy: -8))
         }
         window?.makeFirstResponder(self)
         needsDisplay = true
@@ -540,6 +558,12 @@ final class SpreadsheetHeaderView: NSView {
     var onWidthChanged: ((Int, CGFloat) -> Void)?
     var onSelectHeader: ((Int, Bool) -> Void)?
 
+    /// Horizontal scroll offset, mirrored from the clip view so the header
+    /// tracks the columns while staying pinned vertically.
+    var scrollOffsetX: CGFloat = 0 {
+        didSet { bounds.origin.x = scrollOffsetX; needsDisplay = true }
+    }
+
     private var dragColumn: Int?
     private var dragStartX: CGFloat = 0
     private var dragStartWidth: CGFloat = 0
@@ -550,10 +574,12 @@ final class SpreadsheetHeaderView: NSView {
     override func draw(_ dirtyRect: NSRect) {
         GridStyle.headerFill.setFill()
         dirtyRect.fill()
+        // Bounds are shifted by the scroll offset, so drawing in "content"
+        // coordinates lines the header up with the columns below it.
         let range = selection?.range(rows: max(cells.count, 1), cols: metrics.widths.count)
         for c in cells.indices where c < metrics.widths.count {
             var rect = metrics.rect(row: 0, col: c)
-            rect.origin.y = 0
+            rect.origin.y = bounds.origin.y
             rect.size.height = bounds.height
             let selected = range.map { $0.rows.contains(0) && $0.cols.contains(c) } ?? false
             GridStyle.draw(cells[c], in: rect, isHeader: true, selected: selected)
@@ -563,7 +589,7 @@ final class SpreadsheetHeaderView: NSView {
         NSColor.separatorColor.setStroke()
         let rule = NSBezierPath()
         rule.lineWidth = 1
-        rule.move(to: CGPoint(x: 0, y: bounds.maxY - 0.5))
+        rule.move(to: CGPoint(x: bounds.minX, y: bounds.maxY - 0.5))
         rule.line(to: CGPoint(x: bounds.maxX, y: bounds.maxY - 0.5))
         rule.stroke()
     }
@@ -572,7 +598,7 @@ final class SpreadsheetHeaderView: NSView {
         discardCursorRects()
         guard resizable else { return }
         for b in metrics.offsets.dropFirst() {
-            addCursorRect(CGRect(x: b - 4, y: 0, width: 8, height: bounds.height),
+            addCursorRect(CGRect(x: b - 4, y: bounds.origin.y, width: 8, height: bounds.height),
                           cursor: .resizeLeftRight)
         }
     }
@@ -616,31 +642,22 @@ struct SpreadsheetGrid: NSViewRepresentable {
     /// text, so rows/columns can't be added, removed, or typed into.
     var structureEditable: Bool = true
 
-    private static let headerHeight: CGFloat = 26
+    static let headerHeight: CGFloat = 26
 
-    func makeNSView(context: Context) -> NSScrollView {
-        let scroll = NSScrollView()
-        scroll.hasVerticalScroller = true
-        scroll.hasHorizontalScroller = true
-        scroll.autohidesScrollers = true
-        scroll.drawsBackground = true
-        scroll.backgroundColor = .textBackgroundColor
-        scroll.borderType = .noBorder
-
-        let body = SpreadsheetBodyView(frame: .zero)
-        scroll.documentView = body
-
-        let header = SpreadsheetHeaderView(frame: .zero)
-        scroll.addFloatingSubview(header, for: .vertical)
-
-        context.coordinator.scroll = scroll
-        context.coordinator.body = body
-        context.coordinator.header = header
+    func makeNSView(context: Context) -> SpreadsheetContainerView {
+        let container = SpreadsheetContainerView(frame: .zero)
+        context.coordinator.scroll = container.scroll
+        context.coordinator.body = container.body
+        context.coordinator.header = container.header
+        container.onLayout = { [weak coordinator = context.coordinator] in
+            coordinator?.sync()
+        }
         context.coordinator.attach(self)
-        return scroll
+        context.coordinator.sync()
+        return container
     }
 
-    func updateNSView(_ scroll: NSScrollView, context: Context) {
+    func updateNSView(_ container: SpreadsheetContainerView, context: Context) {
         context.coordinator.attach(self)
         context.coordinator.sync()
     }
@@ -816,12 +833,63 @@ struct SpreadsheetGrid: NSViewRepresentable {
             body.frame = CGRect(origin: .zero,
                                 size: CGSize(width: max(size.width, scroll.contentSize.width),
                                              height: max(size.height, scroll.contentSize.height)))
-            header.frame = CGRect(x: 0, y: 0,
-                                  width: max(metrics.totalWidth, scroll.contentSize.width),
-                                  height: SpreadsheetGrid.headerHeight)
             body.needsDisplay = true
             header.needsDisplay = true
             scroll.window?.invalidateCursorRects(for: header)
         }
+    }
+}
+
+
+// MARK: - SpreadsheetContainerView
+
+/// Stacks the pinned header above the scrolling body and keeps the two
+/// horizontally in step.
+final class SpreadsheetContainerView: NSView {
+
+    let header = SpreadsheetHeaderView(frame: .zero)
+    let scroll = NSScrollView(frame: .zero)
+    let body = SpreadsheetBodyView(frame: .zero)
+
+    /// Called after every layout so the grid can recompute default column
+    /// widths against the new visible width.
+    var onLayout: (() -> Void)?
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        scroll.hasVerticalScroller = true
+        scroll.hasHorizontalScroller = true
+        scroll.autohidesScrollers = true
+        scroll.drawsBackground = true
+        scroll.backgroundColor = .textBackgroundColor
+        scroll.borderType = .noBorder
+        scroll.documentView = body
+        addSubview(header)
+        addSubview(scroll)
+
+        // Mirror the horizontal scroll offset into the header's own bounds.
+        scroll.contentView.postsBoundsChangedNotifications = true
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(clipBoundsChanged),
+            name: NSView.boundsDidChangeNotification, object: scroll.contentView)
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) unavailable") }
+
+    deinit { NotificationCenter.default.removeObserver(self) }
+
+    @objc private func clipBoundsChanged() {
+        header.scrollOffsetX = scroll.contentView.bounds.origin.x
+    }
+
+    override var isFlipped: Bool { true }
+
+    override func layout() {
+        super.layout()
+        let h = SpreadsheetGrid.headerHeight
+        header.frame = CGRect(x: 0, y: 0, width: bounds.width, height: h)
+        scroll.frame = CGRect(x: 0, y: h, width: bounds.width, height: max(bounds.height - h, 0))
+        header.scrollOffsetX = scroll.contentView.bounds.origin.x
+        onLayout?()
     }
 }
