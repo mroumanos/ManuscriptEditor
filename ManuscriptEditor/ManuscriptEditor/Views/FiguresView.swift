@@ -28,6 +28,8 @@ struct FiguresView: View {
 
     /// UUID of the selected figure.
     @State private var selectedID: UUID?
+    /// Thumbnail being dragged to a new position.
+    @State private var draggingID: UUID?
 
     /// Display numbers follow reference order (first-referenced = Figure 1),
     /// like bibliography citations; unreferenced figures follow after.
@@ -73,6 +75,27 @@ struct FiguresView: View {
                                     onTap: { selectedID = figure.id },
                                     onDelete: { deleteFigure(figure) }
                                 )
+                                // Drag a thumbnail to reorder; referenced
+                                // figures keep their citation-order numbers
+                                // (a dragged one snaps back).
+                                .onDrag {
+                                    draggingID = figure.id
+                                    return NSItemProvider(object: figure.id.uuidString as NSString)
+                                }
+                                .onDrop(of: [UTType.text], delegate: FigureGridDropDelegate(
+                                    targetID: figure.id,
+                                    draggingID: $draggingID,
+                                    move: { dragged, target in
+                                        guard let from = figures.firstIndex(where: { $0.id == dragged }),
+                                              let to = figures.firstIndex(where: { $0.id == target }),
+                                              from != to else { return }
+                                        withAnimation(.easeInOut(duration: 0.15)) {
+                                            store.moveFigures(from: IndexSet(integer: from),
+                                                              to: to > from ? to + 1 : to,
+                                                              ref: versionRef)
+                                        }
+                                    }
+                                ))
                             }
 
                             Button {
@@ -126,6 +149,27 @@ struct FiguresView: View {
         if selectedID == figure.id {
             selectedID = figures.first(where: { $0.id != figure.id })?.id
         }
+    }
+}
+
+// MARK: - FigureGridDropDelegate
+
+/// Move-on-hover drop delegate for the thumbnail grid reorder.
+private struct FigureGridDropDelegate: DropDelegate {
+    let targetID: UUID
+    @Binding var draggingID: UUID?
+    let move: (_ dragged: UUID, _ target: UUID) -> Void
+
+    func dropEntered(info: DropInfo) {
+        guard let draggingID, draggingID != targetID else { return }
+        move(draggingID, targetID)
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? { DropProposal(operation: .move) }
+
+    func performDrop(info: DropInfo) -> Bool {
+        draggingID = nil
+        return true
     }
 }
 

@@ -86,6 +86,11 @@ struct TablesView: View {
                         .padding(.vertical, 3)
                         .tag(table.id)
                     }
+                    // Drag to reorder; referenced tables keep their
+                    // citation-order numbers (a dragged one snaps back).
+                    .onMove { source, destination in
+                        store.moveTables(from: source, to: destination, ref: versionRef)
+                    }
                 }
                 .listStyle(.plain)
                 .scrollContentBackground(.hidden)

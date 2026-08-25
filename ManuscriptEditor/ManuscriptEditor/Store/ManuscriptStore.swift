@@ -736,6 +736,41 @@ final class ManuscriptStore {
         touch(ref) { $0.bibliography.move(fromOffsets: source, toOffset: destination) }
     }
 
+    /// Reorders figures in DISPLAY order (drag): every figure's `number`
+    /// is rewritten to its new position.  Display numbering still pins
+    /// REFERENCED figures to citation order — like cited bibliography
+    /// entries, a dragged referenced figure snaps back.
+    func moveFigures(from source: IndexSet, to destination: Int, ref: VersionRef = .source) {
+        touch(ref, undoAction: "Reorder Figures") { m in
+            let numbers = RefEngine.effectiveFigureNumbers(in: m)
+            var ordered = m.figures.sorted {
+                (numbers[$0.id] ?? $0.number) < (numbers[$1.id] ?? $1.number)
+            }
+            ordered.move(fromOffsets: source, toOffset: destination)
+            for (i, figure) in ordered.enumerated() {
+                if let idx = m.figures.firstIndex(where: { $0.id == figure.id }) {
+                    m.figures[idx].number = i + 1
+                }
+            }
+        }
+    }
+
+    /// Reorders tables in DISPLAY order — same rule as figures.
+    func moveTables(from source: IndexSet, to destination: Int, ref: VersionRef = .source) {
+        touch(ref, undoAction: "Reorder Tables") { m in
+            let numbers = RefEngine.effectiveTableNumbers(in: m)
+            var ordered = m.tables.sorted {
+                (numbers[$0.id] ?? $0.number) < (numbers[$1.id] ?? $1.number)
+            }
+            ordered.move(fromOffsets: source, toOffset: destination)
+            for (i, table) in ordered.enumerated() {
+                if let idx = m.tables.firstIndex(where: { $0.id == table.id }) {
+                    m.tables[idx].number = i + 1
+                }
+            }
+        }
+    }
+
     // MARK: Citations in text
     //
     // In-text references are link-attributed tokens inserted by the editor's
