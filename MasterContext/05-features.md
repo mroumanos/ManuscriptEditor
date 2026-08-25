@@ -423,7 +423,25 @@ propagate by explicit, individual fast-forwards.
   Article" (3500 words / 180-word structured abstract / 4 tables+figures
   combined / 35 refs) and AJPH "Research Brief" (1200 words / 1 table OR
   figure / 12 refs), each with a checklist distilled from the published
-  author instructions. **Checks split technical from manual** (Aug 2026):
+  author instructions.
+  **Configurable checks** (Aug 2026): alongside the requirement-derived
+  checks — which stay, because they know how to repair themselves (the
+  typography Fix) and they seed the export — a journal carries
+  **user-written rules** (`Journal.checkRules`) in a small vocabulary:
+  **LENGTH (words|characters) · COUNT · EXISTS · CONTAINS**, compared with
+  **≤ ≥ = ≠**, over a **scope** (title, subtitle, abstract, keywords,
+  authors, the whole body, one named section, figures, tables, references,
+  cover letter). Conditions join with **ALL (and)** or **ANY (or)**, so
+  "Methods exists AND ≤ 400 words" and "either a Limitations or a
+  Discussion section" both express directly. The editor lives behind
+  **Checks → Edit Checks…**, so it surfaces only for people refining a
+  profile; a rule can be disabled without deleting it and can carry
+  guidance shown on failure. **Sections show their own status**: every
+  condition names a scope, so a failing rule marks the panes it covers
+  (`ChecklistService.scopeStatus`) and the sidebar puts a red marker on
+  that section — an exceeded word limit is visible where the writing is,
+  not only in Checks.
+  **Checks split technical from manual** (Aug 2026):
   measurable rules live in typed `JournalRequirements` fields checked
   automatically — cover-letter word cap, combined tables+figures cap,
   required section *titles* ("Public Health Implications": active +
