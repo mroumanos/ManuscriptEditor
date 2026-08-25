@@ -199,9 +199,6 @@ struct TableEditor: View {
                         ManualTableGrid(cells: Binding(
                             get: { ManuscriptTable.styledGrid(result: previewResult, overlay: draft.cells) },
                             set: { draft.cells = $0 }
-                        ), columnWidths: Binding(
-                            get: { draft.columnWidths },
-                            set: { draft.columnWidths = $0 }
                         ), structureEditable: false)
                     }
                 } else {
@@ -220,9 +217,6 @@ struct TableEditor: View {
                             draft.cells = grid
                             draft.content = ManuscriptTable.markdown(from: grid)
                         }
-                    ), columnWidths: Binding(
-                        get: { draft.columnWidths },
-                        set: { draft.columnWidths = $0 }
                     ))
                 }
             }
@@ -257,7 +251,7 @@ struct TableEditor: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     } else {
-                        Text("Autofit off — the export fills the table width using the ratios of the column widths you drag in the grid above.")
+                        Text("Autofit off — columns share the table width equally (per-column width dragging is temporarily removed while a hit-testing bug is isolated).")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -453,10 +447,6 @@ struct TableEditor: View {
 /// right illuminate a "+" to add a row or column.  Row 0 is the header.
 struct ManualTableGrid: View {
     @Binding var cells: [[TableCell]]
-    /// Editor-adjusted column widths in points (drag the divider under a
-    /// column boundary).  nil entries fall back to the default width; the
-    /// export uses the RATIOS when autofit is off.
-    @Binding var columnWidths: [Double]?
     /// false = CSV-backed styling mode: the shape and text come from the
     /// data (no gutters, add bars, reordering, or cell editing) — only the
     /// formatting toolbar and selection remain.
@@ -472,9 +462,6 @@ struct ManualTableGrid: View {
     /// Local keyDown monitor for arrow-key selection (installed while the
     /// grid is on screen).
     @State private var keyMonitor: Any?
-    /// Column-divider drag in flight.
-    @State private var resizingCol: Int?
-    @State private var resizeBase: CGFloat?
 
     @State private var hover: CellID?
     @State private var hoverBottomBar = false
@@ -495,10 +482,7 @@ struct ManualTableGrid: View {
     private var rowCount: Int { cells.count }
     private var colCount: Int { cells.first?.count ?? 0 }
 
-    private func colW(_ c: Int) -> CGFloat {
-        guard let widths = columnWidths, widths.indices.contains(c), widths[c] > 0 else { return cellW }
-        return CGFloat(widths[c])
-    }
+    private func colW(_ c: Int) -> CGFloat { cellW }
 
     /// x-offset of each column's leading edge (index colCount = grid width).
     private var colX: [CGFloat] {
@@ -595,15 +579,6 @@ struct ManualTableGrid: View {
             .keyboardShortcut("e", modifiers: .command)
             .frame(width: 0)
             .opacity(0)
-
-            Divider().frame(height: 16).padding(.horizontal, 4)
-
-            Button {
-                fitColumnsToContent()
-            } label: {
-                Image(systemName: "arrow.left.and.right.text.vertical")
-            }
-            .help("Fit columns to their widest value (then adjust by dragging the dividers)")
 
             Spacer()
             Text(structureEditable
@@ -819,10 +794,6 @@ struct ManualTableGrid: View {
         for r in cells.indices where cells[r].indices.contains(c) {
             cells[r].remove(at: c)
         }
-        if var widths = columnWidths, widths.indices.contains(c) {
-            widths.remove(at: c)
-            columnWidths = widths
-        }
         anchor = nil; extent = nil; editingCell = nil
     }
 
@@ -863,11 +834,6 @@ struct ManualTableGrid: View {
                     for r in cells.indices where cells[r].indices.contains(m.current) {
                         cells[r].move(fromOffsets: IndexSet(integer: m.current),
                                       toOffset: target > m.current ? target + 1 : target)
-                    }
-                    if var widths = columnWidths, widths.indices.contains(m.current) {
-                        widths.move(fromOffsets: IndexSet(integer: m.current),
-                                    toOffset: target > m.current ? target + 1 : target)
-                        columnWidths = widths
                     }
                     m.current = target
                     movingCol = m
@@ -917,7 +883,7 @@ struct ManualTableGrid: View {
                                 onPress: { c, start, now in press(row: r, col: c, from: start, to: now) },
                                 onDoubleClick: { c in beginEditing(row: r, col: c) },
                                 onHoverCell: { c in
-                                    guard movingRow == nil, movingCol == nil, resizingCol == nil else { return }
+                                    guard movingRow == nil, movingCol == nil else { return }
                                     let cell = CellID(r: r, c: c)
                                     if hover != cell { hover = cell }
                                 })
@@ -926,7 +892,6 @@ struct ManualTableGrid: View {
             }
 
             selectionOverlay
-            columnDividers
         }
         .onAppear { installKeyMonitor() }
         .onDisappear {
@@ -957,7 +922,6 @@ struct ManualTableGrid: View {
     /// after a resize changed the scroll view's content size (and it
     /// "healed" on scroll or reopen because both force a fresh layout).
     private func press(row: Int, col: Int, from start: CGPoint, to now: CGPoint) {
-        if resizingCol != nil { return }
         let pressed = CellID(r: row, c: col)
         let moved = abs(now.x - start.x) > 3 || abs(now.y - start.y) > 3
         if !moved {
@@ -1015,62 +979,6 @@ struct ManualTableGrid: View {
                         y: CGFloat(sel.rows.lowerBound) * (cellH + gap))
                 .allowsHitTesting(false)
         }
-    }
-
-    /// Draggable dividers on the column boundaries (over the header row):
-    /// drag to set that column's width; the ratios drive the export when
-    /// autofit is off.
-    private var columnDividers: some View {
-        let xs = colX
-        return ZStack(alignment: .topLeading) {
-            ForEach(0..<colCount, id: \.self) { c in
-                Rectangle()
-                    .fill(Color.clear)
-                    .frame(width: 11, height: cellH)
-                    .contentShape(Rectangle())
-                    .overlay(Rectangle()
-                        .fill(Color.secondary.opacity(resizingCol == c ? 0.7 : 0.25))
-                        .frame(width: resizingCol == c ? 2 : 1))
-                    .offset(x: xs[c + 1] - gap / 2 - 5.5, y: 0)
-                    .gesture(
-                        DragGesture(minimumDistance: 1, coordinateSpace: .global)
-                            .onChanged { value in
-                                if resizingCol == nil {
-                                    resizingCol = c
-                                    resizeBase = colW(c)
-                                }
-                                guard resizingCol == c, let base = resizeBase else { return }
-                                var widths = columnWidths ?? (0..<colCount).map { Double(colW($0)) }
-                                while widths.count < colCount { widths.append(Double(cellW)) }
-                                // Screen-space delta = actual mouse travel.
-                                // A local (or scroll-view) space slides as
-                                // the column grows and the content resizes,
-                                // feeding the drag back on itself.
-                                let delta = value.location.x - value.startLocation.x
-                                widths[c] = Double(min(max(base + delta, 50), 480))
-                                columnWidths = widths
-                            }
-                            .onEnded { _ in
-                                NSCursor.arrow.set()
-                                // Clear a runloop tick late: the simultaneous
-                                // selection gesture can still deliver a final
-                                // onChanged after this, and it must still see
-                                // a resize in progress.
-                                let finished = resizingCol
-                                DispatchQueue.main.async {
-                                    if resizingCol == finished {
-                                        resizingCol = nil
-                                        resizeBase = nil
-                                    }
-                                }
-                            }
-                    )
-                    .onHover { inside in
-                        if inside { NSCursor.resizeLeftRight.set() } else { NSCursor.arrow.set() }
-                    }
-            }
-        }
-        .frame(width: gridW, height: cellH, alignment: .topLeading)
     }
 
     /// Point → cell, used only by the key monitor's bounds checks now that
@@ -1153,24 +1061,6 @@ struct ManualTableGrid: View {
         }
         cells = grid
         extent = CellID(r: origin.r + matrix.count - 1, c: origin.c + blockCols - 1)
-    }
-
-    /// Sizes every column to its widest cell as displayed in the grid —
-    /// most tables then need only a drag or two.
-    private func fitColumnsToContent() {
-        guard colCount > 0 else { return }
-        var widths: [Double] = []
-        for c in 0..<colCount {
-            var w: CGFloat = 40
-            for r in cells.indices where cells[r].indices.contains(c) {
-                let cell = cells[r][c]
-                let font = NSFont.systemFont(ofSize: 12,
-                                             weight: (cell.bold ?? (r == 0)) ? .semibold : .regular)
-                w = max(w, (cell.text as NSString).size(withAttributes: [.font: font]).width)
-            }
-            widths.append(Double(min(max(w + 18, 50), 480)))
-        }
-        columnWidths = widths
     }
 
     static func highlightColor(_ name: String?) -> Color {
