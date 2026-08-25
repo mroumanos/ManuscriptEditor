@@ -1,0 +1,80 @@
+{
+  "articleType": null,
+  "checks": [
+    {
+      "combinator": "ALL",
+      "conditions": [
+        {
+          "comparator": "<=",
+          "metric": "LENGTH_WORDS",
+          "number": 300,
+          "scopes": [
+            {
+              "kind": "abstract"
+            }
+          ]
+        }
+      ],
+      "name": "Abstract \u2264 300 words"
+    },
+    {
+      "combinator": "ALL",
+      "conditions": [
+        {
+          "metric": "EXISTS",
+          "scopes": [
+            {
+              "kind": "section",
+              "name": "Introduction"
+            },
+            {
+              "kind": "section",
+              "name": "Methods"
+            },
+            {
+              "kind": "section",
+              "name": "Results"
+            },
+            {
+              "kind": "section",
+              "name": "Discussion"
+            }
+          ]
+        }
+      ],
+      "name": "Required sections present"
+    },
+    {
+      "conditions": [],
+      "manual": true,
+      "name": "Data availability statement required",
+      "note": "Tick once verified by hand"
+    },
+    {
+      "conditions": [],
+      "manual": true,
+      "name": "Ethics approval statement required for human/animal studies",
+      "note": "Tick once verified by hand"
+    },
+    {
+      "conditions": [],
+      "manual": true,
+      "name": "ORCID iD recommended for all authors",
+      "note": "Tick once verified by hand"
+    },
+    {
+      "conditions": [],
+      "manual": true,
+      "name": "Figures must be high-resolution (\u2265300 DPI) separate files",
+      "note": "Tick once verified by hand"
+    }
+  ],
+  "id": "plos-one",
+  "name": "PLOS ONE",
+  "origin": "bundled",
+  "originURL": "https://github.com/mroumanos/ManuscriptEditor/blob/main/JournalProfiles/plos-one.json",
+  "sourceRequirements": {
+    "summary": "PLOS ONE places no limit on length, figures, or supporting information \u2014 acceptance turns on methodological rigour rather than novelty \u2014 but the abstract is capped and unstructured.\n\nDistilled requirements: No body word limit; abstract up to 300 words; required sections: Introduction, Methods, Results, Discussion; Vancouver citation style.\n\nAlso required: Data availability statement required; Ethics approval statement required for human/animal studies; ORCID iD recommended for all authors; Figures must be high-resolution (\u2265300 DPI) separate files.\n\nThis summary is the app's distillation \u2014 open the author instructions above to confirm against the journal's current text.",
+    "url": "https://journals.plos.org/plosone/s/submission-guidelines"
+  }
+}

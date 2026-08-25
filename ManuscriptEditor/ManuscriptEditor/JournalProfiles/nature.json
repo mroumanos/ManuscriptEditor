@@ -1,0 +1,122 @@
+{
+  "articleType": null,
+  "checks": [
+    {
+      "combinator": "ALL",
+      "conditions": [
+        {
+          "comparator": "<=",
+          "metric": "LENGTH_WORDS",
+          "number": 3000,
+          "scopes": [
+            {
+              "kind": "body"
+            }
+          ]
+        }
+      ],
+      "name": "Body \u2264 3,000 words"
+    },
+    {
+      "combinator": "ALL",
+      "conditions": [
+        {
+          "comparator": "<=",
+          "metric": "LENGTH_WORDS",
+          "number": 150,
+          "scopes": [
+            {
+              "kind": "abstract"
+            }
+          ]
+        }
+      ],
+      "name": "Abstract \u2264 150 words"
+    },
+    {
+      "combinator": "ALL",
+      "conditions": [
+        {
+          "comparator": "<=",
+          "metric": "COUNT",
+          "number": 6,
+          "scopes": [
+            {
+              "kind": "figures"
+            }
+          ]
+        }
+      ],
+      "name": "Figures \u2264 6"
+    },
+    {
+      "combinator": "ALL",
+      "conditions": [
+        {
+          "comparator": "<=",
+          "metric": "COUNT",
+          "number": 30,
+          "scopes": [
+            {
+              "kind": "references"
+            }
+          ]
+        }
+      ],
+      "name": "References \u2264 30"
+    },
+    {
+      "combinator": "ALL",
+      "conditions": [
+        {
+          "metric": "EXISTS",
+          "scopes": [
+            {
+              "kind": "section",
+              "name": "Introduction"
+            },
+            {
+              "kind": "section",
+              "name": "Methods"
+            },
+            {
+              "kind": "section",
+              "name": "Results"
+            },
+            {
+              "kind": "section",
+              "name": "Discussion"
+            }
+          ]
+        }
+      ],
+      "name": "Required sections present"
+    },
+    {
+      "conditions": [],
+      "manual": true,
+      "name": "Cover letter required",
+      "note": "Tick once verified by hand"
+    },
+    {
+      "conditions": [],
+      "manual": true,
+      "name": "No subheadings within the Abstract",
+      "note": "Tick once verified by hand"
+    },
+    {
+      "conditions": [],
+      "manual": true,
+      "name": "Online Methods appended after references (not counted in word limit)",
+      "note": "Tick once verified by hand"
+    }
+  ],
+  "id": "nature",
+  "name": "Nature",
+  "origin": "bundled",
+  "originURL": "https://github.com/mroumanos/ManuscriptEditor/blob/main/JournalProfiles/nature.json",
+  "sourceRequirements": {
+    "summary": "Nature publishes short, high-impact reports for a broad scientific readership; Methods are appended after the references and don't count toward the body limit.\n\nDistilled requirements: Body up to 3,000 words; abstract up to 150 words; up to 6 figures; up to 30 references; required sections: Introduction, Methods, Results, Discussion; Vancouver citation style.\n\nAlso required: Cover letter required; No subheadings within the Abstract; Online Methods appended after references (not counted in word limit).\n\nThis summary is the app's distillation \u2014 open the author instructions above to confirm against the journal's current text.",
+    "url": "https://www.nature.com/nature/for-authors/formatting-guide"
+  }
+}

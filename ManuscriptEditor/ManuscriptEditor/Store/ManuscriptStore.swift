@@ -148,6 +148,7 @@ final class ManuscriptStore {
         if let m = manuscript {
             resolveBookmarkIfNeeded(for: m)
             persistence.markOpened(id: m.id)
+            seedProfiles()
         }
     }
 
@@ -924,6 +925,35 @@ final class ManuscriptStore {
         }
         updateExportConfig(config, forJournal: journalID)
         showBanner(.success, "Export typography aligned with \(journal.displayName)'s requirements.")
+    }
+
+    /// Fills a journal's source requirements and checks from the profile
+    /// shipped with the app, when it doesn't have its own yet.  Called on
+    /// add and on open, so an existing manuscript picks up the profiles
+    /// without any migration step.
+    func seedProfileIfNeeded(journalID: UUID) {
+        guard let m = manuscript,
+              let journal = m.journals.first(where: { $0.id == journalID }),
+              (journal.checkRules ?? []).isEmpty,
+              journal.configOrigin != .manuscript,
+              let profile = JournalProfile.bundled(name: journal.name,
+                                                   articleType: journal.articleType)
+        else { return }
+        touch(undoable: false) { m in
+            guard let idx = m.journals.firstIndex(where: { $0.id == journalID }) else { return }
+            m.journals[idx].checkRules = profile.checks
+            m.journals[idx].sourceRequirements = profile.sourceRequirements
+            m.journals[idx].configOrigin = .bundled
+            m.journals[idx].configURL = profile.originURL
+        }
+    }
+
+    /// Seeds every journal that still needs it (called after a manuscript
+    /// opens).
+    func seedProfiles() {
+        for journal in manuscript?.journals ?? [] {
+            seedProfileIfNeeded(journalID: journal.id)
+        }
     }
 
     /// Edits a journal's source-requirements summary/link.  The first edit

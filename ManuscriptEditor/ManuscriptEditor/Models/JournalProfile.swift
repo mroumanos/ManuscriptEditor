@@ -110,10 +110,55 @@ struct JournalProfile: Codable, Identifiable, Sendable, Equatable {
             .joined(separator: "-")
     }
 
-    /// The canonical GitHub link for a bundled profile.
+    /// The canonical GitHub link for a bundled profile.  The files live in
+    /// the app target so they ship in the bundle AND stay readable on
+    /// GitHub — one copy, no drift.
+    static let bundledFolder = "JournalProfiles"
+
     static func bundledURL(slug: String) -> String {
-        "https://github.com/mroumanos/ManuscriptEditor/blob/main/JournalProfiles/\(slug).json"
+        "https://github.com/mroumanos/ManuscriptEditor/blob/main/ManuscriptEditor/ManuscriptEditor/JournalProfiles/\(slug).json"
     }
+
+    /// Every profile shipped with the app, keyed by slug.
+    ///
+    /// The synchronized-folder build phase flattens resources into
+    /// `Contents/Resources`, so the `JournalProfiles/` subdirectory may or
+    /// may not survive — look in both places and take whichever has files.
+    /// A JSON that isn't a profile simply fails to decode and is skipped.
+    static func bundled(in bundle: Bundle = .containingCode) -> [String: JournalProfile] {
+        let inFolder = bundle.urls(forResourcesWithExtension: "json",
+                                   subdirectory: bundledFolder) ?? []
+        let flat = bundle.urls(forResourcesWithExtension: "json", subdirectory: nil) ?? []
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        var out: [String: JournalProfile] = [:]
+        for url in inFolder + flat {
+            guard let data = try? Data(contentsOf: url),
+                  let profile = try? decoder.decode(JournalProfile.self, from: data),
+                  !profile.name.isEmpty
+            else { continue }
+            out[profile.id] = profile
+        }
+        return out
+    }
+
+    /// The profile shipped for a journal, if one exists.
+    static func bundled(name: String, articleType: String?) -> JournalProfile? {
+        bundled()[slug(name: name, articleType: articleType)]
+    }
+}
+
+// MARK: - Bundle lookup
+
+/// Anchors `Bundle(for:)` to the bundle holding this code.
+private final class BundleMarker {}
+
+extension Bundle {
+    /// The bundle that contains the app's code.  This is the app bundle when
+    /// running normally, and still the app bundle when the binary is loaded
+    /// by something else (a test harness), where `Bundle.main` would be the
+    /// host executable and carry no resources.
+    static let containingCode = Bundle(for: BundleMarker.self)
 }
 
 // MARK: - Subsections

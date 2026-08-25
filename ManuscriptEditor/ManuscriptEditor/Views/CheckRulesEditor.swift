@@ -8,8 +8,9 @@
 //     LENGTH (words) of Abstract  ≤  250
 //     EXISTS Discussion
 //
-// Rules live on the journal (`Journal.checkRules`) and evaluate alongside
-// the requirement-derived checks.  Every condition names a scope, which is
+// Rules live on the journal (`Journal.checkRules`), seeded from the profile
+// shipped with the app, and they are the WHOLE checklist — nothing shown in
+// Checks is unreachable from here.  Every condition names a scope, which is
 // what lets a failing rule color that pane in the sidebar.
 
 import SwiftUI

@@ -1,0 +1,138 @@
+{
+  "articleType": null,
+  "checks": [
+    {
+      "combinator": "ALL",
+      "conditions": [
+        {
+          "comparator": "<=",
+          "metric": "LENGTH_WORDS",
+          "number": 3000,
+          "scopes": [
+            {
+              "kind": "body"
+            }
+          ]
+        }
+      ],
+      "name": "Body \u2264 3,000 words"
+    },
+    {
+      "combinator": "ALL",
+      "conditions": [
+        {
+          "comparator": "<=",
+          "metric": "LENGTH_WORDS",
+          "number": 250,
+          "scopes": [
+            {
+              "kind": "abstract"
+            }
+          ]
+        }
+      ],
+      "name": "Abstract \u2264 250 words"
+    },
+    {
+      "combinator": "ALL",
+      "conditions": [
+        {
+          "comparator": "<=",
+          "metric": "COUNT",
+          "number": 4,
+          "scopes": [
+            {
+              "kind": "figures"
+            }
+          ]
+        }
+      ],
+      "name": "Figures \u2264 4"
+    },
+    {
+      "combinator": "ALL",
+      "conditions": [
+        {
+          "comparator": "<=",
+          "metric": "COUNT",
+          "number": 4,
+          "scopes": [
+            {
+              "kind": "tables"
+            }
+          ]
+        }
+      ],
+      "name": "Tables \u2264 4"
+    },
+    {
+      "combinator": "ALL",
+      "conditions": [
+        {
+          "comparator": "<=",
+          "metric": "COUNT",
+          "number": 60,
+          "scopes": [
+            {
+              "kind": "references"
+            }
+          ]
+        }
+      ],
+      "name": "References \u2264 60"
+    },
+    {
+      "combinator": "ALL",
+      "conditions": [
+        {
+          "metric": "EXISTS",
+          "scopes": [
+            {
+              "kind": "section",
+              "name": "Introduction"
+            },
+            {
+              "kind": "section",
+              "name": "Methods"
+            },
+            {
+              "kind": "section",
+              "name": "Results"
+            },
+            {
+              "kind": "section",
+              "name": "Discussion"
+            }
+          ]
+        }
+      ],
+      "name": "Required sections present"
+    },
+    {
+      "conditions": [],
+      "manual": true,
+      "name": "Structured abstract: Background, Methods, Findings, Interpretation, Funding",
+      "note": "Tick once verified by hand"
+    },
+    {
+      "conditions": [],
+      "manual": true,
+      "name": "Research in context panel required (Evidence before this study / Added value / Implications)",
+      "note": "Tick once verified by hand"
+    },
+    {
+      "conditions": [],
+      "manual": true,
+      "name": "Declaration of interests required for all authors",
+      "note": "Tick once verified by hand"
+    }
+  ],
+  "id": "the-lancet",
+  "name": "The Lancet",
+  "origin": "bundled",
+  "originURL": "https://github.com/mroumanos/ManuscriptEditor/blob/main/JournalProfiles/the-lancet.json",
+  "sourceRequirements": {
+    "summary": "Articles report original research of international importance, with a structured abstract and an explicit Research in context panel.\n\nDistilled requirements: Body up to 3,000 words; abstract up to 250 words; up to 4 figures; up to 4 tables; up to 60 references; required sections: Introduction, Methods, Results, Discussion; Vancouver citation style.\n\nAlso required: Structured abstract: Background, Methods, Findings, Interpretation, Funding; Research in context panel required (Evidence before this study / Added value / Implications); Declaration of interests required for all authors.\n\nThis summary is the app's distillation \u2014 open the author instructions above to confirm against the journal's current text.",
+    "url": "https://www.thelancet.com/for-authors"
+  }
+}

@@ -2,15 +2,19 @@
 //
 // Configurable submission checks.
 //
-// The built-in checks derive from `JournalRequirements` and are fixed: they
-// know how to repair themselves (the typography Fix), and they seed the
-// export.  This file adds the OTHER kind — rules the user writes, in a small
-// vocabulary that covers what journals actually ask for:
+// EVERY check the app runs is one of these — the ones shipped in a journal's
+// profile and the ones the user writes are the same thing, so anything the
+// checklist shows can be edited.  The vocabulary covers what journals
+// actually ask for:
 //
 //   LENGTH(words|characters) of a scope   ≤ ≥ = ≠   a number
 //   COUNT of a collection scope           ≤ ≥ = ≠   a number
 //   EXISTS a scope                        (with content)
 //   CONTAINS a scope                      some text
+//   FONT_SIZE / LINE_SPACING / LINE_NUMBERS of the export
+//
+// The format metrics read the journal's export configuration rather than the
+// prose, which is what lets a failing one offer the typography Fix.
 //
 // A rule is a list of conditions joined by ALL (and) or ANY (or), so
 // "Discussion ≤ 1500 words AND Discussion exists" or "either a Limitations
@@ -28,14 +32,21 @@ enum CheckMetric: String, Codable, CaseIterable, Sendable {
     case count      = "COUNT"
     case exists     = "EXISTS"
     case contains   = "CONTAINS"
+    // Export formatting, read from the journal's export configuration.
+    case fontSize    = "FONT_SIZE"
+    case lineSpacing = "LINE_SPACING"
+    case lineNumbers = "LINE_NUMBERS"
 
     var label: String {
         switch self {
-        case .words:      return "LENGTH (words)"
-        case .characters: return "LENGTH (characters)"
-        case .count:      return "COUNT"
-        case .exists:     return "EXISTS"
-        case .contains:   return "CONTAINS"
+        case .words:       return "LENGTH (words)"
+        case .characters:  return "LENGTH (characters)"
+        case .count:       return "COUNT"
+        case .exists:      return "EXISTS"
+        case .contains:    return "CONTAINS"
+        case .fontSize:    return "FONT SIZE (pt)"
+        case .lineSpacing: return "LINE SPACING (×)"
+        case .lineNumbers: return "LINE NUMBERS (1 = on)"
         }
     }
 
@@ -43,8 +54,17 @@ enum CheckMetric: String, Codable, CaseIterable, Sendable {
     /// nothing at all for EXISTS).
     var takesNumber: Bool {
         switch self {
-        case .words, .characters, .count: return true
-        case .exists, .contains:          return false
+        case .exists, .contains: return false
+        default:                 return true
+        }
+    }
+
+    /// Format metrics measure the EXPORT, not the prose, so they ignore the
+    /// scope picker and the app can repair them (the typography Fix).
+    var isFormat: Bool {
+        switch self {
+        case .fontSize, .lineSpacing, .lineNumbers: return true
+        default:                                    return false
         }
     }
 }
@@ -80,6 +100,7 @@ struct CheckScope: Codable, Hashable, Sendable {
         case body            // every active body section, together
         case section         // one body section, named
         case figures, tables, references, coverLetter
+        case export          // the journal's export configuration
 
         var label: String {
             switch self {
@@ -94,6 +115,7 @@ struct CheckScope: Codable, Hashable, Sendable {
             case .tables:      return "Tables"
             case .references:  return "References"
             case .coverLetter: return "Cover letter"
+            case .export:      return "Export format"
             }
         }
     }
@@ -173,6 +195,7 @@ struct CheckCondition: Codable, Identifiable, Sendable, Equatable {
     }
 
     var scopeLabel: String {
+        if metric.isFormat { return "Export" }
         let names = scopes.map(\.label)
         let base = names.count <= 2 ? names.joined(separator: " + ")
                                     : "\(names[0]) + \(names.count - 1) more"
@@ -184,6 +207,8 @@ struct CheckCondition: Codable, Identifiable, Sendable, Equatable {
         switch metric {
         case .exists:   return "\(scopeLabel) EXISTS"
         case .contains: return "\(scopeLabel) CONTAINS \"\(text)\""
+        case .lineNumbers:
+            return "Export line numbers \(number >= 1 ? "on" : "off")"
         default:
             let n = number.rounded() == number ? String(Int(number)) : String(number)
             return "\(scopeLabel) \(metric.label) \(comparator.label) \(n)"

@@ -1,0 +1,229 @@
+{
+  "articleType": "Research Brief",
+  "checks": [
+    {
+      "combinator": "ALL",
+      "conditions": [
+        {
+          "comparator": "<=",
+          "metric": "LENGTH_WORDS",
+          "number": 1200,
+          "scopes": [
+            {
+              "kind": "body"
+            }
+          ]
+        }
+      ],
+      "name": "Body \u2264 1,200 words"
+    },
+    {
+      "combinator": "ALL",
+      "conditions": [
+        {
+          "comparator": "<=",
+          "metric": "LENGTH_WORDS",
+          "number": 180,
+          "scopes": [
+            {
+              "kind": "abstract"
+            }
+          ]
+        }
+      ],
+      "name": "Abstract \u2264 180 words"
+    },
+    {
+      "combinator": "ALL",
+      "conditions": [
+        {
+          "comparator": "<=",
+          "metric": "COUNT",
+          "number": 1,
+          "scopes": [
+            {
+              "kind": "figures"
+            },
+            {
+              "kind": "tables"
+            }
+          ]
+        }
+      ],
+      "name": "Figures + tables \u2264 1"
+    },
+    {
+      "combinator": "ALL",
+      "conditions": [
+        {
+          "comparator": "<=",
+          "metric": "COUNT",
+          "number": 12,
+          "scopes": [
+            {
+              "kind": "references"
+            }
+          ]
+        }
+      ],
+      "name": "References \u2264 12"
+    },
+    {
+      "combinator": "ALL",
+      "conditions": [
+        {
+          "comparator": "<=",
+          "metric": "LENGTH_WORDS",
+          "number": 150,
+          "scopes": [
+            {
+              "kind": "coverLetter"
+            }
+          ]
+        }
+      ],
+      "name": "Cover letter \u2264 150 words"
+    },
+    {
+      "combinator": "ALL",
+      "conditions": [
+        {
+          "metric": "EXISTS",
+          "scopes": [
+            {
+              "kind": "section",
+              "name": "Introduction"
+            },
+            {
+              "kind": "section",
+              "name": "Methods"
+            },
+            {
+              "kind": "section",
+              "name": "Results"
+            },
+            {
+              "kind": "section",
+              "name": "Discussion"
+            }
+          ]
+        }
+      ],
+      "name": "Required sections present"
+    },
+    {
+      "combinator": "ALL",
+      "conditions": [
+        {
+          "metric": "CONTAINS",
+          "scopes": [
+            {
+              "kind": "body"
+            }
+          ],
+          "text": "Public Health Implications"
+        }
+      ],
+      "name": "\u201cPublic Health Implications\u201d section present",
+      "note": "Public Health Implications must appear as its own section"
+    },
+    {
+      "combinator": "ALL",
+      "conditions": [
+        {
+          "metric": "CONTAINS",
+          "scopes": [
+            {
+              "kind": "abstract"
+            }
+          ],
+          "text": "Objectives"
+        },
+        {
+          "metric": "CONTAINS",
+          "scopes": [
+            {
+              "kind": "abstract"
+            }
+          ],
+          "text": "Methods"
+        },
+        {
+          "metric": "CONTAINS",
+          "scopes": [
+            {
+              "kind": "abstract"
+            }
+          ],
+          "text": "Results"
+        },
+        {
+          "metric": "CONTAINS",
+          "scopes": [
+            {
+              "kind": "abstract"
+            }
+          ],
+          "text": "Conclusions"
+        }
+      ],
+      "name": "Structured abstract headings"
+    },
+    {
+      "combinator": "ALL",
+      "conditions": [
+        {
+          "comparator": "==",
+          "metric": "FONT_SIZE",
+          "number": 12.0,
+          "scopes": [
+            {
+              "kind": "export"
+            }
+          ]
+        }
+      ],
+      "name": "Export font size 12 pt"
+    },
+    {
+      "combinator": "ALL",
+      "conditions": [
+        {
+          "comparator": ">=",
+          "metric": "LINE_SPACING",
+          "number": 1.5,
+          "scopes": [
+            {
+              "kind": "export"
+            }
+          ]
+        }
+      ],
+      "name": "Export spacing \u2265 1.5\u00d7"
+    },
+    {
+      "combinator": "ALL",
+      "conditions": [
+        {
+          "comparator": "==",
+          "metric": "LINE_NUMBERS",
+          "number": 1,
+          "scopes": [
+            {
+              "kind": "export"
+            }
+          ]
+        }
+      ],
+      "name": "Continuous line numbers"
+    }
+  ],
+  "id": "american-journal-of-public-health-research-brief",
+  "name": "American Journal of Public Health",
+  "origin": "bundled",
+  "originURL": "https://github.com/mroumanos/ManuscriptEditor/blob/main/JournalProfiles/american-journal-of-public-health-research-brief.json",
+  "sourceRequirements": {
+    "summary": "AJPH Research Briefs are the short form of the Research Article, with the same structure and formatting but tighter limits.\n\nDistilled requirements: Body up to 1,200 words; abstract up to 180 words; at most 1 figures and tables combined; up to 12 references; cover letter up to 150 words; required sections: Introduction, Methods, Results, Discussion; a Public Health Implications section is required; structured abstract (Objectives/Methods/Results/Conclusions); formatted with 12-point type, 1.5\u00d7 line spacing, continuous line numbers; AMA citation style.\n\nThis summary is the app's distillation \u2014 open the author instructions above to confirm against the journal's current text.",
+    "url": "https://ajph.aphapublications.org/author-instructions"
+  }
+}

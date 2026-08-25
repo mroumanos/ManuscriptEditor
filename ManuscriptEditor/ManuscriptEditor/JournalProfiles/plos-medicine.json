@@ -1,0 +1,74 @@
+{
+  "articleType": null,
+  "checks": [
+    {
+      "combinator": "ALL",
+      "conditions": [
+        {
+          "comparator": "<=",
+          "metric": "LENGTH_WORDS",
+          "number": 300,
+          "scopes": [
+            {
+              "kind": "abstract"
+            }
+          ]
+        }
+      ],
+      "name": "Abstract \u2264 300 words"
+    },
+    {
+      "combinator": "ALL",
+      "conditions": [
+        {
+          "metric": "EXISTS",
+          "scopes": [
+            {
+              "kind": "section",
+              "name": "Introduction"
+            },
+            {
+              "kind": "section",
+              "name": "Methods"
+            },
+            {
+              "kind": "section",
+              "name": "Results"
+            },
+            {
+              "kind": "section",
+              "name": "Discussion"
+            }
+          ]
+        }
+      ],
+      "name": "Required sections present"
+    },
+    {
+      "conditions": [],
+      "manual": true,
+      "name": "Structured abstract (Background/Methods and Findings/Conclusions)",
+      "note": "Tick once verified by hand"
+    },
+    {
+      "conditions": [],
+      "manual": true,
+      "name": "Author Summary (non-technical) required",
+      "note": "Tick once verified by hand"
+    },
+    {
+      "conditions": [],
+      "manual": true,
+      "name": "Data availability statement required",
+      "note": "Tick once verified by hand"
+    }
+  ],
+  "id": "plos-medicine",
+  "name": "PLOS Medicine",
+  "origin": "bundled",
+  "originURL": "https://github.com/mroumanos/ManuscriptEditor/blob/main/JournalProfiles/plos-medicine.json",
+  "sourceRequirements": {
+    "summary": "PLOS Medicine publishes clinical and public-health research with an author-summary panel alongside the abstract.\n\nDistilled requirements: No body word limit; abstract up to 300 words; required sections: Introduction, Methods, Results, Discussion; Vancouver citation style.\n\nAlso required: Structured abstract (Background/Methods and Findings/Conclusions); Author Summary (non-technical) required; Data availability statement required.\n\nThis summary is the app's distillation \u2014 open the author instructions above to confirm against the journal's current text.",
+    "url": "https://journals.plos.org/plosmedicine/s/submission-guidelines"
+  }
+}

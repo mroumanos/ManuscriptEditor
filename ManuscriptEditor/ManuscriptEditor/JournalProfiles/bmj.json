@@ -1,0 +1,138 @@
+{
+  "articleType": null,
+  "checks": [
+    {
+      "combinator": "ALL",
+      "conditions": [
+        {
+          "comparator": "<=",
+          "metric": "LENGTH_WORDS",
+          "number": 3000,
+          "scopes": [
+            {
+              "kind": "body"
+            }
+          ]
+        }
+      ],
+      "name": "Body \u2264 3,000 words"
+    },
+    {
+      "combinator": "ALL",
+      "conditions": [
+        {
+          "comparator": "<=",
+          "metric": "LENGTH_WORDS",
+          "number": 250,
+          "scopes": [
+            {
+              "kind": "abstract"
+            }
+          ]
+        }
+      ],
+      "name": "Abstract \u2264 250 words"
+    },
+    {
+      "combinator": "ALL",
+      "conditions": [
+        {
+          "comparator": "<=",
+          "metric": "COUNT",
+          "number": 5,
+          "scopes": [
+            {
+              "kind": "figures"
+            }
+          ]
+        }
+      ],
+      "name": "Figures \u2264 5"
+    },
+    {
+      "combinator": "ALL",
+      "conditions": [
+        {
+          "comparator": "<=",
+          "metric": "COUNT",
+          "number": 4,
+          "scopes": [
+            {
+              "kind": "tables"
+            }
+          ]
+        }
+      ],
+      "name": "Tables \u2264 4"
+    },
+    {
+      "combinator": "ALL",
+      "conditions": [
+        {
+          "comparator": "<=",
+          "metric": "COUNT",
+          "number": 50,
+          "scopes": [
+            {
+              "kind": "references"
+            }
+          ]
+        }
+      ],
+      "name": "References \u2264 50"
+    },
+    {
+      "combinator": "ALL",
+      "conditions": [
+        {
+          "metric": "EXISTS",
+          "scopes": [
+            {
+              "kind": "section",
+              "name": "Introduction"
+            },
+            {
+              "kind": "section",
+              "name": "Methods"
+            },
+            {
+              "kind": "section",
+              "name": "Results"
+            },
+            {
+              "kind": "section",
+              "name": "Discussion"
+            }
+          ]
+        }
+      ],
+      "name": "Required sections present"
+    },
+    {
+      "conditions": [],
+      "manual": true,
+      "name": "Structured abstract: Objectives, Design, Setting, Participants, Main outcome measures, Results, Conclusions",
+      "note": "Tick once verified by hand"
+    },
+    {
+      "conditions": [],
+      "manual": true,
+      "name": "What is already known / What this study adds box required",
+      "note": "Tick once verified by hand"
+    },
+    {
+      "conditions": [],
+      "manual": true,
+      "name": "Patient and public involvement statement required",
+      "note": "Tick once verified by hand"
+    }
+  ],
+  "id": "bmj",
+  "name": "BMJ",
+  "origin": "bundled",
+  "originURL": "https://github.com/mroumanos/ManuscriptEditor/blob/main/JournalProfiles/bmj.json",
+  "sourceRequirements": {
+    "summary": "Research papers use the IMRaD structure with a structured abstract and a what-this-adds summary.\n\nDistilled requirements: Body up to 3,000 words; abstract up to 250 words; up to 5 figures; up to 4 tables; up to 50 references; required sections: Introduction, Methods, Results, Discussion; Vancouver citation style.\n\nAlso required: Structured abstract: Objectives, Design, Setting, Participants, Main outcome measures, Results, Conclusions; What is already known / What this study adds box required; Patient and public involvement statement required.\n\nThis summary is the app's distillation \u2014 open the author instructions above to confirm against the journal's current text.",
+    "url": "https://www.bmj.com/about-bmj/resources-authors"
+  }
+}

@@ -439,11 +439,23 @@ propagate by explicit, individual fast-forwards.
   manuscript locally and in its remote. The Checks pane **links to
   whichever file is in force**, so "where did this rule come from?" is one
   click.
-  **Configurable checks** (Aug 2026): alongside the requirement-derived
-  checks — which stay, because they know how to repair themselves (the
-  typography Fix) and they seed the export — a journal carries
-  **user-written rules** (`Journal.checkRules`) in a small vocabulary:
-  **LENGTH (words|characters) · COUNT · EXISTS · CONTAINS**, compared with
+  **Every journal ships a real profile** (Aug 2026): all 17 presets have a
+  hand-written `JournalProfiles/<slug>.json` whose **source requirements**
+  are a distilled summary plus a link to that journal's author-instruction
+  page, and whose **checks** encode those requirements — technical and
+  manual alike. A journal seeds itself from the bundled profile when it
+  has none (`ManuscriptStore.seedProfileIfNeeded`, run on open and on add),
+  so existing manuscripts pick them up with no migration.
+  **The checklist shows only profile checks**: everything displayed is a
+  rule in `Journal.checkRules`, therefore everything is editable in
+  **Edit Checks…**. (Journals saved before profiles existed still fall
+  back to their legacy `customRules` so nothing vanishes.)
+  **Configurable checks** (Aug 2026): a journal carries
+  **rules** (`Journal.checkRules`) in a small vocabulary:
+  **LENGTH (words|characters) · COUNT · EXISTS · CONTAINS**, plus the
+  export-format metrics **FONT_SIZE · LINE_SPACING · LINE_NUMBERS** (which
+  read the journal's export configuration and carry the typography
+  **Fix**), compared with
   **≤ ≥ = ≠**, over a **scope** (title, subtitle, abstract, keywords,
   authors, the whole body, one named section, figures, tables, references,
   cover letter) — **sections appear flat in that same list, and several
@@ -463,15 +475,14 @@ propagate by explicit, individual fast-forwards.
   (`ChecklistService.scopeStatus`) and the sidebar puts a red marker on
   that section — an exceeded word limit is visible where the writing is,
   not only in Checks.
-  **Checks split technical from manual** (Aug 2026):
-  measurable rules live in typed `JournalRequirements` fields checked
+  **Checks split technical from manual** (Aug 2026) — both now expressed
+  as profile rules:
+  measurable rules are evaluated
   automatically — cover-letter word cap, combined tables+figures cap,
   required section *titles* ("Public Health Implications": active +
   non-empty), structured-abstract headings present in the text, export
   spacing ≥ / font size = / line numbers on (read from the journal's
-  export config), reference completeness (authors/title/year/venue),
-  image-figure DPI (metadata, else a pixel estimate at 6.5-inch width),
-  undefined-acronym and P-value-notation heuristics — while `customRules`
+  export config) — while rules the app can't measure
   render as **manual checkboxes**
   (neutral until ticked; ticks persist per journal in
   `Journal.manualChecksDone`; `ChecklistResult.manual`). The Checks header

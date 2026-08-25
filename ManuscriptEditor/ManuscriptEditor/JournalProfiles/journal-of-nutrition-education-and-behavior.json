@@ -1,0 +1,78 @@
+{
+  "articleType": null,
+  "checks": [
+    {
+      "combinator": "ALL",
+      "conditions": [
+        {
+          "comparator": "<=",
+          "metric": "LENGTH_WORDS",
+          "number": 4500,
+          "scopes": [
+            {
+              "kind": "body"
+            }
+          ]
+        }
+      ],
+      "name": "Body \u2264 4,500 words"
+    },
+    {
+      "combinator": "ALL",
+      "conditions": [
+        {
+          "comparator": "<=",
+          "metric": "LENGTH_WORDS",
+          "number": 250,
+          "scopes": [
+            {
+              "kind": "abstract"
+            }
+          ]
+        }
+      ],
+      "name": "Abstract \u2264 250 words"
+    },
+    {
+      "combinator": "ALL",
+      "conditions": [
+        {
+          "metric": "EXISTS",
+          "scopes": [
+            {
+              "kind": "section",
+              "name": "Introduction"
+            },
+            {
+              "kind": "section",
+              "name": "Methods"
+            },
+            {
+              "kind": "section",
+              "name": "Results"
+            },
+            {
+              "kind": "section",
+              "name": "Discussion"
+            }
+          ]
+        }
+      ],
+      "name": "Required sections present"
+    },
+    {
+      "conditions": [],
+      "manual": true,
+      "name": "Structured abstract (Objective/Design/Participants/Main Outcome Measures/Analysis/Results/Conclusions and Implications)",
+      "note": "Tick once verified by hand"
+    }
+  ],
+  "id": "journal-of-nutrition-education-and-behavior",
+  "name": "Journal of Nutrition Education and Behavior",
+  "origin": "bundled",
+  "originURL": "https://github.com/mroumanos/ManuscriptEditor/blob/main/JournalProfiles/journal-of-nutrition-education-and-behavior.json",
+  "sourceRequirements": {
+    "summary": "JNEB publishes nutrition-education and behaviour research; the structured abstract ends with Conclusions and Implications.\n\nDistilled requirements: Body up to 4,500 words; abstract up to 250 words; required sections: Introduction, Methods, Results, Discussion; AMA citation style.\n\nAlso required: Structured abstract (Objective/Design/Participants/Main Outcome Measures/Analysis/Results/Conclusions and Implications).\n\nThis summary is the app's distillation \u2014 open the author instructions above to confirm against the journal's current text.",
+    "url": "https://www.jneb.org/content/authorinfo"
+  }
+}
