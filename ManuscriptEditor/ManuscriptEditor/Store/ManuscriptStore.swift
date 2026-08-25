@@ -749,7 +749,13 @@ final class ManuscriptStore {
             ordered.move(fromOffsets: source, toOffset: destination)
             for (i, figure) in ordered.enumerated() {
                 if let idx = m.figures.firstIndex(where: { $0.id == figure.id }) {
+                    let old = m.figures[idx].number
                     m.figures[idx].number = i + 1
+                    // A never-customized title ("Figure 3") follows its
+                    // number; anything the user typed stays put.
+                    if m.figures[idx].title == "Figure \(old)" {
+                        m.figures[idx].title = "Figure \(i + 1)"
+                    }
                 }
             }
         }
@@ -765,7 +771,13 @@ final class ManuscriptStore {
             ordered.move(fromOffsets: source, toOffset: destination)
             for (i, table) in ordered.enumerated() {
                 if let idx = m.tables.firstIndex(where: { $0.id == table.id }) {
+                    let old = m.tables[idx].number
                     m.tables[idx].number = i + 1
+                    // A never-customized title ("Table 3") follows its
+                    // number; anything the user typed stays put.
+                    if m.tables[idx].title == "Table \(old)" {
+                        m.tables[idx].title = "Table \(i + 1)"
+                    }
                 }
             }
         }

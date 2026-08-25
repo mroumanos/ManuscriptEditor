@@ -117,6 +117,14 @@ struct FiguresView: View {
                             .buttonStyle(.borderless)
                         }
                         .padding(16)
+                        // Catch-all: accept the release anywhere in the
+                        // grid — an unaccepted drop (over padding/gaps)
+                        // plays the system spring-back animation, which
+                        // read as a delay after every reorder.
+                        .onDrop(of: [UTType.text], isTargeted: nil) { _ in
+                            draggingID = nil
+                            return true
+                        }
                     }
                     .background(Color(NSColor.windowBackgroundColor))
                 }
