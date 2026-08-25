@@ -81,9 +81,18 @@ struct ManuscriptTable: Codable, Identifiable, Sendable, Equatable {
     /// plain mirror.  nil = legacy plain caption.
     var captionText: RichText? = nil
 
-    /// Export autofit: the 1-based row DATA starts at (the header is row 1).
-    /// nil = 2; higher values drop the rows between the header and N.
+    /// Autofit column widths on export: measure each column's natural
+    /// width and fit them without wrapping narrow columns.  nil = on.
+    var autofit: Bool? = nil
+    var autofitOn: Bool { autofit ?? true }
+
+    /// Autofit measures content from this 1-based row (the header is
+    /// row 1).  nil = 2 (all data rows).  No rows are ever dropped.
     var dataStartRow: Int? = nil
+
+    /// Editor-adjusted column widths in points.  When autofit is OFF the
+    /// export uses their RATIOS to fill the table's width.
+    var columnWidths: [Double]? = nil
 
     // MARK: - Data-linked table fields (optional)
 

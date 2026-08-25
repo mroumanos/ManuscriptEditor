@@ -295,6 +295,11 @@ struct ExportService {
                     chartImage: ((Figure) -> NSImage?)? = nil,
                     tableData: ((ManuscriptTable) -> QueryResult?)? = nil,
                     separateAuthorsOverride: Bool? = nil) -> Data {
+        // The preview rasterizes through CoreText, which ignores
+        // NSTextTable — a DOCX/RTF document's tables would collapse to
+        // newline-delimited text.  Preview as PDF construction throughout.
+        var document = document
+        document.fileType = .pdf
         let refContext = RefEngine.context(for: content)
         let sections = pageSegments(for: document, content: content, refContext: refContext,
                                     figureURL: figureURL, chartImage: chartImage,
@@ -1065,9 +1070,7 @@ private struct OutlineBuilder {
             let doc = NSMutableAttributedString()
             if item.titleShown { doc.append(headingBlock(item.customTitle ?? "Figures", style: item.effectiveHeadingStyle)) }
             for f in figures {
-                let num = refContext.figures[f.id]?.number ?? f.number
-                let titleText = (f.numberStyle?.isEnabled ?? true)
-                    ? "Figure \(num). \(f.title)" : f.title
+                let titleText = f.title
                 doc.append(arrangedPieces(
                     order: f.arrangement ?? ["image", "title", "caption"],
                     titleText: titleText, titleStyle: f.titleStyle,
@@ -1089,9 +1092,7 @@ private struct OutlineBuilder {
             let doc = NSMutableAttributedString()
             if item.titleShown { doc.append(headingBlock(item.customTitle ?? "Tables", style: item.effectiveHeadingStyle)) }
             for t in tables {
-                let num = refContext.tables[t.id]?.number ?? t.number
-                let titleText = (t.numberStyle?.isEnabled ?? true)
-                    ? "Table \(num). \(t.title)" : t.title
+                let titleText = t.title
                 doc.append(arrangedPieces(
                     order: t.arrangement ?? ["title", "table", "caption"],
                     titleText: titleText, titleStyle: t.titleStyle,
@@ -1524,10 +1525,8 @@ private struct OutlineBuilder {
             return t.content.isEmpty ? NSAttributedString()
                 : line(t.content, font: .monospacedSystemFont(ofSize: format.fontSize - 1, weight: .regular), after: 4)
         }
-        // Autofit: data starts at row N (header = row 1) — drop the rows in
-        // between.  Then normalize row widths; keep runaway sets bounded.
-        let fitted = Array(grid.rows.dropFirst(max((t.dataStartRow ?? 2) - 2, 0)))
-        let capped = fitted.prefix(200).map { row in
+        // Normalize row widths; keep runaway sets bounded.
+        let capped = grid.rows.prefix(200).map { row in
             grid.columns.indices.map { $0 < row.count ? row[$0] : TableCell() }
         }
         let out = NSMutableAttributedString()
@@ -1536,8 +1535,8 @@ private struct OutlineBuilder {
         } else {
             out.append(textTableBlock(columns: grid.columns, rows: Array(capped), table: t))
         }
-        if fitted.count > 200 {
-            out.append(line("… \(fitted.count - 200) more rows (see data)", font: meta, color: .darkGray, after: 4))
+        if grid.rows.count > 200 {
+            out.append(line("… \(grid.rows.count - 200) more rows (see data)", font: meta, color: .darkGray, after: 4))
         }
         applyBlockAlignment(t.tableAlign, to: out)
         return out
@@ -1633,23 +1632,60 @@ private struct OutlineBuilder {
         NSFont(descriptor: base.fontDescriptor, size: max(9, format.fontSize - 1)) ?? base
     }
 
-    /// Column widths as fractions of the table width: natural (widest cell)
-    /// widths, capped so one long column can't starve the rest, normalized.
+    /// Column widths as fractions of the table width.
+    ///
+    /// Autofit ON (default): each column's natural width is the widest cell
+    /// measured from the table's dataStartRow onward; when the naturals
+    /// exceed the table width, only the over-share columns shrink (fair-
+    /// share capping), so narrow numeric columns never wrap.
+    /// Autofit OFF: the editor-adjusted `columnWidths` ratios fill the
+    /// available width directly.
     private func columnFractions(columns: [TableCell], rows: [[TableCell]],
-                                 width: CGFloat) -> [CGFloat] {
+                                 width: CGFloat, table t: ManuscriptTable) -> [CGFloat] {
+        if !t.autofitOn, let stored = t.columnWidths, stored.count == columns.count,
+           stored.reduce(0, +) > 0 {
+            let sum = stored.reduce(0, +)
+            return stored.map { CGFloat(max($0, 1)) / CGFloat(sum) }
+        }
+        // Measure from row N (1-based; header = row 1).  The header still
+        // counts at a floor so an empty column keeps a readable label.
+        let skip = max((t.dataStartRow ?? 2) - 2, 0)
+        let measured = rows.dropFirst(skip)
         var naturals: [CGFloat] = columns.indices.map { i in
             var w = (columns[i].text as NSString)
-                .size(withAttributes: [.font: cellFont(columns[i], header: true)]).width
-            for row in rows {
+                .size(withAttributes: [.font: cellFont(columns[i], header: true)]).width * 0.6
+            for row in measured {
                 w = max(w, (row[i].text as NSString)
                     .size(withAttributes: [.font: cellFont(row[i], header: false)]).width)
             }
-            return min(max(w + 12, 34), width * 0.55)
+            return max(w + 12, 34)
         }
         let total = naturals.reduce(0, +)
-        if total <= 0 { naturals = naturals.map { _ in 1 } }
-        let sum = naturals.reduce(0, +)
-        return naturals.map { $0 / sum }
+        guard total > 0 else { return columns.map { _ in 1 / CGFloat(max(columns.count, 1)) } }
+        if total <= width {
+            // Fill the configured table width, keeping the natural ratios.
+            return naturals.map { $0 / total }
+        }
+        // Fair-share capping: columns under the running equal share keep
+        // their natural width; the remainder is split among the wide ones.
+        var widths = [CGFloat](repeating: 0, count: naturals.count)
+        var remaining = Set(naturals.indices)
+        var budget = width
+        while !remaining.isEmpty {
+            let share = budget / CGFloat(remaining.count)
+            let fits = remaining.filter { naturals[$0] <= share }
+            if fits.isEmpty {
+                for i in remaining { widths[i] = share }
+                break
+            }
+            for i in fits {
+                widths[i] = naturals[i]
+                budget -= naturals[i]
+                remaining.remove(i)
+            }
+        }
+        let sum = widths.reduce(0, +)
+        return widths.map { $0 / sum }
     }
 
     /// DOCX/RTF: a native NSTextTable — bordered cells that wrap values,
@@ -1657,7 +1693,7 @@ private struct OutlineBuilder {
     private func textTableBlock(columns: [TableCell], rows: [[TableCell]], table t: ManuscriptTable) -> NSAttributedString {
         let open = t.openSides ?? false
         let shade = t.alternateShading ?? false
-        let fractions = columnFractions(columns: columns, rows: rows, width: tableWidth)
+        let fractions = columnFractions(columns: columns, rows: rows, width: tableWidth, table: t)
         let lastRow = rows.count   // header is row 0
 
         let table = NSTextTable()
@@ -1716,7 +1752,7 @@ private struct OutlineBuilder {
         let shade = t.alternateShading ?? false
         let width = tableWidth * tableWidthFactor(t)
         let pad: CGFloat = 5
-        let widths = columnFractions(columns: columns, rows: rows, width: width).map { $0 * width }
+        let widths = columnFractions(columns: columns, rows: rows, width: width, table: t).map { $0 * width }
 
         func cellHeight(_ cell: TableCell, columnWidth: CGFloat, header: Bool) -> CGFloat {
             let font = cellFont(cell, header: header)
@@ -1887,9 +1923,7 @@ private struct OutlineBuilder {
             guard let figure = m.figures.first(where: { $0.id == token.targetID }) else {
                 return NSAttributedString(string: "")
             }
-            let number = refContext.figures[figure.id]?.number ?? figure.number
-            let titleText = (figure.numberStyle?.isEnabled ?? true)
-                ? "Figure \(number). \(figure.title)" : figure.title
+            let titleText = figure.title
             out.append(arrangedPieces(
                 order: figure.arrangement ?? ["image", "title", "caption"],
                 titleText: titleText, titleStyle: figure.titleStyle,
@@ -1905,9 +1939,7 @@ private struct OutlineBuilder {
             guard let table = m.tables.first(where: { $0.id == token.targetID }) else {
                 return NSAttributedString(string: "")
             }
-            let number = refContext.tables[table.id]?.number ?? table.number
-            let titleText = (table.numberStyle?.isEnabled ?? true)
-                ? "Table \(number). \(table.title)" : table.title
+            let titleText = table.title
             out.append(arrangedPieces(
                 order: table.arrangement ?? ["title", "table", "caption"],
                 titleText: titleText, titleStyle: table.titleStyle,

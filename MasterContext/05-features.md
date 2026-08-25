@@ -258,9 +258,17 @@ Intent: data lives once; figures/tables reference it; cuts convert only SQL.
   per-cell styles (drawn PDF grid and NSTextTable alike).
   A data-linked table can **Disconnect from Data** (destructive-confirmed):
   the current query result copies into the manual grid and the link is
-  removed — one-way. **Autofit** (Export Formatting): data starts at row
-  N (default 2; header = row 1) — rows in between are dropped from the
-  export.
+  removed — one-way. **Autofit** (Export Formatting, on by default,
+  toggleable): column widths follow each column's widest cell measured
+  from row N down (default 2; header = row 1; no rows are ever dropped),
+  with fair-share capping so narrow columns never wrap. Autofit OFF uses
+  the ratios of the **drag-adjustable column widths** (dividers over the
+  grid's header row; `ManuscriptTable.columnWidths`) to fill the table's
+  width. Multi-cell styling writes ONE snapshot (per-cell binding writes
+  re-read stale state — only the last cell survived). The **preview
+  always renders the PDF construction** — CoreText ignores NSTextTable,
+  so a DOCX/RTF document's tables previewed as newline soup. Figure/table
+  **titles print as the title text alone** (no "Table N." prefix).
 - AC (implemented, Aug 2026): **Data uploads are renameable** (CSV and
   image assets — the header name edits in place; default = file name).
   CSV imports **keep the original CSV** beside the SQLite store, enabling

@@ -194,6 +194,9 @@ struct TableEditor: View {
                         ManualTableGrid(cells: Binding(
                             get: { ManuscriptTable.styledGrid(result: previewResult, overlay: draft.cells) },
                             set: { draft.cells = $0 }
+                        ), columnWidths: Binding(
+                            get: { draft.columnWidths },
+                            set: { draft.columnWidths = $0 }
                         ), structureEditable: false)
                     }
                 } else {
@@ -212,6 +215,9 @@ struct TableEditor: View {
                             draft.cells = grid
                             draft.content = ManuscriptTable.markdown(from: grid)
                         }
+                    ), columnWidths: Binding(
+                        get: { draft.columnWidths },
+                        set: { draft.columnWidths = $0 }
                     ))
                 }
             }
@@ -222,24 +228,34 @@ struct TableEditor: View {
                 dataSourceSection
                 arrangementSection
                 Section("Export Formatting") {
-                    HStack(spacing: 4) {
-                        Text("Autofit — data starts at row")
-                        TextField("", value: Binding(
-                            get: { draft.dataStartRow ?? 2 },
-                            set: { draft.dataStartRow = $0 <= 2 ? nil : min($0, 200) }
-                        ), format: .number)
-                        .frame(width: 40)
-                        .multilineTextAlignment(.trailing)
-                        Stepper("", value: Binding(
-                            get: { draft.dataStartRow ?? 2 },
-                            set: { draft.dataStartRow = $0 <= 2 ? nil : $0 }
-                        ), in: 2...200)
-                        .labelsHidden()
-                        .controlSize(.small)
+                    Toggle("Autofit column widths", isOn: Binding(
+                        get: { draft.autofitOn },
+                        set: { draft.autofit = $0 ? nil : false }
+                    ))
+                    if draft.autofitOn {
+                        HStack(spacing: 4) {
+                            Text("Measure from row")
+                            TextField("", value: Binding(
+                                get: { draft.dataStartRow ?? 2 },
+                                set: { draft.dataStartRow = $0 <= 2 ? nil : min($0, 200) }
+                            ), format: .number)
+                            .frame(width: 40)
+                            .multilineTextAlignment(.trailing)
+                            Stepper("", value: Binding(
+                                get: { draft.dataStartRow ?? 2 },
+                                set: { draft.dataStartRow = $0 <= 2 ? nil : $0 }
+                            ), in: 2...200)
+                            .labelsHidden()
+                            .controlSize(.small)
+                        }
+                        Text("Column widths follow each column's widest cell, measured from row N down (row 1 is the header); narrow columns never wrap.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text("Autofit off — the export fills the table width using the ratios of the column widths you drag in the grid above.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
-                    Text("Row 1 is the header; rows between it and row N are dropped from the export.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
                     Toggle("Open sides (horizontal rules only — journal style)", isOn: Binding(
                         get: { draft.openSides ?? false },
                         set: { draft.openSides = $0 ? true : nil }
@@ -317,8 +333,7 @@ struct TableEditor: View {
                     switch piece {
                     case "title":
                         CaptionPartToggle(style: $draft.titleStyle)
-                        Text("Title")
-                        TextField("Title text", text: $draft.title)
+                        TextField("Title…", text: $draft.title)
                         Spacer()
                         CaptionPartControls(style: $draft.titleStyle, defaultBold: true)
                     case "caption":
@@ -433,6 +448,10 @@ struct TableEditor: View {
 /// right illuminate a "+" to add a row or column.  Row 0 is the header.
 struct ManualTableGrid: View {
     @Binding var cells: [[TableCell]]
+    /// Editor-adjusted column widths in points (drag the divider under a
+    /// column boundary).  nil entries fall back to the default width; the
+    /// export uses the RATIOS when autofit is off.
+    @Binding var columnWidths: [Double]?
     /// false = CSV-backed styling mode: the shape and text come from the
     /// data (no gutters, add bars, reordering, or cell editing) — only the
     /// formatting toolbar and selection remain.
@@ -448,6 +467,9 @@ struct ManualTableGrid: View {
     /// Local keyDown monitor for arrow-key selection (installed while the
     /// grid is on screen).
     @State private var keyMonitor: Any?
+    /// Column-divider drag in flight.
+    @State private var resizingCol: Int?
+    @State private var resizeBase: CGFloat?
 
     @State private var hover: CellID?
     @State private var hoverBottomBar = false
@@ -458,7 +480,7 @@ struct ManualTableGrid: View {
     @State private var movingRow: (start: Int, current: Int)?
     @State private var movingCol: (start: Int, current: Int)?
 
-    // Fixed geometry so hit-testing and reordering stay simple.
+    // Fixed row geometry; column widths are per-column (drag to adjust).
     private let cellW: CGFloat = 132
     private let cellH: CGFloat = 28
     private let gap: CGFloat = 1
@@ -467,7 +489,20 @@ struct ManualTableGrid: View {
 
     private var rowCount: Int { cells.count }
     private var colCount: Int { cells.first?.count ?? 0 }
-    private var gridW: CGFloat { CGFloat(colCount) * (cellW + gap) - gap }
+
+    private func colW(_ c: Int) -> CGFloat {
+        guard let widths = columnWidths, widths.indices.contains(c), widths[c] > 0 else { return cellW }
+        return CGFloat(widths[c])
+    }
+
+    /// x-offset of each column's leading edge (index colCount = grid width).
+    private var colX: [CGFloat] {
+        var out: [CGFloat] = [0]
+        for c in 0..<colCount { out.append(out[c] + colW(c) + gap) }
+        return out
+    }
+
+    private var gridW: CGFloat { max(colX.last.map { $0 - gap } ?? 0, 0) }
     private var gridH: CGFloat { CGFloat(rowCount) * (cellH + gap) - gap }
 
     private var selection: (rows: ClosedRange<Int>, cols: ClosedRange<Int>)? {
@@ -626,13 +661,18 @@ struct ManualTableGrid: View {
         }
     }
 
+    /// One snapshot, one write: mutating cell-by-cell through the binding
+    /// re-read stale state each pass, so only the LAST cell's change
+    /// survived a multi-cell selection.
     private func mutateSelection(_ change: (inout TableCell) -> Void) {
         guard let sel = selection else { return }
-        for r in sel.rows where cells.indices.contains(r) {
-            for c in sel.cols where cells[r].indices.contains(c) {
-                change(&cells[r][c])
+        var grid = cells
+        for r in sel.rows where grid.indices.contains(r) {
+            for c in sel.cols where grid[r].indices.contains(c) {
+                change(&grid[r][c])
             }
         }
+        cells = grid
     }
 
     // MARK: gutters (hover: drag handle + remove)
@@ -662,8 +702,8 @@ struct ManualTableGrid: View {
                         .help("Drag to reorder this column")
                         .gesture(columnDragGesture(from: h))
                 }
-                .frame(width: cellW)
-                .offset(x: CGFloat(h) * (cellW + gap), y: 0)
+                .frame(width: colW(h))
+                .offset(x: colX[h], y: 0)
             }
         }
         .frame(height: gutterH)
@@ -755,6 +795,10 @@ struct ManualTableGrid: View {
         for r in cells.indices where cells[r].indices.contains(c) {
             cells[r].remove(at: c)
         }
+        if var widths = columnWidths, widths.indices.contains(c) {
+            widths.remove(at: c)
+            columnWidths = widths
+        }
         anchor = nil; extent = nil; editingCell = nil
     }
 
@@ -787,12 +831,19 @@ struct ManualTableGrid: View {
             .onChanged { value in
                 if movingCol == nil { movingCol = (col, col) }
                 guard var m = movingCol else { return }
-                let target = min(max(m.start + Int((value.translation.width / (cellW + gap)).rounded()), 0),
+                let xs = colX
+                let x = xs[m.start] + colW(m.start) / 2 + value.translation.width
+                let target = min(max((0..<colCount).first(where: { x < xs[$0 + 1] }) ?? colCount - 1, 0),
                                  colCount - 1)
                 if target != m.current {
                     for r in cells.indices where cells[r].indices.contains(m.current) {
                         cells[r].move(fromOffsets: IndexSet(integer: m.current),
                                       toOffset: target > m.current ? target + 1 : target)
+                    }
+                    if var widths = columnWidths, widths.indices.contains(m.current) {
+                        widths.move(fromOffsets: IndexSet(integer: m.current),
+                                    toOffset: target > m.current ? target + 1 : target)
+                        columnWidths = widths
                     }
                     m.current = target
                     movingCol = m
@@ -820,7 +871,8 @@ struct ManualTableGrid: View {
                 ForEach(cells.indices, id: \.self) { r in
                     GridRowView(row: cells[r], isHeader: r == 0,
                                 editingCol: editingCell?.r == r ? editingCell?.c : nil,
-                                cellW: cellW, cellH: cellH, gap: gap,
+                                widths: (0..<cells[r].count).map { colW($0) },
+                                cellH: cellH, gap: gap,
                                 fieldFocused: $fieldFocused,
                                 onTextChange: { c, value in
                                     guard cells.indices.contains(r), cells[r].indices.contains(c) else { return }
@@ -832,6 +884,7 @@ struct ManualTableGrid: View {
             }
             hoverOverlay
             selectionOverlay
+            columnDividers
         }
         .contentShape(Rectangle())
         .onContinuousHover { phase in
@@ -883,12 +936,13 @@ struct ManualTableGrid: View {
     @ViewBuilder
     private var selectionOverlay: some View {
         if let sel = selection {
+            let xs = colX
             Rectangle()
                 .fill(Color.accentColor.opacity(0.08))
                 .overlay(Rectangle().strokeBorder(Color.accentColor, lineWidth: 1.2))
-                .frame(width: CGFloat(sel.cols.count) * (cellW + gap) - gap,
+                .frame(width: xs[sel.cols.upperBound + 1] - xs[sel.cols.lowerBound] - gap,
                        height: CGFloat(sel.rows.count) * (cellH + gap) - gap)
-                .offset(x: CGFloat(sel.cols.lowerBound) * (cellW + gap),
+                .offset(x: xs[sel.cols.lowerBound],
                         y: CGFloat(sel.rows.lowerBound) * (cellH + gap))
                 .allowsHitTesting(false)
         }
@@ -899,15 +953,54 @@ struct ManualTableGrid: View {
         if let h = hover, selection.map({ !$0.rows.contains(h.r) || !$0.cols.contains(h.c) }) ?? true {
             Rectangle()
                 .strokeBorder(Color.accentColor.opacity(0.35), lineWidth: 1)
-                .frame(width: cellW, height: cellH)
-                .offset(x: CGFloat(h.c) * (cellW + gap),
+                .frame(width: colW(h.c), height: cellH)
+                .offset(x: colX[h.c],
                         y: CGFloat(h.r) * (cellH + gap))
                 .allowsHitTesting(false)
         }
     }
 
+    /// Draggable dividers on the column boundaries (over the header row):
+    /// drag to set that column's width; the ratios drive the export when
+    /// autofit is off.
+    private var columnDividers: some View {
+        let xs = colX
+        return ZStack(alignment: .topLeading) {
+            ForEach(0..<colCount, id: \.self) { c in
+                Rectangle()
+                    .fill(Color.clear)
+                    .frame(width: 7, height: cellH)
+                    .contentShape(Rectangle())
+                    .overlay(Rectangle()
+                        .fill(Color.secondary.opacity(resizingCol == c ? 0.7 : 0.25))
+                        .frame(width: resizingCol == c ? 2 : 1))
+                    .offset(x: xs[c + 1] - gap / 2 - 3.5, y: 0)
+                    .gesture(
+                        DragGesture(minimumDistance: 1)
+                            .onChanged { value in
+                                if resizingCol == nil {
+                                    resizingCol = c
+                                    resizeBase = colW(c)
+                                }
+                                guard resizingCol == c, let base = resizeBase else { return }
+                                var widths = columnWidths ?? (0..<colCount).map { Double(colW($0)) }
+                                while widths.count < colCount { widths.append(Double(cellW)) }
+                                widths[c] = Double(min(max(base + value.translation.width, 50), 480))
+                                columnWidths = widths
+                            }
+                            .onEnded { _ in resizingCol = nil; resizeBase = nil }
+                    )
+                    .onHover { inside in
+                        if inside { NSCursor.resizeLeftRight.set() } else { NSCursor.arrow.set() }
+                    }
+            }
+        }
+        .frame(width: gridW, height: cellH, alignment: .topLeading)
+    }
+
     private func cellAt(_ p: CGPoint) -> CellID? {
-        let c = Int(p.x / (cellW + gap))
+        let xs = colX
+        guard let c = (0..<colCount).first(where: { p.x < xs[$0 + 1] }) else { return nil }
         let r = Int(p.y / (cellH + gap))
         guard cells.indices.contains(r), cells[r].indices.contains(c) else { return nil }
         return CellID(r: r, c: c)
@@ -965,7 +1058,7 @@ private struct GridRowView: View, Equatable {
     let row: [TableCell]
     let isHeader: Bool
     let editingCol: Int?
-    let cellW: CGFloat
+    let widths: [CGFloat]
     let cellH: CGFloat
     let gap: CGFloat
     var fieldFocused: FocusState<Bool>.Binding
@@ -974,6 +1067,7 @@ private struct GridRowView: View, Equatable {
 
     static func == (a: GridRowView, b: GridRowView) -> Bool {
         a.row == b.row && a.isHeader == b.isHeader && a.editingCol == b.editingCol
+            && a.widths == b.widths
     }
 
     var body: some View {
@@ -1012,7 +1106,7 @@ private struct GridRowView: View, Equatable {
             }
         }
         .padding(.horizontal, 6)
-        .frame(width: cellW, height: cellH, alignment: .leading)
+        .frame(width: widths.indices.contains(c) ? widths[c] : 132, height: cellH, alignment: .leading)
         .background(background(cell))
         .overlay(Rectangle().strokeBorder(Color.secondary.opacity(0.25), lineWidth: 0.5))
     }

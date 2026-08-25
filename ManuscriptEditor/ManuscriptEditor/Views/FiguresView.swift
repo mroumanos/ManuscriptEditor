@@ -382,8 +382,7 @@ struct FigureEditor: View {
                     switch piece {
                     case "title":
                         CaptionPartToggle(style: $draft.titleStyle)
-                        Text("Title")
-                        TextField("Title text", text: $draft.title)
+                        TextField("Title…", text: $draft.title)
                         Spacer()
                         CaptionPartControls(style: $draft.titleStyle, defaultBold: true)
                     case "caption":
