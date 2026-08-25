@@ -35,6 +35,7 @@ struct ChecksView: View {
 
     /// Drives the requirements editor sheet / save-to-library sheet.
     @State private var editingRequirements = false
+    @State private var editingRules = false
     @State private var savingToLibrary = false
 
     var body: some View {
@@ -55,6 +56,11 @@ struct ChecksView: View {
         .sheet(isPresented: $editingRequirements) {
             if let journal = paneJournal {
                 RequirementsEditorSheet(journal: journal, isPresented: $editingRequirements)
+            }
+        }
+        .sheet(isPresented: $editingRules) {
+            if let journal = paneJournal {
+                CheckRulesEditor(journal: journal, isPresented: $editingRules)
             }
         }
         .sheet(isPresented: $savingToLibrary) {
@@ -81,6 +87,8 @@ struct ChecksView: View {
             }
             Spacer()
             Button("Edit Requirements…") { editingRequirements = true }
+            Button("Edit Checks…") { editingRules = true }
+                .help("Write your own checks — LENGTH, COUNT, EXISTS, CONTAINS — joined by all/any")
             Button {
                 savingToLibrary = true
             } label: {

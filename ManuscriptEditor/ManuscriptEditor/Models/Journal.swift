@@ -63,6 +63,10 @@ struct Journal: Codable, Identifiable, Sendable {
     /// (matched by rule text).  Optional for backward-compatible decoding.
     var manualChecksDone: [String]? = nil
 
+    /// User-written checks, on top of the requirement-derived ones.
+    /// Optional for backward-compatible decoding; nil = none yet.
+    var checkRules: [CheckRule]? = nil
+
     /// This journal's export outline (documents, ordering, page breaks,
     /// format, file types).  `nil` means "not customized yet" — the Export
     /// pane shows `ExportConfig.standard` until the user edits it.
@@ -218,6 +222,10 @@ struct ChecklistResult: Codable, Identifiable, Sendable {
 
     /// A short explanation of the result (e.g. "2847 of 3000 words used").
     var details: String
+
+    /// The scopes this result covers ("abstract", "section:methods", …) so
+    /// panes can show their own status.  Empty = not scope-specific.
+    var scopes: [String] = []
 
     /// Set when the app can REPAIR this failure itself ("typography" →
     /// align every export section with the journal's required format);

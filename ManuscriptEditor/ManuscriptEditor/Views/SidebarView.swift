@@ -167,9 +167,53 @@ struct SidebarView: View {
         HStack {
             Label(title, systemImage: icon)
             Spacer()
+            checkBadge(item)
             notesBadge(item)
         }
         .tag(item)
+    }
+
+    /// A red dot on any pane a failing check covers — a word limit that's
+    /// been exceeded shows on the section itself, not just in Checks.
+    @ViewBuilder
+    private func checkBadge(_ item: SidebarItem) -> some View {
+        if let key = scopeKey(for: item), checkStatus[key] == false {
+            Image(systemName: "exclamationmark.circle.fill")
+                .font(.caption)
+                .foregroundStyle(.red)
+                .help("A check for this section is failing — see Checks")
+        }
+    }
+
+    /// Maps a sidebar pane to the check scope that covers it.
+    private func scopeKey(for item: SidebarItem) -> String? {
+        switch item {
+        case .title:          return CheckScope(kind: .title).key
+        case .authors:        return CheckScope(kind: .authors).key
+        case .abstract:       return CheckScope(kind: .abstract).key
+        case .keywords:       return CheckScope(kind: .keywords).key
+        case .figures:        return CheckScope(kind: .figures).key
+        case .tables:         return CheckScope(kind: .tables).key
+        case .bibliography:   return CheckScope(kind: .references).key
+        case .letterToEditor: return CheckScope(kind: .coverLetter).key
+        case .section(let id):
+            guard let title = store.manuscript?.sections.first(where: { $0.id == id })?.title
+            else { return nil }
+            return CheckScope(kind: .section, name: title).key
+        default: return nil
+        }
+    }
+
+    /// Scope pass/fail for the ACTIVE journal (Source has no requirements,
+    /// so its panes never carry a check badge).
+    private var checkStatus: [String: Bool] {
+        guard case .version(let id) = activeRef,
+              let jid = store.versions.first(where: { $0.id == id })?.journalID,
+              let journal = store.manuscript?.journals.first(where: { $0.id == jid }),
+              let content = store.manuscript(for: activeRef)
+        else { return [:] }
+        return ChecklistService.scopeStatus(manuscript: content, journal: journal,
+                                            figureURL: { store.figureURL(for: $0) })
     }
 
     /// Blue comment bubble opening the notes popover — shown only while the

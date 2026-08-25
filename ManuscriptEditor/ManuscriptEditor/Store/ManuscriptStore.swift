@@ -926,6 +926,14 @@ final class ManuscriptStore {
         showBanner(.success, "Export typography aligned with \(journal.displayName)'s requirements.")
     }
 
+    /// Replaces a journal's user-written check rules.
+    func updateCheckRules(_ rules: [CheckRule], journalID: UUID) {
+        touch(undoAction: "Edit Checks") { m in
+            guard let idx = m.journals.firstIndex(where: { $0.id == journalID }) else { return }
+            m.journals[idx].checkRules = rules.isEmpty ? nil : rules
+        }
+    }
+
     /// Ticks/unticks one manual checklist rule for a journal (Checks pane).
     func toggleManualCheck(journalID: UUID, rule: String) {
         touch(undoAction: "Check Item") { m in

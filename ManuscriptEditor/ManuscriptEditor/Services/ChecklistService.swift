@@ -19,6 +19,84 @@ import ImageIO
 /// and returns a list of pass/fail checklist items.
 enum ChecklistService {
 
+    /// Pass/fail per SCOPE for the sidebar: a pane is red when a check
+    /// covering it failed.  Keys match `CheckScope.key`.
+    static func scopeStatus(manuscript: Manuscript, journal: Journal,
+                            figureURL: ((Figure) -> URL?)? = nil) -> [String: Bool] {
+        var status: [String: Bool] = [:]
+        for result in run(manuscript: manuscript, journal: journal, figureURL: figureURL)
+        where !result.manual {
+            for scope in result.scopes {
+                status[scope] = (status[scope] ?? true) && result.passed
+            }
+        }
+        return status
+    }
+
+    /// One condition's verdict plus the measurement behind it, so a failure
+    /// reads "Abstract: 312 words" rather than just "failed".
+    private static func evaluate(_ condition: CheckCondition,
+                                 in m: Manuscript) -> (passed: Bool, detail: String) {
+        let scope = condition.scope
+
+        func text() -> String {
+            switch scope.kind {
+            case .title:       return m.articleTitle ?? m.title
+            case .subtitle:    return m.subtitle ?? ""
+            case .abstract:    return m.abstract.plain
+            case .keywords:    return m.keywords.joined(separator: ", ")
+            case .authors:     return m.authors.map(\.fullName).joined(separator: "; ")
+            case .body:        return m.sections.filter(\.active).map(\.content.plain).joined(separator: "\n")
+            case .section:
+                let wanted = (scope.name ?? "").lowercased()
+                return m.sections.first { $0.active && $0.title.lowercased() == wanted }?.content.plain
+                    ?? m.sections.first { $0.active && $0.title.lowercased().contains(wanted) }?.content.plain
+                    ?? ""
+            case .figures:     return m.figures.map { "\($0.title) \($0.caption)" }.joined(separator: "\n")
+            case .tables:      return m.tables.map { "\($0.title) \($0.caption)" }.joined(separator: "\n")
+            case .references:  return m.bibliography.map(\.title).joined(separator: "\n")
+            case .coverLetter: return m.letterToEditor.body.plain
+            }
+        }
+
+        func collectionCount() -> Int {
+            switch scope.kind {
+            case .figures:    return m.figures.count
+            case .tables:     return m.tables.count
+            case .references: return m.bibliography.count
+            case .keywords:   return m.keywords.count
+            case .authors:    return m.authors.count
+            case .body:       return m.sections.filter { $0.active && !$0.content.isEmpty }.count
+            case .section:
+                let wanted = (scope.name ?? "").lowercased()
+                return m.sections.filter { $0.active && $0.title.lowercased().contains(wanted) }.count
+            default:          return text().isEmpty ? 0 : 1
+            }
+        }
+
+        switch condition.metric {
+        case .words:
+            let n = WordCountService.count(text())
+            return (condition.comparator.passes(Double(n), condition.number),
+                    "\(scope.label): \(n) words")
+        case .characters:
+            let n = text().count
+            return (condition.comparator.passes(Double(n), condition.number),
+                    "\(scope.label): \(n) characters")
+        case .count:
+            let n = collectionCount()
+            return (condition.comparator.passes(Double(n), condition.number),
+                    "\(scope.label): \(n)")
+        case .exists:
+            let present = !text().trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            return (present, present ? "\(scope.label) present" : "\(scope.label) missing or empty")
+        case .contains:
+            let needle = condition.text.trimmingCharacters(in: .whitespaces)
+            let found = !needle.isEmpty && text().localizedCaseInsensitiveContains(needle)
+            return (found, found ? "\(scope.label) contains it" : "\(scope.label) is missing \"\(needle)\"")
+        }
+    }
+
     /// Evaluate `manuscript` against `requirements` and return one `ChecklistResult` per rule.
     ///
     /// Results are returned in a human-friendly order:
@@ -300,6 +378,22 @@ enum ChecklistService {
                 id: UUID(), rule: "P-value notation: ≤ 2 decimals, never \"NS\"",
                 passed: issues.isEmpty,
                 details: issues.isEmpty ? "No notation issues found" : issues.joined(separator: "; ")
+            ))
+        }
+
+        // --- User-written rules (the configurable vocabulary) ---
+
+        for rule in journal.checkRules ?? [] where rule.isEnabled {
+            let outcomes = rule.conditions.map { evaluate($0, in: manuscript) }
+            let passed = rule.combinator == .all
+                ? outcomes.allSatisfy(\.passed)
+                : outcomes.contains(where: \.passed)
+            let detail = outcomes.map(\.detail)
+                .joined(separator: rule.combinator == .all ? " · " : " or ")
+            results.append(ChecklistResult(
+                id: rule.id, rule: rule.displayName, passed: passed,
+                details: passed ? detail : (rule.note.map { "\(detail) — \($0)" } ?? detail),
+                scopes: rule.scopeKeys
             ))
         }
 
