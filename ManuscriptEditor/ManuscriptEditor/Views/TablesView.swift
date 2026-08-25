@@ -506,9 +506,17 @@ struct ManualTableGrid: View {
     private var gridH: CGFloat { CGFloat(rowCount) * (cellH + gap) - gap }
 
     private var selection: (rows: ClosedRange<Int>, cols: ClosedRange<Int>)? {
-        guard let a = anchor else { return nil }
+        // Clamp to the CURRENT grid: editing the SQL can shrink a
+        // data-linked table's result while anchor/extent still point at
+        // the old shape, and the onChange clamp only runs AFTER the body
+        // that would subscript with the stale range (crash on save).
+        guard let a = anchor, rowCount > 0, colCount > 0 else { return nil }
         let e = extent ?? a
-        return (min(a.r, e.r)...max(a.r, e.r), min(a.c, e.c)...max(a.c, e.c))
+        let rLo = max(min(min(a.r, e.r), rowCount - 1), 0)
+        let rHi = max(min(max(a.r, e.r), rowCount - 1), 0)
+        let cLo = max(min(min(a.c, e.c), colCount - 1), 0)
+        let cHi = max(min(max(a.c, e.c), colCount - 1), 0)
+        return (rLo...rHi, cLo...cHi)
     }
 
     var body: some View {
@@ -597,7 +605,9 @@ struct ManualTableGrid: View {
     }
 
     private var firstSelected: TableCell? {
-        guard let sel = selection else { return nil }
+        guard let sel = selection,
+              cells.indices.contains(sel.rows.lowerBound),
+              cells[sel.rows.lowerBound].indices.contains(sel.cols.lowerBound) else { return nil }
         return cells[sel.rows.lowerBound][sel.cols.lowerBound]
     }
 
