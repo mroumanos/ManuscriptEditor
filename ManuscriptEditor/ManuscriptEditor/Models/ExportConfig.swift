@@ -99,25 +99,42 @@ struct ExportDocumentFormat: Codable, Sendable, Equatable {
 
 /// Font families offered for export documents (system-installed, no bundling).
 enum ExportFontFamily: String, Codable, CaseIterable, Identifiable, Sendable {
-    case times, helvetica, georgia, system
+    // Declaration order = picker order.  Calibri/Cambria ship with
+    // Microsoft Office, not macOS — call sites already fall back to the
+    // system font when a family can't resolve, so listing them is safe
+    // (journals ask for them constantly).
+    case times, arial, helvetica, calibri, cambria, georgia, verdana,
+         palatino, courier, system
 
     var id: String { rawValue }
 
     var label: String {
         switch self {
         case .times:     return "Times New Roman"
+        case .arial:     return "Arial"
         case .helvetica: return "Helvetica"
+        case .calibri:   return "Calibri"
+        case .cambria:   return "Cambria"
         case .georgia:   return "Georgia"
+        case .verdana:   return "Verdana"
+        case .palatino:  return "Palatino"
+        case .courier:   return "Courier New"
         case .system:    return "System (San Francisco)"
         }
     }
 
-    /// Compact name for the per-item column controls in the Export cards.
+    /// Compact name for the read-only summaries in the Export cards.
     var shortLabel: String {
         switch self {
         case .times:     return "Times"
+        case .arial:     return "Arial"
         case .helvetica: return "Helvetica"
+        case .calibri:   return "Calibri"
+        case .cambria:   return "Cambria"
         case .georgia:   return "Georgia"
+        case .verdana:   return "Verdana"
+        case .palatino:  return "Palatino"
+        case .courier:   return "Courier"
         case .system:    return "System"
         }
     }
@@ -126,8 +143,14 @@ enum ExportFontFamily: String, Codable, CaseIterable, Identifiable, Sendable {
     var familyName: String? {
         switch self {
         case .times:     return "Times New Roman"
+        case .arial:     return "Arial"
         case .helvetica: return "Helvetica"
+        case .calibri:   return "Calibri"
+        case .cambria:   return "Cambria"
         case .georgia:   return "Georgia"
+        case .verdana:   return "Verdana"
+        case .palatino:  return "Palatino"
+        case .courier:   return "Courier New"
         case .system:    return nil
         }
     }
