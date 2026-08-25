@@ -958,10 +958,16 @@ final class ManuscriptStore {
             return
         }
 
-        // Otherwise the journal tracks the library: seed when it has no
-        // checks, or when it predates profiles carrying a GUID — the
-        // identity the library is matched on.
-        guard (journal.checkRules ?? []).isEmpty || journal.profileID == nil else { return }
+        // Otherwise the journal TRACKS the library, so it follows it: seed
+        // when it has no checks, when it predates profiles carrying a GUID
+        // (the identity the library is matched on), or whenever the library's
+        // copy has moved on.  Nothing is lost — a local edit sets
+        // `configOrigin = .manuscript` and takes the branch above.
+        let stale = ProfilePart.allCases.contains {
+            journal.profile.fingerprint($0) != source.fingerprint($0)
+        }
+        guard (journal.checkRules ?? []).isEmpty || journal.profileID == nil || stale
+        else { return }
         touch(undoable: false) { m in
             guard let idx = m.journals.firstIndex(where: { $0.id == journalID }) else { return }
             m.journals[idx].profileID = source.id
@@ -1744,7 +1750,10 @@ final class ManuscriptStore {
             author: SigningService.userName
         ))
         touch { $0.versions.append(v) }
-        return journal
+        // A journal arrives with its profile already in force, so its Checks
+        // pane is populated the moment its tab opens.
+        seedProfileIfNeeded(journalID: journal.id)
+        return manuscript?.journals.first { $0.id == journal.id } ?? journal
     }
 
     /// The manuscript content backing a comparison reference: the live Source,

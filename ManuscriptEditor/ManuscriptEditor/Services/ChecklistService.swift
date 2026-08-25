@@ -65,10 +65,28 @@ enum ChecklistService {
         if condition.metric.isStructure {
             let expected = journal?.structure?.sections.filter(\.required) ?? []
             guard !expected.isEmpty else { return (true, "no structure defined") }
-            let present = m.sections.filter { $0.active && !$0.content.isEmpty }
+
+            /// A core part counts as present when it actually holds content.
+            func hasCore(_ core: CoreSection) -> Bool {
+                switch core {
+                case .title:       return !(m.articleTitle ?? m.title).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                case .subtitle:    return !(m.subtitle ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                case .authors:     return !m.authors.isEmpty
+                case .abstract:    return !m.abstract.plain.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                case .keywords:    return !m.keywords.isEmpty
+                case .figures:     return !m.figures.isEmpty
+                case .tables:      return !m.tables.isEmpty
+                case .references:  return !m.bibliography.isEmpty
+                case .coverLetter: return !m.letterToEditor.body.plain.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                }
+            }
+
+            let bodyTitles = m.sections.filter { $0.active && !$0.content.isEmpty }
                 .map { $0.title.lowercased() }
             let missing = expected.filter { section in
-                !present.contains { $0 == section.id || $0.contains(section.id) }
+                if let core = section.core { return !hasCore(core) }
+                let wanted = section.title.lowercased()
+                return !bodyTitles.contains { $0 == wanted || $0.contains(wanted) }
             }
             return (missing.isEmpty,
                     missing.isEmpty

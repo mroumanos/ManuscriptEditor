@@ -434,8 +434,18 @@ propagate by explicit, individual fast-forwards.
   **Three configuration files per journal, in one folder** (Aug 2026):
   `requirements.json` (the journal's instructions as **bullets** plus the
   link they came from), `checks.json` (the rules the app evaluates), and
-  `structure.json` (the sections a submission is expected to have). They
-  are split so a difference shows WHICH half moved. All three share an
+  `structure.json` (everything a submission is made of). They
+  are split so a difference shows WHICH half moved.
+  **Structure covers the whole document, in two kinds.** **Core** sections
+  are the app's fixed parts — title, subtitle, authors, abstract, keywords,
+  figures, tables, references, cover letter (`CoreSection`) — and a journal
+  only says whether it REQUIRES each; it cannot rename, reorder, or invent
+  them, because they aren't prose. **Text** sections are the configurable
+  half: body prose a journal names, orders, and adds to freely
+  ("Public Health Implications"). The structure editor shows the two as
+  separate groups, and `STRUCTURE` checks both — a required core part fails
+  when its content is empty (verified: emptying Authors fails, emptying an
+  optional Keywords does not). All three share an
   `id` — the profile's **GUID**, which is the identity: one journal can
   carry several profiles (article types), a rename must not orphan a
   manuscript's copy, and the GUID is what maps a journal to a library
@@ -453,6 +463,20 @@ propagate by explicit, individual fast-forwards.
   stripped — `CheckRule` mints UUIDs on decode, so value equality would
   report a file as different from itself). Each part that differs gets a
   **yellow warning** on its row in the Checks pane.
+  **Review before adding** (Aug 2026): Add Journal shows the chosen
+  journal's profile inline — `JournalProfileReview`, a read-only segmented
+  view of its requirements, structure, and checks — so the decision is made
+  with the rules in view. It is read-only on purpose: editing there would
+  beg the question of which copy was being changed. The added journal
+  adopts that profile before its view is generated, so its outline follows
+  the structure file and its Checks pane is populated the moment its tab
+  opens.
+  **An unedited journal TRACKS the library.** When `configOrigin` is not
+  `.manuscript`, opening re-seeds it whenever the library's copy has moved
+  on, so shipped corrections reach existing manuscripts. The first local
+  edit sets `.manuscript` and the journal keeps its own copy from then on —
+  except for a structure it never had, which is filled in rather than left
+  empty.
   **Save to Library** handles the three cases: the GUID is in the library
   but the content differs → *Update Library*; the GUID is unknown but a
   profile with the same NAME exists → *Replace in Library…*, which confirms
@@ -476,7 +500,8 @@ propagate by explicit, individual fast-forwards.
   **The structure file is checked too**: the `STRUCTURE` metric compares
   the manuscript's active, non-empty sections against the sections marked
   required in `structure.json`, and `ViewConfig.from(journal:)` seeds a new
-  cut's outline from it — which is how a journal-named section
+  cut's outline from its TEXT sections (the export places the core parts
+  itself) — which is how a journal-named section
   ("Public Health Implications") reaches a cut at all, since the typed
   `requiredSections` can only express the IMRAD enum.
   **Configurable checks** (Aug 2026): a journal carries

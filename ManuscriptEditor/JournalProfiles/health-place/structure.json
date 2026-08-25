@@ -3,20 +3,79 @@
   "journal": "Health & Place",
   "sections": [
     {
+      "core": "title",
+      "kind": "core",
+      "required": true,
+      "title": "Title"
+    },
+    {
+      "core": "subtitle",
+      "kind": "core",
+      "required": false,
+      "title": "Subtitle"
+    },
+    {
+      "core": "authors",
+      "kind": "core",
+      "required": true,
+      "title": "Authors"
+    },
+    {
+      "core": "abstract",
+      "kind": "core",
+      "required": true,
+      "title": "Abstract"
+    },
+    {
+      "core": "keywords",
+      "kind": "core",
+      "required": false,
+      "title": "Keywords"
+    },
+    {
+      "kind": "text",
       "required": true,
       "title": "Introduction"
     },
     {
+      "kind": "text",
       "required": true,
       "title": "Methods"
     },
     {
+      "kind": "text",
       "required": true,
       "title": "Results"
     },
     {
+      "kind": "text",
       "required": true,
       "title": "Discussion"
+    },
+    {
+      "core": "tables",
+      "kind": "core",
+      "required": false,
+      "title": "Tables"
+    },
+    {
+      "core": "figures",
+      "kind": "core",
+      "required": false,
+      "title": "Figures"
+    },
+    {
+      "core": "references",
+      "kind": "core",
+      "required": true,
+      "title": "References"
+    },
+    {
+      "core": "coverLetter",
+      "kind": "core",
+      "note": "Accepted but not required by this journal",
+      "required": false,
+      "title": "Cover letter"
     }
   ]
 }

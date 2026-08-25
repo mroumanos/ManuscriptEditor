@@ -483,6 +483,19 @@ struct AddJournalSheet: View {
                     .help("Choose a different journal")
                     Spacer()
                 }
+                // Review what you're signing up for BEFORE adding: the
+                // journal's requirements, the shape it expects, and the
+                // checks that will start running.
+                if let profile = JournalProfileLibrary.shared
+                    .profile(name: entry.name, articleType: entry.articleType) {
+                    JournalProfileReview(profile: profile)
+                        .frame(height: 260)
+                } else {
+                    Text("No profile for this journal yet — it will be added with no requirements, structure, or checks. You can fill them in from its Checks pane.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             } else {
                 VStack(alignment: .leading, spacing: 6) {
                     HStack(spacing: 5) {
@@ -549,12 +562,12 @@ struct AddJournalSheet: View {
             }
         }
         .padding(24)
-        .frame(width: 440)
+        .frame(width: 520)
 
     }
 
     private func add() {
-        let template: Journal
+        var template: Journal
         if let choice = libraryChoice,
            let entry = appStore.journalLibrary.first(where: { $0.id == choice }) {
             template = entry
@@ -562,6 +575,18 @@ struct AddJournalSheet: View {
             var custom = Journal.empty()
             custom.name = customName.trimmingCharacters(in: .whitespaces)
             template = custom
+        }
+        // Adopt the reviewed profile up front: the generated view reads the
+        // journal's STRUCTURE, so it has to be in place before the outline
+        // is derived.
+        if let profile = JournalProfileLibrary.shared
+            .profile(name: template.name, articleType: template.articleType) {
+            template.profileID = profile.id
+            template.sourceRequirements = profile.requirements
+            template.checkRules = profile.checks
+            template.structure = profile.structure
+            template.configOrigin = profile.origin
+            template.configURL = profile.originURL
         }
         // Every journal gets its 1-1 auto-generated view (export/checks basis).
         let view = ViewConfig.from(journal: template)
