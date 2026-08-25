@@ -328,7 +328,7 @@ struct ExportService {
                               tableData: ((ManuscriptTable) -> QueryResult?)? = nil,
                               citationStyleDefault: String = "apa",
                               separateAuthorsOverride: Bool? = nil) -> [PageSection] {
-        let builder = OutlineBuilder(format: document.format, refContext: refContext,
+        var builder = OutlineBuilder(format: document.format, refContext: refContext,
                                      fileType: document.fileType,
                                      figureURL: figureURL, chartImage: chartImage, tableData: tableData,
                                      separateAuthors: separateAuthorsOverride
@@ -358,6 +358,11 @@ struct ExportService {
                 margin = item.sectionMarginInches ?? margin
                 twoCol = item.sectionTwoColumn ?? twoCol
                 sectionLines = item.sectionLineNumbers ?? sectionLines
+                // Blocks measure against the page — hand them THIS
+                // section's geometry so a 100% table spans exactly this
+                // section's text column, margin to margin.
+                builder.format.marginInches = margin
+                builder.format.twoColumn = twoCol
                 continue
             }
             if let block = builder.block(for: item, content: content,
@@ -816,7 +821,11 @@ private enum ExportAttr {
 /// margins/columns stay document-level).  Rich prose is re-set in the block's
 /// font (preserving bold/italic), reference tokens re-rendered via RefEngine.
 private struct OutlineBuilder {
-    let format: ExportDocumentFormat
+    /// Page geometry blocks measure themselves against (table widths,
+    /// figure scaling, letterhead width, chunk heights).  Mutable because
+    /// SECTIONS re-set margins/columns — a table in a 1.25″ section sized
+    /// itself against the document's 1″ and overflowed the text column.
+    var format: ExportDocumentFormat
     let refContext: RefEngine.Context
     /// Output file type — tables build differently per target: drawn grids
     /// for the PDF path (CoreText has no table layout), NSTextTable for the
@@ -1689,10 +1698,10 @@ private struct OutlineBuilder {
         let total = naturals.reduce(0, +)
         guard total > 0 else { return columns.map { _ in 1 / CGFloat(max(columns.count, 1)) } }
         if total <= width {
-            // Autofit HUGS content: columns take their natural width and
-            // the table comes out narrower than the configured width
-            // (fractions sum < 1); alignment then positions it.
-            return naturals.map { $0 / width }
+            // The width % decides how much of the text column the table
+            // occupies; autofit decides how that width is DIVIDED — so
+            // natural widths scale up proportionally to fill it.
+            return naturals.map { $0 / total }
         }
         // Fair-share capping: columns under the running equal share keep
         // their natural width; the remainder is split among the wide ones.
