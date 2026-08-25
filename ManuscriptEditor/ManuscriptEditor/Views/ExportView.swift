@@ -451,11 +451,15 @@ struct SectionPreviewButton: View {
         document.format = (carrying ?? config.documents.first)?.format ?? ExportDocumentFormat()
         if let carrying {
             for outlineItem in carrying.items {
+                // nil inherits the section before it — the same running
+                // geometry the export pipeline applies.
                 if outlineItem.kind == .pageBreak {
-                    document.format.marginInches =
-                        outlineItem.sectionMarginInches ?? carrying.format.marginInches
-                    document.format.twoColumn =
-                        outlineItem.sectionTwoColumn ?? carrying.format.twoColumn
+                    if let margin = outlineItem.sectionMarginInches {
+                        document.format.marginInches = margin
+                    }
+                    if let columns = outlineItem.sectionTwoColumn {
+                        document.format.twoColumn = columns
+                    }
                     if let lines = outlineItem.sectionLineNumbers {
                         document.format.lineNumbers = lines
                     }
@@ -571,6 +575,21 @@ private struct ExportDocumentCard: View {
         }
     }
 
+    /// Page geometry in force just BEFORE the break at `index`: the running
+    /// result of every earlier break (nil fields inherit), starting from the
+    /// document's format.
+    private func inheritedGeometry(before index: Int) -> (margin: Double, twoColumn: Bool, lineNumbers: Bool) {
+        var margin = document.format.marginInches
+        var twoColumn = document.format.twoColumn
+        var lineNumbers = document.format.lineNumbers
+        for item in document.items.prefix(index) where item.kind == .pageBreak {
+            margin = item.sectionMarginInches ?? margin
+            twoColumn = item.sectionTwoColumn ?? twoColumn
+            lineNumbers = item.sectionLineNumbers ?? lineNumbers
+        }
+        return (margin, twoColumn, lineNumbers)
+    }
+
     @ViewBuilder
     private func itemRow(_ item: ExportItem, index: Int) -> some View {
         HStack(spacing: 8) {
@@ -594,15 +613,18 @@ private struct ExportDocumentCard: View {
                 // Geometry for the pages AFTER this boundary; values show
                 // the effective setting (inheriting the document's until
                 // touched).
-                let effMargin = item.sectionMarginInches ?? document.format.marginInches
-                let effTwoCol = item.sectionTwoColumn ?? document.format.twoColumn
-                let effLines = item.sectionLineNumbers ?? document.format.lineNumbers
+                // Effective = this break's value, else whatever the section
+                // before it resolved to (matching the export pipeline).
+                let inherited = inheritedGeometry(before: index)
+                let effMargin = item.sectionMarginInches ?? inherited.margin
+                let effTwoCol = item.sectionTwoColumn ?? inherited.twoColumn
+                let effLines = item.sectionLineNumbers ?? inherited.lineNumbers
                 HStack(spacing: 2) {
                     Text("margins: \(String(format: "%.2f", effMargin))″")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     Stepper("", value: Binding(
-                        get: { item.sectionMarginInches ?? document.format.marginInches },
+                        get: { effMargin },
                         set: { value in
                             var doc = document
                             guard doc.items.indices.contains(index) else { return }

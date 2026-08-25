@@ -672,7 +672,12 @@ just a rendered blob.
   document/section/page model, Aug 2026): page-break items are now
   boundaries that both start a new page AND can re-set **margins, columns,
   and line numbering** for the pages that follow (mini pickers on the
-  break row; nil = inherit the document's format defaults;
+  break row; **nil INHERITS the section before it** — a running geometry,
+  not the document's static format, so a margin set on the first Section
+  carries through the whole document until another Section overrides it
+  (the old per-break fallback to `document.format` made every untouched
+  Section snap back to 1″, and that document-level control no longer
+  exists in the UI);
   `ExportItem.sectionMarginInches/-TwoColumn/-LineNumbers`,
   `PDFPaginator.render(sections:)` applies geometry per section; LaTeX
   tracks section line numbering; DOCX/RTF keep first-section geometry —

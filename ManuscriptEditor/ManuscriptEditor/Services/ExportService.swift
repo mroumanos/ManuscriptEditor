@@ -350,9 +350,14 @@ struct ExportService {
         for item in document.items {
             if item.kind == .pageBreak {
                 flush()
-                margin = item.sectionMarginInches ?? document.format.marginInches
-                twoCol = item.sectionTwoColumn ?? document.format.twoColumn
-                sectionLines = item.sectionLineNumbers
+                // nil INHERITS the section before it (running geometry) —
+                // falling back to the document's static format instead made
+                // every untouched Section snap back to 1″, and the document
+                // margin control no longer exists in the UI, so a margin set
+                // on the first Section silently died at the next break.
+                margin = item.sectionMarginInches ?? margin
+                twoCol = item.sectionTwoColumn ?? twoCol
+                sectionLines = item.sectionLineNumbers ?? sectionLines
                 continue
             }
             if let block = builder.block(for: item, content: content,
@@ -391,7 +396,7 @@ struct ExportService {
         var numbering = false
         var sectionLines: Bool? = nil
         for item in document.items {
-            if item.kind == .pageBreak { sectionLines = item.sectionLineNumbers }
+            if item.kind == .pageBreak { sectionLines = item.sectionLineNumbers ?? sectionLines }
             if anyLineNumbers, item.kind != .pageBreak {
                 let wanted = sectionLines ?? f.lineNumbers
                 if wanted != numbering {

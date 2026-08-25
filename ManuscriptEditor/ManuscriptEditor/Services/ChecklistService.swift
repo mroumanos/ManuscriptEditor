@@ -48,7 +48,8 @@ enum ChecklistService {
             var sectionLines = document.format.lineNumbers
             for entry in document.items {
                 if entry.kind == .pageBreak {
-                    sectionLines = entry.sectionLineNumbers ?? document.format.lineNumbers
+                    // nil inherits the previous section (running geometry).
+                    sectionLines = entry.sectionLineNumbers ?? sectionLines
                     continue
                 }
                 typography.append((entry.title(in: manuscript),
