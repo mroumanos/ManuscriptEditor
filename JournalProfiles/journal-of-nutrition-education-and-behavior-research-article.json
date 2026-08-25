@@ -1,0 +1,95 @@
+{
+  "articleType": "Research Article",
+  "checks": [
+    {
+      "combinator": "ALL",
+      "conditions": [
+        {
+          "comparator": ">=",
+          "metric": "LENGTH_WORDS",
+          "number": 50,
+          "scopes": [
+            {
+              "kind": "abstract"
+            }
+          ]
+        },
+        {
+          "comparator": "<=",
+          "metric": "LENGTH_WORDS",
+          "number": 100,
+          "scopes": [
+            {
+              "kind": "abstract"
+            }
+          ]
+        }
+      ],
+      "name": "Abstract 50\u2013100 words"
+    },
+    {
+      "combinator": "ALL",
+      "conditions": [
+        {
+          "comparator": "<=",
+          "metric": "LENGTH_WORDS",
+          "number": 3500,
+          "scopes": [
+            {
+              "kind": "body"
+            }
+          ]
+        }
+      ],
+      "name": "Body \u2264 3,500 words"
+    },
+    {
+      "combinator": "ALL",
+      "conditions": [
+        {
+          "comparator": "<=",
+          "metric": "COUNT",
+          "number": 5,
+          "scopes": [
+            {
+              "kind": "tables"
+            },
+            {
+              "kind": "figures"
+            }
+          ]
+        }
+      ],
+      "name": "Tables + figures \u2264 5"
+    },
+    {
+      "combinator": "ANY",
+      "conditions": [
+        {
+          "metric": "CONTAINS",
+          "scopes": [
+            {
+              "kind": "body"
+            }
+          ],
+          "text": "Implications"
+        }
+      ],
+      "name": "Implications section present"
+    },
+    {
+      "conditions": [],
+      "manual": true,
+      "name": "Conflict-of-interest statement filed",
+      "note": "Tick once the disclosure form is submitted"
+    }
+  ],
+  "id": "journal-of-nutrition-education-and-behavior-research-article",
+  "name": "Journal of Nutrition Education and Behavior",
+  "origin": "bundled",
+  "originURL": "https://github.com/mroumanos/ManuscriptEditor/blob/main/JournalProfiles/journal-of-nutrition-education-and-behavior-research-article.json",
+  "sourceRequirements": {
+    "summary": "Research Articles report original research. Structured abstract of 50-100 words. Body (Introduction through Discussion) up to 3,500 words, excluding abstract, references, tables, and figures. Up to 5 tables and figures combined. Double-spaced throughout, 12-point type, continuous line numbers. Include Implications for research and practice.",
+    "url": "https://www.jneb.org/content/authorinfo"
+  }
+}

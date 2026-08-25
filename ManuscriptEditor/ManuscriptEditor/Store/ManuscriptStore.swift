@@ -926,12 +926,73 @@ final class ManuscriptStore {
         showBanner(.success, "Export typography aligned with \(journal.displayName)'s requirements.")
     }
 
+    /// Edits a journal's source-requirements summary/link.  The first edit
+    /// makes this manuscript the OWNER of the configuration: the profile is
+    /// written into the manuscript folder (and therefore into its remote,
+    /// if it has one) instead of tracking the app's defaults.
+    func updateSourceRequirements(_ requirements: SourceRequirements, journalID: UUID) {
+        touch(undoAction: "Edit Source Requirements") { m in
+            guard let idx = m.journals.firstIndex(where: { $0.id == journalID }) else { return }
+            var edited = requirements
+            edited.editedAt = Date()
+            m.journals[idx].sourceRequirements = edited
+            m.journals[idx].configOrigin = .manuscript
+            m.journals[idx].configURL = nil
+        }
+        writeProfile(journalID: journalID)
+    }
+
+    /// Writes a journal's configuration (source requirements + checks) into
+    /// the manuscript folder as `journals/<slug>.json`, so it travels with
+    /// the manuscript locally and in its remote repository.
+    @discardableResult
+    func writeProfile(journalID: UUID) -> URL? {
+        guard let m = manuscript,
+              let journal = m.journals.first(where: { $0.id == journalID }),
+              let dir = persistence.manuscriptDirectory(for: m.id) as URL? else { return nil }
+        let folder = dir.appendingPathComponent("journals", isDirectory: true)
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let profile = JournalProfile(
+            id: journal.profileSlug,
+            name: journal.name,
+            articleType: journal.articleType,
+            sourceRequirements: journal.sourceRequirements ?? SourceRequirements(),
+            checks: journal.checkRules ?? [],
+            origin: .manuscript,
+            originURL: journal.configURL,
+            updatedAt: Date())
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        encoder.dateEncodingStrategy = .iso8601
+        guard let data = try? encoder.encode(profile) else { return nil }
+        let url = folder.appendingPathComponent("\(journal.profileSlug).json")
+        try? data.write(to: url, options: .atomic)
+        return url
+    }
+
+    /// The GitHub link for a journal's configuration: the manuscript's own
+    /// copy when it owns one (and has a remote), else the app's default.
+    func profileLink(for journal: Journal) -> (label: String, url: String)? {
+        if journal.configOrigin == .manuscript {
+            guard let repo = manuscript?.settings.remoteRepository, !repo.isEmpty else {
+                return ("This manuscript (local)", "")
+            }
+            let base = repo.hasPrefix("http") ? repo : "https://github.com/\(repo)"
+            return ("This manuscript", "\(base)/blob/main/journals/\(journal.profileSlug).json")
+        }
+        return ("App defaults", JournalProfile.bundledURL(slug: journal.profileSlug))
+    }
+
     /// Replaces a journal's user-written check rules.
     func updateCheckRules(_ rules: [CheckRule], journalID: UUID) {
         touch(undoAction: "Edit Checks") { m in
             guard let idx = m.journals.firstIndex(where: { $0.id == journalID }) else { return }
             m.journals[idx].checkRules = rules.isEmpty ? nil : rules
+            // Editing checks makes this manuscript the configuration's
+            // owner, exactly like editing the source requirements.
+            m.journals[idx].configOrigin = .manuscript
         }
+        writeProfile(journalID: journalID)
     }
 
     /// Ticks/unticks one manual checklist rule for a journal (Checks pane).

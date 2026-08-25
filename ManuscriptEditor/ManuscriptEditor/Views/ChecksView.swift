@@ -36,6 +36,9 @@ struct ChecksView: View {
     /// Drives the requirements editor sheet / save-to-library sheet.
     @State private var editingRequirements = false
     @State private var editingRules = false
+    @State private var editingSummary = false
+    @State private var summaryDraft = ""
+    @State private var urlDraft = ""
     @State private var savingToLibrary = false
 
     var body: some View {
@@ -45,6 +48,7 @@ struct ChecksView: View {
                     ContentUnavailableView("No manuscript open", systemImage: "doc")
                 } else if let journal = paneJournal {
                     header(journal)
+                    sourceRequirements(journal)
                     checklist(journal)
                 } else {
                     noJournalState
@@ -76,19 +80,11 @@ struct ChecksView: View {
     private func header(_ journal: Journal) -> some View {
         HStack {
             Text(journal.displayName).font(.headline)
-            // Straight to the journal's author instructions — the checks'
-            // source of truth.
-            if !journal.submissionURL.isEmpty, let url = URL(string: journal.submissionURL) {
-                Link(destination: url) {
-                    Label("Author instructions", systemImage: "arrow.up.right.square")
-                        .font(.caption)
-                }
-                .help(journal.submissionURL)
-            }
             Spacer()
-            Button("Edit Requirements…") { editingRequirements = true }
             Button("Edit Checks…") { editingRules = true }
-                .help("Write your own checks — LENGTH, COUNT, EXISTS, CONTAINS — joined by all/any")
+                .help("LENGTH, COUNT, EXISTS, CONTAINS over one or more sections, joined by all/any")
+            Button("Requirements…") { editingRequirements = true }
+                .help("The typed limits that seed the export (font, spacing, line numbers)")
             Button {
                 savingToLibrary = true
             } label: {
@@ -96,6 +92,85 @@ struct ChecksView: View {
             }
             .help("Store this journal's checks (and export outline) as a reusable library profile")
         }
+    }
+
+    // MARK: - Source requirements
+
+    /// The journal's own instructions: a link to the page and a distilled
+    /// summary the user can edit as free text.  Editing makes THIS
+    /// manuscript the owner of the configuration (checks included), which
+    /// is then written into its folder — and its remote, if it has one.
+    @ViewBuilder
+    private func sourceRequirements(_ journal: Journal) -> some View {
+        let requirements = journal.sourceRequirements ?? SourceRequirements()
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Text("Source requirements")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                if let link = store.profileLink(for: journal) {
+                    if link.url.isEmpty {
+                        Label(link.label, systemImage: "internaldrive")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    } else if let url = URL(string: link.url) {
+                        Link(destination: url) {
+                            Label(link.label, systemImage: "chevron.left.forwardslash.chevron.right")
+                                .font(.caption2)
+                        }
+                        .help("Open this journal's configuration file: \(link.url)")
+                    }
+                }
+                Spacer()
+                Button(editingSummary ? "Done" : "Edit") {
+                    if editingSummary {
+                        var edited = requirements
+                        edited.summary = summaryDraft
+                        edited.url = urlDraft
+                        store.updateSourceRequirements(edited, journalID: journal.id)
+                    } else {
+                        summaryDraft = requirements.summary
+                        urlDraft = requirements.url.isEmpty ? journal.submissionURL : requirements.url
+                    }
+                    editingSummary.toggle()
+                }
+                .controlSize(.small)
+            }
+
+            if editingSummary {
+                TextField("Link to the journal's author instructions", text: $urlDraft)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.caption)
+                PlainTextEditor(text: $summaryDraft)
+                    .frame(minHeight: 110)
+                    .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(.separator))
+                Text("Free text — a distilled summary of what this journal asks for. Checks below are what the app enforces.")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            } else {
+                let link = requirements.url.isEmpty ? journal.submissionURL : requirements.url
+                if !link.isEmpty, let url = URL(string: link) {
+                    Link(destination: url) {
+                        Label("Author instructions", systemImage: "arrow.up.right.square")
+                            .font(.caption)
+                    }
+                    .help(link)
+                }
+                if requirements.summary.isEmpty {
+                    Text("No summary yet — Edit to paste or write a distilled version of this journal's requirements.")
+                        .font(.callout)
+                        .foregroundStyle(.tertiary)
+                } else {
+                    Text(requirements.summary)
+                        .font(.callout)
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+        .padding(14)
+        .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
+        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.separator))
     }
 
     // MARK: - Checklist

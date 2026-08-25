@@ -63,6 +63,22 @@ struct Journal: Codable, Identifiable, Sendable {
     /// (matched by rule text).  Optional for backward-compatible decoding.
     var manualChecksDone: [String]? = nil
 
+    /// The journal's own instructions: a link to its author-instructions
+    /// page plus a distilled, editable summary.  This is the REFERENCE —
+    /// `checkRules` is what the app actually evaluates.  nil = still
+    /// showing whatever the bundled profile provides.
+    var sourceRequirements: SourceRequirements? = nil
+
+    /// Where this journal's configuration (source requirements + checks)
+    /// currently lives, and the file it came from.  nil = app defaults.
+    var configOrigin: JournalProfile.Origin? = nil
+    var configURL: String? = nil
+
+    /// Stable file name for this journal's configuration.
+    var profileSlug: String {
+        JournalProfile.slug(name: name, articleType: articleType)
+    }
+
     /// User-written checks, on top of the requirement-derived ones.
     /// Optional for backward-compatible decoding; nil = none yet.
     var checkRules: [CheckRule]? = nil

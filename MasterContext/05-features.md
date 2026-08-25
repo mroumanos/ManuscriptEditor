@@ -424,6 +424,21 @@ propagate by explicit, individual fast-forwards.
   combined / 35 refs) and AJPH "Research Brief" (1200 words / 1 table OR
   figure / 12 refs), each with a checklist distilled from the published
   author instructions.
+  **Source requirements vs checks** (Aug 2026). The two are different
+  things and the pane says so: **source requirements** are the journal's
+  own instructions — a link to its author-instructions page plus a
+  distilled, free-text summary the user edits directly — while **checks**
+  are what the app actually enforces. The typed `JournalRequirements`
+  fields survive only as the export's seed (font, spacing, line numbers)
+  and are reached through a secondary "Requirements…" button.
+  **One configuration file per journal** (`JournalProfile`): source
+  requirements + checks together, as
+  `JournalProfiles/<slug>.json` in the app repo (the defaults, hand-
+  editable — ids are optional) or `journals/<slug>.json` inside a
+  manuscript once the user edits either half, so it travels with the
+  manuscript locally and in its remote. The Checks pane **links to
+  whichever file is in force**, so "where did this rule come from?" is one
+  click.
   **Configurable checks** (Aug 2026): alongside the requirement-derived
   checks — which stay, because they know how to repair themselves (the
   typography Fix) and they seed the export — a journal carries
@@ -431,7 +446,14 @@ propagate by explicit, individual fast-forwards.
   **LENGTH (words|characters) · COUNT · EXISTS · CONTAINS**, compared with
   **≤ ≥ = ≠**, over a **scope** (title, subtitle, abstract, keywords,
   authors, the whole body, one named section, figures, tables, references,
-  cover letter). Conditions join with **ALL (and)** or **ANY (or)**, so
+  cover letter) — **sections appear flat in that same list, and several
+  scopes can be selected at once**: LENGTH over Abstract + Introduction is
+  their combined word count, COUNT sums, EXISTS/CONTAINS require each. A
+  third picker narrows to **subsections** — headings parsed from the
+  selected scopes ("Objective:", "Methods:"), also multi-select.
+  **Manual checks are just checks**: a rule with no conditions renders as
+  a checkbox in the same list and the same editor.
+  Conditions join with **ALL (and)** or **ANY (or)**, so
   "Methods exists AND ≤ 400 words" and "either a Limitations or a
   Discussion section" both express directly. The editor lives behind
   **Checks → Edit Checks…**, so it surfaces only for people refining a

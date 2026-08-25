@@ -37,9 +37,16 @@ enum ChecklistService {
     /// reads "Abstract: 312 words" rather than just "failed".
     private static func evaluate(_ condition: CheckCondition,
                                  in m: Manuscript) -> (passed: Bool, detail: String) {
-        let scope = condition.scope
 
-        func text() -> String {
+        /// Narrow a scope's text to the condition's subsections, when set.
+        func narrowed(_ whole: String) -> String {
+            guard !condition.subsections.isEmpty else { return whole }
+            return condition.subsections
+                .map { SubsectionParser.body(of: $0, in: whole) }
+                .joined(separator: "\n")
+        }
+
+        func text(of scope: CheckScope) -> String {
             switch scope.kind {
             case .title:       return m.articleTitle ?? m.title
             case .subtitle:    return m.subtitle ?? ""
@@ -59,7 +66,7 @@ enum ChecklistService {
             }
         }
 
-        func collectionCount() -> Int {
+        func collectionCount(of scope: CheckScope) -> Int {
             switch scope.kind {
             case .figures:    return m.figures.count
             case .tables:     return m.tables.count
@@ -70,30 +77,44 @@ enum ChecklistService {
             case .section:
                 let wanted = (scope.name ?? "").lowercased()
                 return m.sections.filter { $0.active && $0.title.lowercased().contains(wanted) }.count
-            default:          return text().isEmpty ? 0 : 1
+            default:          return text(of: scope).isEmpty ? 0 : 1
             }
         }
 
+        // Selected scopes measure TOGETHER: lengths and counts add up, and
+        // EXISTS/CONTAINS require every one of them (the rule's ANY
+        // combinator is how you express "either").
+        let label = condition.scopeLabel
+        let joined = narrowed(condition.scopes.map { text(of: $0) }.joined(separator: "\n"))
+
         switch condition.metric {
         case .words:
-            let n = WordCountService.count(text())
+            let n = WordCountService.count(joined)
             return (condition.comparator.passes(Double(n), condition.number),
-                    "\(scope.label): \(n) words")
+                    "\(label): \(n) words")
         case .characters:
-            let n = text().count
+            let n = joined.count
             return (condition.comparator.passes(Double(n), condition.number),
-                    "\(scope.label): \(n) characters")
+                    "\(label): \(n) characters")
         case .count:
-            let n = collectionCount()
+            let n = condition.scopes.reduce(0) { $0 + collectionCount(of: $1) }
             return (condition.comparator.passes(Double(n), condition.number),
-                    "\(scope.label): \(n)")
+                    "\(label): \(n)")
         case .exists:
-            let present = !text().trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            return (present, present ? "\(scope.label) present" : "\(scope.label) missing or empty")
+            let missing = condition.scopes.filter {
+                narrowed(text(of: $0)).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            }
+            return (missing.isEmpty,
+                    missing.isEmpty ? "\(label) present"
+                                    : "missing: \(missing.map(\.label).joined(separator: ", "))")
         case .contains:
             let needle = condition.text.trimmingCharacters(in: .whitespaces)
-            let found = !needle.isEmpty && text().localizedCaseInsensitiveContains(needle)
-            return (found, found ? "\(scope.label) contains it" : "\(scope.label) is missing \"\(needle)\"")
+            let missing = condition.scopes.filter {
+                needle.isEmpty || !narrowed(text(of: $0)).localizedCaseInsensitiveContains(needle)
+            }
+            return (missing.isEmpty && !needle.isEmpty,
+                    missing.isEmpty ? "\(label) contains it"
+                                    : "\(missing.map(\.label).joined(separator: ", ")) missing \"\(needle)\"")
         }
     }
 
@@ -384,6 +405,16 @@ enum ChecklistService {
         // --- User-written rules (the configurable vocabulary) ---
 
         for rule in journal.checkRules ?? [] where rule.isEnabled {
+            // Manual checks are just checks: same list, same editor, ticked
+            // by hand and remembered per journal.
+            if rule.isManual {
+                let done = manualDone.contains(rule.displayName)
+                results.append(ChecklistResult(
+                    id: rule.id, rule: rule.displayName, passed: done,
+                    details: rule.note ?? "Tick once verified by hand",
+                    manual: true))
+                continue
+            }
             let outcomes = rule.conditions.map { evaluate($0, in: manuscript) }
             let passed = rule.combinator == .all
                 ? outcomes.allSatisfy(\.passed)

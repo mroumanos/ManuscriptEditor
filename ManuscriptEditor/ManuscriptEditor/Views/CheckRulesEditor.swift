@@ -48,16 +48,21 @@ struct CheckRulesEditor: View {
                     Image(systemName: "checklist")
                         .font(.system(size: 34, weight: .thin))
                         .foregroundStyle(.tertiary)
-                    Text("No custom checks yet")
+                    Text("No checks yet")
                         .font(.title3.weight(.semibold))
-                    Text("The journal's built-in requirement checks still run.\nAdd a rule here to check anything else.")
+                    Text("Measure LENGTH, COUNT, EXISTS, or CONTAINS over one or\nmore sections — or add a manual check to tick by hand.")
                         .multilineTextAlignment(.center)
                         .font(.callout)
                         .foregroundStyle(.secondary)
-                    Button { rules.append(.newRule()) } label: {
-                        Label("Add Rule", systemImage: "plus")
+                    HStack {
+                        Button { rules.append(.newRule()) } label: {
+                            Label("Add Check", systemImage: "plus")
+                        }
+                        .buttonStyle(.borderedProminent)
+                        Button { rules.append(.newManual()) } label: {
+                            Label("Add Manual Check", systemImage: "hand.tap")
+                        }
                     }
-                    .buttonStyle(.borderedProminent)
                     Spacer()
                 }
                 .frame(maxWidth: .infinity)
@@ -73,15 +78,22 @@ struct CheckRulesEditor: View {
             }
 
             Divider()
-            HStack {
+            HStack(spacing: 12) {
                 Button {
                     rules.append(.newRule())
                 } label: {
-                    Label("Add Rule", systemImage: "plus")
+                    Label("Add Check", systemImage: "plus")
                 }
                 .buttonStyle(.borderless)
+                Button {
+                    rules.append(.newManual())
+                } label: {
+                    Label("Add Manual Check", systemImage: "hand.tap")
+                }
+                .buttonStyle(.borderless)
+                .help("A check the app can't measure — it renders as a checkbox to tick by hand")
                 Spacer()
-                Text("Rules run alongside the journal's built-in checks.")
+                Text("Saved with this manuscript, alongside its source requirements.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -126,18 +138,26 @@ struct CheckRulesEditor: View {
                 .help("Delete this rule")
             }
 
-            ForEach(rule.conditions) { $condition in
-                conditionRow($condition, in: rule)
+            if rule.wrappedValue.isManual {
+                Label("Manual — ticked by hand in the checklist", systemImage: "hand.tap")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(rule.conditions) { $condition in
+                    conditionRow($condition, in: rule)
+                }
             }
 
             HStack {
-                Button {
-                    rule.wrappedValue.conditions.append(CheckCondition())
-                } label: {
-                    Label("Add Condition", systemImage: "plus.circle")
-                        .font(.caption)
+                if !rule.wrappedValue.isManual {
+                    Button {
+                        rule.wrappedValue.conditions.append(CheckCondition())
+                    } label: {
+                        Label("Add Condition", systemImage: "plus.circle")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.borderless)
                 }
-                .buttonStyle(.borderless)
                 Spacer()
                 TextField("Guidance shown when it fails (optional)", text: Binding(
                     get: { rule.wrappedValue.note ?? "" },
@@ -167,23 +187,10 @@ struct CheckRulesEditor: View {
 
             Text("of").font(.caption).foregroundStyle(.secondary)
 
-            Picker("", selection: condition.scope.kind) {
-                ForEach(CheckScope.Kind.allCases, id: \.self) { k in
-                    Text(k.label).tag(k)
-                }
-            }
-            .labelsHidden().fixedSize()
+            scopeMenu(condition)
 
-            if condition.wrappedValue.scope.kind == .section {
-                Picker("", selection: Binding(
-                    get: { condition.wrappedValue.scope.name ?? sectionTitles.first ?? "" },
-                    set: { condition.wrappedValue.scope.name = $0 }
-                )) {
-                    ForEach(sectionTitles, id: \.self) { title in
-                        Text(title).tag(title)
-                    }
-                }
-                .labelsHidden().fixedSize()
+            if !subsectionChoices(for: condition.wrappedValue).isEmpty {
+                subsectionMenu(condition)
             }
 
             if condition.wrappedValue.metric.takesNumber {
@@ -213,5 +220,98 @@ struct CheckRulesEditor: View {
             .help("Remove this condition")
         }
         .controlSize(.small)
+    }
+
+    /// Everything measurable in ONE flat list: the fixed panes, then every
+    /// body section by name.  Ticking more than one measures them together
+    /// (LENGTH of Abstract + Introduction is their combined count).
+    private func scopeMenu(_ condition: Binding<CheckCondition>) -> some View {
+        Menu {
+            ForEach(CheckScope.Kind.allCases.filter { $0 != .section }, id: \.self) { kind in
+                Toggle(kind.label, isOn: scopeBinding(condition, CheckScope(kind: kind)))
+            }
+            if !sectionTitles.isEmpty {
+                Divider()
+                ForEach(sectionTitles, id: \.self) { title in
+                    Toggle(title, isOn: scopeBinding(condition, CheckScope(kind: .section, name: title)))
+                }
+            }
+        } label: {
+            Text(condition.wrappedValue.scopes.isEmpty
+                 ? "Choose…"
+                 : condition.wrappedValue.scopes.map(\.label).joined(separator: " + "))
+                .lineLimit(1)
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .help("Pick one or more — several are measured together")
+    }
+
+    private func scopeBinding(_ condition: Binding<CheckCondition>,
+                              _ scope: CheckScope) -> Binding<Bool> {
+        Binding(
+            get: { condition.wrappedValue.scopes.contains(scope) },
+            set: { on in
+                var scopes = condition.wrappedValue.scopes
+                if on {
+                    if !scopes.contains(scope) { scopes.append(scope) }
+                } else {
+                    scopes.removeAll { $0 == scope }
+                }
+                condition.wrappedValue.scopes = scopes
+                let valid = Set(subsectionChoices(for: condition.wrappedValue))
+                condition.wrappedValue.subsections.removeAll { !valid.contains($0) }
+            }
+        )
+    }
+
+    private func subsectionMenu(_ condition: Binding<CheckCondition>) -> some View {
+        Menu {
+            ForEach(subsectionChoices(for: condition.wrappedValue), id: \.self) { heading in
+                Toggle(heading, isOn: Binding(
+                    get: { condition.wrappedValue.subsections.contains(heading) },
+                    set: { on in
+                        var subs = condition.wrappedValue.subsections
+                        if on {
+                            if !subs.contains(heading) { subs.append(heading) }
+                        } else {
+                            subs.removeAll { $0 == heading }
+                        }
+                        condition.wrappedValue.subsections = subs
+                    }
+                ))
+            }
+        } label: {
+            Text(condition.wrappedValue.subsections.isEmpty
+                 ? "whole section"
+                 : condition.wrappedValue.subsections.joined(separator: ", "))
+                .lineLimit(1)
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .help("Narrow to headings inside the selected scopes")
+    }
+
+    /// Headings inside the selected scopes — structured-abstract labels
+    /// ("Objective:", "Methods:") and run-in headings.
+    private func subsectionChoices(for condition: CheckCondition) -> [String] {
+        guard let m = store.manuscript else { return [] }
+        var out: [String] = []
+        for scope in condition.scopes {
+            let text: String
+            switch scope.kind {
+            case .abstract: text = m.abstract.plain
+            case .section:
+                let wanted = (scope.name ?? "").lowercased()
+                text = m.sections.first { $0.title.lowercased() == wanted }?.content.plain ?? ""
+            case .body: text = m.sections.map(\.content.plain).joined(separator: "\n")
+            case .coverLetter: text = m.letterToEditor.body.plain
+            default: continue
+            }
+            for heading in SubsectionParser.headings(in: text) where !out.contains(heading) {
+                out.append(heading)
+            }
+        }
+        return out
     }
 }

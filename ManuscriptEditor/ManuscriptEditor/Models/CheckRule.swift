@@ -116,21 +116,77 @@ struct CheckScope: Codable, Hashable, Sendable {
 struct CheckCondition: Codable, Identifiable, Sendable, Equatable {
     var id: UUID = UUID()
     var metric: CheckMetric = .words
-    var scope: CheckScope = CheckScope(kind: .abstract)
+    /// One or MORE scopes, measured together: LENGTH over
+    /// [Abstract, Introduction] is their combined word count, COUNT is the
+    /// sum, EXISTS/CONTAINS require every selected scope.  Written as a
+    /// list so a single-scope condition reads the same as a combined one.
+    var scopes: [CheckScope] = [CheckScope(kind: .abstract)]
+    /// Subsections (headings inside the selected scopes) to narrow to.
+    /// Empty = the whole scope.
+    var subsections: [String] = []
     var comparator: CheckComparator = .atMost
     /// Compared against for numeric metrics.
     var number: Double = 250
     /// Matched for CONTAINS.
     var text: String = ""
 
-    /// "Abstract LENGTH (words) ≤ 250"
+    /// Legacy single-scope decoding (pre-multi-select files).
+    private enum CodingKeys: String, CodingKey {
+        case id, metric, scopes, scope, subsections, comparator, number, text
+    }
+
+    init(id: UUID = UUID(), metric: CheckMetric = .words,
+         scopes: [CheckScope] = [CheckScope(kind: .abstract)],
+         subsections: [String] = [],
+         comparator: CheckComparator = .atMost, number: Double = 250, text: String = "") {
+        self.id = id; self.metric = metric; self.scopes = scopes
+        self.subsections = subsections
+        self.comparator = comparator; self.number = number; self.text = text
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        metric = try c.decodeIfPresent(CheckMetric.self, forKey: .metric) ?? .words
+        if let list = try c.decodeIfPresent([CheckScope].self, forKey: .scopes) {
+            scopes = list
+        } else if let single = try c.decodeIfPresent(CheckScope.self, forKey: .scope) {
+            scopes = [single]
+        } else {
+            scopes = [CheckScope(kind: .abstract)]
+        }
+        subsections = try c.decodeIfPresent([String].self, forKey: .subsections) ?? []
+        comparator = try c.decodeIfPresent(CheckComparator.self, forKey: .comparator) ?? .atMost
+        number = try c.decodeIfPresent(Double.self, forKey: .number) ?? 0
+        text = try c.decodeIfPresent(String.self, forKey: .text) ?? ""
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id)
+        try c.encode(metric, forKey: .metric)
+        try c.encode(scopes, forKey: .scopes)
+        if !subsections.isEmpty { try c.encode(subsections, forKey: .subsections) }
+        try c.encode(comparator, forKey: .comparator)
+        try c.encode(number, forKey: .number)
+        if !text.isEmpty { try c.encode(text, forKey: .text) }
+    }
+
+    var scopeLabel: String {
+        let names = scopes.map(\.label)
+        let base = names.count <= 2 ? names.joined(separator: " + ")
+                                    : "\(names[0]) + \(names.count - 1) more"
+        return subsections.isEmpty ? base : "\(base) › \(subsections.joined(separator: ", "))"
+    }
+
+    /// "Abstract + Introduction LENGTH (words) ≤ 250"
     var summary: String {
         switch metric {
-        case .exists:   return "\(scope.label) EXISTS"
-        case .contains: return "\(scope.label) CONTAINS \"\(text)\""
+        case .exists:   return "\(scopeLabel) EXISTS"
+        case .contains: return "\(scopeLabel) CONTAINS \"\(text)\""
         default:
             let n = number.rounded() == number ? String(Int(number)) : String(number)
-            return "\(scope.label) \(metric.label) \(comparator.label) \(n)"
+            return "\(scopeLabel) \(metric.label) \(comparator.label) \(n)"
         }
     }
 }
@@ -154,20 +210,55 @@ struct CheckRule: Codable, Identifiable, Sendable, Equatable {
     var conditions: [CheckCondition] = [CheckCondition()]
     /// Guidance shown under a failure.
     var note: String? = nil
+    /// A rule the app can't evaluate — it renders as a checkbox the user
+    /// ticks after verifying by hand.  Manual checks are just checks, in
+    /// the same list and the same editor.  nil = automatic.
+    var manual: Bool? = nil
 
     var isEnabled: Bool { enabled ?? true }
+    var isManual: Bool { manual ?? false }
 
     var displayName: String {
         if !name.isEmpty { return name }
+        if isManual { return "Manual check" }
         guard !conditions.isEmpty else { return "Empty rule" }
         let joiner = combinator == .all ? " AND " : " OR "
         return conditions.map(\.summary).joined(separator: joiner)
     }
 
     /// Every scope this rule touches — the panes it can color.
-    var scopeKeys: [String] { conditions.map(\.scope.key) }
+    var scopeKeys: [String] { conditions.flatMap { $0.scopes.map(\.key) } }
+
+    /// Hand-written profile files shouldn't have to invent UUIDs, so every
+    /// field but the conditions has a sensible default on decode.
+    private enum CodingKeys: String, CodingKey {
+        case id, name, enabled, combinator, conditions, note, manual
+    }
+
+    init(id: UUID = UUID(), name: String = "", enabled: Bool? = nil,
+         combinator: Combinator = .all, conditions: [CheckCondition] = [CheckCondition()],
+         note: String? = nil, manual: Bool? = nil) {
+        self.id = id; self.name = name; self.enabled = enabled
+        self.combinator = combinator; self.conditions = conditions
+        self.note = note; self.manual = manual
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        name = try c.decodeIfPresent(String.self, forKey: .name) ?? ""
+        enabled = try c.decodeIfPresent(Bool.self, forKey: .enabled)
+        combinator = try c.decodeIfPresent(Combinator.self, forKey: .combinator) ?? .all
+        conditions = try c.decodeIfPresent([CheckCondition].self, forKey: .conditions) ?? []
+        note = try c.decodeIfPresent(String.self, forKey: .note)
+        manual = try c.decodeIfPresent(Bool.self, forKey: .manual)
+    }
 
     static func newRule() -> CheckRule {
         CheckRule(name: "", conditions: [CheckCondition()])
+    }
+
+    static func newManual() -> CheckRule {
+        CheckRule(name: "", conditions: [], manual: true)
     }
 }
