@@ -1,0 +1,27 @@
+{
+  "id": "BE598C81-274C-582D-8FF2-1491E152ADE9",
+  "journal": "American Journal of Public Health",
+  "sections": [
+    {
+      "required": true,
+      "title": "Introduction"
+    },
+    {
+      "required": true,
+      "title": "Methods"
+    },
+    {
+      "required": true,
+      "title": "Results"
+    },
+    {
+      "required": true,
+      "title": "Discussion"
+    },
+    {
+      "note": "Named explicitly in this journal's instructions",
+      "required": true,
+      "title": "Public Health Implications"
+    }
+  ]
+}

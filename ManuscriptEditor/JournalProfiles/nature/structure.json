@@ -1,0 +1,22 @@
+{
+  "id": "5697ABCA-7A31-5E68-B1D9-519DBC0742F1",
+  "journal": "Nature",
+  "sections": [
+    {
+      "required": true,
+      "title": "Introduction"
+    },
+    {
+      "required": true,
+      "title": "Methods"
+    },
+    {
+      "required": true,
+      "title": "Results"
+    },
+    {
+      "required": true,
+      "title": "Discussion"
+    }
+  ]
+}

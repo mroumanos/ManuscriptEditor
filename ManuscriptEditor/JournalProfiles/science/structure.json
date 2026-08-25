@@ -1,0 +1,22 @@
+{
+  "id": "790FAD47-44A9-5A8D-B01E-23C83B386F1B",
+  "journal": "Science",
+  "sections": [
+    {
+      "required": true,
+      "title": "Introduction"
+    },
+    {
+      "required": true,
+      "title": "Methods"
+    },
+    {
+      "required": true,
+      "title": "Results"
+    },
+    {
+      "required": true,
+      "title": "Discussion"
+    }
+  ]
+}

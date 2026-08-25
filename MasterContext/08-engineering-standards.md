@@ -168,8 +168,17 @@ xcodebuild -scheme ManuscriptEditor -destination 'platform=macOS' build
     `PBXFileSystemSynchronizedRootGroup`, so a folder dropped into the app
     directory ships automatically — but its resources are FLATTENED into
     `Contents/Resources`, so `urls(forResourcesWithExtension:subdirectory:)`
-    with the folder name finds nothing. Search both the subdirectory and
-    the flat root. And `Bundle.main` is whatever executable is running: in
+    with the folder name finds nothing. **Nested folders are worse than
+    flattened: they COLLIDE.** Seventeen journal profiles each holding a
+    `requirements.json` fail the build outright with "Multiple commands
+    produce …/Resources/requirements.json". The fix is a real **folder
+    reference** — `JournalProfiles/` sits beside the .xcodeproj (outside
+    the synchronized group), added as a `PBXFileReference` with
+    `lastKnownFileType = folder` in the Resources phase; directory
+    structure and duplicate file names then survive into
+    `Contents/Resources/JournalProfiles/<slug>/`, and the code reads it
+    with `Bundle.url(forResource:withExtension: nil)`.
+    And `Bundle.main` is whatever executable is running: in
     the swiftc verification harness that is the harness, which carries no
     resources, so a lookup that works in the app silently returns nothing
     under test — the seeding of journal profiles appeared broken for

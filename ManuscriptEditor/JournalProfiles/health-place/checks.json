@@ -1,0 +1,57 @@
+{
+  "checks": [
+    {
+      "combinator": "ALL",
+      "conditions": [
+        {
+          "comparator": "<=",
+          "metric": "LENGTH_WORDS",
+          "number": 8000,
+          "scopes": [
+            {
+              "kind": "body"
+            }
+          ]
+        }
+      ],
+      "name": "Body ≤ 8,000 words"
+    },
+    {
+      "combinator": "ALL",
+      "conditions": [
+        {
+          "comparator": "<=",
+          "metric": "LENGTH_WORDS",
+          "number": 250,
+          "scopes": [
+            {
+              "kind": "abstract"
+            }
+          ]
+        }
+      ],
+      "name": "Abstract ≤ 250 words"
+    },
+    {
+      "combinator": "ALL",
+      "conditions": [
+        {
+          "comparator": "==",
+          "metric": "STRUCTURE",
+          "number": 1,
+          "scopes": []
+        }
+      ],
+      "name": "Sections match the journal's structure",
+      "note": "Every section marked required in the structure file must be present and non-empty"
+    },
+    {
+      "conditions": [],
+      "manual": true,
+      "name": "Highlights (3–5 bullet points) required",
+      "note": "Tick once verified by hand"
+    }
+  ],
+  "id": "B7442DA9-9D74-537A-9133-E5632C6101C5",
+  "journal": "Health & Place"
+}

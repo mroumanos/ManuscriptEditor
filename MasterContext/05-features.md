@@ -431,14 +431,37 @@ propagate by explicit, individual fast-forwards.
   are what the app actually enforces. The typed `JournalRequirements`
   fields survive only as the export's seed (font, spacing, line numbers)
   and are reached through a secondary "Requirements…" button.
-  **One configuration file per journal** (`JournalProfile`): source
-  requirements + checks together, as
-  `JournalProfiles/<slug>.json` in the app repo (the defaults, hand-
-  editable — ids are optional) or `journals/<slug>.json` inside a
-  manuscript once the user edits either half, so it travels with the
-  manuscript locally and in its remote. The Checks pane **links to
-  whichever file is in force**, so "where did this rule come from?" is one
-  click.
+  **Three configuration files per journal, in one folder** (Aug 2026):
+  `requirements.json` (the journal's instructions as **bullets** plus the
+  link they came from), `checks.json` (the rules the app evaluates), and
+  `structure.json` (the sections a submission is expected to have). They
+  are split so a difference shows WHICH half moved. All three share an
+  `id` — the profile's **GUID**, which is the identity: one journal can
+  carry several profiles (article types), a rename must not orphan a
+  manuscript's copy, and the GUID is what maps a journal to a library
+  entry (`Journal.profileID`).
+  **Three places hold them**, in order of authority for a manuscript:
+  **bundled** (`ManuscriptEditor/JournalProfiles/<slug>/`, shipped and
+  browsable on GitHub) → **library**
+  (`~/Library/Application Support/ManuscriptEditor/JournalLibrary/<slug>/`,
+  seeded from bundled on first run, then the user's) → **manuscript**
+  (`journals/<slug>/`, written on every profile edit so it travels locally
+  and in the remote). The manuscript's copy always wins for evaluation.
+  **Drift is shown, not resolved silently**: `JournalProfileLibrary.status`
+  compares the manuscript's copy against the library **per part**, by
+  content fingerprint (SHA-256 over canonical JSON with ids and timestamps
+  stripped — `CheckRule` mints UUIDs on decode, so value equality would
+  report a file as different from itself). Each part that differs gets a
+  **yellow warning** on its row in the Checks pane.
+  **Save to Library** handles the three cases: the GUID is in the library
+  but the content differs → *Update Library*; the GUID is unknown but a
+  profile with the same NAME exists → *Replace in Library…*, which confirms
+  first and links the manuscript to the library's GUID (or adds a separate
+  profile); neither GUID nor name is known → *Add to Library*, a net add.
+  When everything matches, the button is replaced by "Matches your
+  library".
+  The Checks pane **links to whichever copy is in force**, so "where did
+  this rule come from?" is one click.
   **Every journal ships a real profile** (Aug 2026): all 17 presets have a
   hand-written `JournalProfiles/<slug>.json` whose **source requirements**
   are a distilled summary plus a link to that journal's author-instruction
@@ -450,12 +473,19 @@ propagate by explicit, individual fast-forwards.
   rule in `Journal.checkRules`, therefore everything is editable in
   **Edit Checks…**. (Journals saved before profiles existed still fall
   back to their legacy `customRules` so nothing vanishes.)
+  **The structure file is checked too**: the `STRUCTURE` metric compares
+  the manuscript's active, non-empty sections against the sections marked
+  required in `structure.json`, and `ViewConfig.from(journal:)` seeds a new
+  cut's outline from it — which is how a journal-named section
+  ("Public Health Implications") reaches a cut at all, since the typed
+  `requiredSections` can only express the IMRAD enum.
   **Configurable checks** (Aug 2026): a journal carries
   **rules** (`Journal.checkRules`) in a small vocabulary:
-  **LENGTH (words|characters) · COUNT · EXISTS · CONTAINS**, plus the
-  export-format metrics **FONT_SIZE · LINE_SPACING · LINE_NUMBERS** (which
-  read the journal's export configuration and carry the typography
-  **Fix**), compared with
+  **LENGTH (words|characters) · COUNT · EXISTS · CONTAINS**, plus
+  **STRUCTURE** (the structure file) and the export-format metrics
+  **FONT_SIZE · LINE_SPACING · LINE_NUMBERS** (which read the journal's
+  export configuration and carry the typography **Fix**) — all of those
+  ignore the scope picker, which the editor hides for them — compared with
   **≤ ≥ = ≠**, over a **scope** (title, subtitle, abstract, keywords,
   authors, the whole body, one named section, figures, tables, references,
   cover letter) — **sections appear flat in that same list, and several

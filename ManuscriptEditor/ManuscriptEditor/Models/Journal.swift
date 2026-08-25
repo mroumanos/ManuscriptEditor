@@ -63,23 +63,47 @@ struct Journal: Codable, Identifiable, Sendable {
     /// (matched by rule text).  Optional for backward-compatible decoding.
     var manualChecksDone: [String]? = nil
 
+    /// The GUID of the profile this journal follows — the identity that maps
+    /// it to an entry in the user's journal library, surviving renames and
+    /// distinguishing one journal's several article types.  nil until the
+    /// journal is seeded from a profile.
+    var profileID: UUID? = nil
+
     /// The journal's own instructions: a link to its author-instructions
-    /// page plus a distilled, editable summary.  This is the REFERENCE —
+    /// page plus the distilled bullets.  This is the REFERENCE —
     /// `checkRules` is what the app actually evaluates.  nil = still
     /// showing whatever the bundled profile provides.
     var sourceRequirements: SourceRequirements? = nil
 
-    /// Where this journal's configuration (source requirements + checks)
-    /// currently lives, and the file it came from.  nil = app defaults.
+    /// The sections a manuscript for this journal is expected to have.
+    /// Seeds a new cut's outline, and `STRUCTURE` checks verify it.
+    var structure: JournalStructure? = nil
+
+    /// Where this journal's configuration currently lives, and the folder it
+    /// came from.  nil = app defaults.
     var configOrigin: JournalProfile.Origin? = nil
     var configURL: String? = nil
 
-    /// Stable file name for this journal's configuration.
+    /// Stable folder name for this journal's configuration.
     var profileSlug: String {
         JournalProfile.slug(name: name, articleType: articleType)
     }
 
-    /// User-written checks, on top of the requirement-derived ones.
+    /// This journal's configuration as one value — what gets written into the
+    /// manuscript folder and compared against the library.
+    var profile: JournalProfile {
+        JournalProfile(
+            id: profileID ?? JournalProfile.bundledID(slug: profileSlug),
+            name: name, articleType: articleType,
+            requirements: sourceRequirements ?? SourceRequirements(),
+            checks: checkRules ?? [],
+            structure: structure ?? JournalStructure(),
+            origin: configOrigin ?? .bundled,
+            originURL: configURL
+        )
+    }
+
+    /// The checks the app evaluates for this journal.
     /// Optional for backward-compatible decoding; nil = none yet.
     var checkRules: [CheckRule]? = nil
 

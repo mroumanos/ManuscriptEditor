@@ -1,17 +1,18 @@
 // ChecksView.swift
 //
-// The Checks panel: the live submission **checklist** for a journal — every
-// requirement (word limits, asset limits, required sections, custom rules)
-// evaluated against the pane's content with a green ✓ / red ✗ per rule.
+// The Checks panel, in two halves:
+//
+//   CONFIGURATION  the three files this journal is made of — requirements,
+//                  checks, structure — each openable, each editable, each
+//                  flagged when this manuscript's copy has drifted from the
+//                  user's library.
+//   CHECKLIST      the live verdict: every check evaluated against the
+//                  pane's content, green ✓ / red ✗, manual ones as boxes.
 //
 // Version-aware: a journal pane evaluates that version's content against its
-// own journal's requirements, so Checks renders one live pane per open tab in
-// side-by-side (just like Abstract).  The Source pane picks a journal to check
-// against.  Everything recomputes on every edit because the stores are
-// `@Observable`.
-//
-// Requirements *editing* lives in the Journals settings (JournalDetailView);
-// this pane is intentionally just the checklist.
+// own journal's profile, so Checks renders one live pane per open tab in
+// side-by-side (just like Abstract).  Everything recomputes on every edit
+// because the stores are `@Observable`.
 
 import SwiftUI
 
@@ -33,13 +34,12 @@ struct ChecksView: View {
         return journals.first { $0.id == jid }
     }
 
-    /// Drives the requirements editor sheet / save-to-library sheet.
     @State private var editingRequirements = false
     @State private var editingRules = false
-    @State private var editingSummary = false
-    @State private var summaryDraft = ""
-    @State private var urlDraft = ""
-    @State private var savingToLibrary = false
+    @State private var editingStructure = false
+    /// Set when saving would overwrite a same-named library profile with a
+    /// different GUID — the one case that needs confirming.
+    @State private var replacingLibraryID: UUID?
 
     var body: some View {
         ScrollView {
@@ -48,7 +48,7 @@ struct ChecksView: View {
                     ContentUnavailableView("No manuscript open", systemImage: "doc")
                 } else if let journal = paneJournal {
                     header(journal)
-                    sourceRequirements(journal)
+                    configuration(journal)
                     checklist(journal)
                 } else {
                     noJournalState
@@ -59,7 +59,7 @@ struct ChecksView: View {
         }
         .sheet(isPresented: $editingRequirements) {
             if let journal = paneJournal {
-                RequirementsEditorSheet(journal: journal, isPresented: $editingRequirements)
+                SourceRequirementsSheet(journal: journal, isPresented: $editingRequirements)
             }
         }
         .sheet(isPresented: $editingRules) {
@@ -67,9 +67,9 @@ struct ChecksView: View {
                 CheckRulesEditor(journal: journal, isPresented: $editingRules)
             }
         }
-        .sheet(isPresented: $savingToLibrary) {
+        .sheet(isPresented: $editingStructure) {
             if let journal = paneJournal {
-                SaveToJournalLibrarySheet(journal: journal, isPresented: $savingToLibrary)
+                StructureEditorSheet(journal: journal, isPresented: $editingStructure)
             }
         }
     }
@@ -78,99 +78,152 @@ struct ChecksView: View {
 
     @ViewBuilder
     private func header(_ journal: Journal) -> some View {
-        HStack {
+        let status = store.libraryStatus(for: journal)
+        HStack(spacing: 10) {
             Text(journal.displayName).font(.headline)
             Spacer()
-            Button("Edit Checks…") { editingRules = true }
-                .help("LENGTH, COUNT, EXISTS, CONTAINS over one or more sections, joined by all/any")
-            Button("Requirements…") { editingRequirements = true }
-                .help("The typed limits that seed the export (font, spacing, line numbers)")
-            Button {
-                savingToLibrary = true
-            } label: {
-                Label("Save to Journal Library…", systemImage: "books.vertical")
+            if let link = store.profileLink(for: journal) {
+                if link.url.isEmpty {
+                    Label(link.label, systemImage: "internaldrive")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                } else if let url = URL(string: link.url) {
+                    Link(destination: url) {
+                        Label(link.label, systemImage: "chevron.left.forwardslash.chevron.right")
+                            .font(.caption2)
+                    }
+                    .help("Open this journal's configuration: \(link.url)")
+                }
             }
-            .help("Store this journal's checks (and export outline) as a reusable library profile")
+            if status.canSave {
+                Button {
+                    if case .nameMatchDifferentID(let id) = status {
+                        replacingLibraryID = id
+                    } else {
+                        store.saveProfileToLibrary(journalID: journal.id)
+                    }
+                } label: {
+                    Label(status.saveVerb, systemImage: "books.vertical")
+                }
+                .help(saveHelp(status, journal: journal))
+            } else {
+                Label("Matches your library", systemImage: "checkmark.seal")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .confirmationDialog(
+            "Replace \"\(journal.displayName)\" in your journal library?",
+            isPresented: Binding(get: { replacingLibraryID != nil },
+                                 set: { if !$0 { replacingLibraryID = nil } }),
+            titleVisibility: .visible
+        ) {
+            Button("Replace", role: .destructive) {
+                if let id = replacingLibraryID {
+                    store.saveProfileToLibrary(journalID: journal.id, replacingID: id)
+                }
+                replacingLibraryID = nil
+            }
+            Button("Add as a Separate Profile") {
+                store.saveProfileToLibrary(journalID: journal.id)
+                replacingLibraryID = nil
+            }
+            Button("Cancel", role: .cancel) { replacingLibraryID = nil }
+        } message: {
+            Text("Your library already has a profile with this name, but a different identifier. Replacing overwrites it and links this manuscript to it.")
         }
     }
 
-    // MARK: - Source requirements
-
-    /// The journal's own instructions: a link to the page and a distilled
-    /// summary the user can edit as free text.  Editing makes THIS
-    /// manuscript the owner of the configuration (checks included), which
-    /// is then written into its folder — and its remote, if it has one.
-    @ViewBuilder
-    private func sourceRequirements(_ journal: Journal) -> some View {
-        let requirements = journal.sourceRequirements ?? SourceRequirements()
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
-                Text("Source requirements")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                if let link = store.profileLink(for: journal) {
-                    if link.url.isEmpty {
-                        Label(link.label, systemImage: "internaldrive")
-                            .font(.caption2)
-                            .foregroundStyle(.tertiary)
-                    } else if let url = URL(string: link.url) {
-                        Link(destination: url) {
-                            Label(link.label, systemImage: "chevron.left.forwardslash.chevron.right")
-                                .font(.caption2)
-                        }
-                        .help("Open this journal's configuration file: \(link.url)")
-                    }
-                }
-                Spacer()
-                Button(editingSummary ? "Done" : "Edit") {
-                    if editingSummary {
-                        var edited = requirements
-                        edited.summary = summaryDraft
-                        edited.url = urlDraft
-                        store.updateSourceRequirements(edited, journalID: journal.id)
-                    } else {
-                        summaryDraft = requirements.summary
-                        urlDraft = requirements.url.isEmpty ? journal.submissionURL : requirements.url
-                    }
-                    editingSummary.toggle()
-                }
-                .controlSize(.small)
-            }
-
-            if editingSummary {
-                TextField("Link to the journal's author instructions", text: $urlDraft)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.caption)
-                PlainTextEditor(text: $summaryDraft)
-                    .frame(minHeight: 110)
-                    .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(.separator))
-                Text("Free text — a distilled summary of what this journal asks for. Checks below are what the app enforces.")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-            } else {
-                let link = requirements.url.isEmpty ? journal.submissionURL : requirements.url
-                if !link.isEmpty, let url = URL(string: link) {
-                    Link(destination: url) {
-                        Label("Author instructions", systemImage: "arrow.up.right.square")
-                            .font(.caption)
-                    }
-                    .help(link)
-                }
-                if requirements.summary.isEmpty {
-                    Text("No summary yet — Edit to paste or write a distilled version of this journal's requirements.")
-                        .font(.callout)
-                        .foregroundStyle(.tertiary)
-                } else {
-                    Text(requirements.summary)
-                        .font(.callout)
-                        .textSelection(.enabled)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
+    private func saveHelp(_ status: ProfileLibraryStatus, journal: Journal) -> String {
+        switch status {
+        case .matches:
+            return "This manuscript's configuration matches your library."
+        case .differs(let parts):
+            let names = parts.sorted { $0.rawValue < $1.rawValue }.map(\.label)
+            return "Your library's copy differs in: \(names.joined(separator: ", ")). Saving replaces it."
+        case .nameMatchDifferentID:
+            return "Your library has a profile with this name but a different identifier."
+        case .absent:
+            return "Your library has no profile for \(journal.displayName) — saving adds it."
         }
-        .padding(14)
+    }
+
+    // MARK: - Configuration (the three files)
+
+    /// The journal's three configuration files, each with its own drift
+    /// warning: knowing WHICH half moved is the point of splitting them.
+    @ViewBuilder
+    private func configuration(_ journal: Journal) -> some View {
+        let flagged = store.libraryStatus(for: journal).flaggedParts
+        let requirements = journal.sourceRequirements ?? SourceRequirements()
+        let checks = journal.checkRules ?? []
+        let structure = journal.structure ?? JournalStructure()
+
+        VStack(alignment: .leading, spacing: 0) {
+            configRow(
+                .requirements,
+                detail: requirements.bullets.isEmpty
+                    ? "No requirements yet"
+                    : "\(requirements.bullets.count) requirement\(requirements.bullets.count == 1 ? "" : "s")",
+                flagged: flagged.contains(.requirements)
+            ) { editingRequirements = true }
+
+            Divider()
+
+            configRow(
+                .checks,
+                detail: checks.isEmpty
+                    ? "No checks yet"
+                    : "\(checks.filter { !$0.isManual }.count) automatic · \(checks.filter(\.isManual).count) manual",
+                flagged: flagged.contains(.checks)
+            ) { editingRules = true }
+
+            Divider()
+
+            configRow(
+                .structure,
+                detail: structure.sections.isEmpty
+                    ? "No structure yet"
+                    : "\(structure.sections.count) section\(structure.sections.count == 1 ? "" : "s") · \(structure.requiredTitles.count) required",
+                flagged: flagged.contains(.structure)
+            ) { editingStructure = true }
+        }
         .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
         .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.separator))
+    }
+
+    private func configRow(_ part: ProfilePart, detail: String, flagged: Bool,
+                           open: @escaping () -> Void) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon(for: part))
+                .foregroundStyle(.secondary)
+                .frame(width: 18)
+            VStack(alignment: .leading, spacing: 1) {
+                HStack(spacing: 6) {
+                    Text(part.label).fontWeight(.medium)
+                    if flagged {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.yellow)
+                            .help("This differs from your journal library — Save to Library to update it.")
+                    }
+                }
+                Text(detail).font(.caption).foregroundStyle(.secondary)
+            }
+            Spacer()
+            Button("Open…", action: open)
+                .controlSize(.small)
+        }
+        .padding(.vertical, 10)
+        .padding(.horizontal, 14)
+        .contentShape(Rectangle())
+    }
+
+    private func icon(for part: ProfilePart) -> String {
+        switch part {
+        case .requirements: return "doc.text"
+        case .checks:       return "checklist"
+        case .structure:    return "list.bullet.indent"
+        }
     }
 
     // MARK: - Checklist
@@ -203,7 +256,7 @@ struct ChecksView: View {
                 }
             }
             if results.isEmpty {
-                Text("This journal has no requirements configured yet — use Edit Requirements… above to add limits and rules.")
+                Text("This journal has no checks configured yet — open Checks above to add them.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
@@ -313,98 +366,227 @@ struct ChecklistRow: View {
     }
 }
 
-// MARK: - RequirementsEditorSheet
+// MARK: - SourceRequirementsSheet
 
-/// Edits one manuscript journal's requirements (limits + custom rules).
-struct RequirementsEditorSheet: View {
+/// The journal's own instructions: a link to the page they came from and the
+/// distilled bullets.  One requirement per line, because that is how journals
+/// publish them — and free text, because no schema survives contact with a
+/// real set of author instructions.
+struct SourceRequirementsSheet: View {
     @Environment(ManuscriptStore.self) private var store
+
     let journal: Journal
     @Binding var isPresented: Bool
 
-    @State private var draft: JournalRequirements
-    @State private var newRule = ""
+    @State private var editing = false
+    @State private var urlDraft = ""
+    @State private var bulletDraft = ""
 
-    init(journal: Journal, isPresented: Binding<Bool>) {
-        self.journal = journal
-        self._isPresented = isPresented
-        _draft = State(initialValue: journal.requirements)
+    private var requirements: SourceRequirements {
+        journal.sourceRequirements ?? SourceRequirements()
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("\(journal.name) Requirements").font(.headline)
-
-            Form {
-                Section("Limits") {
-                    limitField("Max body words",     \.maxBodyWords)
-                    limitField("Max abstract words", \.maxAbstractWords)
-                    limitField("Max figures",        \.maxFigures)
-                    limitField("Max tables",         \.maxTables)
-                    limitField("Max references",     \.maxReferences)
-                    Toggle("Requires separate figures document", isOn: $draft.requiresSeparateFigures)
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("\(journal.displayName) — Requirements").font(.headline)
+                    Text("The journal's own instructions, distilled. Checks are what the app enforces.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
-                Section("Custom Rules (checked manually)") {
-                    ForEach(draft.customRules.indices, id: \.self) { index in
-                        HStack {
-                            Text(draft.customRules[index])
-                            Spacer()
-                            Button {
-                                draft.customRules.remove(at: index)
-                            } label: {
-                                Image(systemName: "xmark.circle.fill").foregroundStyle(.tertiary)
+                Spacer()
+                Button(editing ? "Save" : "Edit") {
+                    if editing {
+                        var edited = requirements
+                        edited.url = urlDraft.trimmingCharacters(in: .whitespaces)
+                        edited.text = bulletDraft
+                        store.updateSourceRequirements(edited, journalID: journal.id)
+                    } else {
+                        urlDraft = requirements.url.isEmpty ? journal.submissionURL : requirements.url
+                        bulletDraft = requirements.text
+                    }
+                    editing.toggle()
+                }
+                Button("Done") { isPresented = false }
+                    .keyboardShortcut(.defaultAction)
+            }
+            .padding(14)
+            Divider()
+
+            if editing {
+                VStack(alignment: .leading, spacing: 8) {
+                    TextField("Link to the journal's author instructions", text: $urlDraft)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.caption)
+                    PlainTextEditor(text: $bulletDraft)
+                        .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(.separator))
+                    Text("One requirement per line. Leading bullet characters are stripped, so pasting from the journal's page works.")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+                .padding(14)
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 10) {
+                        let link = requirements.url.isEmpty ? journal.submissionURL : requirements.url
+                        if !link.isEmpty, let url = URL(string: link) {
+                            Link(destination: url) {
+                                Label("Author instructions", systemImage: "arrow.up.right.square")
+                                    .font(.callout)
                             }
-                            .buttonStyle(.plain)
+                            .help(link)
+                        }
+                        if requirements.bullets.isEmpty {
+                            Text("No requirements yet — Edit to paste this journal's instructions, one per line.")
+                                .font(.callout)
+                                .foregroundStyle(.tertiary)
+                        } else {
+                            ForEach(Array(requirements.bullets.enumerated()), id: \.offset) { _, bullet in
+                                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                                    Text("•").foregroundStyle(.tertiary)
+                                    Text(bullet)
+                                        .textSelection(.enabled)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                            }
                         }
                     }
-                    HStack {
-                        TextField("New rule (e.g. \"Cover letter required\")", text: $newRule)
-                        Button("Add") {
-                            let trimmed = newRule.trimmingCharacters(in: .whitespaces)
-                            guard !trimmed.isEmpty else { return }
-                            draft.customRules.append(trimmed)
-                            newRule = ""
-                        }
-                        .disabled(newRule.trimmingCharacters(in: .whitespaces).isEmpty)
-                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(14)
                 }
             }
-            .formStyle(.grouped)
-            .frame(minHeight: 340)
+        }
+        .frame(width: 560, height: 460)
+    }
+}
 
+// MARK: - StructureEditorSheet
+
+/// The sections a submission to this journal is expected to have.  Required
+/// ones are what a `STRUCTURE` check verifies; optional ones are offered when
+/// the journal is added but never fail.
+struct StructureEditorSheet: View {
+    @Environment(ManuscriptStore.self) private var store
+
+    let journal: Journal
+    @Binding var isPresented: Bool
+
+    @State private var sections: [StructureSection] = []
+    @State private var newTitle = ""
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
             HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("\(journal.displayName) — Structure").font(.headline)
+                    Text("The sections a submission starts with. Required ones are verified by checks.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
                 Spacer()
-                Button("Cancel") { isPresented = false }
-                    .keyboardShortcut(.cancelAction)
-                Button("Save") {
-                    var updated = journal
-                    updated.requirements = draft
-                    store.updateJournal(updated)
+                Button("Done") {
+                    store.updateStructure(JournalStructure(sections: sections),
+                                          journalID: journal.id)
                     isPresented = false
                 }
                 .keyboardShortcut(.defaultAction)
             }
+            .padding(14)
+            Divider()
+
+            if sections.isEmpty {
+                VStack(spacing: 10) {
+                    Spacer()
+                    Image(systemName: "list.bullet.indent")
+                        .font(.system(size: 34, weight: .thin))
+                        .foregroundStyle(.tertiary)
+                    Text("No structure yet")
+                        .font(.title3.weight(.semibold))
+                    Text("Add the sections this journal expects — Introduction,\nMethods, Results, and whatever else it names.")
+                        .multilineTextAlignment(.center)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity)
+            } else {
+                ScrollView {
+                    VStack(spacing: 6) {
+                        ForEach($sections) { $section in
+                            sectionRow($section)
+                        }
+                    }
+                    .padding(14)
+                }
+            }
+
+            Divider()
+            HStack(spacing: 8) {
+                TextField("Add a section (e.g. \"Public Health Implications\")", text: $newTitle)
+                    .textFieldStyle(.roundedBorder)
+                    .onSubmit(add)
+                Button("Add", action: add)
+                    .disabled(newTitle.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
+            .padding(14)
         }
-        .padding(20)
-        .frame(width: 520)
+        .frame(width: 560, height: 460)
+        .onAppear { sections = journal.structure?.sections ?? [] }
     }
 
-    private func limitField(_ label: String,
-                            _ keyPath: WritableKeyPath<JournalRequirements, Int?>) -> some View {
-        LabeledContent(label) {
-            TextField("none", value: Binding(
-                get: { draft[keyPath: keyPath] },
-                set: { draft[keyPath: keyPath] = $0 }
-            ), format: .number)
-            .multilineTextAlignment(.trailing)
-            .frame(width: 90)
+    private func add() {
+        let title = newTitle.trimmingCharacters(in: .whitespaces)
+        guard !title.isEmpty, !sections.contains(where: { $0.id == title.lowercased() }) else { return }
+        sections.append(StructureSection(title: title))
+        newTitle = ""
+    }
+
+    @ViewBuilder
+    private func sectionRow(_ section: Binding<StructureSection>) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: "line.3.horizontal")
+                .foregroundStyle(.tertiary)
+                .font(.caption)
+            TextField("Section title", text: section.title)
+                .textFieldStyle(.roundedBorder)
+            Toggle("Required", isOn: section.required)
+                .toggleStyle(.checkbox)
+                .help("Required sections fail a STRUCTURE check when missing")
+            Button {
+                move(section.wrappedValue, by: -1)
+            } label: { Image(systemName: "chevron.up") }
+                .buttonStyle(.borderless)
+                .disabled(sections.first?.id == section.wrappedValue.id)
+            Button {
+                move(section.wrappedValue, by: 1)
+            } label: { Image(systemName: "chevron.down") }
+                .buttonStyle(.borderless)
+                .disabled(sections.last?.id == section.wrappedValue.id)
+            Button(role: .destructive) {
+                sections.removeAll { $0.id == section.wrappedValue.id }
+            } label: { Image(systemName: "trash") }
+                .buttonStyle(.borderless)
         }
+        .controlSize(.small)
+        .padding(8)
+        .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private func move(_ section: StructureSection, by offset: Int) {
+        guard let index = sections.firstIndex(where: { $0.id == section.id }) else { return }
+        let target = index + offset
+        guard sections.indices.contains(target) else { return }
+        sections.swapAt(index, target)
     }
 }
 
 // MARK: - SaveToJournalLibrarySheet
 
-/// Saves a manuscript journal's profile (requirements + export outline) into
-/// the global library — as a new entry or overwriting an existing one.
+/// Saves a manuscript journal's export outline into the journal registry —
+/// the list of journals available when adding one to any manuscript.  The
+/// journal's REQUIREMENTS, CHECKS, and STRUCTURE go to the profile library
+/// instead, from the Checks pane's Save to Library.
 struct SaveToJournalLibrarySheet: View {
     @Environment(ManuscriptStore.self) private var store
     @Environment(AppStore.self)        private var appStore
@@ -419,7 +601,7 @@ struct SaveToJournalLibrarySheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Save to Journal Library").font(.headline)
+            Text("Save Export Outline to Library").font(.headline)
 
             Picker("Save as", selection: $destination) {
                 Text("New library journal").tag(Destination.new)
@@ -435,7 +617,7 @@ struct SaveToJournalLibrarySheet: View {
                     .textFieldStyle(.roundedBorder)
             }
 
-            Text("Stores this journal's requirements and export outline as a reusable profile — available in Settings → Journals and when adding a journal to any manuscript.")
+            Text("Stores this journal's export outline in the journal registry — available in Settings → Journals and when adding a journal to any manuscript. Requirements, checks, and structure are saved separately, from the Checks pane.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)

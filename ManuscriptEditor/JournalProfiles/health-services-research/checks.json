@@ -1,0 +1,95 @@
+{
+  "checks": [
+    {
+      "combinator": "ALL",
+      "conditions": [
+        {
+          "comparator": "<=",
+          "metric": "LENGTH_WORDS",
+          "number": 6000,
+          "scopes": [
+            {
+              "kind": "body"
+            }
+          ]
+        }
+      ],
+      "name": "Body ≤ 6,000 words"
+    },
+    {
+      "combinator": "ALL",
+      "conditions": [
+        {
+          "comparator": "<=",
+          "metric": "LENGTH_WORDS",
+          "number": 250,
+          "scopes": [
+            {
+              "kind": "abstract"
+            }
+          ]
+        }
+      ],
+      "name": "Abstract ≤ 250 words"
+    },
+    {
+      "combinator": "ALL",
+      "conditions": [
+        {
+          "comparator": "<=",
+          "metric": "COUNT",
+          "number": 4,
+          "scopes": [
+            {
+              "kind": "figures"
+            }
+          ]
+        }
+      ],
+      "name": "Figures ≤ 4"
+    },
+    {
+      "combinator": "ALL",
+      "conditions": [
+        {
+          "comparator": "<=",
+          "metric": "COUNT",
+          "number": 4,
+          "scopes": [
+            {
+              "kind": "tables"
+            }
+          ]
+        }
+      ],
+      "name": "Tables ≤ 4"
+    },
+    {
+      "combinator": "ALL",
+      "conditions": [
+        {
+          "comparator": "==",
+          "metric": "STRUCTURE",
+          "number": 1,
+          "scopes": []
+        }
+      ],
+      "name": "Sections match the journal's structure",
+      "note": "Every section marked required in the structure file must be present and non-empty"
+    },
+    {
+      "conditions": [],
+      "manual": true,
+      "name": "Structured abstract (Objective/Data Sources/Study Design/Findings/Conclusions)",
+      "note": "Tick once verified by hand"
+    },
+    {
+      "conditions": [],
+      "manual": true,
+      "name": "What This Study Adds box required",
+      "note": "Tick once verified by hand"
+    }
+  ],
+  "id": "39A701F1-D9A8-5A88-98E8-72202EE45DE5",
+  "journal": "Health Services Research"
+}

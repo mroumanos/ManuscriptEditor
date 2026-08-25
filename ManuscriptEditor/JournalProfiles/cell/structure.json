@@ -1,0 +1,22 @@
+{
+  "id": "39D02B42-938B-5B75-9027-EBEB25C9D1FD",
+  "journal": "Cell",
+  "sections": [
+    {
+      "required": true,
+      "title": "Introduction"
+    },
+    {
+      "required": true,
+      "title": "Methods"
+    },
+    {
+      "required": true,
+      "title": "Results"
+    },
+    {
+      "required": true,
+      "title": "Discussion"
+    }
+  ]
+}

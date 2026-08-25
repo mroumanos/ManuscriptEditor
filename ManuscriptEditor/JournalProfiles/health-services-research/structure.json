@@ -1,0 +1,22 @@
+{
+  "id": "39A701F1-D9A8-5A88-98E8-72202EE45DE5",
+  "journal": "Health Services Research",
+  "sections": [
+    {
+      "required": true,
+      "title": "Introduction"
+    },
+    {
+      "required": true,
+      "title": "Methods"
+    },
+    {
+      "required": true,
+      "title": "Results"
+    },
+    {
+      "required": true,
+      "title": "Discussion"
+    }
+  ]
+}

@@ -1,0 +1,53 @@
+{
+  "checks": [
+    {
+      "combinator": "ALL",
+      "conditions": [
+        {
+          "comparator": "<=",
+          "metric": "LENGTH_WORDS",
+          "number": 300,
+          "scopes": [
+            {
+              "kind": "abstract"
+            }
+          ]
+        }
+      ],
+      "name": "Abstract ≤ 300 words"
+    },
+    {
+      "combinator": "ALL",
+      "conditions": [
+        {
+          "comparator": "==",
+          "metric": "STRUCTURE",
+          "number": 1,
+          "scopes": []
+        }
+      ],
+      "name": "Sections match the journal's structure",
+      "note": "Every section marked required in the structure file must be present and non-empty"
+    },
+    {
+      "conditions": [],
+      "manual": true,
+      "name": "Structured abstract (Background/Methods and Findings/Conclusions)",
+      "note": "Tick once verified by hand"
+    },
+    {
+      "conditions": [],
+      "manual": true,
+      "name": "Author Summary (non-technical) required",
+      "note": "Tick once verified by hand"
+    },
+    {
+      "conditions": [],
+      "manual": true,
+      "name": "Data availability statement required",
+      "note": "Tick once verified by hand"
+    }
+  ],
+  "id": "69D022B4-4071-530F-8893-F3510040B07B",
+  "journal": "PLOS Medicine"
+}

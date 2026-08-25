@@ -1,0 +1,22 @@
+{
+  "id": "13CE2302-847F-5918-A105-94AFCE9E9C43",
+  "journal": "Journal of Nutrition Education and Behavior",
+  "sections": [
+    {
+      "required": true,
+      "title": "Introduction"
+    },
+    {
+      "required": true,
+      "title": "Methods"
+    },
+    {
+      "required": true,
+      "title": "Results"
+    },
+    {
+      "required": true,
+      "title": "Discussion"
+    }
+  ]
+}

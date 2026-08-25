@@ -1,0 +1,95 @@
+{
+  "checks": [
+    {
+      "combinator": "ALL",
+      "conditions": [
+        {
+          "comparator": "<=",
+          "metric": "LENGTH_WORDS",
+          "number": 4000,
+          "scopes": [
+            {
+              "kind": "body"
+            }
+          ]
+        }
+      ],
+      "name": "Body ≤ 4,000 words"
+    },
+    {
+      "combinator": "ALL",
+      "conditions": [
+        {
+          "comparator": "<=",
+          "metric": "LENGTH_WORDS",
+          "number": 300,
+          "scopes": [
+            {
+              "kind": "abstract"
+            }
+          ]
+        }
+      ],
+      "name": "Abstract ≤ 300 words"
+    },
+    {
+      "combinator": "ALL",
+      "conditions": [
+        {
+          "comparator": "<=",
+          "metric": "COUNT",
+          "number": 5,
+          "scopes": [
+            {
+              "kind": "figures"
+            }
+          ]
+        }
+      ],
+      "name": "Figures ≤ 5"
+    },
+    {
+      "combinator": "ALL",
+      "conditions": [
+        {
+          "comparator": "<=",
+          "metric": "COUNT",
+          "number": 5,
+          "scopes": [
+            {
+              "kind": "tables"
+            }
+          ]
+        }
+      ],
+      "name": "Tables ≤ 5"
+    },
+    {
+      "combinator": "ALL",
+      "conditions": [
+        {
+          "comparator": "==",
+          "metric": "STRUCTURE",
+          "number": 1,
+          "scopes": []
+        }
+      ],
+      "name": "Sections match the journal's structure",
+      "note": "Every section marked required in the structure file must be present and non-empty"
+    },
+    {
+      "conditions": [],
+      "manual": true,
+      "name": "Significance of this study box required",
+      "note": "Tick once verified by hand"
+    },
+    {
+      "conditions": [],
+      "manual": true,
+      "name": "Open-access article processing charge applies",
+      "note": "Tick once verified by hand"
+    }
+  ],
+  "id": "3D8F0EDA-E6BF-5489-8539-E1867428D9C9",
+  "journal": "BMJ Open Diabetes Research & Care"
+}

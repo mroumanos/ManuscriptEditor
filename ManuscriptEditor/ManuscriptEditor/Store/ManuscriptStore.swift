@@ -927,25 +927,51 @@ final class ManuscriptStore {
         showBanner(.success, "Export typography aligned with \(journal.displayName)'s requirements.")
     }
 
-    /// Fills a journal's source requirements and checks from the profile
-    /// shipped with the app, when it doesn't have its own yet.  Called on
-    /// add and on open, so an existing manuscript picks up the profiles
-    /// without any migration step.
+    /// Fills a journal's profile — requirements, checks, and structure —
+    /// from the user's library, falling back to what the app ships.  Called
+    /// on add and on open, so an existing manuscript picks up profiles with
+    /// no migration step.  A journal the user has edited HERE is left alone:
+    /// the manuscript's own copy is authoritative for the manuscript.
     func seedProfileIfNeeded(journalID: UUID) {
         guard let m = manuscript,
-              let journal = m.journals.first(where: { $0.id == journalID }),
-              (journal.checkRules ?? []).isEmpty,
-              journal.configOrigin != .manuscript,
-              let profile = JournalProfile.bundled(name: journal.name,
-                                                   articleType: journal.articleType)
+              let journal = m.journals.first(where: { $0.id == journalID })
         else { return }
+        let library = JournalProfileLibrary.shared
+        guard let source = journal.profileID.flatMap({ library.profile(id: $0) })
+                ?? library.profile(name: journal.name, articleType: journal.articleType)
+                ?? JournalProfile.bundled(name: journal.name, articleType: journal.articleType)
+        else { return }
+
+        // A journal the user has edited HERE owns its configuration, so its
+        // checks and requirements are left alone.  Structure is different:
+        // journals edited before structure existed have none at all, and an
+        // empty structure isn't a choice the user made — fill it in, and
+        // adopt the GUID so the two stay linked.
+        if journal.configOrigin == .manuscript {
+            guard journal.structure == nil || journal.profileID == nil else { return }
+            touch(undoable: false) { m in
+                guard let idx = m.journals.firstIndex(where: { $0.id == journalID }) else { return }
+                if m.journals[idx].structure == nil { m.journals[idx].structure = source.structure }
+                if m.journals[idx].profileID == nil { m.journals[idx].profileID = source.id }
+            }
+            writeProfile(journalID: journalID)
+            return
+        }
+
+        // Otherwise the journal tracks the library: seed when it has no
+        // checks, or when it predates profiles carrying a GUID — the
+        // identity the library is matched on.
+        guard (journal.checkRules ?? []).isEmpty || journal.profileID == nil else { return }
         touch(undoable: false) { m in
             guard let idx = m.journals.firstIndex(where: { $0.id == journalID }) else { return }
-            m.journals[idx].checkRules = profile.checks
-            m.journals[idx].sourceRequirements = profile.sourceRequirements
-            m.journals[idx].configOrigin = .bundled
-            m.journals[idx].configURL = profile.originURL
+            m.journals[idx].profileID = source.id
+            m.journals[idx].checkRules = source.checks
+            m.journals[idx].sourceRequirements = source.requirements
+            m.journals[idx].structure = source.structure
+            m.journals[idx].configOrigin = source.origin
+            m.journals[idx].configURL = source.originURL
         }
+        writeProfile(journalID: journalID)
     }
 
     /// Seeds every journal that still needs it (called after a manuscript
@@ -956,10 +982,10 @@ final class ManuscriptStore {
         }
     }
 
-    /// Edits a journal's source-requirements summary/link.  The first edit
-    /// makes this manuscript the OWNER of the configuration: the profile is
-    /// written into the manuscript folder (and therefore into its remote,
-    /// if it has one) instead of tracking the app's defaults.
+    /// Edits a journal's source requirements.  The first edit makes this
+    /// manuscript the OWNER of the configuration: the profile is written into
+    /// the manuscript folder (and therefore into its remote, if it has one)
+    /// instead of tracking the library's copy.
     func updateSourceRequirements(_ requirements: SourceRequirements, journalID: UUID) {
         touch(undoAction: "Edit Source Requirements") { m in
             guard let idx = m.journals.firstIndex(where: { $0.id == journalID }) else { return }
@@ -972,35 +998,42 @@ final class ManuscriptStore {
         writeProfile(journalID: journalID)
     }
 
-    /// Writes a journal's configuration (source requirements + checks) into
-    /// the manuscript folder as `journals/<slug>.json`, so it travels with
-    /// the manuscript locally and in its remote repository.
+    /// Edits a journal's expected structure — same ownership rule as the
+    /// requirements and the checks.
+    func updateStructure(_ structure: JournalStructure, journalID: UUID) {
+        touch(undoAction: "Edit Structure") { m in
+            guard let idx = m.journals.firstIndex(where: { $0.id == journalID }) else { return }
+            m.journals[idx].structure = structure
+            m.journals[idx].configOrigin = .manuscript
+            m.journals[idx].configURL = nil
+        }
+        writeProfile(journalID: journalID)
+    }
+
+    /// Writes a journal's three configuration files into the manuscript
+    /// folder at `journals/<slug>/`, so the profile travels with the
+    /// manuscript locally and in its remote repository.
     @discardableResult
     func writeProfile(journalID: UUID) -> URL? {
         guard let m = manuscript,
               let journal = m.journals.first(where: { $0.id == journalID }),
               let dir = persistence.manuscriptDirectory(for: m.id) as URL? else { return nil }
-        let folder = dir.appendingPathComponent("journals", isDirectory: true)
-        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        let profile = JournalProfile(
-            id: journal.profileSlug,
-            name: journal.name,
-            articleType: journal.articleType,
-            sourceRequirements: journal.sourceRequirements ?? SourceRequirements(),
-            checks: journal.checkRules ?? [],
-            origin: .manuscript,
-            originURL: journal.configURL,
-            updatedAt: Date())
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        encoder.dateEncodingStrategy = .iso8601
-        guard let data = try? encoder.encode(profile) else { return nil }
-        let url = folder.appendingPathComponent("\(journal.profileSlug).json")
-        try? data.write(to: url, options: .atomic)
-        return url
+        let folder = dir
+            .appendingPathComponent("journals", isDirectory: true)
+            .appendingPathComponent(journal.profileSlug, isDirectory: true)
+        var profile = journal.profile
+        profile.updatedAt = Date()
+        guard profile.write(to: folder) else { return nil }
+        // A previous version wrote `journals/<slug>.json`; leaving it beside
+        // the folder would look authoritative in the manuscript and in its
+        // remote.
+        let legacy = dir.appendingPathComponent("journals", isDirectory: true)
+            .appendingPathComponent("\(journal.profileSlug).json")
+        try? FileManager.default.removeItem(at: legacy)
+        return folder
     }
 
-    /// The GitHub link for a journal's configuration: the manuscript's own
+    /// The link for a journal's configuration folder: the manuscript's own
     /// copy when it owns one (and has a remote), else the app's default.
     func profileLink(for journal: Journal) -> (label: String, url: String)? {
         if journal.configOrigin == .manuscript {
@@ -1008,9 +1041,43 @@ final class ManuscriptStore {
                 return ("This manuscript (local)", "")
             }
             let base = repo.hasPrefix("http") ? repo : "https://github.com/\(repo)"
-            return ("This manuscript", "\(base)/blob/main/journals/\(journal.profileSlug).json")
+            return ("This manuscript", "\(base)/tree/main/journals/\(journal.profileSlug)")
+        }
+        if journal.configOrigin == .library {
+            return ("Your library", "")
         }
         return ("App defaults", JournalProfile.bundledURL(slug: journal.profileSlug))
+    }
+
+    // MARK: - Journal library
+
+    /// How this journal's profile compares with the user's library — what
+    /// lights the warning icons and what Save to Library will do.
+    func libraryStatus(for journal: Journal) -> ProfileLibraryStatus {
+        JournalProfileLibrary.shared.status(of: journal.profile)
+    }
+
+    /// Saves this journal's profile into the user's library.
+    ///
+    /// `replacingID` handles the name-match case: the manuscript carries a
+    /// GUID the library has never seen, but a profile with the same name is
+    /// already there, so the user chose to overwrite it — the library's GUID
+    /// wins, and the manuscript adopts it so the two stay linked.
+    func saveProfileToLibrary(journalID: UUID, replacingID: UUID? = nil) {
+        guard let journal = manuscript?.journals.first(where: { $0.id == journalID }) else { return }
+        var profile = journal.profile
+        if let replacingID { profile.id = replacingID }
+        guard JournalProfileLibrary.shared.save(profile) else {
+            showBanner(.error, "Couldn't write \(journal.displayName) to your journal library.")
+            return
+        }
+        if replacingID != nil {
+            touch(undoable: false) { m in
+                guard let idx = m.journals.firstIndex(where: { $0.id == journalID }) else { return }
+                m.journals[idx].profileID = profile.id
+            }
+        }
+        showBanner(.success, "\(journal.displayName) saved to your journal library.")
     }
 
     /// Replaces a journal's user-written check rules.

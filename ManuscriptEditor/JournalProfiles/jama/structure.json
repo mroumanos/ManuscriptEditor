@@ -1,0 +1,22 @@
+{
+  "id": "C0533AF0-1C55-50C1-8002-9E854774D121",
+  "journal": "JAMA",
+  "sections": [
+    {
+      "required": true,
+      "title": "Introduction"
+    },
+    {
+      "required": true,
+      "title": "Methods"
+    },
+    {
+      "required": true,
+      "title": "Results"
+    },
+    {
+      "required": true,
+      "title": "Discussion"
+    }
+  ]
+}

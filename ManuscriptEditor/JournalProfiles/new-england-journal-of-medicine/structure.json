@@ -1,0 +1,22 @@
+{
+  "id": "95B71BE5-C57D-5C1D-A485-266D91C4F567",
+  "journal": "New England Journal of Medicine",
+  "sections": [
+    {
+      "required": true,
+      "title": "Introduction"
+    },
+    {
+      "required": true,
+      "title": "Methods"
+    },
+    {
+      "required": true,
+      "title": "Results"
+    },
+    {
+      "required": true,
+      "title": "Discussion"
+    }
+  ]
+}

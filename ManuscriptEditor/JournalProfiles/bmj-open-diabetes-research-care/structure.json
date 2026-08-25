@@ -1,0 +1,22 @@
+{
+  "id": "3D8F0EDA-E6BF-5489-8539-E1867428D9C9",
+  "journal": "BMJ Open Diabetes Research & Care",
+  "sections": [
+    {
+      "required": true,
+      "title": "Introduction"
+    },
+    {
+      "required": true,
+      "title": "Methods"
+    },
+    {
+      "required": true,
+      "title": "Results"
+    },
+    {
+      "required": true,
+      "title": "Discussion"
+    }
+  ]
+}

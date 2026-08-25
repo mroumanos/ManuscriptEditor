@@ -1,0 +1,22 @@
+{
+  "id": "69D022B4-4071-530F-8893-F3510040B07B",
+  "journal": "PLOS Medicine",
+  "sections": [
+    {
+      "required": true,
+      "title": "Introduction"
+    },
+    {
+      "required": true,
+      "title": "Methods"
+    },
+    {
+      "required": true,
+      "title": "Results"
+    },
+    {
+      "required": true,
+      "title": "Discussion"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "id": "9199DAC6-B068-54EC-9A6F-9F4F6C4A2137",
+  "journal": "Health Affairs",
+  "sections": [
+    {
+      "required": true,
+      "title": "Introduction"
+    },
+    {
+      "required": true,
+      "title": "Methods"
+    },
+    {
+      "required": true,
+      "title": "Results"
+    },
+    {
+      "required": true,
+      "title": "Discussion"
+    }
+  ]
+}

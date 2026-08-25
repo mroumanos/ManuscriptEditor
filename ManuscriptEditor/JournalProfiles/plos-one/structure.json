@@ -1,0 +1,22 @@
+{
+  "id": "D37575CD-83DC-598A-96C9-0D177FCADA9F",
+  "journal": "PLOS ONE",
+  "sections": [
+    {
+      "required": true,
+      "title": "Introduction"
+    },
+    {
+      "required": true,
+      "title": "Methods"
+    },
+    {
+      "required": true,
+      "title": "Results"
+    },
+    {
+      "required": true,
+      "title": "Discussion"
+    }
+  ]
+}

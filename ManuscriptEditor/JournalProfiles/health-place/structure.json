@@ -1,0 +1,22 @@
+{
+  "id": "B7442DA9-9D74-537A-9133-E5632C6101C5",
+  "journal": "Health & Place",
+  "sections": [
+    {
+      "required": true,
+      "title": "Introduction"
+    },
+    {
+      "required": true,
+      "title": "Methods"
+    },
+    {
+      "required": true,
+      "title": "Results"
+    },
+    {
+      "required": true,
+      "title": "Discussion"
+    }
+  ]
+}

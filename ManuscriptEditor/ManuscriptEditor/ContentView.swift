@@ -251,6 +251,10 @@ struct ContentView: View {
             // The app always launches on the Welcome screen (the project
             // manager) — manuscripts open from there, never automatically.
             appStore.load()
+            // The journal profile library seeds itself from the profiles the
+            // app ships, so a fresh install has every journal's requirements,
+            // checks, and structure before any manuscript opens.
+            JournalProfileLibrary.shared.load()
             SigningService.debugProbe()   // container-side keyring trace
         }
         // A removed journal must not leave a dangling tab selection.

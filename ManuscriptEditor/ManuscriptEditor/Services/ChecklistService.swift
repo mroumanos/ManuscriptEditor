@@ -59,6 +59,23 @@ enum ChecklistService {
         }
 
 
+        // STRUCTURE compares the manuscript's shape against the journal's
+        // structure file — the sections it says a submission has.  Optional
+        // sections never fail; only the required ones do.
+        if condition.metric.isStructure {
+            let expected = journal?.structure?.sections.filter(\.required) ?? []
+            guard !expected.isEmpty else { return (true, "no structure defined") }
+            let present = m.sections.filter { $0.active && !$0.content.isEmpty }
+                .map { $0.title.lowercased() }
+            let missing = expected.filter { section in
+                !present.contains { $0 == section.id || $0.contains(section.id) }
+            }
+            return (missing.isEmpty,
+                    missing.isEmpty
+                        ? "all \(expected.count) required sections present"
+                        : "missing: \(missing.map(\.title).joined(separator: ", "))")
+        }
+
         /// Narrow a scope's text to the condition's subsections, when set.
         func narrowed(_ whole: String) -> String {
             guard !condition.subsections.isEmpty else { return whole }
@@ -129,7 +146,7 @@ enum ChecklistService {
             return (missing.isEmpty,
                     missing.isEmpty ? "\(label) present"
                                     : "missing: \(missing.map(\.label).joined(separator: ", "))")
-        case .fontSize, .lineSpacing, .lineNumbers:
+        case .fontSize, .lineSpacing, .lineNumbers, .structure:
             return (true, "")                  // handled above
         case .contains:
             let needle = condition.text.trimmingCharacters(in: .whitespaces)

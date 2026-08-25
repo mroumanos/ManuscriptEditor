@@ -188,7 +188,7 @@ struct ExportView: View {
                     Button {
                         savingToLibrary = journal
                     } label: {
-                        Label("Save to Journal Library…", systemImage: "books.vertical")
+                        Label("Save Outline to Library…", systemImage: "books.vertical")
                     }
                     .controlSize(.small)
                     .help("Store this journal's export outline (and checks) as a reusable library profile")

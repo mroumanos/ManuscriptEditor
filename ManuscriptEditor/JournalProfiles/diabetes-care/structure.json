@@ -1,0 +1,22 @@
+{
+  "id": "3EB963B0-FA34-5ED9-AF64-1252498A3705",
+  "journal": "Diabetes Care",
+  "sections": [
+    {
+      "required": true,
+      "title": "Introduction"
+    },
+    {
+      "required": true,
+      "title": "Methods"
+    },
+    {
+      "required": true,
+      "title": "Results"
+    },
+    {
+      "required": true,
+      "title": "Discussion"
+    }
+  ]
+}

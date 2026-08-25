@@ -32,6 +32,8 @@ enum CheckMetric: String, Codable, CaseIterable, Sendable {
     case count      = "COUNT"
     case exists     = "EXISTS"
     case contains   = "CONTAINS"
+    /// The manuscript's sections against the journal's structure file.
+    case structure   = "STRUCTURE"
     // Export formatting, read from the journal's export configuration.
     case fontSize    = "FONT_SIZE"
     case lineSpacing = "LINE_SPACING"
@@ -44,6 +46,7 @@ enum CheckMetric: String, Codable, CaseIterable, Sendable {
         case .count:       return "COUNT"
         case .exists:      return "EXISTS"
         case .contains:    return "CONTAINS"
+        case .structure:   return "STRUCTURE"
         case .fontSize:    return "FONT SIZE (pt)"
         case .lineSpacing: return "LINE SPACING (×)"
         case .lineNumbers: return "LINE NUMBERS (1 = on)"
@@ -54,10 +57,14 @@ enum CheckMetric: String, Codable, CaseIterable, Sendable {
     /// nothing at all for EXISTS).
     var takesNumber: Bool {
         switch self {
-        case .exists, .contains: return false
-        default:                 return true
+        case .exists, .contains, .structure: return false
+        default:                            return true
         }
     }
+
+    /// STRUCTURE measures the manuscript's shape against the journal's
+    /// structure file, so it ignores the scope picker too.
+    var isStructure: Bool { self == .structure }
 
     /// Format metrics measure the EXPORT, not the prose, so they ignore the
     /// scope picker and the app can repair them (the typography Fix).
@@ -196,6 +203,7 @@ struct CheckCondition: Codable, Identifiable, Sendable, Equatable {
 
     var scopeLabel: String {
         if metric.isFormat { return "Export" }
+        if metric.isStructure { return "Structure" }
         let names = scopes.map(\.label)
         let base = names.count <= 2 ? names.joined(separator: " + ")
                                     : "\(names[0]) + \(names.count - 1) more"
@@ -205,6 +213,7 @@ struct CheckCondition: Codable, Identifiable, Sendable, Equatable {
     /// "Abstract + Introduction LENGTH (words) ≤ 250"
     var summary: String {
         switch metric {
+        case .structure: return "Sections match the journal's structure"
         case .exists:   return "\(scopeLabel) EXISTS"
         case .contains: return "\(scopeLabel) CONTAINS \"\(text)\""
         case .lineNumbers:

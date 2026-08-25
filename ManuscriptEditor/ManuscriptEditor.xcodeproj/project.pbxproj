@@ -6,7 +6,12 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		FDA1C0010000000000000001 /* JournalProfiles in Resources */ = {isa = PBXBuildFile; fileRef = FDA1C0010000000000000002 /* JournalProfiles */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
+		FDA1C0010000000000000002 /* JournalProfiles */ = {isa = PBXFileReference; lastKnownFileType = folder; path = JournalProfiles; sourceTree = "<group>"; };
 		FD8E7B652FDC703200F0A813 /* ManuscriptEditor.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ManuscriptEditor.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -33,6 +38,7 @@
 			isa = PBXGroup;
 			children = (
 				FD8E7B672FDC703200F0A813 /* ManuscriptEditor */,
+				FDA1C0010000000000000002 /* JournalProfiles */,
 				FD8E7B662FDC703200F0A813 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -109,6 +115,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FDA1C0010000000000000001 /* JournalProfiles in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -1,0 +1,22 @@
+{
+  "id": "D6FAD149-5248-53C5-B308-9F5CBB2647D0",
+  "journal": "The Lancet",
+  "sections": [
+    {
+      "required": true,
+      "title": "Introduction"
+    },
+    {
+      "required": true,
+      "title": "Methods"
+    },
+    {
+      "required": true,
+      "title": "Results"
+    },
+    {
+      "required": true,
+      "title": "Discussion"
+    }
+  ]
+}

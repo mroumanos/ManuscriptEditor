@@ -186,12 +186,22 @@ struct CheckRulesEditor: View {
             }
             .labelsHidden().fixedSize()
 
-            Text("of").font(.caption).foregroundStyle(.secondary)
-
-            scopeMenu(condition)
-
-            if !subsectionChoices(for: condition.wrappedValue).isEmpty {
-                subsectionMenu(condition)
+            // FONT_SIZE/LINE_SPACING/LINE_NUMBERS read the export config and
+            // STRUCTURE reads the structure file, so neither takes a scope.
+            let scoped = !condition.wrappedValue.metric.isFormat
+                && !condition.wrappedValue.metric.isStructure
+            if scoped {
+                Text("of").font(.caption).foregroundStyle(.secondary)
+                scopeMenu(condition)
+                if !subsectionChoices(for: condition.wrappedValue).isEmpty {
+                    subsectionMenu(condition)
+                }
+            } else {
+                Text(condition.wrappedValue.metric.isStructure
+                     ? "— the journal's structure file"
+                     : "— the export configuration")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             if condition.wrappedValue.metric.takesNumber {
