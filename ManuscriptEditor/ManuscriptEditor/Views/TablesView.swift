@@ -912,7 +912,7 @@ struct ManualTableGrid: View {
         // Hover feeds the GUTTER controls only — a per-cell hover outline
         // froze mid-drag and read as a stray active cell.
         .onContinuousHover { phase in
-            guard movingRow == nil, movingCol == nil else { return }
+            guard movingRow == nil, movingCol == nil, resizingCol == nil else { return }
             if case .active(let p) = phase, let cell = cellAt(p), cell != hover {
                 hover = cell
             }
@@ -956,8 +956,15 @@ struct ManualTableGrid: View {
     private var pressAndDragGesture: some Gesture {
         DragGesture(minimumDistance: 0)
             .onChanged { value in
-                // Dead zone: the resize dividers sit on the header row's
-                // column boundaries — their drags must not select.
+                // A divider resize owns the drag outright: resizingCol is
+                // the divider gesture's own state, so it stays valid even
+                // as the boundary MOVES (the geometric dead zone below
+                // stopped matching once the column had grown ±5pt, and the
+                // fallthrough re-selected against the shifted geometry —
+                // the "locked onto the wrong cell" bug).
+                if resizingCol != nil { return }
+                // Dead zone for the FIRST tick, before the divider gesture
+                // reaches its minimum distance and sets resizingCol.
                 if isOnDivider(value.startLocation) { return }
                 let startCell = cellAt(value.startLocation)
                 if let editingCell, startCell == editingCell { return }
@@ -982,7 +989,7 @@ struct ManualTableGrid: View {
     /// True when the point sits on a column-resize divider strip (header
     /// row, near a column boundary).
     private func isOnDivider(_ p: CGPoint) -> Bool {
-        guard structureEditable || true, p.y <= cellH else { return false }
+        guard p.y <= cellH else { return false }
         let xs = colX
         return (1...colCount).contains { abs(p.x - (xs[$0] - gap / 2)) <= 5 }
     }

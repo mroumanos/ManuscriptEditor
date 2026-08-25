@@ -1076,7 +1076,7 @@ private struct OutlineBuilder {
                     titleText: titleText, titleStyle: f.titleStyle,
                     caption: f.caption, captionStyle: f.captionStyle,
                     captionRich: f.captionText,
-                    asset: {
+                    asset: { _ in
                         guard let image = figureImage(f) else { return nil }
                         let block = NSMutableAttributedString(attributedString: attachmentBlock(image))
                         applyBlockAlignment(f.imageAlign, to: block)
@@ -1098,7 +1098,8 @@ private struct OutlineBuilder {
                     titleText: titleText, titleStyle: t.titleStyle,
                     caption: t.caption, captionStyle: t.captionStyle,
                     captionRich: t.captionText,
-                    asset: { tableBody(t) }))
+                    mergeLeadingTitle: true,
+                    asset: { leading in tableBody(t, leading: leading) }))
                 if !t.footnotes.isEmpty {
                     doc.append(line("Note. \(t.footnotes)", font: meta, color: .darkGray, after: 8))
                 }
@@ -1177,14 +1178,28 @@ private struct OutlineBuilder {
                                 titleStyle: CaptionPartStyle?, caption: String,
                                 captionStyle: CaptionPartStyle?,
                                 captionRich: RichText? = nil,
-                                asset: () -> NSAttributedString?) -> NSAttributedString {
+                                mergeLeadingTitle: Bool = false,
+                                asset: (NSAttributedString?) -> NSAttributedString?) -> NSAttributedString {
+        // Keep-with-next: when the title sits directly above the asset,
+        // hand it TO the asset renderer (tables draw it into the first
+        // chunk image) so a page break can never separate them.
+        let titleOn = (titleStyle?.isEnabled ?? true) && !titleText.isEmpty
+        var merge = false
+        if mergeLeadingTitle, titleOn,
+           let ti = order.firstIndex(of: "title"), ti + 1 < order.count,
+           order[ti + 1] != "caption" {
+            merge = true
+        }
+        let titleLine = titleOn
+            ? captionPieceLine(titleText, style: titleStyle,
+                               defaultBold: true, metaLook: false, after: 2)
+            : nil
         let out = NSMutableAttributedString()
         for piece in order {
             switch piece {
             case "title":
-                if titleStyle?.isEnabled ?? true, !titleText.isEmpty {
-                    out.append(captionPieceLine(titleText, style: titleStyle,
-                                                defaultBold: true, metaLook: false, after: 2))
+                if titleOn, !merge, let titleLine {
+                    out.append(titleLine)
                 }
             case "caption":
                 if captionStyle?.isEnabled ?? true {
@@ -1196,7 +1211,7 @@ private struct OutlineBuilder {
                     }
                 }
             default:
-                if let block = asset() { out.append(block) }
+                if let block = asset(merge ? titleLine : nil) { out.append(block) }
             }
         }
         return out
@@ -1520,10 +1535,14 @@ private struct OutlineBuilder {
     /// output type; plain mono text only when nothing parses as a table.
     /// Applies the export autofit (data from row N), the table's width %,
     /// and its page alignment.
-    func tableBody(_ t: ManuscriptTable) -> NSAttributedString {
+    func tableBody(_ t: ManuscriptTable, leading: NSAttributedString? = nil) -> NSAttributedString {
         guard let grid = tableGrid(t), !grid.columns.isEmpty else {
-            return t.content.isEmpty ? NSAttributedString()
-                : line(t.content, font: .monospacedSystemFont(ofSize: format.fontSize - 1, weight: .regular), after: 4)
+            var out = NSMutableAttributedString()
+            if let leading { out.append(leading) }
+            if !t.content.isEmpty {
+                out.append(line(t.content, font: .monospacedSystemFont(ofSize: format.fontSize - 1, weight: .regular), after: 4))
+            }
+            return out
         }
         // Normalize row widths; keep runaway sets bounded.
         let capped = grid.rows.prefix(200).map { row in
@@ -1531,8 +1550,12 @@ private struct OutlineBuilder {
         }
         let out = NSMutableAttributedString()
         if fileType == .pdf {
-            out.append(drawnTableBlock(columns: grid.columns, rows: Array(capped), table: t))
+            out.append(drawnTableBlock(columns: grid.columns, rows: Array(capped), table: t,
+                                       leading: leading))
         } else {
+            // Native Word/RTF tables reflow on their own — the title stays
+            // a normal paragraph there.
+            if let leading { out.append(leading) }
             out.append(textTableBlock(columns: grid.columns, rows: Array(capped), table: t))
         }
         if grid.rows.count > 200 {
@@ -1752,7 +1775,8 @@ private struct OutlineBuilder {
     /// PDF: the grid drawn into image chunks (vector text isn't available in
     /// the CoreText paginator) — measured columns, wrapped cells, rules and
     /// shading per the table's formatting, split so chunks fit a page.
-    private func drawnTableBlock(columns: [TableCell], rows: [[TableCell]], table t: ManuscriptTable) -> NSAttributedString {
+    private func drawnTableBlock(columns: [TableCell], rows: [[TableCell]], table t: ManuscriptTable,
+                                 leading: NSAttributedString? = nil) -> NSAttributedString {
         let open = t.openSides ?? false
         let shade = t.alternateShading ?? false
         let available = tableWidth * tableWidthFactor(t)
@@ -1807,13 +1831,27 @@ private struct OutlineBuilder {
             chunks[chunks.count - 1].insert(moved, at: 0)
         }
 
-        func drawChunk(_ indices: [Int]) -> NSImage {
+        // The title merged into chunk 0 (keep-with-next): measure its
+        // height so the grid draws below it in the same image.
+        let leadingHeight: CGFloat = leading.map {
+            ceil($0.boundingRect(with: NSSize(width: width, height: .greatestFiniteMagnitude),
+                                 options: [.usesLineFragmentOrigin, .usesFontLeading]).height) + 4
+        } ?? 0
+
+        func drawChunk(_ indices: [Int], isFirst: Bool) -> NSImage {
             let heights = [headerHeight] + indices.map { rowHeights[$0] }
-            let totalHeight = heights.reduce(0, +)
+            let titleSpace = isFirst ? leadingHeight : 0
+            let totalHeight = heights.reduce(0, +) + titleSpace
             let size = NSSize(width: width, height: totalHeight)
             return NSImage(size: size, flipped: true) { _ in
                 NSColor.white.setFill()
                 NSRect(origin: .zero, size: size).fill()
+
+                if isFirst, let leading, titleSpace > 0 {
+                    leading.draw(with: NSRect(x: 0, y: 0, width: width, height: titleSpace),
+                                 options: [.usesLineFragmentOrigin, .usesFontLeading])
+                    NSGraphicsContext.current?.cgContext.translateBy(x: 0, y: titleSpace)
+                }
 
                 // Backgrounds first.
                 var y: CGFloat = 0
@@ -1888,8 +1926,8 @@ private struct OutlineBuilder {
         }
 
         let out = NSMutableAttributedString()
-        for chunk in chunks {
-            let image = drawChunk(chunk)
+        for (chunkIndex, chunk) in chunks.enumerated() {
+            let image = drawChunk(chunk, isFirst: chunkIndex == 0)
             let attachment = NSTextAttachment()
             attachment.image = image
             attachment.bounds = CGRect(origin: .zero, size: image.size)
@@ -1938,7 +1976,7 @@ private struct OutlineBuilder {
                 titleText: titleText, titleStyle: figure.titleStyle,
                 caption: figure.caption, captionStyle: figure.captionStyle,
                 captionRich: figure.captionText,
-                asset: {
+                asset: { _ in
                     guard let image = figureImage(figure) else { return nil }
                     let block = NSMutableAttributedString(attributedString: attachmentBlock(image))
                     applyBlockAlignment(figure.imageAlign, to: block)
@@ -1954,7 +1992,8 @@ private struct OutlineBuilder {
                 titleText: titleText, titleStyle: table.titleStyle,
                 caption: table.caption, captionStyle: table.captionStyle,
                 captionRich: table.captionText,
-                asset: { tableBody(table) }))
+                mergeLeadingTitle: true,
+                asset: { leading in tableBody(table, leading: leading) }))
             if !table.footnotes.isEmpty {
                 out.append(line("Note. \(table.footnotes)", font: meta, color: .darkGray, after: 6))
             }
