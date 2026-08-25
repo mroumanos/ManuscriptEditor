@@ -258,13 +258,20 @@ Intent: data lives once; figures/tables reference it; cuts convert only SQL.
   per-cell styles (drawn PDF grid and NSTextTable alike).
   A data-linked table can **Disconnect from Data** (destructive-confirmed):
   the current query result copies into the manual grid and the link is
-  removed — one-way. **Autofit** (Export Formatting, on by default,
-  toggleable): column widths follow each column's widest cell measured
-  from row N down (default 2; header = row 1; no rows are ever dropped),
-  with fair-share capping so narrow columns never wrap. Autofit OFF uses
-  the ratios of the **drag-adjustable column widths** (dividers over the
-  grid's header row; `ManuscriptTable.columnWidths`) to fill the table's
-  width. Multi-cell styling writes ONE snapshot (per-cell binding writes
+  removed — one-way. **Table width is a share of the SECTION's text
+  column**: the width % (25–100, default 100) measures against the
+  margins in force where the table sits — blocks receive the running
+  section geometry, not the document's static format, so a table in a
+  1.5″ section spans exactly that section's column (verified at the pixel
+  level: 108→503 for 100%, 108→305 for 50%). **Autofit** (Export
+  Formatting, on by default, toggleable) decides how that width is
+  DIVIDED, never whether the table fills it: column widths follow each
+  column's widest cell measured from row N down (default 2; header =
+  row 1; no rows are ever dropped), scaled to fill, with fair-share
+  capping so narrow columns never wrap when content overflows. Autofit
+  OFF divides the same width by the ratios of the **drag-adjustable
+  column widths** (dividers over the grid's header row;
+  `ManuscriptTable.columnWidths`). Multi-cell styling writes ONE snapshot (per-cell binding writes
   re-read stale state — only the last cell survived). The **preview
   always renders the PDF construction** — CoreText ignores NSTextTable,
   so a DOCX/RTF document's tables previewed as newline soup. Figure/table
