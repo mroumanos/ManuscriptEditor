@@ -512,20 +512,32 @@ final class SpreadsheetGridView: NSView {
             onWidthChanged?(col, min(max(resizeStartWidth + (p.x - resizeStartX), 44), 520))
             return
         }
-        if let from = reorderColumn, abs(p.x - reorderStart.x) > 5 {
-            if let to = column(at: min(max(p.x, offsets[0]), max(totalWidth - 1, offsets[0]))),
-               to != from {
-                onMoveColumn?(from, to)
-                reorderColumn = to
+        // Reordering steps ONE position at a time, and only once the
+        // pointer leaves the dragged column/row's own edge.  Jumping
+        // straight to "whatever is under the cursor" flip-flopped: the
+        // swap moves the dragged column under the pointer, which
+        // immediately satisfies the reverse swap.  Crossing an edge can't
+        // oscillate — after the step the pointer sits inside the moved
+        // column by construction.
+        if let from = reorderColumn, abs(p.x - reorderStart.x) > 4 {
+            let xs = offsets
+            if p.x > xs[from + 1], from + 1 < colCount {
+                onMoveColumn?(from, from + 1)
+                reorderColumn = from + 1
+            } else if p.x < xs[from], from > 0 {
+                onMoveColumn?(from, from - 1)
+                reorderColumn = from - 1
             }
             return
         }
-        if let from = reorderRow, abs(p.y - reorderStart.y) > 5 {
-            let to = min(max(Int((p.y - Self.headerHeight) / Self.rowHeight) + 1, 1),
-                         max(rowCount - 1, 1))
-            if to != from {
-                onMoveRow?(from, to)
-                reorderRow = to
+        if let from = reorderRow, abs(p.y - reorderStart.y) > 4 {
+            let top = Self.headerHeight + CGFloat(from - 1) * Self.rowHeight
+            if p.y > top + Self.rowHeight, from + 1 < rowCount {
+                onMoveRow?(from, from + 1)
+                reorderRow = from + 1
+            } else if p.y < top, from > 1 {
+                onMoveRow?(from, from - 1)
+                reorderRow = from - 1
             }
             return
         }
