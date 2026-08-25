@@ -903,7 +903,7 @@ struct ManualTableGrid: View {
             // hits the divider alone and can never also drive selection.
             VStack(alignment: .leading, spacing: gap) {
                 ForEach(cells.indices, id: \.self) { r in
-                    GridRowView(row: cells[r], isHeader: r == 0,
+                    GridRowView(row: cells[r], rowIndex: r, isHeader: r == 0,
                                 editingCol: editingCell?.r == r ? editingCell?.c : nil,
                                 widths: (0..<cells[r].count).map { colW($0) },
                                 cellH: cellH, gap: gap,
@@ -913,26 +913,17 @@ struct ManualTableGrid: View {
                                     cells[r][c].text = value
                                 },
                                 onSubmit: { commitAndMove(dr: 1, dc: 0) },
-                                onMoveEdit: { dr, dc in commitAndMove(dr: dr, dc: dc) })
+                                onMoveEdit: { dr, dc in commitAndMove(dr: dr, dc: dc) },
+                                onPress: { c, start, now in press(row: r, col: c, from: start, to: now) },
+                                onDoubleClick: { c in beginEditing(row: r, col: c) },
+                                onHoverCell: { c in
+                                    guard movingRow == nil, movingCol == nil, resizingCol == nil else { return }
+                                    let cell = CellID(r: r, c: c)
+                                    if hover != cell { hover = cell }
+                                })
                         .equatable()
                 }
             }
-            .contentShape(Rectangle())
-            // Hover feeds the GUTTER controls only — a per-cell hover
-            // outline froze mid-drag and read as a stray active cell.
-            .onContinuousHover(coordinateSpace: .local) { phase in
-                guard movingRow == nil, movingCol == nil, resizingCol == nil else { return }
-                if case .active(let p) = phase, let cell = cellAt(p), cell != hover {
-                    hover = cell
-                }
-            }
-            .onTapGesture(count: 2, coordinateSpace: .local) { p in
-                guard structureEditable, let cell = cellAt(p), cell != editingCell else { return }
-                anchor = cell; extent = nil
-                editingCell = cell
-                fieldFocused = true
-            }
-            .simultaneousGesture(pressAndDragGesture)
 
             selectionOverlay
             columnDividers
@@ -959,53 +950,56 @@ struct ManualTableGrid: View {
         fieldFocused = structureEditable
     }
 
-    /// One gesture for press-select (mouse-down, no double-click wait) and
-    /// drag-select.  STATELESS per tick: the anchor always derives from the
-    /// gesture's own start location — a tracked "is dragging" flag could
-    /// stick when a simultaneous child gesture (a column divider) claimed
-    /// the drag and our onEnded was skipped, after which every click only
-    /// extended the old selection.  Skipped inside the cell being edited
-    /// and over the divider strips.
-    private var pressAndDragGesture: some Gesture {
-        DragGesture(minimumDistance: 0, coordinateSpace: .local)
-            .onChanged { value in
-                // A divider resize owns the drag outright: resizingCol is
-                // the divider gesture's own state, so it stays valid even
-                // as the boundary MOVES (the geometric dead zone below
-                // stopped matching once the column had grown ±5pt, and the
-                // fallthrough re-selected against the shifted geometry —
-                // the "locked onto the wrong cell" bug).
-                if resizingCol != nil { return }
-                // Dead zone for the FIRST tick, before the divider gesture
-                // reaches its minimum distance and sets resizingCol.
-                let start = value.startLocation
-                if isOnDivider(start) { return }
-                let startCell = cellAt(start)
-                if let editingCell, startCell == editingCell { return }
-                guard let startCell else { return }
-                if NSApp.keyWindow?.firstResponder is NSText {
-                    NSApp.keyWindow?.makeFirstResponder(nil)
-                }
-                if NSEvent.modifierFlags.contains(.shift), let a = anchor, a != startCell {
-                    let target = cellAt(value.location) ?? startCell
-                    if extent != target { extent = target }
-                    if editingCell != nil { editingCell = nil }
-                    return
-                }
-                if editingCell != nil { editingCell = nil }
-                if anchor != startCell { anchor = startCell }
-                let current = cellAt(value.location)
-                let newExtent = current == startCell ? nil : current
-                if extent != newExtent { extent = newExtent }
+    /// Selection driven by the CELLS themselves: each cell reports its own
+    /// (row, column) plus the press/current points in ITS OWN space.  There
+    /// is no container-level coordinate conversion left to go stale — the
+    /// bug that survived four fixes was exactly that conversion drifting
+    /// after a resize changed the scroll view's content size (and it
+    /// "healed" on scroll or reopen because both force a fresh layout).
+    private func press(row: Int, col: Int, from start: CGPoint, to now: CGPoint) {
+        if resizingCol != nil { return }
+        let pressed = CellID(r: row, c: col)
+        let moved = abs(now.x - start.x) > 3 || abs(now.y - start.y) > 3
+        if !moved {
+            if NSApp.keyWindow?.firstResponder is NSText {
+                NSApp.keyWindow?.makeFirstResponder(nil)
             }
+            if NSEvent.modifierFlags.contains(.shift), anchor != nil {
+                if extent != pressed { extent = pressed }
+            } else {
+                if editingCell != nil, editingCell != pressed { editingCell = nil }
+                if anchor != pressed { anchor = pressed }
+                if extent != nil { extent = nil }
+            }
+            return
+        }
+        // Drag-extend: the pointer's grid position is this cell's origin
+        // plus the in-cell offset — arithmetic on the cell's own space.
+        guard editingCell == nil else { return }
+        if anchor == nil { anchor = pressed }
+        let xs = colX
+        let point = CGPoint(x: xs[col] + now.x,
+                            y: CGFloat(row) * (cellH + gap) + now.y)
+        let target = nearestCell(to: point)
+        if extent != target { extent = target }
     }
 
-    /// True when the point sits on a column-resize divider strip (header
-    /// row, near a column boundary).
-    private func isOnDivider(_ p: CGPoint) -> Bool {
-        guard p.y <= cellH else { return false }
+    private func beginEditing(row: Int, col: Int) {
+        guard structureEditable else { return }
+        anchor = CellID(r: row, c: col)
+        extent = nil
+        editingCell = CellID(r: row, c: col)
+        fieldFocused = true
+    }
+
+    /// The cell containing `point`, clamped to the grid so a drag past an
+    /// edge selects up to that edge.
+    private func nearestCell(to point: CGPoint) -> CellID {
         let xs = colX
-        return (1...colCount).contains { abs(p.x - (xs[$0] - gap / 2)) <= 7 }
+        var c = 0
+        while c + 1 < colCount, point.x >= xs[c + 1] { c += 1 }
+        let r = min(max(Int(point.y / (cellH + gap)), 0), max(rowCount - 1, 0))
+        return CellID(r: r, c: min(max(c, 0), max(colCount - 1, 0)))
     }
 
     @ViewBuilder
@@ -1079,6 +1073,8 @@ struct ManualTableGrid: View {
         .frame(width: gridW, height: cellH, alignment: .topLeading)
     }
 
+    /// Point → cell, used only by the key monitor's bounds checks now that
+    /// input comes from the cells themselves.
     private func cellAt(_ p: CGPoint) -> CellID? {
         let xs = colX
         guard let c = (0..<colCount).first(where: { p.x < xs[$0 + 1] }) else { return nil }
@@ -1196,6 +1192,7 @@ struct ManualTableGrid: View {
 /// entirely while selections drag across the table.
 private struct GridRowView: View, Equatable {
     let row: [TableCell]
+    let rowIndex: Int
     let isHeader: Bool
     let editingCol: Int?
     let widths: [CGFloat]
@@ -1206,10 +1203,15 @@ private struct GridRowView: View, Equatable {
     let onSubmit: () -> Void
     /// Commit the edit and move to the adjacent cell (Tab/⇧Tab, ↑/↓).
     let onMoveEdit: (Int, Int) -> Void
+    /// Press / drag reported with the column and the points in THIS CELL's
+    /// own coordinate space — no container conversion to go stale.
+    let onPress: (Int, CGPoint, CGPoint) -> Void
+    let onDoubleClick: (Int) -> Void
+    let onHoverCell: (Int) -> Void
 
     static func == (a: GridRowView, b: GridRowView) -> Bool {
         a.row == b.row && a.isHeader == b.isHeader && a.editingCol == b.editingCol
-            && a.widths == b.widths
+            && a.widths == b.widths && a.rowIndex == b.rowIndex
     }
 
     var body: some View {
@@ -1256,6 +1258,18 @@ private struct GridRowView: View, Equatable {
         .frame(width: widths.indices.contains(c) ? widths[c] : 132, height: cellH, alignment: .leading)
         .background(background(cell))
         .overlay(Rectangle().strokeBorder(Color.secondary.opacity(0.25), lineWidth: 0.5))
+        .contentShape(Rectangle())
+        .onHover { if $0 { onHoverCell(c) } }
+        .onTapGesture(count: 2) { onDoubleClick(c) }
+        // Points stay in the CELL's own space: a 132×28 view relative to
+        // itself, which no scroll or content resize can invalidate.
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 0, coordinateSpace: .local)
+                .onChanged { value in
+                    guard editingCol != c else { return }
+                    onPress(c, value.startLocation, value.location)
+                }
+        )
     }
 
     private func font(_ cell: TableCell) -> Font {

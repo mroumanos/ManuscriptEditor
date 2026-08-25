@@ -128,6 +128,19 @@ xcodebuild -scheme ManuscriptEditor -destination 'platform=macOS' build
     chunk image (one unbreakable attachment); attributed writers make it
     the table's own full-width, borderless first row.
 
+15. **Don't hit-test a scrolling grid from its container.** Any pointer
+    math that converts a point into a container's space — `.local`,
+    `.named`, or `.global` minus a captured origin — drifts when that
+    container's content size changes mid-interaction (dragging a column
+    divider inside a horizontally scrolled `ScrollView` does exactly
+    that). The symptom is a CONSTANT offset ("clicks land two rows
+    below") that heals on scroll or when the view is recreated, because
+    both force a fresh layout — and it only reproduces on content wide
+    enough to scroll. Fix: let each **cell** own its input and report its
+    own `(row, column)` plus points in ITS OWN space; the container does
+    arithmetic on those, never a conversion. Deltas (a resize drag) are
+    safe in `.global`, where they are pure pointer travel.
+
 ## Releasing
 
 `scripts/release.sh <version> [notes-file]` runs the whole pipeline: bump
