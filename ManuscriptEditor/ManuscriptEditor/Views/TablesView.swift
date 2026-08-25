@@ -596,6 +596,15 @@ struct ManualTableGrid: View {
             .frame(width: 0)
             .opacity(0)
 
+            Divider().frame(height: 16).padding(.horizontal, 4)
+
+            Button {
+                fitColumnsToContent()
+            } label: {
+                Image(systemName: "arrow.left.and.right.text.vertical")
+            }
+            .help("Fit columns to their widest value (then adjust by dragging the dividers)")
+
             Spacer()
             Text(structureEditable
                  ? "click selects · double-click edits · drag, ⇧-click, or ⇧-arrows extend"
@@ -893,15 +902,17 @@ struct ManualTableGrid: View {
                                     guard cells.indices.contains(r), cells[r].indices.contains(c) else { return }
                                     cells[r][c].text = value
                                 },
-                                onSubmit: { editingCell = nil })
+                                onSubmit: { commitAndMove(dr: 1, dc: 0) },
+                                onMoveEdit: { dr, dc in commitAndMove(dr: dr, dc: dc) })
                         .equatable()
                 }
             }
-            hoverOverlay
             selectionOverlay
             columnDividers
         }
         .contentShape(Rectangle())
+        // Hover feeds the GUTTER controls only — a per-cell hover outline
+        // froze mid-drag and read as a stray active cell.
         .onContinuousHover { phase in
             guard movingRow == nil, movingCol == nil else { return }
             if case .active(let p) = phase, let cell = cellAt(p), cell != hover {
@@ -915,6 +926,26 @@ struct ManualTableGrid: View {
             fieldFocused = true
         }
         .simultaneousGesture(pressAndDragGesture)
+        .onAppear { installKeyMonitor() }
+        .onDisappear {
+            if let keyMonitor { NSEvent.removeMonitor(keyMonitor) }
+            keyMonitor = nil
+        }
+    }
+
+    /// Spreadsheet fill flow: commit the edit and move to (and edit) the
+    /// adjacent cell — Return goes down, Tab right, ⇧Tab left, ↑/↓ vertical.
+    private func commitAndMove(dr: Int, dc: Int) {
+        guard let e = editingCell else { return }
+        let target = CellID(r: e.r + dr, c: e.c + dc)
+        guard cells.indices.contains(target.r), cells[target.r].indices.contains(target.c) else {
+            editingCell = nil
+            return
+        }
+        anchor = target
+        extent = nil
+        editingCell = structureEditable ? target : nil
+        fieldFocused = structureEditable
     }
 
     /// One gesture for press-select (mouse-down, no double-click wait) and
@@ -959,18 +990,6 @@ struct ManualTableGrid: View {
                        height: CGFloat(sel.rows.count) * (cellH + gap) - gap)
                 .offset(x: xs[sel.cols.lowerBound],
                         y: CGFloat(sel.rows.lowerBound) * (cellH + gap))
-                .allowsHitTesting(false)
-        }
-    }
-
-    @ViewBuilder
-    private var hoverOverlay: some View {
-        if let h = hover, selection.map({ !$0.rows.contains(h.r) || !$0.cols.contains(h.c) }) ?? true {
-            Rectangle()
-                .strokeBorder(Color.accentColor.opacity(0.35), lineWidth: 1)
-                .frame(width: colW(h.c), height: cellH)
-                .offset(x: colX[h.c],
-                        y: CGFloat(h.r) * (cellH + gap))
                 .allowsHitTesting(false)
         }
     }
@@ -1034,6 +1053,16 @@ struct ManualTableGrid: View {
             let shift = event.modifierFlags.contains(.shift)
             let base = shift ? (extent ?? a) : a
             var next = base
+            if event.modifierFlags.contains(.command) {
+                // ⌘V: paste a spreadsheet block (tab-separated columns,
+                // newline rows) starting at the anchor, growing the grid.
+                if event.charactersIgnoringModifiers?.lowercased() == "v", structureEditable,
+                   let text = NSPasteboard.general.string(forType: .string) {
+                    pasteBlock(text, at: a)
+                    return nil
+                }
+                return event
+            }
             switch event.keyCode {
             case 126: next = CellID(r: max(base.r - 1, 0), c: base.c)                // ↑
             case 125: next = CellID(r: min(base.r + 1, rowCount - 1), c: base.c)     // ↓
@@ -1050,6 +1079,55 @@ struct ManualTableGrid: View {
             if shift { extent = next } else { anchor = next; extent = nil }
             return nil
         }
+    }
+
+    /// Spreads pasted spreadsheet text (TSV: tabs between columns, newlines
+    /// between rows) into the grid from `origin`, adding rows and columns
+    /// as needed; existing cell styles survive, only texts change.
+    private func pasteBlock(_ text: String, at origin: CellID) {
+        let rows = text
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+            .components(separatedBy: "\n")
+        var matrix = rows.map { $0.components(separatedBy: "\t") }
+        while matrix.last?.allSatisfy(\.isEmpty) == true { matrix.removeLast() }
+        guard !matrix.isEmpty else { return }
+
+        var grid = cells
+        let blockCols = matrix.map(\.count).max() ?? 1
+        let neededRows = origin.r + matrix.count
+        let neededCols = max(origin.c + blockCols, grid.first?.count ?? 1)
+        while grid.count < neededRows {
+            grid.append(Array(repeating: TableCell(), count: grid.first?.count ?? 1))
+        }
+        for r in grid.indices {
+            while grid[r].count < neededCols { grid[r].append(TableCell()) }
+        }
+        for (i, row) in matrix.enumerated() {
+            for (j, value) in row.enumerated() {
+                grid[origin.r + i][origin.c + j].text = value
+            }
+        }
+        cells = grid
+        extent = CellID(r: origin.r + matrix.count - 1, c: origin.c + blockCols - 1)
+    }
+
+    /// Sizes every column to its widest cell as displayed in the grid —
+    /// most tables then need only a drag or two.
+    private func fitColumnsToContent() {
+        guard colCount > 0 else { return }
+        var widths: [Double] = []
+        for c in 0..<colCount {
+            var w: CGFloat = 40
+            for r in cells.indices where cells[r].indices.contains(c) {
+                let cell = cells[r][c]
+                let font = NSFont.systemFont(ofSize: 12,
+                                             weight: (cell.bold ?? (r == 0)) ? .semibold : .regular)
+                w = max(w, (cell.text as NSString).size(withAttributes: [.font: font]).width)
+            }
+            widths.append(Double(min(max(w + 18, 50), 480)))
+        }
+        columnWidths = widths
     }
 
     static func highlightColor(_ name: String?) -> Color {
@@ -1079,6 +1157,8 @@ private struct GridRowView: View, Equatable {
     var fieldFocused: FocusState<Bool>.Binding
     let onTextChange: (Int, String) -> Void
     let onSubmit: () -> Void
+    /// Commit the edit and move to the adjacent cell (Tab/⇧Tab, ↑/↓).
+    let onMoveEdit: (Int, Int) -> Void
 
     static func == (a: GridRowView, b: GridRowView) -> Bool {
         a.row == b.row && a.isHeader == b.isHeader && a.editingCol == b.editingCol
@@ -1105,6 +1185,11 @@ private struct GridRowView: View, Equatable {
                 .textFieldStyle(.plain)
                 .focused(fieldFocused)
                 .onSubmit(onSubmit)
+                // Spreadsheet fill flow: Tab/⇧Tab horizontal, ↑/↓ vertical
+                // (←/→ stay with the caret).
+                .onKeyPress(.tab) { onMoveEdit(0, NSEvent.modifierFlags.contains(.shift) ? -1 : 1); return .handled }
+                .onKeyPress(.upArrow) { onMoveEdit(-1, 0); return .handled }
+                .onKeyPress(.downArrow) { onMoveEdit(1, 0); return .handled }
                 .font(font(cell))
                 .underline(cell.underline == true)
                 .multilineTextAlignment(cell.align == "center" ? .center

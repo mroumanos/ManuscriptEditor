@@ -1663,8 +1663,10 @@ private struct OutlineBuilder {
         let total = naturals.reduce(0, +)
         guard total > 0 else { return columns.map { _ in 1 / CGFloat(max(columns.count, 1)) } }
         if total <= width {
-            // Fill the configured table width, keeping the natural ratios.
-            return naturals.map { $0 / total }
+            // Autofit HUGS content: columns take their natural width and
+            // the table comes out narrower than the configured width
+            // (fractions sum < 1); alignment then positions it.
+            return naturals.map { $0 / width }
         }
         // Fair-share capping: columns under the running equal share keep
         // their natural width; the remainder is split among the wide ones.
@@ -1693,7 +1695,10 @@ private struct OutlineBuilder {
     private func textTableBlock(columns: [TableCell], rows: [[TableCell]], table t: ManuscriptTable) -> NSAttributedString {
         let open = t.openSides ?? false
         let shade = t.alternateShading ?? false
-        let fractions = columnFractions(columns: columns, rows: rows, width: tableWidth, table: t)
+        var fractions = columnFractions(columns: columns, rows: rows,
+                                        width: tableWidth * tableWidthFactor(t), table: t)
+        let fractionSum = fractions.reduce(0, +)
+        if fractionSum > 0 { fractions = fractions.map { $0 / fractionSum } }
         let lastRow = rows.count   // header is row 0
 
         let table = NSTextTable()
@@ -1750,9 +1755,13 @@ private struct OutlineBuilder {
     private func drawnTableBlock(columns: [TableCell], rows: [[TableCell]], table t: ManuscriptTable) -> NSAttributedString {
         let open = t.openSides ?? false
         let shade = t.alternateShading ?? false
-        let width = tableWidth * tableWidthFactor(t)
+        let available = tableWidth * tableWidthFactor(t)
         let pad: CGFloat = 5
-        let widths = columnFractions(columns: columns, rows: rows, width: width, table: t).map { $0 * width }
+        let widths = columnFractions(columns: columns, rows: rows, width: available, table: t)
+            .map { $0 * available }
+        // Autofit can come out narrower than the available width — the
+        // drawn grid hugs its columns.
+        let width = widths.reduce(0, +)
 
         func cellHeight(_ cell: TableCell, columnWidth: CGFloat, header: Bool) -> CGFloat {
             let font = cellFont(cell, header: header)
