@@ -163,6 +163,19 @@ xcodebuild -scheme ManuscriptEditor -destination 'platform=macOS' build
     arithmetic on those, never a conversion. Deltas (a resize drag) are
     safe in `.global`, where they are pure pointer travel.
 
+16. **Look up bundled resources in the bundle that holds the CODE, not
+    `Bundle.main`.** The target uses a
+    `PBXFileSystemSynchronizedRootGroup`, so a folder dropped into the app
+    directory ships automatically — but its resources are FLATTENED into
+    `Contents/Resources`, so `urls(forResourcesWithExtension:subdirectory:)`
+    with the folder name finds nothing. Search both the subdirectory and
+    the flat root. And `Bundle.main` is whatever executable is running: in
+    the swiftc verification harness that is the harness, which carries no
+    resources, so a lookup that works in the app silently returns nothing
+    under test — the seeding of journal profiles appeared broken for
+    exactly this reason. `Bundle.containingCode` (`Bundle(for:)` on a
+    private marker class) resolves to the app bundle in both.
+
 ## Releasing
 
 `scripts/release.sh <version> [notes-file]` runs the whole pipeline: bump
