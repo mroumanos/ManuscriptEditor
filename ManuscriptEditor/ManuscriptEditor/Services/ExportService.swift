@@ -1002,6 +1002,9 @@ private struct OutlineBuilder {
         }
 
         for (i, author) in authors.enumerated() where item.printsAuthorNames {
+            if item.authorsNumbered {
+                doc.append(NSAttributedString(string: "\(i + 1). ", attributes: bodyAttrs))
+            }
             doc.append(NSAttributedString(
                 string: item.authorTitlesShown ? author.exportName : author.fullName,
                 attributes: bodyAttrs))
@@ -1018,16 +1021,21 @@ private struct OutlineBuilder {
                 // The * annotates like another institution marker (raised).
                 doc.append(markerRun("*", para: bodyAttrs[.paragraphStyle] as! NSParagraphStyle))
             }
-            doc.append(NSAttributedString(string: i < authors.count - 1 ? delimiter : "\n",
-                                          attributes: bodyAttrs))
+            // A numbered byline is one author per line, so the separator is
+            // the line break and the last entry gets one too.
+            let separator = item.authorsNumbered
+                ? "\n"
+                : (i < authors.count - 1 ? delimiter : "\n")
+            doc.append(NSAttributedString(string: separator, attributes: bodyAttrs))
         }
 
+        let affDelimiter = Self.delimiterText(item.affiliationDelimiterCode, fallback: "\n")
         for (index, lineText) in affLines.enumerated() where item.printsAffiliations {
             if item.affiliationListNumbered {
                 // "1. Institution" — a plain numbered list, which is what a
                 // journal asks for when the list stands apart from the
-                // byline.  It counts from the SAME index, so superscripts on
-                // the names still point at the right line.
+                // byline.  It counts from the SAME index the names' markers
+                // use, so the two halves stay in step wherever each prints.
                 doc.append(NSAttributedString(string: "\(index + 1). \(lineText)\n",
                                               attributes: metaAttrs))
             } else {
@@ -1036,7 +1044,10 @@ private struct OutlineBuilder {
                                          para: metaAttrs[.paragraphStyle] as! NSParagraphStyle))
                     doc.append(NSAttributedString(string: " ", attributes: metaAttrs))
                 }
-                doc.append(NSAttributedString(string: lineText + "\n", attributes: metaAttrs))
+                doc.append(NSAttributedString(string: lineText, attributes: metaAttrs))
+                doc.append(NSAttributedString(
+                    string: index < affLines.count - 1 ? affDelimiter : "\n",
+                    attributes: metaAttrs))
             }
         }
         // "* Corresponding author" footnote — a line like the institutions'.

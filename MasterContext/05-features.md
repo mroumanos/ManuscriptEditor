@@ -631,9 +631,14 @@ propagate by explicit, individual fast-forwards.
   way whichever half prints, so names keep their superscripts when the list
   lives elsewhere: verified "Ada Lovelace¹*; Alan Turing²; Grace Hopper¹˒³"
   renders identically with and without the list beside it.
-  The list itself lays out as the raised marker (default) or as a numbered
-  list — **"1. Analytical Institute"** — via
-  `ExportItem.affiliationListStyle`.
+  Both halves take the SAME separator vocabulary — semicolon, comma, space,
+  slash, hyphen, newline, and a **numbered list** ("1. Ada Lovelace" /
+  "1. Analytical Institute", one per line) — through
+  `ExportItem.authorDelimiter` and `ExportItem.affiliationDelimiter`.
+  Institutions default to one per line, as before. A numbered byline keeps
+  each author's affiliation superscript, so "1. Ada Lovelace¹*" carries both
+  the list index and the marker; `affiliationListStyle` is still read so
+  profiles saved against it keep their numbering.
 - AC (implemented): **An export document can be an UPLOADED FILE.** "Upload
   File…" beside Add Document takes a file of any type, copies it into the
   manuscript's `attachments/` folder (so it travels with the manuscript, and

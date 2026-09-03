@@ -184,16 +184,24 @@ struct ComponentSettingsButton: View {
             HStack(spacing: 8) {
                 Text("institutions:").font(.caption).foregroundStyle(.secondary)
                 Picker("", selection: Binding(
-                    get: { entry.affiliationListStyle ?? "marker" },
+                    get: { entry.affiliationDelimiterCode },
                     set: { value in
-                        mutateItem { $0.affiliationListStyle = value == "marker" ? nil : value }
+                        mutateItem {
+                            $0.affiliationDelimiter = value
+                            $0.affiliationListStyle = nil     // superseded
+                        }
                     }
                 )) {
-                    Text("¹ Institution").tag("marker")
-                    Text("1. Institution").tag("numbered")
+                    Text("a ⏎ b").tag("newline")
+                    Text("1. a ⏎ 2. b").tag("numbered")
+                    Text("a; b").tag("semicolon")
+                    Text("a, b").tag("comma")
+                    Text("a b").tag("space")
+                    Text("a / b").tag("slash")
+                    Text("a - b").tag("hyphen")
                 }
                 .labelsHidden().controlSize(.small).fixedSize()
-                .help("How the affiliation list is laid out")
+                .help("How the institutions are separated — the same choices the byline has")
             }
         }
         HStack(spacing: 8) {
@@ -207,9 +215,10 @@ struct ComponentSettingsButton: View {
                 Text("a / b").tag("slash")
                 Text("a - b").tag("hyphen")
                 Text("a ⏎ b").tag("newline")
+                Text("1. a ⏎ 2. b").tag("numbered")
             }
             .labelsHidden().controlSize(.small).fixedSize()
-            .help("Delimiter between authors (and affiliation lines)")
+            .help("How the authors are separated — a numbered list puts one per line")
             Picker("", selection: Binding(
                 get: {
                     let v = entry.affiliationMarker ?? "superscript"

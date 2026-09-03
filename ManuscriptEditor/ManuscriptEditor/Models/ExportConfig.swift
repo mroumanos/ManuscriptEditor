@@ -391,12 +391,25 @@ struct ExportItem: Codable, Identifiable, Sendable, Equatable {
     var printsAuthorNames: Bool { authorPartsMode != "institutions" }
     var printsAffiliations: Bool { authorPartsMode != "names" }
 
-    /// Authors item: how the affiliation LIST is laid out — "marker"
-    /// (default: the same raised marker the names carry) or "numbered"
-    /// ("1. Institution" on its own line, the form journals ask for when the
-    /// list stands apart from the byline).
+    /// Authors item: how the affiliation LIST is separated — the same
+    /// vocabulary the byline uses, including "newline" (the default: one per
+    /// line) and "numbered" ("1. Institution" per line, the form journals ask
+    /// for when the list stands apart from the byline).
+    var affiliationDelimiter: String? = nil
+
+    /// Superseded by `affiliationDelimiter`; still read so profiles saved
+    /// against it keep their numbering.
     var affiliationListStyle: String? = nil
-    var affiliationListNumbered: Bool { affiliationListStyle == "numbered" }
+
+    /// The affiliation separator actually in force.
+    var affiliationDelimiterCode: String {
+        affiliationDelimiter ?? (affiliationListStyle == "numbered" ? "numbered" : "newline")
+    }
+    var affiliationListNumbered: Bool { affiliationDelimiterCode == "numbered" }
+
+    /// True when the byline itself is a numbered list rather than a run of
+    /// names — "1. Ada Lovelace" on its own line, and so on.
+    var authorsNumbered: Bool { authorDelimiter == "numbered" }
 
     /// Authors item: annotate the corresponding author with a raised *
     /// (like an institution marker) plus a "* Corresponding author"
