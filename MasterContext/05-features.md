@@ -623,6 +623,18 @@ propagate by explicit, individual fast-forwards.
   from losing their byline; that made the item impossible to delete, which is
   worse than the problem it solved. An outline that predates the split shows
   no byline until an Authors item is added by hand.)
+- AC (implemented): **`[[authors.names]]` and `[[authors.institutes]]` keep
+  their indices.** The two part tokens rendered bare lists — names with no
+  superscripts, institutes with no numbers — so splitting the byline across a
+  title page cost the reader the link between an author and where they work,
+  and the institute list arrived unnumbered under names that pointed at
+  nothing. Both now carry the same markers the full `[[authors]]` byline
+  uses, from the same index, and `authors.names` honours the token's "+ cred"
+  setting like the full byline does. Marker options are offered on all three
+  tokens, not just the full one.
+  All three also take a **numbered** delimiter — "1. Ada Lovelace" one per
+  line — alongside space/comma/semicolon/slash/hyphen/newline.
+
 - AC (implemented): **The byline can be split, and keeps its indexing.** The
   Authors item prints **Names + institutions** (default), **Names only**, or
   **Institutions only** (`ExportItem.authorParts`), so a journal wanting the

@@ -29,8 +29,11 @@ enum PartEngine {
             URL(string: "part://t/\(path)?d=\(delimiter)&m=\(marker)&c=\(creds ? 1 : 0)&x=\(corr ? 1 : 0)")
         }
         var markerText: String { "[[\(path)]]" }
-        /// Marker options only matter where authors meet institutes.
-        var hasMarkerOptions: Bool { path == "authors" }
+        /// Marker options matter wherever authors meet institutes — the full
+        /// byline, the names on their own, and the institute list.
+        var hasMarkerOptions: Bool { path.hasPrefix("authors") && !path.contains("corresponding") }
+        /// A numbered list puts one entry per line, prefixed "1. ".
+        var numbered: Bool { delimiter == "numbered" }
     }
 
     /// Everything "/" offers, with the label shown in the picker.
@@ -111,6 +114,7 @@ enum PartEngine {
         case "slash":   return " / "
         case "hyphen":  return " - "
         case "newline": return "\n"
+        case "numbered": return "\n"      // the number is a prefix, not a separator
         default:        return "; "
         }
     }
@@ -173,17 +177,20 @@ enum PartEngine {
         case "authors":
             var out: [(String, Bool)] = []
             for (i, a) in authors.enumerated() {
+                if part.numbered { out.append(("\(i + 1). ", false)) }
                 out.append((part.creds ? a.exportName : a.fullName, false))
                 let mk = markers(a)
                 if !mk.isEmpty { out.append((mk, true)) }
                 // The * annotates like another institution marker (raised).
                 if a.isCorresponding, part.corr { out.append(("*", true)) }
-                if i < authors.count - 1 { out.append((delim, false)) }
+                if i < authors.count - 1 { out.append((part.numbered ? "\n" : delim, false)) }
             }
             if !lines.isEmpty {
                 out.append(("\n", false))
                 for (i, l) in lines.enumerated() {
-                    if part.marker != "none" {
+                    if part.numbered {
+                        out.append(("\(i + 1). ", false))
+                    } else if part.marker != "none" {
                         out.append((markerText(part.marker, index: i), true))
                         out.append((" ", false))
                     }
@@ -197,9 +204,34 @@ enum PartEngine {
             }
             return out
         case "authors.names":
-            return joined(authors.map(\.fullName))
+            // The names ALONE, but still carrying their institute markers:
+            // splitting the byline across the page must not cost the reader
+            // the link between an author and where they work.
+            var out: [(String, Bool)] = []
+            for (i, a) in authors.enumerated() {
+                if part.numbered { out.append(("\(i + 1). ", false)) }
+                out.append((part.creds ? a.exportName : a.fullName, false))
+                let mk = markers(a)
+                if !mk.isEmpty { out.append((mk, true)) }
+                if a.isCorresponding, part.corr { out.append(("*", true)) }
+                if i < authors.count - 1 { out.append((part.numbered ? "\n" : delim, false)) }
+            }
+            return out
         case "authors.institutes":
-            return joined(lines)
+            // Likewise the institutes keep their index, so the superscripts
+            // on the names point at something.
+            var out: [(String, Bool)] = []
+            for (i, l) in lines.enumerated() {
+                if part.numbered {
+                    out.append(("\(i + 1). ", false))
+                } else if part.marker != "none" {
+                    out.append((markerText(part.marker, index: i), true))
+                    out.append((" ", false))
+                }
+                out.append((l, false))
+                if i < lines.count - 1 { out.append((part.numbered ? "\n" : delim, false)) }
+            }
+            return out
         case "authors.corresponding_author":
             return joined(corresponding.map(\.fullName))
         case "authors.corresponding_author.first_name":

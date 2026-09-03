@@ -1525,7 +1525,8 @@ final class CitationTextView: NSTextView {
         menu.addItem(NSMenuItem.sectionHeader(title: "Delimiter"))
         for (tag, name, code) in [(0, "a b", "space"), (1, "a, b", "comma"),
                                   (2, "a; b", "semicolon"), (3, "a / b", "slash"),
-                                  (4, "a - b", "hyphen"), (5, "a ⏎ b", "newline")] {
+                                  (4, "a - b", "hyphen"), (5, "a ⏎ b", "newline"),
+                                  (6, "1. a ⏎ 2. b", "numbered")] {
             let item = NSMenuItem(title: name, action: #selector(applyPartDelimiter(_:)), keyEquivalent: "")
             item.target = self
             item.tag = tag
@@ -1627,7 +1628,8 @@ final class CitationTextView: NSTextView {
     @objc private func applyPartDelimiter(_ sender: NSMenuItem) {
         guard var (part, range) = menuPart else { return }
         menuPart = nil
-        part.delimiter = ["space", "comma", "semicolon", "slash", "hyphen", "newline"][sender.tag]
+        part.delimiter = ["space", "comma", "semicolon", "slash", "hyphen",
+                          "newline", "numbered"][sender.tag]
         rewritePart(part, range: range)
     }
 
