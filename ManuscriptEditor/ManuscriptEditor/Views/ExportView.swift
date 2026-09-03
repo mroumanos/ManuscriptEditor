@@ -578,16 +578,18 @@ private struct ExportDocumentCard: View {
     /// Page geometry in force just BEFORE the break at `index`: the running
     /// result of every earlier break (nil fields inherit), starting from the
     /// document's format.
-    private func inheritedGeometry(before index: Int) -> (margin: Double, twoColumn: Bool, lineNumbers: Bool) {
+    private func inheritedGeometry(before index: Int) -> (margin: Double, twoColumn: Bool, lineNumbers: Bool, pageNumbers: Bool) {
         var margin = document.format.marginInches
         var twoColumn = document.format.twoColumn
         var lineNumbers = document.format.lineNumbers
+        var pageNumbers = document.format.pageNumbers
         for item in document.items.prefix(index) where item.kind == .pageBreak {
             margin = item.sectionMarginInches ?? margin
             twoColumn = item.sectionTwoColumn ?? twoColumn
             lineNumbers = item.sectionLineNumbers ?? lineNumbers
+            pageNumbers = item.sectionPageNumbers ?? pageNumbers
         }
-        return (margin, twoColumn, lineNumbers)
+        return (margin, twoColumn, lineNumbers, pageNumbers)
     }
 
     @ViewBuilder
@@ -619,6 +621,7 @@ private struct ExportDocumentCard: View {
                 let effMargin = item.sectionMarginInches ?? inherited.margin
                 let effTwoCol = item.sectionTwoColumn ?? inherited.twoColumn
                 let effLines = item.sectionLineNumbers ?? inherited.lineNumbers
+                let effPages = item.sectionPageNumbers ?? inherited.pageNumbers
                 HStack(spacing: 2) {
                     Text("margins: \(String(format: "%.2f", effMargin))″")
                         .font(.caption)
@@ -673,7 +676,23 @@ private struct ExportDocumentCard: View {
                     .labelsHidden()
                     .controlSize(.mini)
                 }
-                .help("Line numbering for the pages after this break")
+                .help("Line numbering for the pages after this break — numbering restarts wherever it is switched off and on again")
+                HStack(spacing: 3) {
+                    Text("page num.:").font(.caption).foregroundStyle(.secondary)
+                    Toggle("", isOn: Binding(
+                        get: { effPages },
+                        set: { on in
+                            var doc = document
+                            guard doc.items.indices.contains(index) else { return }
+                            doc.items[index].sectionPageNumbers = on
+                            onChange(doc)
+                        }
+                    ))
+                    .toggleStyle(.switch)
+                    .labelsHidden()
+                    .controlSize(.mini)
+                }
+                .help("Page numbers in the bottom margin after this break (the count runs across the whole document)")
                 line
             } else {
                 // Read-only review row: the component's printed heading and

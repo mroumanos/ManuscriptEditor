@@ -221,7 +221,7 @@ private struct HeaderSlotEditor: View {
                     .frame(maxHeight: 56)
                     .overlay(alignment: .topTrailing) {
                         Button {
-                            slot.imageData = nil
+                            slot.setImage(nil)
                         } label: {
                             Image(systemName: "xmark.circle.fill")
                                 .foregroundStyle(.secondary)
@@ -244,7 +244,10 @@ private struct HeaderSlotEditor: View {
                 .frame(maxWidth: .infinity, alignment: .center)
             }
 
-            PlainTextEditor(text: $slot.text, alignment: textAlignment)
+            // A slot shows an image OR type, so the text well appears only
+            // while there is no image — adding one replaces what was typed.
+            if !slot.isImage {
+                PlainTextEditor(text: $slot.editableText, alignment: textAlignment)
                 .frame(minHeight: 54, maxHeight: 72)
                 .overlay(alignment: .topLeading) {
                     if slot.text.isEmpty {
@@ -256,6 +259,7 @@ private struct HeaderSlotEditor: View {
                             .allowsHitTesting(false)
                     }
                 }
+            }
         }
         .frame(maxWidth: .infinity)
     }
@@ -279,9 +283,9 @@ private struct HeaderSlotEditor: View {
         guard panel.runModal() == .OK, let url = panel.url else { return }
         if url.pathExtension.lowercased() == "svg",
            let data = try? Data(contentsOf: url), NSImage(data: data) != nil {
-            slot.imageData = data
+            slot.setImage(data)
         } else if let image = NSImage(contentsOf: url) {
-            slot.imageData = image.pngData(maxDimension: 1000)
+            slot.setImage(image.pngData(maxDimension: 1000))
         }
     }
 }

@@ -605,6 +605,27 @@ propagate by explicit, individual fast-forwards.
   carries and the warning dialog names the exact snapshot that will be copied
   ("Nature does not pull from Source directly — sync NEJM first, then
   Nature").
+- AC (implemented): **Page numbers sit beside line numbers** as a Section-row
+  switch (`ExportItem.sectionPageNumbers`, `ExportDocumentFormat.pageNumbers`),
+  inheriting down the outline the same way. They print centred in the bottom
+  margin, and the count runs across the whole DOCUMENT — a section that turns
+  numbering back on carries on from where the pages actually are, rather than
+  restarting. LaTeX output emits `\pagestyle{empty}` when they are off, since
+  it numbers by default.
+- AC (implemented): **Line numbering restarts wherever it is broken.** Numbers
+  are continuous only while consecutive sections all have them on; a section
+  with numbering off breaks the run, and the next numbered stretch starts
+  again at 1. Verified on a three-section document with the middle section
+  off: pages read 1–2, 3–17, none, then 1–15 again, with page numbers 1,2,3,4
+  throughout.
+- AC (implemented): **A letterhead slot is an image OR text, never both.**
+  Stacking a logo over a line of type in one corner is not what "left" or
+  "right" means, so setting either replaces the other
+  (`LetterHeaderSlot.setText` / `setImage`; the text well is hidden while an
+  image is present, and the export prints whichever the slot holds). A slot
+  saved when both could coexist keeps the image — the more deliberate of the
+  two.
+
 - AC (implemented): **A large table starts on the page it reaches, not the
   next one.** Table chunks are images, and an image cannot be split across a
   page, so a chunk cut to a FULL page could almost never fit under preceding

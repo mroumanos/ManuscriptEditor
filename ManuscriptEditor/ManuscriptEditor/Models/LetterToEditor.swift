@@ -24,11 +24,45 @@ import Foundation
 /// One letterhead slot (left / center / right): an optional image above
 /// optional freeform text.  Image data is embedded in the manuscript JSON —
 /// logos are small and this keeps the letter self-contained.
+/// One letterhead slot — an image OR text, never both.
+///
+/// A slot occupies one corner of the letterhead, and stacking a logo above a
+/// line of type in the same corner is not what anyone means by "left" or
+/// "right": setting one replaces the other, so a slot always renders exactly
+/// one thing.
 struct LetterHeaderSlot: Codable, Sendable, Equatable {
-    var text: String = ""
-    var imageData: Data? = nil
+
+    private(set) var text: String = ""
+    private(set) var imageData: Data? = nil
 
     var isEmpty: Bool { text.isEmpty && imageData == nil }
+
+    /// True when this slot is showing an image rather than type.
+    var isImage: Bool { imageData != nil }
+
+    init(text: String = "", imageData: Data? = nil) {
+        // A slot decoded from a file written when both could coexist keeps
+        // the image: it is the deliberate choice of the two.
+        self.imageData = imageData
+        self.text = imageData == nil ? text : ""
+    }
+
+    mutating func setText(_ value: String) {
+        text = value
+        if !value.isEmpty { imageData = nil }
+    }
+
+    mutating func setImage(_ data: Data?) {
+        imageData = data
+        if data != nil { text = "" }
+    }
+
+    /// Editing binding for the text side — writing non-empty text clears any
+    /// image, which is how one replaces the other.
+    var editableText: String {
+        get { text }
+        set { setText(newValue) }
+    }
 }
 
 /// The cover letter for a manuscript submission.
@@ -97,7 +131,7 @@ struct LetterToEditor: Codable, Sendable, Equatable {
         if headerCenter.isEmpty {
             let title    = try c.decodeIfPresent(String.self, forKey: .headerTitle) ?? ""
             let subtitle = try c.decodeIfPresent(String.self, forKey: .headerSubtitle) ?? ""
-            headerCenter.text = [title, subtitle].filter { !$0.isEmpty }.joined(separator: "\n")
+            headerCenter.setText([title, subtitle].filter { !$0.isEmpty }.joined(separator: "\n"))
         }
     }
 

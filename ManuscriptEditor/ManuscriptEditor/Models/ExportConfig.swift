@@ -93,8 +93,33 @@ struct ExportDocumentFormat: Codable, Sendable, Equatable {
     var marginInches: Double = 1.0
     /// Continuous line numbers in the left margin (PDF and LaTeX output).
     var lineNumbers: Bool = false
+    /// Page numbers centered in the bottom margin (PDF output).
+    var pageNumbers: Bool = false
     /// Two-column body layout (IEEE-style; PDF and LaTeX output).
     var twoColumn: Bool = false
+
+    init(fontFamily: ExportFontFamily = .times, fontSize: Double = 12,
+         lineSpacing: Double = 1.5, marginInches: Double = 1.0,
+         lineNumbers: Bool = false, pageNumbers: Bool = false, twoColumn: Bool = false) {
+        self.fontFamily = fontFamily; self.fontSize = fontSize
+        self.lineSpacing = lineSpacing; self.marginInches = marginInches
+        self.lineNumbers = lineNumbers; self.pageNumbers = pageNumbers
+        self.twoColumn = twoColumn
+    }
+
+    /// Every field decodes if present: a format saved before a setting
+    /// existed must still open, and this is where new page furniture keeps
+    /// landing.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        fontFamily = try c.decodeIfPresent(ExportFontFamily.self, forKey: .fontFamily) ?? .times
+        fontSize = try c.decodeIfPresent(Double.self, forKey: .fontSize) ?? 12
+        lineSpacing = try c.decodeIfPresent(Double.self, forKey: .lineSpacing) ?? 1.5
+        marginInches = try c.decodeIfPresent(Double.self, forKey: .marginInches) ?? 1.0
+        lineNumbers = try c.decodeIfPresent(Bool.self, forKey: .lineNumbers) ?? false
+        pageNumbers = try c.decodeIfPresent(Bool.self, forKey: .pageNumbers) ?? false
+        twoColumn = try c.decodeIfPresent(Bool.self, forKey: .twoColumn) ?? false
+    }
 }
 
 /// Font families offered for export documents (system-installed, no bundling).
@@ -294,6 +319,10 @@ struct ExportItem: Codable, Identifiable, Sendable, Equatable {
     var sectionMarginInches: Double? = nil
     var sectionTwoColumn: Bool? = nil
     var sectionLineNumbers: Bool? = nil
+
+    /// Page numbers for the pages after this break — same inheritance as the
+    /// line-number switch (nil = carry on with whatever preceded it).
+    var sectionPageNumbers: Bool? = nil
 
     /// References item only: the CSL style the reference list renders in.
     /// nil = the journal's required style (baked in at export).

@@ -44,6 +44,8 @@ private func letterheadBlock(_ letter: LetterToEditor, font: NSFont, width: CGFl
             let h = min(40, image.size.height)
             attachment.bounds = CGRect(x: 0, y: 0, width: image.size.width * (h / image.size.height), height: h)
             out.append(NSAttributedString(attachment: attachment))
+            // A slot is an image OR type: whichever it holds is all it prints.
+            return out
         }
         if !slot.text.isEmpty {
             for line in slot.text.components(separatedBy: "\n") {
@@ -319,6 +321,8 @@ struct ExportService {
         let text: NSAttributedString
         let marginInches: Double
         let twoColumn: Bool
+        /// Print a page number in the bottom margin of this section's pages.
+        var pageNumbers: Bool = false
     }
 
     private func pageSegments(for document: ExportDocument, content: Manuscript,
@@ -341,9 +345,11 @@ struct ExportService {
         var margin = document.format.marginInches
         var twoCol = document.format.twoColumn
         var sectionLines: Bool? = nil
+        var pageNums = document.format.pageNumbers
         func flush() {
             if current.length > 0 {
-                sections.append(PageSection(text: current, marginInches: margin, twoColumn: twoCol))
+                sections.append(PageSection(text: current, marginInches: margin,
+                                            twoColumn: twoCol, pageNumbers: pageNums))
             }
             current = NSMutableAttributedString()
         }
@@ -358,6 +364,7 @@ struct ExportService {
                 margin = item.sectionMarginInches ?? margin
                 twoCol = item.sectionTwoColumn ?? twoCol
                 sectionLines = item.sectionLineNumbers ?? sectionLines
+                pageNums = item.sectionPageNumbers ?? pageNums
                 // Blocks measure against the page — hand them THIS
                 // section's geometry so a 100% table spans exactly this
                 // section's text column, margin to margin.
@@ -392,6 +399,9 @@ struct ExportService {
         let anyLineNumbers = f.lineNumbers
             || document.items.contains { $0.sectionLineNumbers == true }
         if anyLineNumbers { out += "\\usepackage{lineno}\n" }
+        // LaTeX numbers pages by default, so the setting only has to speak
+        // up when it is OFF.
+        if !f.pageNumbers { out += "\\pagestyle{empty}\n" }
         out += "\\begin{document}\n"
         if f.lineSpacing >= 2.0 { out += "\\doublespacing\n" }
         else if f.lineSpacing >= 1.3 { out += "\\onehalfspacing\n" }
@@ -2177,6 +2187,7 @@ private struct PDFPaginator {
 
         let gap: CGFloat = 18
         var lineNumber = 1
+        var pageNumber = 1
         // A section of nothing but whitespace still typesets one line, which
         // opened a page with no ink on it — the blank sheet that trailed
         // exports ending on a page break.  (An image-only section is safe:
@@ -2252,7 +2263,11 @@ private struct PDFPaginator {
                     drawLineNumbers(frame, segment: segment, columnRect: rect,
                                     context: ctx, next: &lineNumber)
                 }
+                if section.pageNumbers {
+                    drawPageNumber(pageNumber, contentRect: contentRect, context: ctx)
+                }
                 ctx.endPDFPage()
+                pageNumber += 1
                 location = cursor
             }
         }
@@ -2365,6 +2380,23 @@ private struct PDFPaginator {
         }
     }
 
+    /// The page number, centred in the bottom margin.  Counted across the
+    /// whole document, so a section that switches numbering back on carries
+    /// on from where the pages actually are.
+    private func drawPageNumber(_ number: Int, contentRect: CGRect, context: CGContext) {
+        let label = NSAttributedString(string: "\(number)", attributes: [
+            .font: NSFont.systemFont(ofSize: 9.5),
+            NSAttributedString.Key(kCTForegroundColorAttributeName as String): NSColor.darkGray.cgColor,
+        ])
+        let line = CTLineCreateWithAttributedString(label)
+        let width = CGFloat(CTLineGetTypographicBounds(line, nil, nil, nil))
+        // Half-way down the bottom margin: clear of the text, clear of the
+        // page edge, wherever the margin has been set.
+        let y = max(contentRect.minY - 24, 12)
+        context.textPosition = CGPoint(x: contentRect.midX - width / 2, y: y)
+        CTLineDraw(line, context)
+    }
+
     /// Continuous line numbers in the margin left of each column — only for
     /// lines whose text carries the per-item line-number attribute (set from
     /// the item's effective format by `OutlineBuilder`).
@@ -2378,7 +2410,15 @@ private struct PDFPaginator {
             let range = CTLineGetStringRange(line)
             guard range.location >= 0, range.location < segment.length,
                   segment.attribute(ExportAttr.lineNumbers, at: range.location,
-                                    effectiveRange: nil) != nil else { continue }
+                                    effectiveRange: nil) != nil
+            else {
+                // A line that isn't numbered BREAKS the run: numbering is
+                // only continuous while consecutive sections all have it on,
+                // so the next numbered stretch starts again at 1 rather than
+                // pretending the gap wasn't there.
+                next = 1
+                continue
+            }
             // Blank lines count too — the margin numbering matches the
             // editor's gutter, which numbers every visual line.
             _ = text   // (content no longer inspected)
