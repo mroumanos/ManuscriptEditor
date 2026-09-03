@@ -207,61 +207,89 @@ private struct HeaderSlotEditor: View {
         }
     }
 
+    /// Which of the two a slot is holding.  Kept in the view because an
+    /// empty slot has to sit in one mode or the other before anything is in
+    /// it — the model only records what it ended up with.
+    private enum Mode: String, CaseIterable, Identifiable {
+        case text, image
+        var id: String { rawValue }
+        var label: String { self == .text ? "Text" : "Image" }
+    }
+    @State private var mode: Mode = .text
+
     var body: some View {
         VStack(alignment: alignment, spacing: 6) {
-            Text(title)
-                .font(.caption.weight(.medium))
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, alignment: .center)
-
-            if let data = slot.imageData, let image = NSImage(data: data) {
-                Image(nsImage: image)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(maxHeight: 56)
-                    .overlay(alignment: .topTrailing) {
-                        Button {
-                            slot.setImage(nil)
-                        } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .foregroundStyle(.secondary)
-                                .background(Circle().fill(.background))
-                        }
-                        .buttonStyle(.plain)
-                        .help("Remove image")
-                        .offset(x: 8, y: -8)
-                    }
-                    .frame(maxWidth: .infinity, alignment: swiftUIAlignment)
-            } else {
-                Button {
-                    chooseImage()
-                } label: {
-                    Label("Add Image…", systemImage: "photo.badge.plus")
-                        .font(.caption)
+            HStack(spacing: 6) {
+                Text(title)
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.secondary)
+                // One slot, one thing in it: the picker chooses WHICH, and
+                // only that control takes the space.  (Showing an image well
+                // above a text well made every text slot sit lower than it
+                // prints.)
+                Picker("", selection: $mode) {
+                    ForEach(Mode.allCases) { Text($0.label).tag($0) }
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .frame(maxWidth: .infinity, alignment: .center)
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .controlSize(.mini)
+                .fixedSize()
+                .onChange(of: mode) { _, new in
+                    // Switching clears the other side, so the slot always
+                    // holds exactly what the picker says.
+                    if new == .text { slot.setImage(nil) } else { slot.setText("") }
+                }
             }
+            .frame(maxWidth: .infinity, alignment: .center)
 
-            // A slot shows an image OR type, so the text well appears only
-            // while there is no image — adding one replaces what was typed.
-            if !slot.isImage {
-                PlainTextEditor(text: $slot.editableText, alignment: textAlignment)
-                .frame(minHeight: 54, maxHeight: 72)
-                .overlay(alignment: .topLeading) {
-                    if slot.text.isEmpty {
-                        Text("Text…")
-                            .font(.callout)
-                            .foregroundStyle(.quaternary)
-                            .padding(.top, 1)
-                            .padding(.leading, 5)
-                            .allowsHitTesting(false)
+            switch mode {
+            case .image:
+                if let data = slot.imageData, let image = NSImage(data: data) {
+                    Image(nsImage: image)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(maxHeight: 56)
+                        .overlay(alignment: .topTrailing) {
+                            Button {
+                                slot.setImage(nil)
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundStyle(.secondary)
+                                    .background(Circle().fill(.background))
+                            }
+                            .buttonStyle(.plain)
+                            .help("Remove image")
+                            .offset(x: 8, y: -8)
+                        }
+                        .frame(maxWidth: .infinity, alignment: swiftUIAlignment)
+                } else {
+                    Button {
+                        chooseImage()
+                    } label: {
+                        Label("Add Image…", systemImage: "photo.badge.plus")
+                            .font(.caption)
                     }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .frame(maxWidth: .infinity, alignment: .center)
                 }
+            case .text:
+                PlainTextEditor(text: $slot.editableText, alignment: textAlignment)
+                    .frame(minHeight: 54, maxHeight: 72)
+                    .overlay(alignment: .topLeading) {
+                        if slot.text.isEmpty {
+                            Text("Text…")
+                                .font(.callout)
+                                .foregroundStyle(.quaternary)
+                                .padding(.top, 1)
+                                .padding(.leading, 5)
+                                .allowsHitTesting(false)
+                        }
+                    }
             }
         }
         .frame(maxWidth: .infinity)
+        .onAppear { mode = slot.isImage ? .image : .text }
     }
 
     private var swiftUIAlignment: Alignment {

@@ -605,6 +605,16 @@ propagate by explicit, individual fast-forwards.
   carries and the warning dialog names the exact snapshot that will be copied
   ("Nature does not pull from Source directly — sync NEJM first, then
   Nature").
+- AC (implemented): **The title block is spaced like everything else.** Its
+  lines carried 8pt of paragraph spacing on top of the document's line
+  spacing, and the block appended a trailing blank line that a section does
+  not — so the title read loose and the gap before the next component was
+  visibly wider than any gap between two others. Both are gone: title,
+  subtitle, and running title flow on the prescribed line spacing alone
+  (measured at 1.5×: gaps 22.0/20.5/39.5 pt before, 14.0/12.5/9.5 after,
+  while every section-to-section gap stayed at 35.5). The byline lost its
+  trailing blank line for the same reason.
+
 - AC (implemented): **Title and byline are fully decoupled.** The title
   component prints title, subtitle, and running title — never the authors.
   The byline is its own `.authors` item, added and removed like any other:

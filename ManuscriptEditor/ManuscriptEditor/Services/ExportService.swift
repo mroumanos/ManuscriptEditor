@@ -847,7 +847,7 @@ private enum ExportAttr {
 /// never fit under preceding content, and the table bumps to the next page
 /// leaving most of one blank.  Sizing the first chunk to what's left closes
 /// that gap; every later chunk still gets a full page.
-private final class TableRechunker {
+private final class TableRechunker: NSObject {
     /// Rebuilds the whole table block with the first chunk capped at
     /// `firstBudget` points.
     let build: (CGFloat) -> NSAttributedString
@@ -1073,8 +1073,11 @@ private struct OutlineBuilder {
                 titleFont = title
             }
             if hs.italicOn { titleFont = NSFontManager.shared.convert(titleFont, toHaveTrait: .italicFontMask) }
+            // No paragraph spacing of its own: the document's line spacing is
+            // what governs, so a 1.5-spaced title flows into a 1.5-spaced
+            // subtitle with no seam.
             let titleLine = NSMutableAttributedString(attributedString:
-                line(displayTitle(m), font: titleFont, after: 8))
+                line(displayTitle(m), font: titleFont, after: 0))
             let titleRange = NSRange(location: 0, length: titleLine.length)
             if hs.underline {
                 titleLine.addAttribute(.underlineStyle,
@@ -1090,25 +1093,27 @@ private struct OutlineBuilder {
                              bold: false)
                     : scaled(2, bold: false)
                 let subLine = NSMutableAttributedString(attributedString:
-                    line(subtitle, font: subFont, after: 8))
+                    line(subtitle, font: subFont, after: 0))
                 applyHeadingAlignment(hs, to: subLine)
                 doc.append(subLine)
             }
             if !m.runningTitle.isEmpty {
                 // Running title is page-header METADATA, not a subtitle —
                 // it keeps its quiet labeled line.
-                doc.append(line("Running title: \(m.runningTitle)", font: meta, color: .darkGray, after: 8))
+                doc.append(line("Running title: \(m.runningTitle)", font: meta, color: .darkGray, after: 0))
             }
             // The title component prints what it holds — title, subtitle,
             // running title — and nothing else.  The byline is its own
             // component (`.authors`), so it can be reordered, restyled, or
             // dropped for a blind copy without touching the title.
-            doc.append(spacer())
+            //
+            // No trailing blank line either: a section doesn't add one, and
+            // the gap after the title read visibly wider than the gap between
+            // any other two components.
             return doc
         case .authors:
             let doc = NSMutableAttributedString(attributedString: authorsBlock(item, content: m))
             guard doc.length > 0 else { return nil }
-            doc.append(spacer())
             return doc
         case .abstract:
             guard !m.abstract.isEmpty else { return nil }
@@ -2117,12 +2122,18 @@ private struct OutlineBuilder {
         // ALREADY spans pages offers to re-cut its first chunk.
         let out = assemble(chunks)
         guard chunks.count > 1 else { return out }
-        let rechunker = TableRechunker { budget in
+        var rechunker: TableRechunker!
+        rechunker = TableRechunker { budget in
             let recut = cutChunks(firstBudget: budget)
             // A first chunk with nothing in it but the header is worse than
             // starting on the next page.
             guard let first = recut.first, first.count >= 2 else { return out }
             let rebuilt = assemble(recut)
+            // Keep the tag: the paginator identifies a table's full extent by
+            // the run of this attribute, and an untagged rebuild would leave
+            // the next pass unable to see where the table ends.
+            rebuilt.addAttribute(ExportAttr.tableRechunk, value: rechunker!,
+                                 range: NSRange(location: 0, length: rebuilt.length))
             return rebuilt
         }
         out.addAttribute(ExportAttr.tableRechunk, value: rechunker,
@@ -2314,9 +2325,16 @@ private struct PDFPaginator {
         let next = location + visible.length
         guard visible.length > 0, next < segment.length else { return nil }
 
+        // The LONGEST range, not the effective one: each chunk carries its
+        // own paragraph style, so `effectiveRange` stops at the first chunk.
+        // Splicing the whole rebuilt table over just that left the original
+        // chunks 2…n in place — the table's later rows printed twice, after
+        // its own end, with the caption pushed past them.
         var blockRange = NSRange(location: 0, length: 0)
         guard let box = segment.attribute(ExportAttr.tableRechunk, at: next,
-                                          effectiveRange: &blockRange) as? TableRechunker,
+                                          longestEffectiveRange: &blockRange,
+                                          in: NSRange(location: 0, length: segment.length))
+                as? TableRechunker,
               // Only at the START of a table: mid-table there is no gap to close.
               blockRange.location == next,
               !handled.contains(ObjectIdentifier(box))
