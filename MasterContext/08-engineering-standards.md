@@ -185,6 +185,24 @@ xcodebuild -scheme ManuscriptEditor -destination 'platform=macOS' build
     exactly this reason. `Bundle.containingCode` (`Bundle(for:)` on a
     private marker class) resolves to the app bundle in both.
 
+17. **An attachment taller than the page silently eats the rest of the
+    section.** In the PDF paginator a figure, chart, or drawn table chunk is
+    an `NSTextAttachment` on its own line fragment, and CoreText will not
+    split a line: if it doesn't fit, `CTFrameGetVisibleStringRange` returns
+    zero and the old loop treated that as "section finished", discarding the
+    image AND everything after it. Verified with a 400×4000 image: the
+    figure's own caption vanished from the PDF while a 300pt control kept it.
+    Two defences, keep both: **clamp attachment height** to the content box
+    (`attachmentBlock` fits to whichever of width/height binds — letterhead
+    and signature were already capped at 40/48pt), and in the paginator, when
+    a whole page places nothing, **step over that one character** rather than
+    abandoning the section. Pages are also laid out BEFORE `beginPDFPage`, so
+    a page that would hold nothing is never opened.
+    Related: a table's chunks are cut to a page MINUS ~50pt, because each
+    chunk is followed by a newline that has to fit on the same page — without
+    that slack a chunk that just fits pushes its own terminator onto a blank
+    sheet.
+
 ## Releasing
 
 `scripts/release.sh <version> [notes-file]` runs the whole pipeline: bump

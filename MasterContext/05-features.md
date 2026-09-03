@@ -590,6 +590,23 @@ propagate by explicit, individual fast-forwards.
   carries and the warning dialog names the exact snapshot that will be copied
   ("Nature does not pull from Source directly — sync NEJM first, then
   Nature").
+- AC (implemented): **A large table starts on the page it reaches, not the
+  next one.** Table chunks are images, and an image cannot be split across a
+  page, so a chunk cut to a FULL page could almost never fit under preceding
+  content — the table bumped, leaving most of a page blank (measured: a
+  Tables document whose first page ended at 27.8%). The paginator now feeds
+  the layout back: when the next block is a drawn table that would bump while
+  the current page still has real room, it asks that table to re-cut its
+  first chunk to the space remaining (`ExportAttr.tableRechunk` →
+  `TableRechunker`), then re-measures the page. Guards: single-column
+  sections only, once per table, only when ≥2 inches and ≥25% of the page are
+  free, only for tables that already span pages, and never a first chunk of
+  fewer than two rows — below those thresholds a sliver under a repeated
+  header reads worse than a gap. **The trade-off is explicit**: filling the
+  gap costs one more chunk, so one more repeated header, and the same
+  document may gain a page (that Tables file went 3 pages at 27.8/92.7/77.0%
+  to 4 at 93.7/90.9/96.7% plus a caption tail).
+
 - AC (implemented): **A component's settings reach every copy of it in the
   export.** An outline can carry the same component more than once — a
   journal wanting a separate title-page file has that section in the

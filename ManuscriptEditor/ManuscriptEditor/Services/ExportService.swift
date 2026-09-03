@@ -812,6 +812,25 @@ struct ExportService {
 /// set per item from its effective format, read per line by `PDFPaginator`.
 private enum ExportAttr {
     static let lineNumbers = NSAttributedString.Key("MELineNumbers")
+    /// Carries a `TableRechunker` on every piece of a drawn table, so the
+    /// paginator can rebuild that table once it knows how much room is left
+    /// on the page the table is about to start on.
+    static let tableRechunk = NSAttributedString.Key("METableRechunk")
+}
+
+/// Lets the paginator re-cut a drawn table's first chunk to the space
+/// actually remaining on the current page.
+///
+/// A table is drawn as images, and an image occupies one line fragment that
+/// CoreText will not split — so a chunk sized against a WHOLE page can almost
+/// never fit under preceding content, and the table bumps to the next page
+/// leaving most of one blank.  Sizing the first chunk to what's left closes
+/// that gap; every later chunk still gets a full page.
+private final class TableRechunker {
+    /// Rebuilds the whole table block with the first chunk capped at
+    /// `firstBudget` points.
+    let build: (CGFloat) -> NSAttributedString
+    init(build: @escaping (CGFloat) -> NSAttributedString) { self.build = build }
 }
 
 // MARK: - OutlineBuilder
@@ -1504,9 +1523,18 @@ private struct OutlineBuilder {
     private func attachmentBlock(_ image: NSImage) -> NSAttributedString {
         let attachment = NSTextAttachment()
         attachment.image = image
+        // Height matters as much as width: an image taller than the content
+        // box occupies a line fragment that can never be placed, and CoreText
+        // then reports nothing visible — which used to discard the image AND
+        // everything after it in that section (a figure's own caption was the
+        // usual casualty).  Fit to whichever dimension binds.
         let maxWidth: CGFloat = 612 - format.marginInches * 144 - 12
+        let maxHeight: CGFloat = 792 - format.marginInches * 144 - 12
         let size = image.size
-        let scale = size.width > maxWidth ? maxWidth / size.width : 1
+        guard size.width > 0, size.height > 0 else {
+            return NSAttributedString(string: "")
+        }
+        let scale = min(1, min(maxWidth / size.width, maxHeight / size.height))
         attachment.bounds = CGRect(x: 0, y: 0,
                                    width: size.width * scale, height: size.height * scale)
         let out = NSMutableAttributedString(attributedString: NSAttributedString(attachment: attachment))
@@ -1902,30 +1930,46 @@ private struct OutlineBuilder {
         // Chunk rows so each image (header repeated) fits within a page —
         // sized from the DOCUMENT's margins, not a fixed guess (a chunk
         // taller than the content box can't be placed at all).
-        let maxChunkHeight = max(792 - format.marginInches * 144 - 30, 180)
-        var chunks: [[Int]] = []
-        var current: [Int] = []
-        // Chunk 0 also carries the merged title (see leadingHeight below).
-        var height = headerHeight + (leading == nil ? 0 : leadingEstimate)
-        for (i, h) in rowHeights.enumerated() {
-            if !current.isEmpty, height + h > maxChunkHeight {
-                chunks.append(current)
-                current = []
-                height = headerHeight
+        // The 50pt slack covers the paragraph spacing and the newline that
+        // follows each chunk: without room for that line, a chunk that just
+        // fits still pushes its own terminator onto a blank page.
+        let maxChunkHeight = max(792 - format.marginInches * 144 - 50, 180)
+
+        /// Cuts the rows into page-sized chunks.  `firstBudget` caps the
+        /// FIRST chunk only, so the paginator can ask for one that fits the
+        /// space left on the page the table starts on; later chunks always
+        /// get a full page.
+        func cutChunks(firstBudget: CGFloat?) -> [[Int]] {
+            var chunks: [[Int]] = []
+            var current: [Int] = []
+            var budget = firstBudget.map { min($0, maxChunkHeight) } ?? maxChunkHeight
+            // Chunk 0 also carries the merged title (see leadingHeight below).
+            var height = headerHeight + (leading == nil ? 0 : leadingEstimate)
+            for (i, h) in rowHeights.enumerated() {
+                if !current.isEmpty, height + h > budget {
+                    chunks.append(current)
+                    current = []
+                    height = headerHeight
+                    budget = maxChunkHeight
+                }
+                current.append(i)
+                height += h
             }
-            current.append(i)
-            height += h
+            if !current.isEmpty { chunks.append(current) }
+            // Orphan control: a final chunk of one or two rows reads as its
+            // own little table — pull rows back from the previous chunk so
+            // the last one carries at least three (they only shrink, so both
+            // still fit).
+            while chunks.count >= 2,
+                  let last = chunks.last, last.count < 3,
+                  chunks[chunks.count - 2].count > 3 {
+                let moved = chunks[chunks.count - 2].removeLast()
+                chunks[chunks.count - 1].insert(moved, at: 0)
+            }
+            return chunks
         }
-        if !current.isEmpty { chunks.append(current) }
-        // Orphan control: a final chunk of one or two rows reads as its own
-        // little table — pull rows back from the previous chunk so the last
-        // one carries at least three (they only shrink, so both still fit).
-        while chunks.count >= 2,
-              let last = chunks.last, last.count < 3,
-              chunks[chunks.count - 2].count > 3 {
-            let moved = chunks[chunks.count - 2].removeLast()
-            chunks[chunks.count - 1].insert(moved, at: 0)
-        }
+
+        let chunks = cutChunks(firstBudget: nil)
 
         func drawChunk(_ indices: [Int], isFirst: Bool) -> NSImage {
             let heights = [headerHeight] + indices.map { rowHeights[$0] }
@@ -2015,19 +2059,38 @@ private struct OutlineBuilder {
             }
         }
 
-        let out = NSMutableAttributedString()
-        for (chunkIndex, chunk) in chunks.enumerated() {
-            let image = drawChunk(chunk, isFirst: chunkIndex == 0)
-            let attachment = NSTextAttachment()
-            attachment.image = image
-            attachment.bounds = CGRect(origin: .zero, size: image.size)
-            let style = NSMutableParagraphStyle()
-            style.paragraphSpacing = 4
-            let block = NSMutableAttributedString(attributedString: NSAttributedString(attachment: attachment))
-            block.addAttribute(.paragraphStyle, value: style, range: NSRange(location: 0, length: block.length))
-            block.append(NSAttributedString(string: "\n", attributes: [.font: base]))
-            out.append(block)
+        func assemble(_ chunks: [[Int]]) -> NSMutableAttributedString {
+            let out = NSMutableAttributedString()
+            for (chunkIndex, chunk) in chunks.enumerated() {
+                let image = drawChunk(chunk, isFirst: chunkIndex == 0)
+                let attachment = NSTextAttachment()
+                attachment.image = image
+                attachment.bounds = CGRect(origin: .zero, size: image.size)
+                let style = NSMutableParagraphStyle()
+                style.paragraphSpacing = 4
+                let block = NSMutableAttributedString(attributedString: NSAttributedString(attachment: attachment))
+                block.addAttribute(.paragraphStyle, value: style, range: NSRange(location: 0, length: block.length))
+                block.append(NSAttributedString(string: "\n", attributes: [.font: base]))
+                out.append(block)
+            }
+            return out
         }
+
+        // A single-chunk table already fits a page whole; re-cutting it would
+        // split something that didn't need splitting, so only a table that
+        // ALREADY spans pages offers to re-cut its first chunk.
+        let out = assemble(chunks)
+        guard chunks.count > 1 else { return out }
+        let rechunker = TableRechunker { budget in
+            let recut = cutChunks(firstBudget: budget)
+            // A first chunk with nothing in it but the header is worse than
+            // starting on the next page.
+            guard let first = recut.first, first.count >= 2 else { return out }
+            let rebuilt = assemble(recut)
+            return rebuilt
+        }
+        out.addAttribute(ExportAttr.tableRechunk, value: rechunker,
+                         range: NSRange(location: 0, length: out.length))
         return out
     }
 
@@ -2114,7 +2177,12 @@ private struct PDFPaginator {
 
         let gap: CGFloat = 18
         var lineNumber = 1
-        for section in sections where section.text.length > 0 {
+        // A section of nothing but whitespace still typesets one line, which
+        // opened a page with no ink on it — the blank sheet that trailed
+        // exports ending on a page break.  (An image-only section is safe:
+        // its object-replacement character is not whitespace.)
+        for section in sections where section.text.string
+            .rangeOfCharacter(from: CharacterSet.whitespacesAndNewlines.inverted) != nil {
             // Each section carries its own page geometry (margins, columns).
             let raw = section.text
             let margin = CGFloat(section.marginInches * 72)
@@ -2127,30 +2195,112 @@ private struct PDFPaginator {
             // layout collapses images (charts, letterheads, signatures,
             // table grids) to nothing.  Reserve their space here and draw
             // them ourselves after each frame.
-            let segment = withAttachmentDelegates(raw)
-            let framesetter = CTFramesetterCreateWithAttributedString(segment)
+            var working = raw
+            var segment = withAttachmentDelegates(working)
+            var framesetter = CTFramesetterCreateWithAttributedString(segment)
             var location = 0
+            // A table only gets one chance to re-cut itself, so a rebuild can
+            // never feed another rebuild.
+            var recut: Set<ObjectIdentifier> = []
             while location < segment.length {
-                ctx.beginPDFPage(nil)
-                for column in 0..<columns where location < segment.length {
+                // Single column: give a table about to bump to the next page
+                // the chance to start on this one instead.  (Two-column
+                // layouts keep the simple behaviour — the geometry there is
+                // rarely a full-width table.)
+                if columns == 1 {
+                    let rect = CGRect(x: contentRect.minX, y: contentRect.minY,
+                                      width: columnWidth, height: contentRect.height)
+                    let probe = CTFramesetterCreateFrame(
+                        framesetter, CFRange(location: location, length: 0),
+                        CGPath(rect: rect, transform: nil), nil)
+                    if let rebuilt = rechunkedSegment(after: probe, from: location,
+                                                      raw: working, segment: segment,
+                                                      rect: rect, handled: &recut) {
+                        working = rebuilt
+                        segment = withAttachmentDelegates(working)
+                        framesetter = CTFramesetterCreateWithAttributedString(segment)
+                        continue          // re-measure this page with the new cut
+                    }
+                }
+                // Lay the page out BEFORE opening it: a page that turns out
+                // to hold nothing is never started, so a section ending on an
+                // unplaceable line no longer trails a blank sheet.
+                var planned: [(frame: CTFrame, rect: CGRect)] = []
+                var cursor = location
+                for column in 0..<columns where cursor < segment.length {
                     let rect = CGRect(x: contentRect.minX + CGFloat(column) * (columnWidth + gap),
                                       y: contentRect.minY, width: columnWidth, height: contentRect.height)
                     let frame = CTFramesetterCreateFrame(
-                        framesetter, CFRange(location: location, length: 0),
+                        framesetter, CFRange(location: cursor, length: 0),
                         CGPath(rect: rect, transform: nil), nil)
+                    let visible = CTFrameGetVisibleStringRange(frame)
+                    guard visible.length > 0 else { break }
+                    planned.append((frame, rect))
+                    cursor += visible.length
+                }
+                guard !planned.isEmpty else {
+                    // One unplaceable line (an image taller than the content
+                    // box) would otherwise discard the whole remainder of the
+                    // section.  Step over it so everything after still prints.
+                    location += 1
+                    continue
+                }
+                ctx.beginPDFPage(nil)
+                for (frame, rect) in planned {
                     CTFrameDraw(frame, ctx)
                     drawAttachments(frame, frameRect: rect, context: ctx)
                     drawLineNumbers(frame, segment: segment, columnRect: rect,
                                     context: ctx, next: &lineNumber)
-                    let visible = CTFrameGetVisibleStringRange(frame)
-                    guard visible.length > 0 else { location = segment.length; break }
-                    location += visible.length
                 }
                 ctx.endPDFPage()
+                location = cursor
             }
         }
         ctx.closePDF()
         return data as Data
+    }
+
+    /// If the next thing after `frame` is a drawn table that would bump to
+    /// the following page while this one still has real room, rebuilds that
+    /// table with a first chunk sized to the space left.  Returns the new RAW
+    /// string, or nil to leave the layout alone.
+    private func rechunkedSegment(after frame: CTFrame, from location: Int,
+                                  raw: NSAttributedString, segment: NSAttributedString,
+                                  rect: CGRect, handled: inout Set<ObjectIdentifier>) -> NSAttributedString? {
+        // Splicing assumes the delegate pass only adds attributes.
+        guard raw.length == segment.length else { return nil }
+        let visible = CTFrameGetVisibleStringRange(frame)
+        let next = location + visible.length
+        guard visible.length > 0, next < segment.length else { return nil }
+
+        var blockRange = NSRange(location: 0, length: 0)
+        guard let box = segment.attribute(ExportAttr.tableRechunk, at: next,
+                                          effectiveRange: &blockRange) as? TableRechunker,
+              // Only at the START of a table: mid-table there is no gap to close.
+              blockRange.location == next,
+              !handled.contains(ObjectIdentifier(box))
+        else { return nil }
+
+        // How much of this page is still empty, below the last placed line.
+        guard let lines = CTFrameGetLines(frame) as? [CTLine], let last = lines.last
+        else { return nil }
+        var origins = [CGPoint](repeating: .zero, count: lines.count)
+        CTFrameGetLineOrigins(frame, CFRange(location: 0, length: 0), &origins)
+        guard let lastOrigin = origins.last else { return nil }
+        var descent: CGFloat = 0
+        CTLineGetTypographicBounds(last, nil, &descent, nil)
+        let remaining = lastOrigin.y - descent
+
+        // Below a couple of inches a table is better off starting fresh —
+        // a sliver of rows under a repeated header reads worse than a gap.
+        guard remaining >= max(144, rect.height * 0.25) else { return nil }
+
+        let rebuiltBlock = box.build(remaining - 24)
+        handled.insert(ObjectIdentifier(box))
+        guard rebuiltBlock.length > 0 else { return nil }
+        let out = NSMutableAttributedString(attributedString: raw)
+        out.replaceCharacters(in: blockRange, with: rebuiltBlock)
+        return out
     }
 
     /// Sizing box handed to each attachment's CTRunDelegate.
