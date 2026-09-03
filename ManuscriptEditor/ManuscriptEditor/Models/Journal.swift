@@ -69,6 +69,11 @@ struct Journal: Codable, Identifiable, Sendable {
     /// journal is seeded from a profile.
     var profileID: UUID? = nil
 
+    /// The library profiles this journal's configuration was branched from,
+    /// nearest first — carried so the lineage survives sharing the
+    /// manuscript.
+    var profileLineage: [UUID]? = nil
+
     /// The journal's own instructions: a link to its author-instructions
     /// page plus the distilled bullets.  This is the REFERENCE —
     /// `checkRules` is what the app actually evaluates.  nil = still
@@ -95,6 +100,7 @@ struct Journal: Codable, Identifiable, Sendable {
         JournalProfile(
             id: profileID ?? JournalProfile.bundledID(slug: profileSlug),
             name: name, articleType: articleType,
+            lineage: profileLineage ?? [],
             requirements: sourceRequirements ?? SourceRequirements(),
             checks: checkRules ?? [],
             structure: structure ?? JournalStructure(),

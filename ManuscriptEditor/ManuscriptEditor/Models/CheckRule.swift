@@ -260,8 +260,13 @@ struct CheckRule: Codable, Identifiable, Sendable, Equatable {
         return conditions.map(\.summary).joined(separator: joiner)
     }
 
-    /// Every scope this rule touches — the panes it can color.
-    var scopeKeys: [String] { conditions.flatMap { $0.scopes.map(\.key) } }
+    /// Every scope this rule touches — the panes it can color.  Deduplicated:
+    /// a rule with four conditions over the abstract is ONE failure there, and
+    /// a pane's failure count has to say one.
+    var scopeKeys: [String] {
+        var seen: Set<String> = []
+        return conditions.flatMap { $0.scopes.map(\.key) }.filter { seen.insert($0).inserted }
+    }
 
     /// Hand-written profile files shouldn't have to invent UUIDs, so every
     /// field but the conditions has a sensible default on decode.

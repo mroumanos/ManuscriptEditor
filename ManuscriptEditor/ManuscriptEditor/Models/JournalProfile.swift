@@ -207,9 +207,57 @@ struct RequirementsDoc: Codable, Sendable, Equatable {
     var id: UUID
     var journal: String
     var articleType: String? = nil
+    /// The profiles this one was branched from, nearest ancestor first.
+    /// Lineage rather than identity: it survives sharing, so a collaborator
+    /// whose library holds ANY ancestor — not just the immediate one — is
+    /// told this is a MODIFIED version of what they have, rather than an
+    /// unrelated journal.
+    var lineage: [UUID] = []
     var url: String = ""
     var bullets: [String] = []
     var updatedAt: Date? = nil
+
+    private enum CodingKeys: String, CodingKey {
+        case id, journal, articleType, lineage, derivedFrom, url, bullets, updatedAt
+    }
+
+    init(id: UUID, journal: String, articleType: String? = nil, lineage: [UUID] = [],
+         url: String = "", bullets: [String] = [], updatedAt: Date? = nil) {
+        self.id = id; self.journal = journal; self.articleType = articleType
+        self.lineage = lineage; self.url = url; self.bullets = bullets
+        self.updatedAt = updatedAt
+    }
+
+    /// Tolerates the single-parent `derivedFrom` written by the first cut of
+    /// profile lineage.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        journal = try c.decode(String.self, forKey: .journal)
+        articleType = try c.decodeIfPresent(String.self, forKey: .articleType)
+        if let chain = try? c.decodeIfPresent([UUID].self, forKey: .lineage) {
+            lineage = chain ?? []
+        } else {
+            lineage = []
+        }
+        if lineage.isEmpty, let parent = try? c.decodeIfPresent(UUID.self, forKey: .derivedFrom) {
+            lineage = [parent]
+        }
+        url = try c.decodeIfPresent(String.self, forKey: .url) ?? ""
+        bullets = try c.decodeIfPresent([String].self, forKey: .bullets) ?? []
+        updatedAt = try c.decodeIfPresent(Date.self, forKey: .updatedAt)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id)
+        try c.encode(journal, forKey: .journal)
+        try c.encodeIfPresent(articleType, forKey: .articleType)
+        if !lineage.isEmpty { try c.encode(lineage, forKey: .lineage) }
+        try c.encode(url, forKey: .url)
+        try c.encode(bullets, forKey: .bullets)
+        try c.encodeIfPresent(updatedAt, forKey: .updatedAt)
+    }
 }
 
 /// `checks.json`
@@ -258,6 +306,12 @@ struct JournalProfile: Codable, Identifiable, Sendable, Equatable {
     var name: String
     var articleType: String?
 
+    /// The profiles this one was branched from — see `RequirementsDoc`.
+    var lineage: [UUID] = []
+
+    /// The immediate ancestor, when there is one.
+    var derivedFrom: UUID? { lineage.first }
+
     var requirements: SourceRequirements = SourceRequirements()
     var checks: [CheckRule] = []
     var structure: JournalStructure = JournalStructure()
@@ -274,10 +328,12 @@ struct JournalProfile: Codable, Identifiable, Sendable, Equatable {
     var slug: String { JournalProfile.slug(name: name, articleType: articleType) }
 
     init(id: UUID, name: String, articleType: String? = nil,
+         lineage: [UUID] = [],
          requirements: SourceRequirements = SourceRequirements(),
          checks: [CheckRule] = [], structure: JournalStructure = JournalStructure(),
          origin: Origin = .bundled, originURL: String? = nil, updatedAt: Date? = nil) {
         self.id = id; self.name = name; self.articleType = articleType
+        self.lineage = lineage
         self.requirements = requirements; self.checks = checks; self.structure = structure
         self.origin = origin; self.originURL = originURL; self.updatedAt = updatedAt
     }
@@ -312,6 +368,7 @@ struct JournalProfile: Codable, Identifiable, Sendable, Equatable {
 
     var requirementsDoc: RequirementsDoc {
         RequirementsDoc(id: id, journal: name, articleType: articleType,
+                        lineage: lineage,
                         url: requirements.url, bullets: requirements.bullets,
                         updatedAt: updatedAt)
     }
@@ -348,6 +405,7 @@ struct JournalProfile: Codable, Identifiable, Sendable, Equatable {
         guard let req = load(.requirements, as: RequirementsDoc.self) else { return nil }
         return JournalProfile(
             id: req.id, name: req.journal, articleType: req.articleType,
+            lineage: req.lineage,
             requirements: SourceRequirements(url: req.url, bullets: req.bullets,
                                              editedAt: req.updatedAt),
             checks: load(.checks, as: ChecksDoc.self)?.checks ?? [],
@@ -426,7 +484,9 @@ struct JournalProfile: Codable, Identifiable, Sendable, Equatable {
 /// "different".
 enum ProfileFingerprint {
 
-    private static let ignored: Set<String> = ["id", "updatedAt", "editedAt"]
+    private static let ignored: Set<String> = [
+        "id", "derivedFrom", "lineage", "journal", "articleType", "updatedAt", "editedAt",
+    ]
 
     static func of(_ value: some Encodable) -> String {
         let encoder = JSONEncoder()

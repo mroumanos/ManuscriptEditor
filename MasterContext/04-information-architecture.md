@@ -69,6 +69,11 @@ filter on the flag, never on emptiness), rename, delete. These are exactly what
 a journal's `structure.json` describes.
 - "Add Section" closes the list.
 
+Every content pane carries a slim header (word count, activation, gear,
+preview, notes) and, when a check covering that pane is failing, a **red bar**
+directly beneath it naming the problem — first failure, circled count, full
+list on click. It is derived, so it disappears when the content passes.
+
 **The Content section is always available** — tabs load automatically, so at
 least the Source tab always exists.
 

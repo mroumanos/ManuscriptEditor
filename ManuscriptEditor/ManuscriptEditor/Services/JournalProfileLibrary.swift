@@ -131,33 +131,60 @@ enum ProfileLibraryStatus: Equatable {
     case matches
     /// Same GUID, but these parts differ from the library's copy.
     case differs(Set<ProfilePart>)
-    /// This GUID isn't in the library, but a profile with the same name is —
-    /// saving offers to overwrite that one.
+    /// A different GUID, but this profile DESCENDS from one in the library —
+    /// someone branched it and shared the manuscript.  The lineage is what
+    /// makes this "a modified version of the one you have" rather than an
+    /// unrelated journal, and it means the same two choices apply.
+    case derived(from: UUID, Set<ProfilePart>)
+    /// This GUID isn't in the library and has no lineage into it, but a
+    /// profile with the same NAME is there.
     case nameMatchDifferentID(UUID)
-    /// Neither the GUID nor the name is in the library — saving is a net add.
+    /// Nothing in the library relates to this — saving is a net add.
     case absent
 
-    /// The parts to flag with a warning.  A profile the library has never
-    /// seen flags all three, since none of it is in the library yet.
+    /// The parts to flag.  A profile the library has never seen flags all
+    /// three, since none of it is in the library yet.
     var flaggedParts: Set<ProfilePart> {
         switch self {
-        case .matches:                 return []
-        case .differs(let parts):      return parts
+        case .matches:                    return []
+        case .differs(let parts):         return parts
+        case .derived(_, let parts):      return parts
         case .nameMatchDifferentID,
-             .absent:                  return Set(ProfilePart.allCases)
+             .absent:                     return Set(ProfilePart.allCases)
         }
     }
 
     /// Whether Save to Library has anything to do.
     var canSave: Bool { self != .matches }
 
+    /// The library profile this one would replace, when there is one.
+    var counterpartID: UUID? {
+        switch self {
+        case .derived(let id, _):             return id
+        case .nameMatchDifferentID(let id):   return id
+        default:                              return nil
+        }
+    }
+
+    /// Whether this reads as a MODIFIED version of something in the library —
+    /// what the Checks pane labels, and what a collaborator sees on import.
+    /// A branch whose content still matches its ancestor is a separate entry,
+    /// not a modification, so it says nothing.
+    var isModified: Bool {
+        switch self {
+        case .differs(let parts), .derived(_, let parts): return !parts.isEmpty
+        default:                                          return false
+        }
+    }
+
     /// What the save button should say.
     var saveVerb: String {
         switch self {
-        case .matches:              return "Saved to Library"
-        case .differs:              return "Update Library"
-        case .nameMatchDifferentID: return "Replace in Library…"
-        case .absent:               return "Add to Library"
+        case .matches:                   return "Saved to Library"
+        case .differs:                   return "Update Library…"
+        case .derived(_, let parts):     return parts.isEmpty ? "Add to Library" : "Update Library…"
+        case .nameMatchDifferentID:      return "Update Library…"
+        case .absent:                    return "Add to Library"
         }
     }
 }
@@ -167,11 +194,21 @@ extension JournalProfileLibrary {
     /// Compares a manuscript's profile against the library, by GUID first and
     /// by name second — the three cases Save to Library has to handle.
     func status(of theirs: JournalProfile) -> ProfileLibraryStatus {
+        func differences(from mine: JournalProfile) -> Set<ProfilePart> {
+            Set(ProfilePart.allCases.filter { mine.fingerprint($0) != theirs.fingerprint($0) })
+        }
         if let mine = profiles[theirs.id] {
-            let differing = ProfilePart.allCases.filter {
-                mine.fingerprint($0) != theirs.fingerprint($0)
+            let differing = differences(from: mine)
+            return differing.isEmpty ? .matches : .differs(differing)
+        }
+        // Lineage before names, nearest ancestor first: a branched profile is
+        // a modified version of its ancestor even after it has been renamed,
+        // and a branch OF a branch still resolves for someone who only holds
+        // the root.
+        for ancestorID in theirs.lineage {
+            if let ancestor = profiles[ancestorID] {
+                return .derived(from: ancestorID, differences(from: ancestor))
             }
-            return differing.isEmpty ? .matches : .differs(Set(differing))
         }
         if let sameName = profile(name: theirs.name, articleType: theirs.articleType) {
             return .nameMatchDifferentID(sameName.id)

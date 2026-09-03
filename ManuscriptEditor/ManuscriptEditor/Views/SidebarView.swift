@@ -293,6 +293,7 @@ struct SidebarView: View {
         return HStack {
             Label(display, systemImage: pane.icon)
             Spacer()
+            checkBadge(pane.item)
             notesBadge(pane.item)
         }
             .tag(pane.item)

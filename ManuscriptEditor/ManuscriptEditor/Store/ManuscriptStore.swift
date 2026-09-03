@@ -971,6 +971,7 @@ final class ManuscriptStore {
         touch(undoable: false) { m in
             guard let idx = m.journals.firstIndex(where: { $0.id == journalID }) else { return }
             m.journals[idx].profileID = source.id
+            m.journals[idx].profileLineage = source.lineage.isEmpty ? nil : source.lineage
             m.journals[idx].checkRules = source.checks
             m.journals[idx].sourceRequirements = source.requirements
             m.journals[idx].structure = source.structure
@@ -1063,27 +1064,68 @@ final class ManuscriptStore {
         JournalProfileLibrary.shared.status(of: journal.profile)
     }
 
-    /// Saves this journal's profile into the user's library.
+    /// Overwrites a library profile with this journal's configuration.
     ///
-    /// `replacingID` handles the name-match case: the manuscript carries a
-    /// GUID the library has never seen, but a profile with the same name is
-    /// already there, so the user chose to overwrite it — the library's GUID
-    /// wins, and the manuscript adopts it so the two stay linked.
+    /// `replacingID` is the library entry to take over — its GUID wins, and
+    /// the manuscript adopts it, so the two stay linked from then on.  With
+    /// no `replacingID` this simply writes the profile under its own GUID.
     func saveProfileToLibrary(journalID: UUID, replacingID: UUID? = nil) {
         guard let journal = manuscript?.journals.first(where: { $0.id == journalID }) else { return }
         var profile = journal.profile
-        if let replacingID { profile.id = replacingID }
+        if let replacingID {
+            profile.id = replacingID
+            // Taking over an ancestor makes the branch pointless.
+            profile.lineage = []
+        }
         guard JournalProfileLibrary.shared.save(profile) else {
             showBanner(.error, "Couldn't write \(journal.displayName) to your journal library.")
             return
         }
-        if replacingID != nil {
-            touch(undoable: false) { m in
-                guard let idx = m.journals.firstIndex(where: { $0.id == journalID }) else { return }
-                m.journals[idx].profileID = profile.id
-            }
+        touch(undoable: false) { m in
+            guard let idx = m.journals.firstIndex(where: { $0.id == journalID }) else { return }
+            m.journals[idx].profileID = profile.id
+            m.journals[idx].profileLineage = profile.lineage.isEmpty ? nil : profile.lineage
         }
+        writeProfile(journalID: journalID)
         showBanner(.success, "\(journal.displayName) saved to your journal library.")
+    }
+
+    /// Branches this journal's configuration into a NEW library profile
+    /// instead of overwriting what's there.
+    ///
+    /// The new profile keeps a pointer to the one it came from, so the
+    /// lineage survives being shared: a collaborator whose library holds the
+    /// ancestor is told this is a MODIFIED version of what they have, and is
+    /// offered the same two choices in turn.
+    func branchProfileToLibrary(journalID: UUID, named name: String) {
+        guard let journal = manuscript?.journals.first(where: { $0.id == journalID }) else { return }
+        var profile = journal.profile
+        // The new profile descends from the one it was branched off, plus
+        // everything THAT one descended from — so a branch of a branch still
+        // resolves for someone whose library only holds the root.
+        let chain = [profile.id] + profile.lineage
+        profile.id = UUID()
+        profile.lineage = chain
+        let trimmed = name.trimmingCharacters(in: .whitespaces)
+        if !trimmed.isEmpty { profile.name = trimmed }
+        guard JournalProfileLibrary.shared.save(profile) else {
+            showBanner(.error, "Couldn't write \(profile.displayName) to your journal library.")
+            return
+        }
+        touch(undoable: false) { m in
+            guard let idx = m.journals.firstIndex(where: { $0.id == journalID }) else { return }
+            m.journals[idx].profileID = profile.id
+            m.journals[idx].profileLineage = profile.lineage
+            m.journals[idx].name = profile.name
+        }
+        writeProfile(journalID: journalID)
+        showBanner(.success, "\(profile.displayName) added to your journal library.")
+    }
+
+    /// The library profile a journal descends from, for labelling.
+    func libraryAncestor(for journal: Journal) -> JournalProfile? {
+        guard let id = libraryStatus(for: journal).counterpartID else { return nil }
+        return JournalProfileLibrary.shared.profile(id: id)
     }
 
     /// Replaces a journal's user-written check rules.

@@ -475,7 +475,36 @@ propagate by explicit, individual fast-forwards.
   edit sets `.manuscript` and the journal keeps its own copy from then on —
   except for a structure it never had, which is filled in rather than left
   empty.
-  **Save to Library** handles the three cases: the GUID is in the library
+  **A failing check is shown where the writing is** (Aug 2026): besides the
+  sidebar's red dot, the pane itself carries a **red bar** under its header
+  naming the first failing check and its measurement ("References ≤ 35 —
+  References: 36"), with a **circled count** when more than one covers that
+  pane and the full list in a popover on click (a repairable one keeps its
+  **Fix**). Both the bar and the dot are derived from
+  `ChecklistService.scopeFailures`, so both vanish the moment the content
+  passes. The dot now also renders on the FIXED panes — figures, tables,
+  bibliography, letter — which previously had no badge at all, so a blown
+  combined figure+table cap or reference limit was invisible outside Checks.
+  `CheckRule.scopeKeys` is deduplicated: a rule with four conditions over the
+  abstract is ONE failure there, and the count has to say one.
+  **MODIFIED** is stated, not merely implied: the Checks header shows a
+  MODIFIED badge and each drifted row is labelled, so a manuscript opened
+  from someone else immediately reads as carrying rules that are not yours.
+  **Save to Library always offers two outcomes** — overwrite the library
+  entry, or **branch**: save a new profile of your own with a new GUID that
+  records where it came from (`SaveProfileToLibrarySheet`,
+  `ManuscriptStore.branchProfileToLibrary`).
+  **Lineage is a CHAIN** (`JournalProfile.lineage`, nearest ancestor first,
+  carried on `Journal.profileLineage`). Share a manuscript whose profile was
+  branched and the next person's library holds the ancestor, so
+  `status(of:)` walks the chain and reports `.derived` — MODIFIED against
+  *their* copy, with the same two choices — instead of an unexplained
+  stranger. Walking the whole chain (not one hop) means a branch OF a branch
+  still resolves for someone who only holds the root. Overwriting an ancestor
+  clears the lineage, since the branch has become the thing it descended
+  from. The fingerprint ignores `journal`, `articleType`, and the lineage
+  itself: renaming a branched profile is not a change to its requirements.
+  **Save to Library covers these cases: the GUID is in the library
   but the content differs → *Update Library*; the GUID is unknown but a
   profile with the same NAME exists → *Replace in Library…*, which confirms
   first and links the manuscript to the library's GUID (or adds a separate

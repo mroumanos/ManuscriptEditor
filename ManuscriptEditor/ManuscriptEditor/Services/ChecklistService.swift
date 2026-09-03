@@ -19,6 +19,22 @@ import ImageIO
 /// and returns a list of pass/fail checklist items.
 enum ChecklistService {
 
+    /// The FAILING checks per scope, in checklist order.  The sidebar needs
+    /// only "is anything failing here", but a pane also shows what is wrong
+    /// and how many, so the failures themselves are what's returned.
+    /// Keys match `CheckScope.key`.
+    static func scopeFailures(manuscript: Manuscript, journal: Journal,
+                              figureURL: ((Figure) -> URL?)? = nil) -> [String: [ChecklistResult]] {
+        var failures: [String: [ChecklistResult]] = [:]
+        for result in run(manuscript: manuscript, journal: journal, figureURL: figureURL)
+        where !result.manual && !result.passed {
+            for scope in Set(result.scopes) {
+                failures[scope, default: []].append(result)
+            }
+        }
+        return failures
+    }
+
     /// Pass/fail per SCOPE for the sidebar: a pane is red when a check
     /// covering it failed.  Keys match `CheckScope.key`.
     static func scopeStatus(manuscript: Manuscript, journal: Journal,

@@ -37,9 +37,7 @@ struct ChecksView: View {
     @State private var editingRequirements = false
     @State private var editingRules = false
     @State private var editingStructure = false
-    /// Set when saving would overwrite a same-named library profile with a
-    /// different GUID — the one case that needs confirming.
-    @State private var replacingLibraryID: UUID?
+    @State private var savingToLibrary = false
 
     var body: some View {
         ScrollView {
@@ -72,6 +70,11 @@ struct ChecksView: View {
                 StructureEditorSheet(journal: journal, isPresented: $editingStructure)
             }
         }
+        .sheet(isPresented: $savingToLibrary) {
+            if let journal = paneJournal {
+                SaveProfileToLibrarySheet(journal: journal, isPresented: $savingToLibrary)
+            }
+        }
     }
 
     // MARK: - Header
@@ -95,13 +98,12 @@ struct ChecksView: View {
                     .help("Open this journal's configuration: \(link.url)")
                 }
             }
+            if status.isModified {
+                modifiedTag
+            }
             if status.canSave {
                 Button {
-                    if case .nameMatchDifferentID(let id) = status {
-                        replacingLibraryID = id
-                    } else {
-                        store.saveProfileToLibrary(journalID: journal.id)
-                    }
+                    savingToLibrary = true
                 } label: {
                     Label(status.saveVerb, systemImage: "books.vertical")
                 }
@@ -112,26 +114,19 @@ struct ChecksView: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .confirmationDialog(
-            "Replace \"\(journal.displayName)\" in your journal library?",
-            isPresented: Binding(get: { replacingLibraryID != nil },
-                                 set: { if !$0 { replacingLibraryID = nil } }),
-            titleVisibility: .visible
-        ) {
-            Button("Replace", role: .destructive) {
-                if let id = replacingLibraryID {
-                    store.saveProfileToLibrary(journalID: journal.id, replacingID: id)
-                }
-                replacingLibraryID = nil
-            }
-            Button("Add as a Separate Profile") {
-                store.saveProfileToLibrary(journalID: journal.id)
-                replacingLibraryID = nil
-            }
-            Button("Cancel", role: .cancel) { replacingLibraryID = nil }
-        } message: {
-            Text("Your library already has a profile with this name, but a different identifier. Replacing overwrites it and links this manuscript to it.")
-        }
+    }
+
+    /// The MODIFIED badge: this manuscript's rules are not the ones in your
+    /// library.  Shown on import too — that is the point of carrying the
+    /// profile with the manuscript.
+    private var modifiedTag: some View {
+        Text("MODIFIED")
+            .font(.caption2.weight(.bold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(Color.orange, in: Capsule())
+            .help("This manuscript's configuration differs from your journal library")
     }
 
     private func saveHelp(_ status: ProfileLibraryStatus, journal: Journal) -> String {
@@ -140,7 +135,10 @@ struct ChecksView: View {
             return "This manuscript's configuration matches your library."
         case .differs(let parts):
             let names = parts.sorted { $0.rawValue < $1.rawValue }.map(\.label)
-            return "Your library's copy differs in: \(names.joined(separator: ", ")). Saving replaces it."
+            return "Your library's copy differs in: \(names.joined(separator: ", "))."
+        case .derived(_, let parts):
+            let names = parts.sorted { $0.rawValue < $1.rawValue }.map(\.label)
+            return "A modified version of a profile in your library, differing in: \(names.joined(separator: ", "))."
         case .nameMatchDifferentID:
             return "Your library has a profile with this name but a different identifier."
         case .absent:
@@ -204,7 +202,10 @@ struct ChecksView: View {
                     if flagged {
                         Image(systemName: "exclamationmark.triangle.fill")
                             .foregroundStyle(.yellow)
-                            .help("This differs from your journal library — Save to Library to update it.")
+                        Text("MODIFIED")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.orange)
+                            .help("This part differs from your journal library — Update Library… to reconcile it.")
                     }
                 }
                 Text(detail).font(.caption).foregroundStyle(.secondary)
@@ -655,6 +656,112 @@ struct SaveToJournalLibrarySheet: View {
             entry.requirements = journal.requirements
             entry.exportConfig = outline
             appStore.upsertLibraryJournal(entry)
+        }
+    }
+}
+
+// MARK: - SaveProfileToLibrarySheet
+
+/// Reconciling a manuscript's profile with the user's library.
+///
+/// Two outcomes, always: **overwrite** the library entry this one relates to,
+/// or **branch** — save a new profile of your own that remembers where it came
+/// from.  The branch is what makes the lineage work: share the manuscript and
+/// the next person's library holds the ancestor, so they are told theirs is a
+/// MODIFIED version of it and get the same two choices in turn, rather than an
+/// unexplained stranger.
+struct SaveProfileToLibrarySheet: View {
+    @Environment(ManuscriptStore.self) private var store
+
+    let journal: Journal
+    @Binding var isPresented: Bool
+
+    private enum Choice: Hashable { case overwrite, branch }
+    @State private var choice: Choice = .overwrite
+    @State private var newName: String = ""
+
+    private var status: ProfileLibraryStatus { store.libraryStatus(for: journal) }
+    private var ancestor: JournalProfile? { store.libraryAncestor(for: journal) }
+
+    /// The library entry an overwrite would land on: the one this profile
+    /// descends from or shares a name with, else its own GUID's entry.
+    private var target: JournalProfile? {
+        ancestor ?? JournalProfileLibrary.shared.profile(id: journal.profile.id)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Update Journal Library").font(.headline)
+                Text(summary)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if target != nil {
+                Picker("", selection: $choice) {
+                    Text("Overwrite the profile in my library").tag(Choice.overwrite)
+                    Text("Save as a new profile of my own").tag(Choice.branch)
+                }
+                .pickerStyle(.radioGroup)
+                .labelsHidden()
+            }
+
+            if choice == .branch || target == nil {
+                TextField("Name for the new profile", text: $newName)
+                    .textFieldStyle(.roundedBorder)
+                if let target {
+                    Text("Kept alongside \"\(target.displayName)\" and remembers it as its source, so anyone you share this manuscript with sees it as a modified version of that profile.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            } else if let target {
+                Text("Replaces \"\(target.displayName)\" everywhere it is used — other manuscripts tracking it will follow the new rules the next time they open.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            HStack {
+                Spacer()
+                Button("Cancel") { isPresented = false }
+                    .keyboardShortcut(.cancelAction)
+                Button("Save") {
+                    if choice == .branch || target == nil {
+                        store.branchProfileToLibrary(journalID: journal.id, named: newName)
+                    } else {
+                        store.saveProfileToLibrary(journalID: journal.id,
+                                                   replacingID: target?.id)
+                    }
+                    isPresented = false
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled((choice == .branch || target == nil)
+                          && newName.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
+        }
+        .padding(22)
+        .frame(width: 470)
+        .onAppear {
+            newName = journal.displayName
+            if target == nil { choice = .branch }
+        }
+    }
+
+    private var summary: String {
+        switch status {
+        case .matches:
+            return "This manuscript already matches your library."
+        case .differs(let parts), .derived(_, let parts):
+            let names = parts.sorted { $0.rawValue < $1.rawValue }.map(\.label)
+            return "This manuscript's \(names.joined(separator: ", ").lowercased()) "
+                + (parts.count == 1 ? "differs" : "differ") + " from your library."
+        case .nameMatchDifferentID:
+            return "Your library has a profile with this name but a different identifier."
+        case .absent:
+            return "Your library has no profile for this journal yet."
         }
     }
 }

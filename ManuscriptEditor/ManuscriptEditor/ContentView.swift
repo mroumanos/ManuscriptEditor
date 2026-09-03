@@ -476,9 +476,50 @@ struct ContentView: View {
             .padding(.trailing, 12)
             .padding(.vertical, 7)
 
+            // What's wrong HERE, in the words the Checks pane uses — so a
+            // limit that's been blown is visible where the writing is.
+            CheckFailureBar(failures: checkFailures(for: item, ref: ref)) { _ in
+                if case .version(let id) = ref,
+                   let jid = store.versions.first(where: { $0.id == id })?.journalID {
+                    store.applyRequiredTypography(journalID: jid)
+                }
+            }
+
             contentView(for: item, ref: ref)
         }
         .id(ref)
+    }
+
+    /// The failing checks covering this pane in this journal's version.
+    /// Source has no journal, so it has nothing to fail against.
+    private func checkFailures(for item: SidebarItem, ref: VersionRef) -> [ChecklistResult] {
+        guard case .version(let id) = ref,
+              let jid = store.versions.first(where: { $0.id == id })?.journalID,
+              let journal = store.manuscript?.journals.first(where: { $0.id == jid }),
+              let content = store.manuscript(for: ref),
+              let key = checkScopeKey(for: item)
+        else { return [] }
+        return ChecklistService.scopeFailures(manuscript: content, journal: journal,
+                                              figureURL: { store.figureURL(for: $0) })[key] ?? []
+    }
+
+    /// Maps a pane to the check scope covering it (mirrors the sidebar).
+    private func checkScopeKey(for item: SidebarItem) -> String? {
+        switch item {
+        case .title:          return CheckScope(kind: .title).key
+        case .authors:        return CheckScope(kind: .authors).key
+        case .abstract:       return CheckScope(kind: .abstract).key
+        case .keywords:       return CheckScope(kind: .keywords).key
+        case .figures:        return CheckScope(kind: .figures).key
+        case .tables:         return CheckScope(kind: .tables).key
+        case .bibliography:   return CheckScope(kind: .references).key
+        case .letterToEditor: return CheckScope(kind: .coverLetter).key
+        case .section(let id):
+            guard let title = store.manuscript?.sections.first(where: { $0.id == id })?.title
+            else { return nil }
+            return CheckScope(kind: .section, name: title).key
+        default:              return nil
+        }
     }
 
     /// True for a section pane switched off in this journal — it exports
