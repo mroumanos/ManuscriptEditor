@@ -460,6 +460,14 @@ struct ContentView: View {
                 }
                 deactivatedBadge(item: item, ref: ref)
                 Spacer()
+                // What's wrong HERE, in the words the Checks pane uses —
+                // beside the gear, where it can't collide with the editor.
+                CheckFailureButton(failures: checkFailures(for: item, ref: ref)) { _ in
+                    if case .version(let id) = ref,
+                       let jid = store.versions.first(where: { $0.id == id })?.journalID {
+                        store.applyRequiredTypography(journalID: jid)
+                    }
+                }
                 sectionActivationControl(item: item, ref: ref)
                 // Every component's export settings (heading config at
                 // minimum) live in the gear beside the preview.  A section
@@ -475,15 +483,6 @@ struct ContentView: View {
             .padding(.leading, EditorLayout.leftInset)
             .padding(.trailing, 12)
             .padding(.vertical, 7)
-
-            // What's wrong HERE, in the words the Checks pane uses — so a
-            // limit that's been blown is visible where the writing is.
-            CheckFailureBar(failures: checkFailures(for: item, ref: ref)) { _ in
-                if case .version(let id) = ref,
-                   let jid = store.versions.first(where: { $0.id == id })?.journalID {
-                    store.applyRequiredTypography(journalID: jid)
-                }
-            }
 
             contentView(for: item, ref: ref)
         }

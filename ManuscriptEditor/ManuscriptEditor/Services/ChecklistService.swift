@@ -35,20 +35,6 @@ enum ChecklistService {
         return failures
     }
 
-    /// Pass/fail per SCOPE for the sidebar: a pane is red when a check
-    /// covering it failed.  Keys match `CheckScope.key`.
-    static func scopeStatus(manuscript: Manuscript, journal: Journal,
-                            figureURL: ((Figure) -> URL?)? = nil) -> [String: Bool] {
-        var status: [String: Bool] = [:]
-        for result in run(manuscript: manuscript, journal: journal, figureURL: figureURL)
-        where !result.manual {
-            for scope in result.scopes {
-                status[scope] = (status[scope] ?? true) && result.passed
-            }
-        }
-        return status
-    }
-
     /// One condition's verdict plus the measurement behind it, so a failure
     /// reads "Abstract: 312 words" rather than just "failed".
     private static func evaluate(_ condition: CheckCondition, in m: Manuscript,

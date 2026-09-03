@@ -173,15 +173,23 @@ struct SidebarView: View {
         .tag(item)
     }
 
-    /// A red dot on any pane a failing check covers — a word limit that's
-    /// been exceeded shows on the section itself, not just in Checks.
+    /// A red badge carrying the NUMBER of failing checks on that pane — the
+    /// count is the useful part, and an exclamation mark only said "some".
+    /// A word limit that's been exceeded shows on the section itself, not
+    /// just in Checks.
     @ViewBuilder
     private func checkBadge(_ item: SidebarItem) -> some View {
-        if let key = scopeKey(for: item), checkStatus[key] == false {
-            Image(systemName: "exclamationmark.circle.fill")
-                .font(.caption)
-                .foregroundStyle(.red)
-                .help("A check for this section is failing — see Checks")
+        if let key = scopeKey(for: item), let count = checkFailures[key]?.count, count > 0 {
+            Text("\(count)")
+                .font(.caption2.weight(.semibold).monospacedDigit())
+                .foregroundStyle(.white)
+                .frame(minWidth: 15)
+                .padding(.horizontal, 4)
+                .padding(.vertical, 1)
+                .background(Color.red, in: Capsule())
+                .help(count == 1
+                      ? "1 check is failing here — see Checks"
+                      : "\(count) checks are failing here — see Checks")
         }
     }
 
@@ -206,14 +214,14 @@ struct SidebarView: View {
 
     /// Scope pass/fail for the ACTIVE journal (Source has no requirements,
     /// so its panes never carry a check badge).
-    private var checkStatus: [String: Bool] {
+    private var checkFailures: [String: [ChecklistResult]] {
         guard case .version(let id) = activeRef,
               let jid = store.versions.first(where: { $0.id == id })?.journalID,
               let journal = store.manuscript?.journals.first(where: { $0.id == jid }),
               let content = store.manuscript(for: activeRef)
         else { return [:] }
-        return ChecklistService.scopeStatus(manuscript: content, journal: journal,
-                                            figureURL: { store.figureURL(for: $0) })
+        return ChecklistService.scopeFailures(manuscript: content, journal: journal,
+                                              figureURL: { store.figureURL(for: $0) })
     }
 
     /// Blue comment bubble opening the notes popover — shown only while the

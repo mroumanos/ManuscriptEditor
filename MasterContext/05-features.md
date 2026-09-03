@@ -475,16 +475,20 @@ propagate by explicit, individual fast-forwards.
   edit sets `.manuscript` and the journal keeps its own copy from then on —
   except for a structure it never had, which is filled in rather than left
   empty.
-  **A failing check is shown where the writing is** (Aug 2026): besides the
-  sidebar's red dot, the pane itself carries a **red bar** under its header
-  naming the first failing check and its measurement ("References ≤ 35 —
-  References: 36"), with a **circled count** when more than one covers that
-  pane and the full list in a popover on click (a repairable one keeps its
-  **Fix**). Both the bar and the dot are derived from
-  `ChecklistService.scopeFailures`, so both vanish the moment the content
-  passes. The dot now also renders on the FIXED panes — figures, tables,
-  bibliography, letter — which previously had no badge at all, so a blown
-  combined figure+table cap or reference limit was invisible outside Checks.
+  **A failing check is shown where the writing is** (Aug 2026): the pane's
+  header carries a red **button beside the gear** (`CheckFailureButton`)
+  naming the first failing check — the TITLE only, since a header has room
+  for a name but not an explanation — with a circled count when more than
+  one covers that pane, and the measurements ("References: 36") plus any
+  **Fix** in a popover on click. It lives in the control cluster rather than
+  as a band across the pane so it cannot cross the editor's gutter rule or
+  push the text down. The sidebar badge carries the **number** of failing
+  checks rather than an exclamation mark, which only said "some". Both are
+  derived from `ChecklistService.scopeFailures`, so both vanish the moment
+  the content passes. The badge now also renders on the FIXED panes —
+  figures, tables, bibliography, letter — which previously had no badge at
+  all, so a blown combined figure+table cap or reference limit was invisible
+  outside Checks.
   `CheckRule.scopeKeys` is deduplicated: a rule with four conditions over the
   abstract is ONE failure there, and the count has to say one.
   **MODIFIED** is stated, not merely implied: the Checks header shows a

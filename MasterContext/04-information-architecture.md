@@ -70,9 +70,11 @@ a journal's `structure.json` describes.
 - "Add Section" closes the list.
 
 Every content pane carries a slim header (word count, activation, gear,
-preview, notes) and, when a check covering that pane is failing, a **red bar**
-directly beneath it naming the problem — first failure, circled count, full
-list on click. It is derived, so it disappears when the content passes.
+preview, notes). When a check covering that pane is failing, a red **button**
+joins that cluster beside the gear, naming the first failing check; a circled
+count follows when there are more, and clicking opens the measurements and any
+Fix. It is derived, so it disappears when the content passes. Sidebar rows
+carry the same information as a red **count** badge.
 
 **The Content section is always available** — tabs load automatically, so at
 least the Source tab always exists.
