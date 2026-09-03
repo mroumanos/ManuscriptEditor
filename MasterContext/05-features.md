@@ -590,6 +590,17 @@ propagate by explicit, individual fast-forwards.
   carries and the warning dialog names the exact snapshot that will be copied
   ("Nature does not pull from Source directly — sync NEJM first, then
   Nature").
+- AC (implemented): **A component's settings reach every copy of it in the
+  export.** An outline can carry the same component more than once — a
+  journal wanting a separate title-page file has that section in the
+  Manuscript document AND in its own "Title Page" document — and
+  `ManuscriptStore.updateExportEntry` used to mutate the FIRST match and
+  return. The pane's gear then read "heading off" while the export still
+  printed one, because it rendered the copy that never got the change. It
+  now applies the mutation to every matching item in every document. Export
+  only READS these flags (the review there is read-only), so the component
+  page stays the single writer and the two cannot drift apart.
+
 - AC (implemented): **Versions pane is per-tab** — like Checks, it renders one
   pane per open comparison tab, each scoped to **that tab's journal** with no
   journal dropdown (the Source tab's pane covers custom cuts and explains that

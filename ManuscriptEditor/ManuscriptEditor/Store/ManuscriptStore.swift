@@ -1250,15 +1250,27 @@ final class ManuscriptStore {
            !config.documents.contains(where: { $0.items.contains { $0.kind == .authors } }) {
             key = (.titlePage, nil)
         }
+        // EVERY copy of the component, not just the first.  An outline can
+        // carry the same section more than once (across documents, or twice
+        // in one), and stopping at the first match left the others behind —
+        // the pane's gear then said "heading off" while the export still
+        // printed one, because it was rendering the copy that never got the
+        // change.
+        var touched = false
         for d in config.documents.indices {
-            guard let i = config.documents[d].items.firstIndex(where: {
-                $0.kind == key.kind && $0.sectionID == key.sectionID
-            }) else { continue }
-            if let mutateItem { mutateItem(&config.documents[d].items[i]) }
+            let matches = config.documents[d].items.indices.filter {
+                config.documents[d].items[$0].kind == key.kind
+                    && config.documents[d].items[$0].sectionID == key.sectionID
+            }
+            guard !matches.isEmpty else { continue }
+            if let mutateItem {
+                for i in matches { mutateItem(&config.documents[d].items[i]) }
+            }
             if let mutateDocument { mutateDocument(&config.documents[d]) }
-            updateExportConfig(config, forJournal: jid)
-            return
+            touched = true
         }
+        guard touched else { return }
+        updateExportConfig(config, forJournal: jid)
     }
 
     func updateExportConfig(_ config: ExportConfig, forJournal journalID: UUID?) {
