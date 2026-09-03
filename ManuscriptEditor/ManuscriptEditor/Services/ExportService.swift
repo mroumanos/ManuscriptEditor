@@ -239,14 +239,25 @@ struct ExportService {
         figureURL: @escaping (Figure) -> URL?,
         chartImage: ((Figure) -> NSImage?)? = nil,
         tableData: ((ManuscriptTable) -> QueryResult?)? = nil,
+        attachmentURL: ((ExportDocument) -> URL?)? = nil,
         into destination: URL
     ) throws -> URL {
         let folder = destination.appendingPathComponent("\(sanitize(packageName)) Submission", isDirectory: true)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let refContext = RefEngine.context(for: content)
 
-        for document in config.documents where !document.items.isEmpty {
+        for document in config.documents where !document.items.isEmpty || document.isAttachment {
             let name = sanitize(document.name.isEmpty ? "Document" : document.name)
+            // An uploaded document is COPIED, byte for byte: the point is
+            // that the app didn't format it and shouldn't reformat it.
+            if let stored = attachmentURL?(document) {
+                let ext = document.attachmentExtension
+                let destination = folder.appendingPathComponent(
+                    ext.isEmpty ? name : "\(name).\(ext)")
+                try? FileManager.default.removeItem(at: destination)
+                try FileManager.default.copyItem(at: stored, to: destination)
+                continue
+            }
             let url = folder.appendingPathComponent("\(name).\(document.fileType.ext)")
             switch document.fileType {
             case .pdf:
@@ -1076,7 +1087,10 @@ private struct OutlineBuilder {
                 // it keeps its quiet labeled line.
                 doc.append(line("Running title: \(m.runningTitle)", font: meta, color: .darkGray, after: 8))
             }
-            if !separateAuthors { doc.append(authorsBlock(item, content: m)) }
+            // The title component prints what it holds — title, subtitle,
+            // running title — and nothing else.  The byline is its own
+            // component (`.authors`), so it can be reordered, restyled, or
+            // dropped for a blind copy without touching the title.
             doc.append(spacer())
             return doc
         case .authors:

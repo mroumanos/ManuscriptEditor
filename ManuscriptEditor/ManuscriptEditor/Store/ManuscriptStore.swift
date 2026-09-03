@@ -1056,6 +1056,52 @@ final class ManuscriptStore {
         return ("App defaults", JournalProfile.bundledURL(slug: journal.profileSlug))
     }
 
+    // MARK: - Export attachments
+
+    /// The stored copy of an uploaded export document.
+    func attachmentURL(for document: ExportDocument) -> URL? {
+        guard let name = document.attachmentFileName, let id = manuscript?.id else { return nil }
+        let url = persistence.attachmentsDirectory(for: id).appendingPathComponent(name)
+        return FileManager.default.fileExists(atPath: url.path) ? url : nil
+    }
+
+    /// Copies a file into the manuscript and adds it to a journal's export
+    /// outline as a passthrough document.  The copy is what travels with the
+    /// manuscript, so the package still builds on another machine.
+    @discardableResult
+    func addAttachmentDocument(from source: URL, forJournal journalID: UUID?) -> Bool {
+        guard let id = manuscript?.id else { return false }
+        let ext = source.pathExtension
+        let stored = "\(UUID().uuidString.lowercased())\(ext.isEmpty ? "" : ".\(ext)")"
+        let destination = persistence.attachmentsDirectory(for: id).appendingPathComponent(stored)
+        // Reading through a security scope: the panel hands back a URL the
+        // app may only touch while it is open.
+        let scoped = source.startAccessingSecurityScopedResource()
+        defer { if scoped { source.stopAccessingSecurityScopedResource() } }
+        do {
+            try FileManager.default.copyItem(at: source, to: destination)
+        } catch {
+            showBanner(.error, "Couldn't add \(source.lastPathComponent) to the export.")
+            return false
+        }
+        var config = exportConfig(forJournal: journalID)
+        config.documents.append(ExportDocument(
+            name: source.deletingPathExtension().lastPathComponent,
+            items: [],
+            attachmentFileName: stored,
+            attachmentOriginalName: source.lastPathComponent))
+        updateExportConfig(config, forJournal: journalID)
+        showBanner(.success, "\(source.lastPathComponent) added to the export package.")
+        return true
+    }
+
+    /// Removes an uploaded document's stored file (called when its document
+    /// leaves the outline, so the manuscript doesn't accumulate orphans).
+    func removeAttachmentFile(for document: ExportDocument) {
+        guard let url = attachmentURL(for: document) else { return }
+        try? FileManager.default.removeItem(at: url)
+    }
+
     // MARK: - Journal library
 
     /// How this journal's profile compares with the user's library — what
@@ -1171,6 +1217,16 @@ final class ManuscriptStore {
             }
         } else {
             config = m.sourceExportConfig ?? .standard(content: m, journal: nil)
+        }
+        // The title component no longer prints the byline (Aug 2026): a
+        // document that has a title page but no `.authors` item predates the
+        // split, so it gains one right after the title — otherwise the
+        // authors would simply stop exporting.
+        for d in config.documents.indices {
+            guard let titleAt = config.documents[d].items.firstIndex(where: { $0.kind == .titlePage }),
+                  !config.documents[d].items.contains(where: { $0.kind == .authors })
+            else { continue }
+            config.documents[d].items.insert(ExportItem(kind: .authors), at: titleAt + 1)
         }
         // Every document leads with a pinned Section — the format anchor;
         // configs saved before sections existed gain one here.
@@ -2187,7 +2243,7 @@ final class ManuscriptStore {
         var files: [GitHubBackendService.File] = []
         let manuscriptJSON = dir.appendingPathComponent("manuscript.json")
         files.append(.init(path: "manuscript.json", data: try Data(contentsOf: manuscriptJSON)))
-        for sub in ["figures", "data"] {
+        for sub in ["figures", "data", "attachments"] {
             let subdir = dir.appendingPathComponent(sub, isDirectory: true)
             guard let names = try? FileManager.default.contentsOfDirectory(atPath: subdir.path) else { continue }
             for name in names.sorted() where !name.hasPrefix(".") {

@@ -90,6 +90,15 @@ struct PersistenceService: Sendable {
         return dir
     }
 
+    /// `{manuscriptDir}/attachments/` — files uploaded straight into the
+    /// export package, kept with the manuscript so they travel with it.
+    func attachmentsDirectory(for manuscriptID: UUID) -> URL {
+        let dir = manuscriptDirectory(for: manuscriptID)
+            .appendingPathComponent("attachments", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir
+    }
+
     /// `{manuscriptDir}/data/`
     func dataDirectory(for manuscriptID: UUID) -> URL {
         let dir = manuscriptDirectory(for: manuscriptID).appendingPathComponent("data", isDirectory: true)

@@ -605,6 +605,22 @@ propagate by explicit, individual fast-forwards.
   carries and the warning dialog names the exact snapshot that will be copied
   ("Nature does not pull from Source directly — sync NEJM first, then
   Nature").
+- AC (implemented): **The title component prints only what it holds** —
+  title, subtitle, running title. It used to append the byline when the
+  document had no separate `.authors` item, which meant the authors could not
+  be reordered, restyled, or dropped for a blind copy without touching the
+  title. Configs that predate the split gain an `.authors` item immediately
+  after the title page when they are read, so nobody's byline silently stops
+  exporting.
+- AC (implemented): **An export document can be an UPLOADED FILE.** "Upload
+  File…" beside Add Document takes a file of any type, copies it into the
+  manuscript's `attachments/` folder (so it travels with the manuscript, and
+  with its remote), and adds it to the outline as a passthrough document:
+  no items, no typography, no file-type picker — it is copied into the
+  package byte for byte (verified by SHA-256). This is the escape hatch for
+  what the app cannot format — a signed form, a spreadsheet, a figure
+  prepared elsewhere. Removing the document deletes the stored copy.
+
 - AC (implemented): **Page numbers sit beside line numbers** as a Section-row
   switch (`ExportItem.sectionPageNumbers`, `ExportDocumentFormat.pageNumbers`),
   inheriting down the outline the same way. They print centred in the bottom

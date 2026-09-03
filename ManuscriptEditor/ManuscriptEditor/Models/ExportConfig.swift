@@ -79,6 +79,47 @@ struct ExportDocument: Codable, Identifiable, Sendable, Equatable {
     var fileType: ExportFileType = .pdf
     var format: ExportDocumentFormat = ExportDocumentFormat()
     var items: [ExportItem] = []
+
+    /// An UPLOADED file, copied verbatim into the package instead of being
+    /// rendered.  Some things a journal wants — a signed form, a spreadsheet,
+    /// a figure prepared elsewhere — the app has no business re-typesetting,
+    /// so the outline can simply carry the file.  Stored in the manuscript's
+    /// `attachments/` folder, so it travels with the manuscript.
+    var attachmentFileName: String? = nil
+    /// The name the file had when it was added, for display.
+    var attachmentOriginalName: String? = nil
+
+    /// True for a document that is a file rather than a rendering.
+    var isAttachment: Bool { attachmentFileName != nil }
+
+    /// The extension the exported copy should carry.
+    var attachmentExtension: String {
+        (attachmentFileName as NSString?)?.pathExtension ?? ""
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, name, fileType, format, items, attachmentFileName, attachmentOriginalName
+    }
+
+    init(id: UUID = UUID(), name: String, fileType: ExportFileType = .pdf,
+         format: ExportDocumentFormat = ExportDocumentFormat(), items: [ExportItem] = [],
+         attachmentFileName: String? = nil, attachmentOriginalName: String? = nil) {
+        self.id = id; self.name = name; self.fileType = fileType
+        self.format = format; self.items = items
+        self.attachmentFileName = attachmentFileName
+        self.attachmentOriginalName = attachmentOriginalName
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        name = try c.decodeIfPresent(String.self, forKey: .name) ?? "Document"
+        fileType = try c.decodeIfPresent(ExportFileType.self, forKey: .fileType) ?? .pdf
+        format = try c.decodeIfPresent(ExportDocumentFormat.self, forKey: .format) ?? ExportDocumentFormat()
+        items = try c.decodeIfPresent([ExportItem].self, forKey: .items) ?? []
+        attachmentFileName = try c.decodeIfPresent(String.self, forKey: .attachmentFileName)
+        attachmentOriginalName = try c.decodeIfPresent(String.self, forKey: .attachmentOriginalName)
+    }
 }
 
 // MARK: - ExportDocumentFormat

@@ -92,6 +92,15 @@ struct ExportView: View {
                     }
                     .buttonStyle(.bordered)
 
+                    Button {
+                        uploadDocument()
+                    } label: {
+                        Label("Upload File…", systemImage: "arrow.up.doc")
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(store.manuscript == nil)
+                    .help("Add a file of any type to the package — copied out exactly as it is, for what the app can't format")
+
                     Spacer()
 
                     Button {
@@ -213,6 +222,20 @@ struct ExportView: View {
     }
 
     /// Persists the edited outline (first edit customizes a standard outline).
+    /// Picks a file and adds it to this journal's package as a passthrough
+    /// document.  Any type: the app is not going to reformat it.
+    private func uploadDocument() {
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        panel.message = "Add a file to the export package. It is copied out exactly as it is."
+        panel.prompt = "Add"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        if store.addAttachmentDocument(from: url, forJournal: journalID) {
+            config = store.exportConfig(forJournal: journalID)
+        }
+    }
+
     private func persist() {
         store.updateExportConfig(config, forJournal: journalID)
     }
@@ -224,6 +247,11 @@ struct ExportView: View {
     }
 
     private func remove(documentID: UUID) {
+        // An uploaded file lives in the manuscript folder; dropping its
+        // document should not leave the copy behind.
+        if let doc = config.documents.first(where: { $0.id == documentID }), doc.isAttachment {
+            store.removeAttachmentFile(for: doc)
+        }
         config.documents.removeAll { $0.id == documentID }
         persist()
     }
@@ -254,6 +282,7 @@ struct ExportView: View {
                 figureURL: { store.figureURL(for: $0) },
                 chartImage: { ExportRendering.chartImage(for: $0, store: store) },
                 tableData: { ExportRendering.tableData(for: $0, store: store) },
+                attachmentURL: { store.attachmentURL(for: $0) },
                 into: destination
             )
             lastPackage = folder
@@ -512,6 +541,11 @@ private struct ExportDocumentCard: View {
         VStack(alignment: .leading, spacing: 0) {
             headerRow
                 .padding(12)
+            if document.isAttachment {
+                Divider()
+                attachmentRow
+                    .padding(12)
+            } else {
             Divider()
             itemsList
                 .padding(.vertical, 4)
@@ -519,10 +553,28 @@ private struct ExportDocumentCard: View {
             addItemRow
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
+            }
         }
         .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
         .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.separator, lineWidth: 1))
         .frame(maxWidth: 640)
+    }
+
+    /// An uploaded document has no outline and no typography: it says what
+    /// file it is and leaves.
+    private var attachmentRow: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "paperclip")
+                .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(document.attachmentOriginalName ?? "Uploaded file")
+                    .font(.callout)
+                Text("Copied into the package exactly as it is — nothing here is re-formatted.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+        }
     }
 
     // MARK: header
@@ -538,13 +590,20 @@ private struct ExportDocumentCard: View {
                 .textFieldStyle(.plain)
                 .font(.headline)
             Spacer()
-            Picker("", selection: binding(\.fileType)) {
-                ForEach(ExportFileType.allCases) { type in
-                    Text(type.label).tag(type)
+            if document.isAttachment {
+                Text(document.attachmentExtension.uppercased())
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.secondary)
+                    .help("The uploaded file's own type — it exports unchanged")
+            } else {
+                Picker("", selection: binding(\.fileType)) {
+                    ForEach(ExportFileType.allCases) { type in
+                        Text(type.label).tag(type)
+                    }
                 }
+                .labelsHidden()
+                .fixedSize()
             }
-            .labelsHidden()
-            .fixedSize()
             Button {
                 onDelete()
             } label: {
