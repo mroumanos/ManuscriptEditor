@@ -1001,7 +1001,7 @@ private struct OutlineBuilder {
                 .foregroundColor: NSColor.black])
         }
 
-        for (i, author) in authors.enumerated() {
+        for (i, author) in authors.enumerated() where item.printsAuthorNames {
             doc.append(NSAttributedString(
                 string: item.authorTitlesShown ? author.exportName : author.fullName,
                 attributes: bodyAttrs))
@@ -1022,16 +1022,28 @@ private struct OutlineBuilder {
                                           attributes: bodyAttrs))
         }
 
-        for (index, lineText) in affLines.enumerated() {
-            if markerStyle != "none" {
-                doc.append(markerRun(marker(index),
-                                     para: metaAttrs[.paragraphStyle] as! NSParagraphStyle))
-                doc.append(NSAttributedString(string: " ", attributes: metaAttrs))
+        for (index, lineText) in affLines.enumerated() where item.printsAffiliations {
+            if item.affiliationListNumbered {
+                // "1. Institution" — a plain numbered list, which is what a
+                // journal asks for when the list stands apart from the
+                // byline.  It counts from the SAME index, so superscripts on
+                // the names still point at the right line.
+                doc.append(NSAttributedString(string: "\(index + 1). \(lineText)\n",
+                                              attributes: metaAttrs))
+            } else {
+                if markerStyle != "none" {
+                    doc.append(markerRun(marker(index),
+                                         para: metaAttrs[.paragraphStyle] as! NSParagraphStyle))
+                    doc.append(NSAttributedString(string: " ", attributes: metaAttrs))
+                }
+                doc.append(NSAttributedString(string: lineText + "\n", attributes: metaAttrs))
             }
-            doc.append(NSAttributedString(string: lineText + "\n", attributes: metaAttrs))
         }
         // "* Corresponding author" footnote — a line like the institutions'.
-        if item.correspondingShown, authors.contains(where: \.isCorresponding) {
+        // The footnote explains a marker on the names, so it belongs
+        // wherever the names are.
+        if item.correspondingShown, item.printsAuthorNames,
+           authors.contains(where: \.isCorresponding) {
             doc.append(markerRun("*", para: metaAttrs[.paragraphStyle] as! NSParagraphStyle))
             doc.append(NSAttributedString(string: " Corresponding author\n",
                                           attributes: metaAttrs))

@@ -377,6 +377,27 @@ struct ExportItem: Codable, Identifiable, Sendable, Equatable {
     /// or "none" (deduplicated affiliation list, no markers).
     var affiliationMarker: String? = nil
 
+    /// Authors item: which halves of the byline this entry prints —
+    /// "both" (default), "names", or "institutions".  Splitting them lets a
+    /// journal put the byline on the title page and the affiliation list at
+    /// the foot of it, or on another page entirely.  The affiliation INDEX
+    /// is computed the same way whichever half is printed, so names carry
+    /// their superscripts even when the list itself is elsewhere.
+    var authorParts: String? = nil
+    var authorPartsMode: String {
+        get { authorParts ?? "both" }
+        set { authorParts = newValue == "both" ? nil : newValue }
+    }
+    var printsAuthorNames: Bool { authorPartsMode != "institutions" }
+    var printsAffiliations: Bool { authorPartsMode != "names" }
+
+    /// Authors item: how the affiliation LIST is laid out — "marker"
+    /// (default: the same raised marker the names carry) or "numbered"
+    /// ("1. Institution" on its own line, the form journals ask for when the
+    /// list stands apart from the byline).
+    var affiliationListStyle: String? = nil
+    var affiliationListNumbered: Bool { affiliationListStyle == "numbered" }
+
     /// Authors item: annotate the corresponding author with a raised *
     /// (like an institution marker) plus a "* Corresponding author"
     /// footnote line.  nil = shown (the historical output).

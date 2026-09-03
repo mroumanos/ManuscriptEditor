@@ -79,7 +79,8 @@ struct ExportView: View {
                         document: document,
                         content: store.manuscript,
                         onChange: { replace(document: $0) },
-                        onDelete: { remove(documentID: document.id) }
+                        onDelete: { remove(documentID: document.id) },
+                        attachmentURL: store.attachmentURL(for: document)
                     )
                 }
 
@@ -537,6 +538,10 @@ private struct ExportDocumentCard: View {
     /// Item currently being dragged by its handle (drag-to-reorder).
     @State private var draggingItemID: UUID?
 
+    /// Resolves an uploaded document's stored copy (nil = not an upload, or
+    /// the file has gone missing).
+    var attachmentURL: URL? = nil
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             headerRow
@@ -574,6 +579,25 @@ private struct ExportDocumentCard: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
+            if let url = attachmentURL {
+                // Quick Look renders whatever the system can (PDF, Office,
+                // CSV, images, plain text) and says so plainly when it
+                // can't — the same preview Finder gives, so there is nothing
+                // to keep in step with it.
+                Button {
+                    QuickLook.preview(url)
+                } label: {
+                    Label("Preview", systemImage: "eye")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .help("Preview \(url.lastPathComponent)")
+            } else {
+                Label("File missing", systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                    .help("The uploaded copy is not in this manuscript's attachments folder")
+            }
         }
     }
 

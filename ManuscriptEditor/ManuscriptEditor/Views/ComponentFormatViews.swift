@@ -168,6 +168,35 @@ struct ComponentSettingsButton: View {
             .font(.caption.weight(.semibold))
             .foregroundStyle(.secondary)
         HStack(spacing: 8) {
+            Text("prints:").font(.caption).foregroundStyle(.secondary)
+            Picker("", selection: Binding(
+                get: { entry.authorPartsMode },
+                set: { value in mutateItem { $0.authorPartsMode = value } }
+            )) {
+                Text("Names + institutions").tag("both")
+                Text("Names only").tag("names")
+                Text("Institutions only").tag("institutions")
+            }
+            .labelsHidden().controlSize(.small).fixedSize()
+            .help("Split the byline across the page or the document — the affiliation numbering stays in step either way")
+        }
+        if entry.printsAffiliations {
+            HStack(spacing: 8) {
+                Text("institutions:").font(.caption).foregroundStyle(.secondary)
+                Picker("", selection: Binding(
+                    get: { entry.affiliationListStyle ?? "marker" },
+                    set: { value in
+                        mutateItem { $0.affiliationListStyle = value == "marker" ? nil : value }
+                    }
+                )) {
+                    Text("¹ Institution").tag("marker")
+                    Text("1. Institution").tag("numbered")
+                }
+                .labelsHidden().controlSize(.small).fixedSize()
+                .help("How the affiliation list is laid out")
+            }
+        }
+        HStack(spacing: 8) {
             Picker("", selection: Binding(
                 get: { entry.authorDelimiter ?? "semicolon" },
                 set: { value in mutateItem { $0.authorDelimiter = value == "semicolon" ? nil : value } }

@@ -605,13 +605,25 @@ propagate by explicit, individual fast-forwards.
   carries and the warning dialog names the exact snapshot that will be copied
   ("Nature does not pull from Source directly — sync NEJM first, then
   Nature").
-- AC (implemented): **The title component prints only what it holds** —
-  title, subtitle, running title. It used to append the byline when the
-  document had no separate `.authors` item, which meant the authors could not
-  be reordered, restyled, or dropped for a blind copy without touching the
-  title. Configs that predate the split gain an `.authors` item immediately
-  after the title page when they are read, so nobody's byline silently stops
-  exporting.
+- AC (implemented): **Title and byline are fully decoupled.** The title
+  component prints title, subtitle, and running title — never the authors.
+  The byline is its own `.authors` item, added and removed like any other:
+  nothing re-inserts it, so a Blind Manuscript document stays blind. (A first
+  cut of this re-added `.authors` on every read to protect pre-split configs
+  from losing their byline; that made the item impossible to delete, which is
+  worse than the problem it solved. An outline that predates the split shows
+  no byline until an Authors item is added by hand.)
+- AC (implemented): **The byline can be split, and keeps its indexing.** The
+  Authors item prints **Names + institutions** (default), **Names only**, or
+  **Institutions only** (`ExportItem.authorParts`), so a journal wanting the
+  byline on the title page and the affiliation list at the foot — or on
+  another page — is expressible. The affiliation index is computed the same
+  way whichever half prints, so names keep their superscripts when the list
+  lives elsewhere: verified "Ada Lovelace¹*; Alan Turing²; Grace Hopper¹˒³"
+  renders identically with and without the list beside it.
+  The list itself lays out as the raised marker (default) or as a numbered
+  list — **"1. Analytical Institute"** — via
+  `ExportItem.affiliationListStyle`.
 - AC (implemented): **An export document can be an UPLOADED FILE.** "Upload
   File…" beside Add Document takes a file of any type, copies it into the
   manuscript's `attachments/` folder (so it travels with the manuscript, and
@@ -620,6 +632,11 @@ propagate by explicit, individual fast-forwards.
   package byte for byte (verified by SHA-256). This is the escape hatch for
   what the app cannot format — a signed form, a spreadsheet, a figure
   prepared elsewhere. Removing the document deletes the stored copy.
+  A **Preview** button opens it in **Quick Look** (`Services/QuickLook.swift`),
+  which renders every type Finder can — PDF, Word, spreadsheets, images,
+  plain text — and shows its own "no preview available" for the rest. That is
+  deliberately the system's judgement rather than a list of supported types
+  here, which would only drift.
 
 - AC (implemented): **Page numbers sit beside line numbers** as a Section-row
   switch (`ExportItem.sectionPageNumbers`, `ExportDocumentFormat.pageNumbers`),

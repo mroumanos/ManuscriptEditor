@@ -1218,17 +1218,7 @@ final class ManuscriptStore {
         } else {
             config = m.sourceExportConfig ?? .standard(content: m, journal: nil)
         }
-        // The title component no longer prints the byline (Aug 2026): a
-        // document that has a title page but no `.authors` item predates the
-        // split, so it gains one right after the title — otherwise the
-        // authors would simply stop exporting.
-        for d in config.documents.indices {
-            guard let titleAt = config.documents[d].items.firstIndex(where: { $0.kind == .titlePage }),
-                  !config.documents[d].items.contains(where: { $0.kind == .authors })
-            else { continue }
-            config.documents[d].items.insert(ExportItem(kind: .authors), at: titleAt + 1)
-        }
-        // Every document leads with a pinned Section — the format anchor;
+// Every document leads with a pinned Section — the format anchor;
         // configs saved before sections existed gain one here.
         for i in config.documents.indices
             where !config.documents[i].items.isEmpty
