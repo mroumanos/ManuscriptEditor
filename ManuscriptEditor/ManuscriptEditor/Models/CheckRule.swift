@@ -201,12 +201,15 @@ struct CheckCondition: Codable, Identifiable, Sendable, Equatable {
         if !text.isEmpty { try c.encode(text, forKey: .text) }
     }
 
+    /// "Introduction (4)" — the first scope and how many there are.  Naming
+    /// every one runs long enough to swamp the rule it belongs to; the
+    /// failure detail spells out the full addition anyway.
     var scopeLabel: String {
         if metric.isFormat { return "Export" }
         if metric.isStructure { return "Structure" }
         let names = scopes.map(\.label)
-        let base = names.count <= 2 ? names.joined(separator: " + ")
-                                    : "\(names[0]) + \(names.count - 1) more"
+        guard let first = names.first else { return "nothing selected" }
+        let base = names.count == 1 ? first : "\(first) (\(names.count))"
         return subsections.isEmpty ? base : "\(base) › \(subsections.joined(separator: ", "))"
     }
 

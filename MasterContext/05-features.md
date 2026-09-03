@@ -552,6 +552,10 @@ propagate by explicit, individual fast-forwards.
   detail shows the addition — "Introduction 414 + Methods 837 + Results 696 +
   Discussion 444 = 2,391 words" — so an over-limit body says which part is
   big. COUNT sums likewise; EXISTS/CONTAINS require each scope.
+  A multi-scope condition **labels itself "Introduction (4)"** — the first
+  scope and how many there are; naming every one swamped the rule it belonged
+  to. The scope menu ticks what is already chosen, so a multi-select set is
+  readable without opening anything.
   Each scope is measured on its own and the results added, rather than
   concatenated and measured once: concatenating inserted a separator per join
   and inflated character counts by one per extra scope.

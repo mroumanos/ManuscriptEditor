@@ -242,23 +242,40 @@ struct CheckRulesEditor: View {
     private func scopeMenu(_ condition: Binding<CheckCondition>) -> some View {
         Menu {
             ForEach(CheckScope.Kind.allCases.filter { $0 != .section }, id: \.self) { kind in
-                Toggle(kind.label, isOn: scopeBinding(condition, CheckScope(kind: kind)))
+                scopeItem(condition, CheckScope(kind: kind), title: kind.label)
             }
             if !sectionTitles.isEmpty {
                 Divider()
                 ForEach(sectionTitles, id: \.self) { title in
-                    Toggle(title, isOn: scopeBinding(condition, CheckScope(kind: .section, name: title)))
+                    scopeItem(condition, CheckScope(kind: .section, name: title), title: title)
                 }
             }
         } label: {
             Text(condition.wrappedValue.scopes.isEmpty
                  ? "Choose…"
-                 : condition.wrappedValue.scopes.map(\.label).joined(separator: " + "))
+                 : condition.wrappedValue.scopeLabel)
                 .lineLimit(1)
         }
         .menuStyle(.borderlessButton)
         .fixedSize()
         .help("Pick one or more — several are summed")
+    }
+
+    /// One pickable scope, with a tick when it is in the set — a menu of
+    /// plain rows gives no way to see what you already chose.
+    @ViewBuilder
+    private func scopeItem(_ condition: Binding<CheckCondition>,
+                           _ scope: CheckScope, title: String) -> some View {
+        let selected = condition.wrappedValue.scopes.contains(scope)
+        Button {
+            scopeBinding(condition, scope).wrappedValue.toggle()
+        } label: {
+            if selected {
+                Label(title, systemImage: "checkmark")
+            } else {
+                Text(title)
+            }
+        }
     }
 
     private func scopeBinding(_ condition: Binding<CheckCondition>,
