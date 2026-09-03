@@ -126,17 +126,30 @@ enum ChecklistService {
         // EXISTS/CONTAINS require every one of them (the rule's ANY
         // combinator is how you express "either").
         let label = condition.scopeLabel
-        let joined = narrowed(condition.scopes.map { text(of: $0) }.joined(separator: "\n"))
+
+        /// Each scope measured on its own and the results ADDED — the "body"
+        /// a journal counts is usually a sum of chosen components, and a sum
+        /// is also the only correct reading for characters: concatenating
+        /// first added a separator per join and inflated the count.
+        func sum(_ measure: (String) -> Int) -> (total: Int, breakdown: String) {
+            let parts = condition.scopes.map { ($0.label, measure(narrowed(text(of: $0)))) }
+            let total = parts.reduce(0) { $0 + $1.1 }
+            guard parts.count > 1 else { return (total, label) }
+            // Show the addition, so an over-limit body says which part is big.
+            return (total, parts.map { "\($0.0) \($0.1)" }.joined(separator: " + "))
+        }
 
         switch condition.metric {
         case .words:
-            let n = WordCountService.count(joined)
+            let (n, breakdown) = sum { WordCountService.count($0) }
             return (condition.comparator.passes(Double(n), condition.number),
-                    "\(label): \(n) words")
+                    condition.scopes.count > 1 ? "\(breakdown) = \(n) words"
+                                               : "\(breakdown): \(n) words")
         case .characters:
-            let n = joined.count
+            let (n, breakdown) = sum { $0.count }
             return (condition.comparator.passes(Double(n), condition.number),
-                    "\(label): \(n) characters")
+                    condition.scopes.count > 1 ? "\(breakdown) = \(n) characters"
+                                               : "\(breakdown): \(n) characters")
         case .count:
             let n = condition.scopes.reduce(0) { $0 + collectionCount(of: $1) }
             return (condition.comparator.passes(Double(n), condition.number),

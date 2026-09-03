@@ -544,10 +544,21 @@ propagate by explicit, individual fast-forwards.
   **≤ ≥ = ≠**, over a **scope** (title, subtitle, abstract, keywords,
   authors, the whole body, one named section, figures, tables, references,
   cover letter) — **sections appear flat in that same list, and several
-  scopes can be selected at once**: LENGTH over Abstract + Introduction is
-  their combined word count, COUNT sums, EXISTS/CONTAINS require each. A
-  third picker narrows to **subsections** — headings parsed from the
-  selected scopes ("Objective:", "Methods:"), also multi-select.
+  scopes can be selected at once, and several are SUMMED**: LENGTH over
+  Introduction + Methods + Results + Discussion adds their word counts, which
+  is how a journal's "body" limit is actually defined — the opaque
+  `body` scope counts every active section, front matter included (measured
+  on a real manuscript: 2,391 summed vs 2,710 for all sections). The failure
+  detail shows the addition — "Introduction 414 + Methods 837 + Results 696 +
+  Discussion 444 = 2,391 words" — so an over-limit body says which part is
+  big. COUNT sums likewise; EXISTS/CONTAINS require each scope.
+  Each scope is measured on its own and the results added, rather than
+  concatenated and measured once: concatenating inserted a separator per join
+  and inflated character counts by one per extra scope.
+  The **subsection** picker is withdrawn (Aug 2026) — parsed run-in headings
+  were more confusing than useful in the row. `CheckCondition.subsections`
+  stays in the model so existing rules keep evaluating, but nothing offers
+  it.
   **Manual checks are just checks**: a rule with no conditions renders as
   a checkbox in the same list and the same editor.
   Conditions join with **ALL (and)** or **ANY (or)**, so

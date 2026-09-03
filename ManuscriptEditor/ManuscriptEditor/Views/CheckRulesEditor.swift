@@ -193,8 +193,11 @@ struct CheckRulesEditor: View {
             if scoped {
                 Text("of").font(.caption).foregroundStyle(.secondary)
                 scopeMenu(condition)
-                if !subsectionChoices(for: condition.wrappedValue).isEmpty {
-                    subsectionMenu(condition)
+                // Several components measure as a SUM — say so, since that is
+                // how a journal's "body" is usually defined.
+                if condition.wrappedValue.scopes.count > 1,
+                   condition.wrappedValue.metric.takesNumber {
+                    Text("summed").font(.caption2).foregroundStyle(.tertiary)
                 }
             } else {
                 Text(condition.wrappedValue.metric.isStructure
@@ -255,7 +258,7 @@ struct CheckRulesEditor: View {
         }
         .menuStyle(.borderlessButton)
         .fixedSize()
-        .help("Pick one or more — several are measured together")
+        .help("Pick one or more — several are summed")
     }
 
     private func scopeBinding(_ condition: Binding<CheckCondition>,
@@ -270,59 +273,7 @@ struct CheckRulesEditor: View {
                     scopes.removeAll { $0 == scope }
                 }
                 condition.wrappedValue.scopes = scopes
-                let valid = Set(subsectionChoices(for: condition.wrappedValue))
-                condition.wrappedValue.subsections.removeAll { !valid.contains($0) }
             }
         )
-    }
-
-    private func subsectionMenu(_ condition: Binding<CheckCondition>) -> some View {
-        Menu {
-            ForEach(subsectionChoices(for: condition.wrappedValue), id: \.self) { heading in
-                Toggle(heading, isOn: Binding(
-                    get: { condition.wrappedValue.subsections.contains(heading) },
-                    set: { on in
-                        var subs = condition.wrappedValue.subsections
-                        if on {
-                            if !subs.contains(heading) { subs.append(heading) }
-                        } else {
-                            subs.removeAll { $0 == heading }
-                        }
-                        condition.wrappedValue.subsections = subs
-                    }
-                ))
-            }
-        } label: {
-            Text(condition.wrappedValue.subsections.isEmpty
-                 ? "whole section"
-                 : condition.wrappedValue.subsections.joined(separator: ", "))
-                .lineLimit(1)
-        }
-        .menuStyle(.borderlessButton)
-        .fixedSize()
-        .help("Narrow to headings inside the selected scopes")
-    }
-
-    /// Headings inside the selected scopes — structured-abstract labels
-    /// ("Objective:", "Methods:") and run-in headings.
-    private func subsectionChoices(for condition: CheckCondition) -> [String] {
-        guard let m = store.manuscript else { return [] }
-        var out: [String] = []
-        for scope in condition.scopes {
-            let text: String
-            switch scope.kind {
-            case .abstract: text = m.abstract.plain
-            case .section:
-                let wanted = (scope.name ?? "").lowercased()
-                text = m.sections.first { $0.title.lowercased() == wanted }?.content.plain ?? ""
-            case .body: text = m.sections.map(\.content.plain).joined(separator: "\n")
-            case .coverLetter: text = m.letterToEditor.body.plain
-            default: continue
-            }
-            for heading in SubsectionParser.headings(in: text) where !out.contains(heading) {
-                out.append(heading)
-            }
-        }
-        return out
     }
 }
