@@ -1056,6 +1056,29 @@ final class ManuscriptStore {
         return ("App defaults", JournalProfile.bundledURL(slug: journal.profileSlug))
     }
 
+    /// The plain prose a comparable pane shows, for the sentence-similarity
+    /// highlighting in compare mode.  nil where a pane has no prose to compare
+    /// (authors, figures, the asset lists).
+    func comparableText(for item: SidebarItem, ref: VersionRef) -> String? {
+        guard let m = manuscript(for: ref) else { return nil }
+        switch item {
+        case .abstract:       return m.abstract.plain
+        case .letterToEditor: return m.letterToEditor.body.plain
+        case .section(let id):
+            // Versions keep the source ids at cut time; fall back to the same
+            // section TYPE so a replaced section still compares.
+            if let byID = m.sections.first(where: { $0.id == id }) {
+                return byID.active ? byID.content.plain : nil
+            }
+            guard let type = manuscript?.sections.first(where: { $0.id == id })?.type,
+                  type != .custom,
+                  let byType = m.sections.first(where: { $0.type == type })
+            else { return nil }
+            return byType.active ? byType.content.plain : nil
+        default: return nil
+        }
+    }
+
     // MARK: - Export attachments
 
     /// The stored copy of an uploaded export document.

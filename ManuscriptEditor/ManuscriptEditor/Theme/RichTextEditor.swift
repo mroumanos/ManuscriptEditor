@@ -69,6 +69,20 @@ struct RichEditor: View {
     /// scaled by the personal zoom).  nil = legacy personal typography.
     var formatItem: SidebarItem? = nil
 
+    /// The panes on screen, left to right — compare mode sets this; empty in
+    /// single-pane mode, where there is nothing to compare against.
+    @Environment(\.comparisonPeers) private var comparisonPeers
+
+    /// The prose this pane is measured against: the pane to its left.
+    private var comparisonText: String? {
+        guard let item = formatItem,
+              let partner = comparisonPeers.comparisonPartner(of: versionRef),
+              let text = store.comparableText(for: item, ref: partner),
+              !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else { return nil }
+        return text
+    }
+
     @AppStorage(EditorPrefs.fontKey)        private var family = EditorPrefs.defaultFont
     @AppStorage(EditorPrefs.fontSizeKey)    private var size = EditorPrefs.defaultFontSize
     @AppStorage(EditorPrefs.lineSpacingKey) private var lineSpacing = EditorPrefs.defaultLineSpacing
@@ -112,7 +126,8 @@ struct RichEditor: View {
                     candidates: refCandidates,
                     zoteroKeys: existingZoteroKeys,
                     addZoteroEntry: addZoteroEntry,
-                    refContext: store.refContext(for: versionRef) ?? RefEngine.Context()
+                    refContext: store.refContext(for: versionRef) ?? RefEngine.Context(),
+                    comparisonText: comparisonText
                 )
                 if value.isEmpty {
                     Text(placeholder)
@@ -642,6 +657,9 @@ private struct RichTextRepresentable: NSViewRepresentable {
     let addZoteroEntry: (ZoteroItem) -> UUID?
     /// Snapshot of numbering + entry details that token rendering depends on.
     let refContext: RefEngine.Context
+    /// The neighbouring pane's prose, for compare-mode highlighting.  nil in
+    /// single-pane mode.
+    var comparisonText: String? = nil
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
@@ -732,6 +750,11 @@ private struct RichTextRepresentable: NSViewRepresentable {
             // bibliography, a paragraph swap…) — re-render this view's tokens.
             context.coordinator.refreshTokens(in: textView)
         }
+
+        // Compare-mode highlighting, recomputed from the two strings every
+        // time either side changes.  Temporary attributes, so none of it
+        // touches the document — nothing is stored and nothing to invalidate.
+        (textView as? CitationTextView)?.applyComparisonHighlight(against: comparisonText)
     }
 
     static func dismantleNSView(_ scrollView: NSScrollView, coordinator: Coordinator) {
@@ -1750,6 +1773,64 @@ final class CitationTextView: NSTextView {
         dismissHover()
     }
 
+    // MARK: - Compare-mode highlighting
+
+    /// Sentences in THIS view that matched the neighbouring pane, and what
+    /// they matched — kept only to answer a hover.
+    private var comparisonMatches: [SentenceMatch] = []
+    /// What the highlight was last computed from, so an unchanged pair costs
+    /// nothing on the many updates that change something else.
+    private var comparisonSignature: String?
+
+    /// Paints matched sentences and remembers them for hover.  Passing nil
+    /// clears everything, which is what leaving compare mode does.
+    func applyComparisonHighlight(against other: String?) {
+        guard let layoutManager, let storage = textStorage else { return }
+        let full = NSRange(location: 0, length: storage.length)
+
+        guard let other, !other.isEmpty, storage.length > 0 else {
+            if comparisonSignature != nil {
+                layoutManager.removeTemporaryAttribute(.backgroundColor, forCharacterRange: full)
+                comparisonMatches = []
+                comparisonSignature = nil
+                toolTip = nil
+            }
+            return
+        }
+
+        let mine = storage.string
+        let signature = "\(mine.hashValue)|\(other.hashValue)|\(effectiveAppearanceIsDark)"
+        guard signature != comparisonSignature else { return }
+        comparisonSignature = signature
+
+        layoutManager.removeTemporaryAttribute(.backgroundColor, forCharacterRange: full)
+        let matches = SentenceSimilarity.matches(in: mine, against: other)
+        comparisonMatches = matches
+        let dark = effectiveAppearanceIsDark
+        for match in matches where NSMaxRange(match.range) <= storage.length {
+            layoutManager.addTemporaryAttributes(
+                [.backgroundColor: ComparisonHighlight.color(for: match.kind, dark: dark)],
+                forCharacterRange: match.range)
+        }
+    }
+
+    private var effectiveAppearanceIsDark: Bool {
+        effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+    }
+
+    /// The counterpart shown when the pointer rests on a highlighted sentence.
+    private func comparisonTooltip(at charIndex: Int) -> String? {
+        guard let match = comparisonMatches.first(where: {
+            NSLocationInRange(charIndex, $0.range)
+        }) else { return nil }
+        switch match.kind {
+        case .exact:
+            return "Unchanged from the pane on the left:\n\n\(match.counterpart)"
+        case .partial(let score):
+            return "Edited — \(Int((score * 100).rounded()))% of the wording is shared:\n\n\(match.counterpart)"
+        }
+    }
+
     /// Shows/updates the details card when the pointer sits on a token; hides
     /// it otherwise.
     private func handleHover(at point: NSPoint) {
@@ -1764,6 +1845,10 @@ final class CitationTextView: NSTextView {
         guard glyphRect.insetBy(dx: -2, dy: -2).contains(containerPoint) else { dismissHover(); return }
 
         let charIndex = layoutManager.characterIndexForGlyph(at: glyphIndex)
+        // A highlighted sentence explains itself in a tooltip; a token opens
+        // the richer card below.
+        toolTip = comparisonTooltip(at: charIndex)
+
         var effective = NSRange()
         guard charIndex < storage.length,
               let url = storage.attribute(.link, at: charIndex, longestEffectiveRange: &effective,

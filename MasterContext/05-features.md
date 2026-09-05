@@ -665,6 +665,26 @@ propagate by explicit, individual fast-forwards.
   deliberately the system's judgement rather than a list of supported types
   here, which would only drift.
 
+- AC (implemented): **Compare mode highlights sentence-level similarity,
+  live.** Each pane is measured against the pane to its LEFT (so the rightmost
+  cut is the one under examination and the leftmost is the reference; the
+  leftmost borrows its right-hand neighbour, or it would be the one pane that
+  never says anything). A sentence that survived unchanged — ignoring case,
+  punctuation and spacing — gets a very faint **green** wash; one that is
+  recognisably the same sentence, edited, gets a faint **yellow**. Hovering
+  either shows the counterpart from the other pane, with the percentage for a
+  partial match.
+  **Nothing is stored.** `SentenceSimilarity` recomputes from the two plain
+  strings, and the wash is applied as TEMPORARY layout attributes, so the
+  document is untouched and there is no cached diff to invalidate. Matching
+  is the platform sentence enumerator plus word-set scoring: overlap
+  (shared/total) for rewording, and a discounted containment score gated at
+  three shared words for the other common edit — a sentence kept whole and
+  expanded, where new material sinks the overlap even though nothing was
+  removed. Measured at **1.2 ms** per pass over the longest section in a real
+  manuscript (5.7k characters, 39 sentences), well inside a keystroke; an
+  index would go in that file, and no caller would change.
+
 - AC (implemented): **Page numbers sit beside line numbers** as a Section-row
   switch (`ExportItem.sectionPageNumbers`, `ExportDocumentFormat.pageNumbers`),
   inheriting down the outline the same way. They print centred in the bottom
