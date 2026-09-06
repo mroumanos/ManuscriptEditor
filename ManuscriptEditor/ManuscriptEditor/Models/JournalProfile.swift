@@ -139,6 +139,10 @@ struct StructureSection: Codable, Sendable, Equatable, Identifiable {
     /// Required sections fail a structure check when missing; optional ones
     /// are part of the journal's shape but never fail.
     var required: Bool = true
+    /// Prose, or the journal's submission questions.  Recorded here so a
+    /// journal that asks a set of questions brings them with it: forking to
+    /// that journal adds the section already in question form.
+    var kind: SectionKind = .text
     /// Why the journal asks for it — shown in the structure editor.
     var note: String? = nil
 
@@ -151,8 +155,8 @@ struct StructureSection: Codable, Sendable, Equatable, Identifiable {
 
     private enum CodingKeys: String, CodingKey { case title, required, note, kind, core }
 
-    init(title: String, required: Bool = true, note: String? = nil) {
-        self.title = title; self.required = required; self.note = note
+    init(title: String, required: Bool = true, kind: SectionKind = .text, note: String? = nil) {
+        self.title = title; self.required = required; self.kind = kind; self.note = note
     }
 
     init(from decoder: Decoder) throws {
@@ -160,8 +164,12 @@ struct StructureSection: Codable, Sendable, Equatable, Identifiable {
         title = try c.decode(String.self, forKey: .title)
         required = try c.decodeIfPresent(Bool.self, forKey: .required) ?? true
         note = try c.decodeIfPresent(String.self, forKey: .note)
-        isFixedPart = (try? c.decodeIfPresent(String.self, forKey: .kind)) == "core"
-            || (try? c.decodeIfPresent(String.self, forKey: .core)) != nil
+        // `kind` briefly meant "core"/"text" when structure files also listed
+        // the app's fixed parts; anything but a section kind marks the entry
+        // for dropping, and only "questions" changes what gets created.
+        let rawKind = (try? c.decodeIfPresent(String.self, forKey: .kind)) ?? nil
+        isFixedPart = rawKind == "core" || (try? c.decodeIfPresent(String.self, forKey: .core)) != nil
+        kind = rawKind.flatMap(SectionKind.init(rawValue:)) ?? .text
     }
 
     /// `isFixedPart` is deliberately absent: it is a read-time concern, and
@@ -170,6 +178,7 @@ struct StructureSection: Codable, Sendable, Equatable, Identifiable {
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(title, forKey: .title)
         try c.encode(required, forKey: .required)
+        if kind != .text { try c.encode(kind.rawValue, forKey: .kind) }
         try c.encodeIfPresent(note, forKey: .note)
     }
 }

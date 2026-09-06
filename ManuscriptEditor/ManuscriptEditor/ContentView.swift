@@ -592,7 +592,13 @@ struct ContentView: View {
         case .authors:           AuthorsView(versionRef: ref)
         case .abstract:          AbstractView(versionRef: ref)
         case .keywords:          KeywordsView(versionRef: ref)
-        case .section(let id):   SectionEditorView(sectionID: id, versionRef: ref)
+        case .section(let id):
+            // A section is prose or a question series; the pane follows.
+            if resolvedSection(id, ref)?.sectionKind == .questions {
+                QuestionSeriesView(sectionID: id, versionRef: ref)
+            } else {
+                SectionEditorView(sectionID: id, versionRef: ref)
+            }
         case .figures:           FiguresView(versionRef: ref)
         case .tables:            TablesView(versionRef: ref)
         case .bibliography:      BibliographyView(versionRef: ref)

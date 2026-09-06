@@ -546,6 +546,11 @@ struct StructureEditorSheet: View {
                 .frame(width: 18)
             TextField("Section title", text: section.title)
                 .textFieldStyle(.roundedBorder)
+            Picker("", selection: section.kind) {
+                ForEach(SectionKind.allCases, id: \.self) { Text($0.label).tag($0) }
+            }
+            .labelsHidden().fixedSize()
+            .help("A question series arrives as the journal's submission questions when a cut is forked to it")
             Toggle("Required", isOn: section.required)
                 .toggleStyle(.checkbox)
                 .help("Required sections fail a STRUCTURE check when missing")

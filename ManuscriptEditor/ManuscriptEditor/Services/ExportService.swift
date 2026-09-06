@@ -508,11 +508,11 @@ struct ExportService {
             case .section:
                 if let id = item.sectionID,
                    let section = m.sections.first(where: { $0.id == id }),
-                   section.active, !section.content.isEmpty {
+                   section.active, !section.isEmptyContent {
                     if item.titleShown {
                         out += "\\section{\(tex(latexHeading(item.customTitle ?? section.title)))}\n"
                     }
-                    out += "\(tex(PartEngine.expandPlainMarkers(section.content.plain, content: m)))\n\n"
+                    out += "\(tex(PartEngine.expandPlainMarkers(section.plainText, content: m)))\n\n"
                 }
             case .figures:
                 for fig in m.figures.sorted(by: { $0.number < $1.number }) {
@@ -630,7 +630,7 @@ struct ExportService {
 
         // Deactivated sections are excluded from the submission package.
         for section in m.sections.sorted(by: { $0.order < $1.order })
-        where section.active && !section.content.isEmpty {
+        where section.active && !section.isEmptyContent {
             doc.append(heading(section.title))
             doc.append(rich(section.content, refContext))
             doc.append(spacer())
@@ -1141,10 +1141,24 @@ private struct OutlineBuilder {
         case .section:
             guard let id = item.sectionID,
                   let section = m.sections.first(where: { $0.id == id }),
-                  section.active, !section.content.isEmpty else { return nil }
+                  section.active, !section.isEmptyContent else { return nil }
             let doc = NSMutableAttributedString()
             if item.titleShown { doc.append(headingBlock(item.customTitle ?? section.title, style: item.effectiveHeadingStyle)) }
-            doc.append(rich(section.content, in: m))
+            switch section.sectionKind {
+            case .text:
+                doc.append(rich(section.content, in: m))
+            case .questions:
+                // Each question prints as its own small heading over its
+                // answer, so a submission form reads as a form.
+                for question in section.orderedQuestions where !question.isEmpty {
+                    if !question.prompt.isEmpty {
+                        doc.append(line(question.prompt, font: scaled(0, bold: true), after: 2))
+                    }
+                    if !question.response.isEmpty {
+                        doc.append(rich(question.response, in: m))
+                    }
+                }
+            }
             return doc
         case .figures:
             // Reference-order numbering, matching in-text tokens.

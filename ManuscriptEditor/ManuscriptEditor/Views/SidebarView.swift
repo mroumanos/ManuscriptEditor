@@ -336,13 +336,22 @@ struct SidebarView: View {
     }
 
     private var addSectionRow: some View {
-        Button {
-            if let id = store.addSection() { selection = .section(id) }
+        Menu {
+            // Two shapes of section: prose, or the questions a journal asks
+            // at submission.
+            ForEach(SectionKind.allCases, id: \.self) { kind in
+                Button {
+                    if let id = store.addSection(kind: kind) { selection = .section(id) }
+                } label: {
+                    Label(kind.label, systemImage: kind.systemImage)
+                }
+            }
         } label: {
             Label("Add Section", systemImage: "plus")
                 .foregroundStyle(.secondary)
         }
-        .buttonStyle(.plain)
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
         .help("Add a section (shared across all journals; deactivate per journal in its editor)")
     }
 
@@ -353,7 +362,9 @@ struct SidebarView: View {
         // rather than from Source's.
         let isActive = active?.sections.first { $0.id == section.id }?.active ?? section.active
         return HStack {
-            Label(section.title, systemImage: section.type.systemImage)
+            Label(section.title, systemImage: section.sectionKind == .questions
+                                              ? SectionKind.questions.systemImage
+                                              : section.type.systemImage)
                 .foregroundStyle(isActive ? .primary : .tertiary)
             Spacer()
             if !isActive {

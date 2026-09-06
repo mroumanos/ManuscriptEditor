@@ -665,6 +665,28 @@ propagate by explicit, individual fast-forwards.
   deliberately the system's judgement rather than a list of supported types
   here, which would only drift.
 
+- AC (implemented): **Question series.** A section is now prose (a **Text
+  Box**) or a **Question Series** — the prompts a journal asks at submission
+  ("Why is this an important submission?"), each with its own answer and its
+  own word limit. "Add Section" offers the two kinds; the pane lists the
+  questions on the left and edits the selected one on the right, the way
+  Figures, Tables and the Bibliography already work.
+  The **word limit is nullable**, because plenty of questions have none and
+  inventing one would be a lie: the count reads "84 / 250" when a limit is set
+  and "84 words" when it isn't, turning red past the limit.
+  Questions are per-cut content — journals ask different things, and the same
+  question is answered differently for each — and a series starts with one
+  empty question so the pane opens on something to fill in.
+  It **exports like any other section**: heading, then each prompt in bold
+  over its answer, carrying the item's heading style and typography.
+  A journal's **structure** records the kind (`StructureSection.kind`), so a
+  journal that asks a set of questions brings the section with it: forking to
+  that journal adds any structure section the manuscript lacks, already in
+  question form. Sections are shared, so an existing one is left untouched.
+  `ManuscriptSection.plainText` / `isEmptyContent` are what checks, word
+  counts, comparison and export read, so a question series counts and
+  compares like the prose it stands in for.
+
 - AC (implemented): **Compare mode highlights sentence-level similarity,
   live.** Each pane is measured against the pane to its LEFT (so the rightmost
   cut is the one under examination and the leftmost is the reference; the

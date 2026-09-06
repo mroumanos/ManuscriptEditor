@@ -473,21 +473,77 @@ final class ManuscriptStore {
     /// Adds a section to Source **and every version** (so it exists for every
     /// journal), with a unique title.  Returns the new section id.
     @discardableResult
-    func addSection(type: SectionType = .custom, title: String? = nil) -> UUID? {
+    func addSection(type: SectionType = .custom, title: String? = nil,
+                    kind: SectionKind = .text) -> UUID? {
         guard manuscript != nil else { return nil }
-        let uniqueTitle = uniqueSectionTitle(title ?? (type == .custom ? "New Section" : type.rawValue))
+        let fallback = kind == .questions ? "Submission Questions"
+                                          : (type == .custom ? "New Section" : type.rawValue)
+        let uniqueTitle = uniqueSectionTitle(title ?? fallback)
         let id = UUID()
+        // A question series starts with ONE empty question, so the pane opens
+        // on something to fill in rather than on an empty state.
+        func fresh(_ order: Int) -> ManuscriptSection {
+            ManuscriptSection(id: id, type: type, title: uniqueTitle, content: RichText(),
+                              order: order, active: true,
+                              kind: kind == .text ? nil : kind,
+                              questions: kind == .questions ? [QuestionEntry(order: 0)] : nil)
+        }
         touch(undoAction: "Add Section") { m in
-            m.sections.append(ManuscriptSection(id: id, type: type, title: uniqueTitle,
-                                                content: RichText(), order: m.sections.count, active: true))
+            m.sections.append(fresh(m.sections.count))
             for v in m.versions.indices {
                 var content = m.versions[v].content
-                content.sections.append(ManuscriptSection(id: id, type: type, title: uniqueTitle,
-                                                          content: RichText(), order: content.sections.count, active: true))
+                content.sections.append(fresh(content.sections.count))
                 m.versions[v].content = content
             }
         }
         return id
+    }
+
+    // MARK: - Question series
+
+    /// Edits one section's questions in a single version (they are per-cut
+    /// content, like prose — a journal asks its own questions).
+    private func mutateQuestions(sectionID: UUID, ref: VersionRef, undo: String?,
+                                 _ change: @escaping (inout [QuestionEntry]) -> Void) {
+        touch(ref, undoAction: undo) { m in
+            guard let idx = m.sections.firstIndex(where: { $0.id == sectionID }) else { return }
+            var list = m.sections[idx].orderedQuestions
+            change(&list)
+            for i in list.indices { list[i].order = i }
+            m.sections[idx].questions = list
+            if m.sections[idx].kind == nil { m.sections[idx].kind = .questions }
+        }
+    }
+
+    @discardableResult
+    func addQuestion(sectionID: UUID, ref: VersionRef = .source) -> UUID? {
+        let id = UUID()
+        mutateQuestions(sectionID: sectionID, ref: ref, undo: "Add Question") { list in
+            list.append(QuestionEntry(id: id, order: list.count))
+        }
+        return id
+    }
+
+    func updateQuestion(_ question: QuestionEntry, sectionID: UUID, ref: VersionRef = .source) {
+        // Typing is not undoable per keystroke — the editors coalesce their
+        // own snapshots, as everywhere else.
+        mutateQuestions(sectionID: sectionID, ref: ref, undo: nil) { list in
+            guard let i = list.firstIndex(where: { $0.id == question.id }) else { return }
+            list[i] = question
+        }
+    }
+
+    func deleteQuestion(id: UUID, sectionID: UUID, ref: VersionRef = .source) {
+        mutateQuestions(sectionID: sectionID, ref: ref, undo: "Delete Question") { list in
+            list.removeAll { $0.id == id }
+        }
+    }
+
+    func moveQuestions(sectionID: UUID, from offsets: IndexSet, to destination: Int,
+                       ref: VersionRef = .source) {
+        mutateQuestions(sectionID: sectionID, ref: ref, undo: "Reorder Questions") { list in
+            list.move(fromOffsets: offsets, toOffset: destination)
+        }
     }
 
     /// Renames a section everywhere (shared structure), keeping the title unique.
@@ -981,6 +1037,24 @@ final class ManuscriptStore {
         writeProfile(journalID: journalID)
     }
 
+    /// Adds any section this journal's structure names that the manuscript
+    /// doesn't have yet.
+    ///
+    /// This is how a journal's **submission questions** travel with it: record
+    /// the question series in the journal's structure once, and forking to
+    /// that journal brings the section along, already in question form.
+    /// Sections are shared, so an existing one is left exactly as it is.
+    func addMissingStructureSections(journalID: UUID) {
+        guard let m = manuscript,
+              let journal = m.journals.first(where: { $0.id == journalID }),
+              let wanted = journal.structure?.sections, !wanted.isEmpty
+        else { return }
+        let existing = Set(m.sections.map { $0.title.lowercased() })
+        for section in wanted where !existing.contains(section.title.lowercased()) {
+            _ = addSection(type: .custom, title: section.title, kind: section.kind)
+        }
+    }
+
     /// Seeds every journal that still needs it (called after a manuscript
     /// opens).
     func seedProfiles() {
@@ -1068,13 +1142,13 @@ final class ManuscriptStore {
             // Versions keep the source ids at cut time; fall back to the same
             // section TYPE so a replaced section still compares.
             if let byID = m.sections.first(where: { $0.id == id }) {
-                return byID.active ? byID.content.plain : nil
+                return byID.active ? byID.plainText : nil
             }
             guard let type = manuscript?.sections.first(where: { $0.id == id })?.type,
                   type != .custom,
                   let byType = m.sections.first(where: { $0.type == type })
             else { return nil }
-            return byType.active ? byType.content.plain : nil
+            return byType.active ? byType.plainText : nil
         default: return nil
         }
     }
@@ -1876,6 +1950,7 @@ final class ManuscriptStore {
         // A journal arrives with its profile already in force, so its Checks
         // pane is populated the moment its tab opens.
         seedProfileIfNeeded(journalID: journal.id)
+        addMissingStructureSections(journalID: journal.id)
         return manuscript?.journals.first { $0.id == journal.id } ?? journal
     }
 

@@ -67,7 +67,7 @@ enum ChecklistService {
         if condition.metric.isStructure {
             let expected = journal?.structure?.sections.filter(\.required) ?? []
             guard !expected.isEmpty else { return (true, "no structure defined") }
-            let present = m.sections.filter { $0.active && !$0.content.isEmpty }
+            let present = m.sections.filter { $0.active && !$0.isEmptyContent }
                 .map { $0.title.lowercased() }
             let missing = expected.filter { section in
                 !present.contains { $0 == section.id || $0.contains(section.id) }
@@ -93,11 +93,11 @@ enum ChecklistService {
             case .abstract:    return m.abstract.plain
             case .keywords:    return m.keywords.joined(separator: ", ")
             case .authors:     return m.authors.map(\.fullName).joined(separator: "; ")
-            case .body:        return m.sections.filter(\.active).map(\.content.plain).joined(separator: "\n")
+            case .body:        return m.sections.filter(\.active).map(\.plainText).joined(separator: "\n")
             case .section:
                 let wanted = (scope.name ?? "").lowercased()
-                return m.sections.first { $0.active && $0.title.lowercased() == wanted }?.content.plain
-                    ?? m.sections.first { $0.active && $0.title.lowercased().contains(wanted) }?.content.plain
+                return m.sections.first { $0.active && $0.title.lowercased() == wanted }?.plainText
+                    ?? m.sections.first { $0.active && $0.title.lowercased().contains(wanted) }?.plainText
                     ?? ""
             case .figures:     return m.figures.map { "\($0.title) \($0.caption)" }.joined(separator: "\n")
             case .tables:      return m.tables.map { "\($0.title) \($0.caption)" }.joined(separator: "\n")
@@ -114,7 +114,7 @@ enum ChecklistService {
             case .references: return m.bibliography.count
             case .keywords:   return m.keywords.count
             case .authors:    return m.authors.count
-            case .body:       return m.sections.filter { $0.active && !$0.content.isEmpty }.count
+            case .body:       return m.sections.filter { $0.active && !$0.isEmptyContent }.count
             case .section:
                 let wanted = (scope.name ?? "").lowercased()
                 return m.sections.filter { $0.active && $0.title.lowercased().contains(wanted) }.count

@@ -70,23 +70,66 @@ struct ManuscriptSection: Codable, Identifiable, Sendable {
     /// Defaults to `true`; decodes as `true` for older files that predate it.
     var active: Bool
 
+    /// What this section holds.  A **text box** is prose, the original and
+    /// still the default; a **question series** is a list of prompts a journal
+    /// asks at submission ("Why is this an important submission?") each with
+    /// its own answer and word limit.  Optional so files that predate the
+    /// distinction decode as prose.
+    var kind: SectionKind? = nil
+    var sectionKind: SectionKind { kind ?? .text }
+
+    /// The prompts, when this is a question series.  Prose sections leave it
+    /// nil rather than empty, so the two are told apart on disk too.
+    var questions: [QuestionEntry]? = nil
+
+    /// The prompts in asked order.
+    var orderedQuestions: [QuestionEntry] {
+        (questions ?? []).sorted { $0.order < $1.order }
+    }
+
+    /// Everything this section contributes as plain text — the prose, or the
+    /// questions and their answers.  Word limits, checks, and the comparison
+    /// highlighting all read this rather than `content` directly.
+    var plainText: String {
+        switch sectionKind {
+        case .text: return content.plain
+        case .questions:
+            return orderedQuestions
+                .map { [$0.prompt, $0.response.plain].filter { !$0.isEmpty }.joined(separator: "\n") }
+                .joined(separator: "\n\n")
+        }
+    }
+
+    /// True when there is nothing in this section at all.
+    var isEmptyContent: Bool {
+        switch sectionKind {
+        case .text:      return content.isEmpty
+        case .questions: return orderedQuestions.allSatisfy { $0.isEmpty }
+        }
+    }
+
     /// Number of words in this section's content, computed on demand.
-    var wordCount: Int { WordCountService.count(content.plain) }
+    var wordCount: Int { WordCountService.count(plainText) }
 
     // MARK: - Init
 
-    init(id: UUID, type: SectionType, title: String, content: RichText, order: Int, active: Bool = true) {
+    init(id: UUID, type: SectionType, title: String, content: RichText, order: Int,
+         active: Bool = true, kind: SectionKind? = nil, questions: [QuestionEntry]? = nil) {
         self.id = id
         self.type = type
         self.title = title
         self.content = content
         self.order = order
         self.active = active
+        self.kind = kind
+        self.questions = questions
     }
 
     // MARK: - Backward-compatible Codable
 
-    private enum CodingKeys: String, CodingKey { case id, type, title, content, order, active }
+    private enum CodingKeys: String, CodingKey {
+        case id, type, title, content, order, active, kind, questions
+    }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -96,5 +139,69 @@ struct ManuscriptSection: Codable, Identifiable, Sendable {
         content = try c.decode(RichText.self,    forKey: .content)
         order   = try c.decode(Int.self,         forKey: .order)
         active  = try c.decodeIfPresent(Bool.self, forKey: .active) ?? true
+        kind    = try c.decodeIfPresent(SectionKind.self, forKey: .kind)
+        questions = try c.decodeIfPresent([QuestionEntry].self, forKey: .questions)
+    }
+}
+
+// MARK: - SectionKind
+
+/// Whether a section is prose or a list of submission questions.
+enum SectionKind: String, Codable, CaseIterable, Sendable {
+    case text, questions
+
+    var label: String {
+        switch self {
+        case .text:      return "Text Box"
+        case .questions: return "Question Series"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .text:      return "text.alignleft"
+        case .questions: return "list.bullet.rectangle"
+        }
+    }
+}
+
+// MARK: - QuestionEntry
+
+/// One question a journal asks at submission, with the answer and the limit
+/// it imposes.
+struct QuestionEntry: Codable, Identifiable, Sendable, Equatable {
+
+    var id: UUID = UUID()
+
+    /// The journal's question, verbatim.  Editable, because journals word
+    /// these differently and revise them between cycles.
+    var prompt: String = ""
+
+    /// The answer.  Rich text like any other prose, so it carries the same
+    /// formatting into the export.
+    var response: RichText = RichText()
+
+    /// The journal's cap on the answer, in words.  **Nullable**: plenty of
+    /// questions have no limit, and inventing one would be a lie.
+    var wordLimit: Int? = nil
+
+    var order: Int = 0
+
+    var responseWordCount: Int { WordCountService.count(response.plain) }
+
+    /// True when the limit exists and the answer is past it.
+    var isOverLimit: Bool {
+        guard let wordLimit else { return false }
+        return responseWordCount > wordLimit
+    }
+
+    /// "84 / 250", or just the count when the question has no limit.
+    var countLabel: String {
+        guard let wordLimit else { return "\(responseWordCount) words" }
+        return "\(responseWordCount) / \(wordLimit)"
+    }
+
+    var isEmpty: Bool {
+        prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && response.isEmpty
     }
 }
