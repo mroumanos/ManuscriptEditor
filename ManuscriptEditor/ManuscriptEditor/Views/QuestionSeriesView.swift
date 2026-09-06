@@ -89,30 +89,63 @@ struct QuestionSeriesView: View {
     }
 
     private func row(_ question: QuestionEntry) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(question.prompt.isEmpty ? "New question" : question.prompt)
-                .lineLimit(2)
-                .foregroundStyle(question.prompt.isEmpty ? .tertiary : .primary)
-            HStack(spacing: 6) {
-                Text(question.countLabel)
-                    .font(.caption)
-                    .monospacedDigit()
-                    .foregroundStyle(question.isOverLimit ? Color.red : .secondary)
-                if question.isOverLimit {
-                    Image(systemName: "exclamationmark.circle.fill")
+        let position = (questions.firstIndex(where: { $0.id == question.id }) ?? 0) + 1
+        return HStack(alignment: .top, spacing: 8) {
+            // Journals ask their questions in order and refer to them by
+            // number, so the list numbers them.
+            Text("\(position).")
+                .font(.callout.monospacedDigit())
+                .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(question.prompt.isEmpty ? "New question" : question.prompt)
+                    .lineLimit(2)
+                    .foregroundStyle(question.prompt.isEmpty ? .tertiary : .primary)
+                HStack(spacing: 6) {
+                    Text(question.countLabel)
                         .font(.caption)
-                        .foregroundStyle(.red)
-                        .help("This answer is past the journal's limit")
+                        .monospacedDigit()
+                        .foregroundStyle(question.isOverLimit ? Color.red : .secondary)
+                    if question.isOverLimit {
+                        Image(systemName: "exclamationmark.circle.fill")
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                            .help("This answer is past the journal's limit")
+                    }
                 }
             }
+            Spacer(minLength: 4)
+            VStack(spacing: 0) {
+                Button { move(question, by: -1) } label: { Image(systemName: "chevron.up") }
+                    .disabled(position == 1)
+                Button { move(question, by: 1) } label: { Image(systemName: "chevron.down") }
+                    .disabled(position == questions.count)
+            }
+            .buttonStyle(.borderless)
+            .controlSize(.mini)
+            .help("Move this question up or down")
         }
         .padding(.vertical, 2)
         .contextMenu {
+            Button("Move Up") { move(question, by: -1) }
+                .disabled(position == 1)
+            Button("Move Down") { move(question, by: 1) }
+                .disabled(position == questions.count)
+            Divider()
             Button("Delete Question", role: .destructive) {
                 store.deleteQuestion(id: question.id, sectionID: sectionID, ref: versionRef)
                 if selectedID == question.id { selectedID = questions.first?.id }
             }
         }
+    }
+
+    /// Shifts one question by a place.  `move(fromOffsets:toOffset:)` inserts
+    /// BEFORE the destination, so moving down needs the extra step.
+    private func move(_ question: QuestionEntry, by delta: Int) {
+        guard let index = questions.firstIndex(where: { $0.id == question.id }) else { return }
+        let target = index + delta
+        guard questions.indices.contains(target) else { return }
+        store.moveQuestions(sectionID: sectionID, from: IndexSet(integer: index),
+                            to: delta > 0 ? target + 1 : target, ref: versionRef)
     }
 
     // MARK: - Detail
@@ -121,6 +154,9 @@ struct QuestionSeriesView: View {
     private var detail: some View {
         if let question = selected {
             VStack(alignment: .leading, spacing: 0) {
+                // Inset to the editor's text column: the gutter rule below
+                // runs the full height of the pane, and fields that started
+                // left of it were cut in half by it.
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Question")
                         .font(.caption.weight(.semibold))
@@ -159,7 +195,9 @@ struct QuestionSeriesView: View {
                                   : "Words used against this question's limit")
                     }
                 }
-                .padding(14)
+                .padding(.leading, EditorLayout.leftInset)
+                .padding(.trailing, 14)
+                .padding(.vertical, 12)
                 Divider()
 
                 RichEditor(value: $draftResponse,

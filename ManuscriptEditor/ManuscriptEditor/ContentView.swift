@@ -568,6 +568,9 @@ struct ContentView: View {
         case .abstract:        return m.abstractWordCount
         case .section(let id):
             let s = resolvedSection(id, ref)
+            // A question series counts per question, against each question's
+            // own limit; one total for the series would answer nothing.
+            guard s?.sectionKind != .questions else { return nil }
             return (s?.active ?? false) ? s?.wordCount : nil
         default:               return nil
         }

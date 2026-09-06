@@ -85,6 +85,8 @@ struct ComponentSettingsButton: View {
                 // add their own settings (typography, style, delimiters).
                 switch item {
                 case .abstract, .section, .letterToEditor:
+                    typographySection
+                    Divider()
                     headingSection(entry)
                 case .authors:
                     typographySection
@@ -104,7 +106,7 @@ struct ComponentSettingsButton: View {
                     typographySection
                     headingSection(entry)
                 }
-                Text("Applies to this journal's export (reviewed read-only in Export).")
+                Text("Applies to this journal's EXPORT. The editor always shows your own font and spacing, from Settings → Editor.")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
             } else {

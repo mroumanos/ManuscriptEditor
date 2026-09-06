@@ -665,6 +665,17 @@ propagate by explicit, individual fast-forwards.
   deliberately the system's judgement rather than a list of supported types
   here, which would only drift.
 
+- AC (implemented): **Editing typography is global; export typography is per
+  component.** Every editor renders in the font, size, and spacing set in
+  Settings → Editor, whatever journal the pane belongs to — so two cuts
+  compared side by side are set the same way, and a writer can read
+  comfortably without changing what a journal receives. The export font, size,
+  and spacing moved off the writing toolbar into each component's settings
+  gear, which now carries them for every component. See the principle in
+  [`06-design-system.md`](06-design-system.md). (The separate "display zoom"
+  preference went with them: it duplicated the size control and only ever
+  reached the settings preview.)
+
 - AC (implemented): **Question series.** A section is now prose (a **Text
   Box**) or a **Question Series** — the prompts a journal asks at submission
   ("Why is this an important submission?"), each with its own answer and its
@@ -676,7 +687,13 @@ propagate by explicit, individual fast-forwards.
   and "84 words" when it isn't, turning red past the limit.
   Questions are per-cut content — journals ask different things, and the same
   question is answered differently for each — and a series starts with one
-  empty question so the pane opens on something to fill in.
+  empty question so the pane opens on something to fill in. They are
+  **numbered** and shift up and down (row chevrons or the context menu), since
+  journals ask in order and refer to them by number. There is **no word count
+  for the series as a whole**: each question answers to its own limit, and one
+  total would answer nothing. The question and word-limit fields are inset to
+  the editor's text column, clear of the gutter rule that runs the height of
+  the pane.
   It **exports like any other section**: heading, then each prompt in bold
   over its answer, carrying the item's heading style and typography.
   A journal's **structure** records the kind (`StructureSection.kind`), so a

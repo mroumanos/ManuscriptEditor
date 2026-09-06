@@ -171,3 +171,30 @@ vertically centered on each line; blank lines are numbered too.
 - The "Source" comparison tab sits at the very top and never shifts down.
 - Line numbers line up with their text rows; the gutter shows no stray border.
 - Light and dark both look intentional — check both before declaring done.
+
+## Editing typography vs export typography (a standing principle)
+
+Two typographies, and they never mix.
+
+**Editing typography** is the reader's. One font, size, and line spacing, set
+once in **Settings → Editor**, used by every editor in the app whatever
+journal the pane belongs to. It exists so long manuscripts are comfortable to
+read, and so two cuts compared side by side are comparable — when editors
+rendered each journal's export format, every line looked changed because one
+journal wanted Arial at double spacing. It never reaches a file or an export.
+
+**Export typography** is the journal's. Font, size, and spacing per component,
+edited in that component's **settings gear** beside the preview, along with its
+heading and any other export settings. It is what the journal receives, and it
+is never what the editor shows.
+
+Consequences to hold to:
+
+- The writing toolbar carries *character* formatting (bold, italic, alignment,
+  lists, heading level) and nothing about font, size, or spacing. Those two
+  controls belong to the two places above.
+- A new component's settings gear must include the typography section; a
+  component whose gear lacks it has no way to set its export format.
+- Anything that renders prose for reading uses `EditorTypography.current`.
+  Anything that renders prose for output uses the item's
+  `ExportDocumentFormat`.

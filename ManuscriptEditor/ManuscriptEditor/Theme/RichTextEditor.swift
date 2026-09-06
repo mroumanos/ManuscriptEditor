@@ -64,9 +64,10 @@ struct RichEditor: View {
     /// Letter-to-editor context: "/" additionally offers Date and Signature
     /// snippets (inserted as plain text).
     var letterMode: Bool = false
-    /// The pane this editor represents — resolves the DOCUMENT typography
-    /// it renders (Phase 2: editors show the journal's export format,
-    /// scaled by the personal zoom).  nil = legacy personal typography.
+    /// The pane this editor represents.  It no longer decides how the editor
+    /// LOOKS — that is the global editing typography — but it still names the
+    /// export item the settings gear edits and the pane the comparison
+    /// highlighting measures.
     var formatItem: SidebarItem? = nil
 
     /// The panes on screen, left to right — compare mode sets this; empty in
@@ -86,29 +87,26 @@ struct RichEditor: View {
     @AppStorage(EditorPrefs.fontKey)        private var family = EditorPrefs.defaultFont
     @AppStorage(EditorPrefs.fontSizeKey)    private var size = EditorPrefs.defaultFontSize
     @AppStorage(EditorPrefs.lineSpacingKey) private var lineSpacing = EditorPrefs.defaultLineSpacing
-    @AppStorage(EditorPrefs.zoomKey)        private var zoom = EditorPrefs.defaultZoom
     @AppStorage("editorWrapWidth")          private var wrapWidth = 650.0
 
     @State private var controller = RichTextController()
 
-    /// The export typography this pane renders (nil formatItem = legacy).
-    private var documentFormat: ExportDocumentFormat? {
-        formatItem.map { store.effectiveExportFormat(for: $0, ref: versionRef) }
-    }
-
+    // EDITING TYPOGRAPHY IS THE READER'S, NOT THE JOURNAL'S.
+    //
+    // Every editor renders in the one typeface, size and spacing set in
+    // Settings → Editor, whatever journal the pane belongs to.  Two reasons:
+    // comparing two cuts side by side is only honest when both are set the
+    // same way — otherwise every line looks changed because one journal wants
+    // Arial at double spacing — and a writer should be able to read
+    // comfortably without altering what a journal receives.
+    //
+    // The EXPORT typography is a separate thing entirely, edited in each
+    // component's settings gear and never visible here.
     private var baseFont: NSFont {
-        if let format = documentFormat {
-            let scaled = format.fontSize * zoom
-            if let name = format.fontFamily.familyName,
-               let font = NSFont(name: name, size: scaled) { return font }
-            return .systemFont(ofSize: scaled)
-        }
-        return EditorTypography(family: family, size: size, lineSpacingMultiplier: lineSpacing).nsFont
+        EditorTypography(family: family, size: size, lineSpacingMultiplier: lineSpacing).nsFont
     }
 
-    private var effectiveLineSpacing: Double {
-        documentFormat?.lineSpacing ?? lineSpacing
-    }
+    private var effectiveLineSpacing: Double { lineSpacing }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -131,7 +129,7 @@ struct RichEditor: View {
                 )
                 if value.isEmpty {
                     Text(placeholder)
-                        .font(.system(size: documentFormat.map { $0.fontSize * zoom } ?? size))
+                        .font(.system(size: size))
                         .foregroundStyle(.tertiary)
                         .padding(.leading, EditorLayout.leftInset + 5)
                         .padding(.top, 18)
@@ -346,10 +344,11 @@ private struct FormatBar: View {
                 .fixedSize()
                 .help("Paragraph style — make this paragraph a header (H1–H3) or body text")
 
-                if let formatItem, ManuscriptStore.exportItemKey(for: formatItem) != nil {
-                    Divider().frame(height: 18).padding(.horizontal, 4)
-                    typographyCluster(formatItem)
-                }
+                // Font, size and spacing are NOT here: the editing typeface is
+                // a global reading preference (Settings → Editor), and the
+                // EXPORT typeface belongs to the component's settings gear.
+                // Keeping them on the writing toolbar conflated the two and
+                // made every pane look different from its neighbour.
             }
             .padding(.leading, EditorLayout.leftInset)   // align with the text column
             .padding(.trailing, 10)
@@ -369,57 +368,6 @@ private struct FormatBar: View {
         }
         .buttonStyle(.borderless)
         .help(help)
-    }
-
-    /// Export typography for this pane — font family, size, and spacing,
-    /// all the item's own override.  The editor re-renders live (it
-    /// displays the component's typography scaled by the personal zoom).
-    /// Heading options live beside the pane header's "H" button.
-    @ViewBuilder
-    private func typographyCluster(_ item: SidebarItem) -> some View {
-        let format = store.effectiveExportFormat(for: item, ref: versionRef)
-        Picker("", selection: Binding(
-            get: { format.fontFamily },
-            set: { family in mutateFormat(item) { $0.fontFamily = family } }
-        )) {
-            ForEach(ExportFontFamily.allCases) { family in
-                Text(family.shortLabel).tag(family)
-            }
-        }
-        .labelsHidden().controlSize(.small).fixedSize()
-        .help("Export font for this component")
-        HStack(spacing: 1) {
-            Text("\(Int(format.fontSize.rounded()))")
-                .font(.caption)
-                .monospacedDigit()
-            Stepper("", value: Binding(
-                get: { Int(format.fontSize.rounded()) },
-                set: { value in mutateFormat(item) { $0.fontSize = Double(min(max(value, 6), 99)) } }
-            ), in: 6...99)
-            .labelsHidden().controlSize(.mini)
-        }
-        .help("Export font size (pt)")
-        Picker("", selection: Binding(
-            get: { format.lineSpacing },
-            set: { spacing in mutateFormat(item) { $0.lineSpacing = spacing } }
-        )) {
-            Text("1×").tag(1.0)
-            Text("1.15").tag(1.15)
-            Text("1.5").tag(1.5)
-            Text("2×").tag(2.0)
-        }
-        .labelsHidden().controlSize(.small).fixedSize()
-        .help("Line spacing for this component")
-    }
-
-    private func mutateFormat(_ item: SidebarItem,
-                              _ change: @escaping (inout ExportDocumentFormat) -> Void) {
-        let seed = store.effectiveExportFormat(for: item, ref: versionRef)
-        store.updateExportEntry(for: item, ref: versionRef, mutateItem: { entry in
-            var format = entry.format ?? seed
-            change(&format)
-            entry.format = format
-        })
     }
 }
 

@@ -19,7 +19,9 @@ struct SettingsView: View {
     @AppStorage("autoSave")                  private var autoSave    = true
     @AppStorage(EditorPrefs.appearanceKey)   private var appearance  = AppearanceMode.system.rawValue
     @AppStorage(EditorPrefs.citationStyleKey) private var citationStyle = "n"
-    @AppStorage(EditorPrefs.zoomKey)          private var zoom = EditorPrefs.defaultZoom
+    @AppStorage(EditorPrefs.fontKey)          private var family = EditorPrefs.defaultFont
+    @AppStorage(EditorPrefs.fontSizeKey)      private var fontSize = EditorPrefs.defaultFontSize
+    @AppStorage(EditorPrefs.lineSpacingKey)   private var lineSpacing = EditorPrefs.defaultLineSpacing
 
     var body: some View {
         TabView {
@@ -70,16 +72,29 @@ struct SettingsView: View {
 
             Section("Editing") {
                 Toggle("Auto-save", isOn: $autoSave)
-                // Phase 2: editors render the DOCUMENT's typography (the
-                // journal's export format) — zoom is the personal comfort
-                // knob, a pure display scale that never touches the file.
-                LabeledContent("Display zoom") {
-                    Slider(value: $zoom, in: 1.0...2.0, step: 0.1)
-                    Text("\(Int((zoom * 100).rounded()))%")
+                // How the EDITORS look, everywhere, for everyone's comfort —
+                // never what a journal receives.  Keeping it global is what
+                // makes two cuts comparable side by side: set per journal,
+                // every line looked changed because one journal wanted Arial
+                // at double spacing.
+                Picker("Font", selection: $family) {
+                    Text("Serif").tag("Serif")
+                    Text("Sans").tag("Sans")
+                    Text("Mono").tag("Mono")
+                }
+                LabeledContent("Size") {
+                    Slider(value: $fontSize, in: 11...28, step: 1)
+                    Text("\(Int(fontSize)) pt")
                         .monospacedDigit()
                         .frame(width: 48)
                 }
-                Text("Editors show each section in its journal's export font, size, and spacing; zoom only scales the display.")
+                Picker("Line spacing", selection: $lineSpacing) {
+                    Text("1×").tag(1.0)
+                    Text("1.15").tag(1.15)
+                    Text("1.5").tag(1.5)
+                    Text("2×").tag(2.0)
+                }
+                Text("How the editors look while you write — the same everywhere, so two journals' cuts compare like for like. It never affects what a journal receives: each component's EXPORT font, size, and spacing live in its settings gear.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -94,13 +109,13 @@ struct SettingsView: View {
         .padding()
     }
 
-    /// A live sample of the zoom scale, over a representative 12 pt export
-    /// face (the actual face/size comes from each journal's export format).
+    /// A live sample of the editing typography — what the editors will
+    /// actually look like.
     private var proseSample: some View {
         let typography = EditorTypography(
-            family: EditorPrefs.defaultFont,
-            size: EditorPrefs.defaultFontSize * zoom,
-            lineSpacingMultiplier: EditorPrefs.defaultLineSpacing
+            family: family,
+            size: fontSize,
+            lineSpacingMultiplier: lineSpacing
         )
         return Text("The quick brown fox jumps over the lazy dog. Clear typography keeps long manuscripts comfortable to read and edit.")
             .font(typography.font)
