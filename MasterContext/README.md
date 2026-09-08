@@ -34,6 +34,7 @@ without re-deriving requirements from scattered prompts.
 | [08-engineering-standards.md](08-engineering-standards.md) | Code structure, documentation, testing, and known platform gotchas. |
 | [09-roadmap.md](09-roadmap.md) | Phase I & II (build now) vs Phase III (stub), and current build status. |
 | [10-performance-plan.md](10-performance-plan.md) | Audited performance/smoothness findings and the phased fix plan. |
+| [11-ai-integration.md](11-ai-integration.md) | **Plan (not built):** AI accounts, context, "AI active", the two first intents, and the local MCP server. |
 | [glossary.md](glossary.md) | Precise definitions of every domain term. |
 | [examples/](examples/) | Real UI reference images (editor bar, ruler, line numbers, notes, unsaved banner, lineage views) — embedded throughout the docs. |
 | [assets/](assets/) | Space for additional screenshots/mockups + design inspiration. |
