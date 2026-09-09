@@ -88,6 +88,46 @@ struct OverviewView: View {
         }
     }
 
+    /// What the AI row can point at: nothing, a model from a connector, or a
+    /// keyed API account.  One control, because a manuscript has one answer.
+    private enum AIChoice: Hashable {
+        case none
+        case connector(UUID, String)
+        case service(UUID)
+    }
+
+    private var aiChoice: Binding<AIChoice> {
+        Binding(
+            get: {
+                let settings = store.manuscript?.settings
+                if let id = settings?.activeConnectorID {
+                    return .connector(id, settings?.aiModel
+                                          ?? AIModelCatalog.defaultModel(for: .claudeCLI))
+                }
+                if let id = settings?.activeAIServiceID { return .service(id) }
+                return AIChoice.none
+            },
+            set: { choice in
+                guard var settings = store.manuscript?.settings else { return }
+                switch choice {
+                case .none:
+                    settings.activeConnectorID = nil
+                    settings.aiModel = nil
+                    settings.activeAIServiceID = nil
+                case .connector(let id, let model):
+                    settings.activeConnectorID = id
+                    settings.aiModel = model
+                    settings.activeAIServiceID = nil
+                case .service(let id):
+                    settings.activeConnectorID = nil
+                    settings.aiModel = nil
+                    settings.activeAIServiceID = id
+                }
+                store.updateManuscriptSettings(settings)
+            }
+        )
+    }
+
     private var settingsCard: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Settings")
@@ -126,13 +166,40 @@ struct OverviewView: View {
                 }
                 HStack(spacing: 8) {
                     Text("AI").font(.caption).foregroundStyle(.secondary).frame(width: 76, alignment: .leading)
-                    Picker("", selection: settingsBinding.activeAIServiceID) {
-                        Text("None").tag(Optional<UUID>.none)
-                        ForEach(appStore.aiServices) {
-                            Text("\($0.displayName) (\($0.provider.rawValue))").tag(Optional($0.id))
+                    // The MODEL is a manuscript decision, so it lives here
+                    // rather than on the connector: Settings answers "is this
+                    // tool installed and working", this answers "what does
+                    // this manuscript write with".  Models are grouped by the
+                    // connector that offers them.
+                    Picker("", selection: aiChoice) {
+                        Text("None").tag(AIChoice.none)
+                        ForEach(appStore.connectors.filter(\.isReady)) { connector in
+                            let models = AIModelCatalog.models(for: connector.kind)
+                            if models.isEmpty {
+                                Text(connector.kind.displayName)
+                                    .tag(AIChoice.connector(connector.id,
+                                                            AIModelCatalog.defaultModel(for: connector.kind)))
+                            } else {
+                                Section(connector.kind.displayName) {
+                                    ForEach(models) { model in
+                                        Text(model.label).tag(AIChoice.connector(connector.id, model.id))
+                                    }
+                                }
+                            }
+                        }
+                        if !appStore.aiServices.isEmpty {
+                            Section("API key") {
+                                ForEach(appStore.aiServices) {
+                                    Text("\($0.displayName)").tag(AIChoice.service($0.id))
+                                }
+                            }
                         }
                     }
                     .labelsHidden().controlSize(.small).fixedSize()
+                    if appStore.connectors.contains(where: { !$0.isReady }) {
+                        Text("Untested connectors are hidden — test them in Settings → Accounts.")
+                            .font(.caption2).foregroundStyle(.tertiary)
+                    }
                     Spacer()
                 }
             }

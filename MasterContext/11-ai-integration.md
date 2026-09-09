@@ -150,7 +150,14 @@ belongs.
 
 ### 3.3 Models, per connector
 
-The dropdown lists that connector's models — not a global list.
+**The model is chosen per manuscript, in Overview → Settings → AI — not on the
+connector.** Settings → Accounts answers "is this tool installed and signed
+in"; a manuscript answers "what does this one write with", and two manuscripts
+can reasonably want different models from the same connector. The Overview
+dropdown groups models under the connector that offers them, and hides
+connectors that have not tested green.
+
+The list per connector: 
 
 - **Claude Code** — curated from the current family, defaulting to
   **Claude Opus 5**: Fable 5.1, Fable 5, Opus 5, Opus 4.8, Opus 4.7, Opus 4.6,
@@ -333,7 +340,7 @@ worse than a frontier one.
 
 | Step | Deliverable | Why here |
 |---|---|---|
-| 1 | ✅ **Built** — `AIConnector`, path resolution, Test, settings rows (Claude Code only) | Everything else needs a way to reach a model |
+| 1 | ✅ **Built** — `AIConnector`, path resolution, Test, settings rows (Claude Code only); model choice in Overview | Everything else needs a way to reach a model |
 | 2 | Context model, `context/` storage, Overview table with the locked primer | Nothing can be prompted without it |
 | 3 | `AIIntent` + registry + the greppable convention + runners | The seam |
 | 4 | Prompt log (`ai/`, popup, diff) | Built *before* the first intent, so nothing ever runs unlogged |

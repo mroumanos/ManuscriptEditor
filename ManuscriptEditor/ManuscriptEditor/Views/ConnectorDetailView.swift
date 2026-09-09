@@ -17,19 +17,10 @@ struct ConnectorDetailView: View {
     let connector: AIConnector
 
     @State private var pathDraft = ""
-    @State private var modelDraft = ""
-    @State private var customModel = ""
     @State private var testing = false
     @State private var testMessage: String?
     @State private var testSucceeded: Bool?
 
-    private var catalog: [AIModelCatalog.Entry] { AIModelCatalog.models(for: connector.kind) }
-
-    /// A model the user typed that isn't in the curated list — kept selectable
-    /// so a newer CLI isn't blocked by a stale app release.
-    private var usingCustomModel: Bool {
-        !modelDraft.isEmpty && !catalog.contains { $0.id == modelDraft }
-    }
 
     var body: some View {
         Form {
@@ -92,50 +83,6 @@ struct ConnectorDetailView: View {
             }
 
             Section {
-                if catalog.isEmpty {
-                    TextField("Model id", text: $customModel)
-                        .textFieldStyle(.roundedBorder)
-                        .onSubmit { modelDraft = customModel; saveModel() }
-                } else {
-                    Picker("Model", selection: $modelDraft) {
-                        ForEach(catalog) { entry in
-                            Text(entry.label).tag(entry.id)
-                        }
-                        if usingCustomModel {
-                            Text(modelDraft).tag(modelDraft)
-                        }
-                        Divider()
-                        Text("Other…").tag("__custom__")
-                    }
-                    .onChange(of: modelDraft) { _, new in
-                        if new == "__custom__" {
-                            customModel = ""
-                        } else {
-                            saveModel()
-                        }
-                    }
-                    if modelDraft == "__custom__" {
-                        HStack {
-                            TextField("Model id (e.g. claude-sonnet-5)", text: $customModel)
-                                .textFieldStyle(.roundedBorder)
-                            Button("Use") {
-                                let trimmed = customModel.trimmingCharacters(in: .whitespaces)
-                                guard !trimmed.isEmpty else { return }
-                                modelDraft = trimmed
-                                saveModel()
-                            }
-                        }
-                    }
-                }
-                Text("The list is what this app knows about; it can go stale between releases. Test reports which model actually answered — a model your plan doesn't include will fail here rather than silently later.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            } header: {
-                Text("Model")
-            }
-
-            Section {
                 HStack(spacing: 10) {
                     Button {
                         Task { await runTest() }
@@ -158,6 +105,10 @@ struct ConnectorDetailView: View {
                     }
                     Spacer()
                 }
+                Text("Which model to use is chosen per manuscript, in Overview → Settings → AI. Test here just proves the tool is installed and signed in.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
                 if let message = statusMessage {
                     Label {
                         Text(message)
@@ -191,8 +142,6 @@ struct ConnectorDetailView: View {
 
     private func load() {
         pathDraft = connector.executablePath
-        modelDraft = connector.selectedModel
-        customModel = ""
         testMessage = nil
         testSucceeded = nil
     }
@@ -200,12 +149,6 @@ struct ConnectorDetailView: View {
     private func savePath() {
         var edited = connector
         edited.executablePath = pathDraft.trimmingCharacters(in: .whitespaces)
-        appStore.updateConnector(edited)
-    }
-
-    private func saveModel() {
-        var edited = connector
-        edited.selectedModel = modelDraft
         appStore.updateConnector(edited)
     }
 
@@ -229,7 +172,9 @@ struct ConnectorDetailView: View {
         defer { testing = false }
 
         var edited = connector
-        edited.selectedModel = modelDraft == "__custom__" ? customModel : modelDraft
+        if edited.selectedModel.isEmpty {
+            edited.selectedModel = AIModelCatalog.defaultModel(for: edited.kind)
+        }
 
         do {
             let result = try await AIConnectorRunner.run(

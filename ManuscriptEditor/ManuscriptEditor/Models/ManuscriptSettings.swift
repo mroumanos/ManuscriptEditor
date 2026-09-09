@@ -28,6 +28,14 @@ struct ManuscriptSettings: Codable, Sendable {
     /// `nil` means no AI configured; cut creation will be disabled.
     var activeAIServiceID: UUID?
 
+    /// The `AIConnector.id` this manuscript uses, and the model it asks that
+    /// connector for.  **The model belongs to the manuscript, not the
+    /// connector**: Settings answers "is this tool installed and working",
+    /// while a manuscript decides which model does its work — two manuscripts
+    /// can reasonably want different ones from the same connector.
+    var activeConnectorID: UUID?
+    var aiModel: String?
+
     /// The remote repository this manuscript syncs to, in "owner/name" form.
     /// Per-manuscript (two manuscripts can use one account with different
     /// repos).  nil = no remote configured yet.  Optional fields keep older

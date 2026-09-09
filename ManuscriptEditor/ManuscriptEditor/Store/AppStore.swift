@@ -88,6 +88,7 @@ final class AppStore {
     /// Called once at app launch.  Loads the saved app data if it exists and
     /// seeds the journal library from the built-in presets on first run.
     func load() {
+        hasLoaded = true
         if let data = try? Data(contentsOf: saveURL),
            let decoded = try? JSONDecoder().decode(AppData.self, from: data) {
             backends   = decoded.backends
@@ -145,8 +146,25 @@ final class AppStore {
         }
     }
 
+    /// True once `load()` has run.  Nothing may be written before it does.
+    private var hasLoaded = false
+
     /// Encodes and writes app data atomically.  Safe to call after any mutation.
+    ///
+    /// **Refuses to write before `load()`.**  Every array here starts empty, so
+    /// a save from a store that never loaded serialises those empties over a
+    /// populated `app.json` and takes the user's accounts with it.  That is not
+    /// hypothetical: a view presented outside the hierarchy that calls `load()`
+    /// did exactly this, and a single button press wiped stored backends.
     func save() {
+        guard hasLoaded else {
+            assertionFailure("AppStore.save() before load() — refusing to clobber app.json")
+            return
+        }
+        writeSnapshot()
+    }
+
+    private func writeSnapshot() {
         let snapshot = AppData(backends: backends, aiServices: aiServices,
                                views: views, journalLibrary: journalLibrary,
                                connectors: connectors)

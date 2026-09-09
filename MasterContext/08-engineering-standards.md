@@ -203,6 +203,18 @@ xcodebuild -scheme ManuscriptEditor -destination 'platform=macOS' build
     that slack a chunk that just fits pushes its own terminator onto a blank
     sheet.
 
+18. **A store must never write state it never read.** `AppStore.save()`
+    serialises whatever is in memory; every array starts empty, so a save from
+    an instance that never called `load()` writes those empties over a
+    populated `app.json` and takes the user's accounts with it. This is not
+    hypothetical — a view hosted outside the normal hierarchy (so the
+    `onAppear` that calls `load()` never ran) plus one button press wiped
+    stored backends, and only the Keychain secrets, which are keyed by account
+    id, made recovery possible. `save()` now refuses before `load()`:
+    `assertionFailure` in debug so it is found, a silent return in release so a
+    user is never harmed. Any new store with the same load/save shape needs the
+    same guard.
+
 ## Releasing
 
 `scripts/release.sh <version> [notes-file]` runs the whole pipeline: bump
