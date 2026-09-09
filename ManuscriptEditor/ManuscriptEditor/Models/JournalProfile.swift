@@ -46,10 +46,14 @@ enum ProfilePart: String, Codable, CaseIterable, Sendable {
 
     var fileName: String { "\(rawValue).json" }
 
+    /// What the user calls it.  The raw values stay `requirements`/`checks`
+    /// because they are the file names on disk, but "Summary" and "Tests" are
+    /// what these things actually are: a distilled summary of the journal's
+    /// instructions, and the tests that decide whether a cut satisfies them.
     var label: String {
         switch self {
-        case .requirements: return "Requirements"
-        case .checks:       return "Checks"
+        case .requirements: return "Summary"
+        case .checks:       return "Tests"
         case .structure:    return "Structure"
         }
     }
@@ -66,6 +70,12 @@ struct SourceRequirements: Codable, Sendable, Equatable {
     var url: String = ""
 
     /// One requirement per bullet, in the journal's own terms.
+    ///
+    /// Bullets are written in **standard categories** — `description:`,
+    /// `limits:`, `components:`, `format:`, `extra:` — so a summary reads the
+    /// same way for every journal and the interesting half (the limits) can be
+    /// found without reading the prose.  The prefix is a convention, not a
+    /// schema: a bullet without one still shows, ungrouped.
     var bullets: [String] = []
 
     /// When this was last edited in this manuscript.
@@ -73,6 +83,47 @@ struct SourceRequirements: Codable, Sendable, Equatable {
 
     var isEmpty: Bool {
         url.trimmingCharacters(in: .whitespaces).isEmpty && bullets.isEmpty
+    }
+
+    // MARK: - Categories
+
+    /// The standard categories, in the order a summary reads best: what this
+    /// format is, what it caps, what it is made of, how it is laid out, and
+    /// what else decides whether it is taken.
+    static let categoryOrder = ["description", "limits", "components", "format", "extra"]
+
+    /// Splits a bullet into its category and its text.
+    static func category(of bullet: String) -> (category: String?, text: String) {
+        guard let colon = bullet.firstIndex(of: ":") else { return (nil, bullet) }
+        let head = String(bullet[bullet.startIndex..<colon]).lowercased()
+        guard categoryOrder.contains(head) else { return (nil, bullet) }
+        let rest = bullet[bullet.index(after: colon)...]
+        return (head, String(rest).trimmingCharacters(in: .whitespaces))
+    }
+
+    /// How many bullets sit in each category, for the one-line detail.
+    static func categoryCounts(_ bullets: [String]) -> [String: Int] {
+        var counts: [String: Int] = [:]
+        for bullet in bullets {
+            if let key = category(of: bullet).category { counts[key, default: 0] += 1 }
+        }
+        return counts
+    }
+
+    /// The bullets grouped for display, categories first in standard order,
+    /// then anything uncategorised.
+    static func grouped(_ bullets: [String]) -> [(category: String?, items: [String])] {
+        var out: [(String?, [String])] = []
+        for key in categoryOrder {
+            let items = bullets.compactMap { bullet -> String? in
+                let parsed = category(of: bullet)
+                return parsed.category == key ? parsed.text : nil
+            }
+            if !items.isEmpty { out.append((key, items)) }
+        }
+        let loose = bullets.filter { category(of: $0).category == nil }
+        if !loose.isEmpty { out.append((nil, loose)) }
+        return out
     }
 
     /// The bullets as editable plain text — one per line.  Pasted bullet

@@ -273,6 +273,11 @@ struct ContentView: View {
 
     private func notificationLayerA(_ content: some View) -> some View {
         content
+        .onReceive(NotificationCenter.default.publisher(for: .showPane)) { note in
+            // One pane sending you to another — the journal profile's Export
+            // row is the only sender today.
+            if (note.userInfo?["pane"] as? String) == "export" { selection = .export }
+        }
         .onReceive(NotificationCenter.default.publisher(for: .newManuscript)) { _ in
             if store.manuscript == nil { createInAppData() } else { pendingNew = .file }
         }

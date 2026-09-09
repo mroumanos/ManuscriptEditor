@@ -808,6 +808,29 @@ legible.
 
 ![Detailed lineage between two journals](examples/lineage-detailed.png)
 
+### Journal profile pane (Sep 2026 — implemented)
+
+- AC: The pane reads **Summary · Structure · Export**, each a row that opens —
+  Summary and Structure into their editors, Export into the Export pane
+  (`.showPane`), because a journal's formatting rules are part of its
+  configuration but are edited there and a second editor would be worse.
+- AC: Below them, **Tests** — renamed from Checks, because each one tests a
+  requirement stated in the Summary or the Structure. Same editor popup, now
+  reached from a button beside the heading. Every required structure section
+  also gets its own `EXISTS` test, so a missing section names itself rather
+  than hiding inside one "matches the structure" verdict.
+- AC: Summary bullets use a standard vocabulary — `description:` / `limits:` /
+  `components:` / `format:` / `extra:` — grouped on display, counted in the
+  row's detail. The link at the top is always the authority; the summary is a
+  distillation, not a substitute.
+- AC: Saving to the library **captures the cut's own active sections** into the
+  structure (hidden sections excluded — switching one off is how you say it
+  isn't part of this submission), keeping the note and kind of entries already
+  there and preserving required sections the cut doesn't have yet.
+- AC: **Update From Library** does the other direction, which had no path at
+  all: a profile corrected in the library could never reach the manuscript that
+  needed it. It replaces the three profile files only, and ⌘Z undoes it.
+
 ### Sync redesign (Aug 2026 — implemented)
 
 - AC: Each journal row in Overview's lineage card has two sync buttons:

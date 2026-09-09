@@ -1313,12 +1313,50 @@ final class ManuscriptStore {
         JournalProfileLibrary.shared.status(of: journal.profile)
     }
 
+    /// The other direction: replaces this journal's configuration with the
+    /// library's copy.
+    ///
+    /// Saving pushed the manuscript's configuration into the library and there
+    /// was no way back, so a profile corrected in the library — a fixed link,
+    /// a limit read properly off the journal's page — could never reach the
+    /// manuscript that needed it.  The manuscript is still the authority on
+    /// its own content; this replaces only the three profile files.
+    @discardableResult
+    func adoptLibraryProfile(journalID: UUID) -> Bool {
+        guard let journal = manuscript?.journals.first(where: { $0.id == journalID })
+        else { return false }
+        let library = JournalProfileLibrary.shared
+        guard let profile = journal.profileID.flatMap({ library.profile(id: $0) })
+                ?? library.profile(name: journal.name, articleType: journal.articleType)
+        else {
+            showBanner(.error, "Your library has no profile for \(journal.displayName).")
+            return false
+        }
+        touch(undoAction: "Update From Library") { m in
+            guard let idx = m.journals.firstIndex(where: { $0.id == journalID }) else { return }
+            m.journals[idx].sourceRequirements = profile.requirements
+            m.journals[idx].checkRules = profile.checks
+            m.journals[idx].structure = profile.structure
+            m.journals[idx].profileID = profile.id
+            m.journals[idx].profileLineage = profile.lineage.isEmpty ? nil : profile.lineage
+            m.journals[idx].configOrigin = profile.origin
+            m.journals[idx].configURL = profile.originURL
+            if m.journals[idx].submissionURL.isEmpty {
+                m.journals[idx].submissionURL = profile.requirements.url
+            }
+        }
+        writeProfile(journalID: journalID)
+        showBanner(.success, "\(journal.displayName) updated from your journal library — \(profile.requirements.bullets.count) requirements, \(profile.checks.count) tests.")
+        return true
+    }
+
     /// Overwrites a library profile with this journal's configuration.
     ///
     /// `replacingID` is the library entry to take over — its GUID wins, and
     /// the manuscript adopts it, so the two stay linked from then on.  With
     /// no `replacingID` this simply writes the profile under its own GUID.
     func saveProfileToLibrary(journalID: UUID, replacingID: UUID? = nil) {
+        captureStructureFromSections(journalID: journalID)
         guard let journal = manuscript?.journals.first(where: { $0.id == journalID }) else { return }
         var profile = journal.profile
         if let replacingID {
@@ -1339,6 +1377,44 @@ final class ManuscriptStore {
         showBanner(.success, "\(journal.displayName) saved to your journal library.")
     }
 
+    /// Folds this cut's own sections into the journal's structure.
+    ///
+    /// The structure file is meant to say what a submission for this journal
+    /// contains — and the truth about that is the cut you actually built, not
+    /// a list typed in beforehand.  So saving to the library captures every
+    /// **active** section (hidden ones are deliberately excluded: switching a
+    /// section off is how you say it isn't part of this submission), keeping
+    /// the note and kind of any entry that was already there.
+    ///
+    /// Sections the structure names but the cut doesn't have are kept: they
+    /// are requirements this cut has yet to meet, which is exactly what a
+    /// structure test is for.
+    func captureStructureFromSections(journalID: UUID) {
+        guard let content = latestVersion(forJournal: journalID)?.content ?? manuscript
+        else { return }
+        let existing = manuscript?.journals.first { $0.id == journalID }?.structure?.sections ?? []
+        let byTitle = Dictionary(existing.map { ($0.title.lowercased(), $0) },
+                                 uniquingKeysWith: { first, _ in first })
+
+        var captured: [StructureSection] = []
+        for section in content.sections.filter(\.active).sorted(by: { $0.order < $1.order }) {
+            var entry = byTitle[section.title.lowercased()]
+                ?? StructureSection(title: section.title)
+            entry.title = section.title
+            entry.kind = section.sectionKind
+            captured.append(entry)
+        }
+        // Anything the structure required that this cut doesn't have yet.
+        let capturedTitles = Set(captured.map { $0.title.lowercased() })
+        captured += existing.filter { !capturedTitles.contains($0.title.lowercased()) }
+
+        let structure = JournalStructure(sections: captured)
+        touch(undoable: false) { m in
+            guard let idx = m.journals.firstIndex(where: { $0.id == journalID }) else { return }
+            m.journals[idx].structure = structure
+        }
+    }
+
     /// Branches this journal's configuration into a NEW library profile
     /// instead of overwriting what's there.
     ///
@@ -1347,6 +1423,7 @@ final class ManuscriptStore {
     /// ancestor is told this is a MODIFIED version of what they have, and is
     /// offered the same two choices in turn.
     func branchProfileToLibrary(journalID: UUID, named name: String) {
+        captureStructureFromSections(journalID: journalID)
         guard let journal = manuscript?.journals.first(where: { $0.id == journalID }) else { return }
         var profile = journal.profile
         // The new profile descends from the one it was branched off, plus

@@ -38,6 +38,7 @@ struct ChecksView: View {
     @State private var editingRules = false
     @State private var editingStructure = false
     @State private var savingToLibrary = false
+    @State private var adoptingLibrary = false
 
     var body: some View {
         ScrollView {
@@ -69,6 +70,15 @@ struct ChecksView: View {
             if let journal = paneJournal {
                 StructureEditorSheet(journal: journal, isPresented: $editingStructure)
             }
+        }
+        .confirmationDialog("Replace this journal's configuration with your library's copy?",
+                            isPresented: $adoptingLibrary, titleVisibility: .visible) {
+            Button("Update From Library") {
+                if let journal = paneJournal { store.adoptLibraryProfile(journalID: journal.id) }
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("The summary, structure and tests are replaced. Nothing you have written is touched, and ⌘Z undoes it.")
         }
         .sheet(isPresented: $savingToLibrary) {
             if let journal = paneJournal {
@@ -102,6 +112,18 @@ struct ChecksView: View {
                 modifiedTag
             }
             if status.canSave {
+                // Both directions, side by side: push this manuscript's
+                // configuration into the library, or take the library's.
+                // Only having the first one meant a profile corrected in the
+                // library could never reach the manuscript that needed it.
+                if status.isModified {
+                    Button {
+                        adoptingLibrary = true
+                    } label: {
+                        Label("Update From Library", systemImage: "arrow.down.circle")
+                    }
+                    .help("Replace this journal's summary, structure and tests with your library's copy. Your manuscript's content is untouched.")
+                }
                 Button {
                     savingToLibrary = true
                 } label: {
@@ -146,35 +168,30 @@ struct ChecksView: View {
         }
     }
 
-    // MARK: - Configuration (the three files)
+    // MARK: - The journal's configuration
 
-    /// The journal's three configuration files, each with its own drift
-    /// warning: knowing WHICH half moved is the point of splitting them.
+    /// What this journal expects, in three openable rows.
+    ///
+    /// Summary and Structure are the profile's own files; **Export** is here
+    /// because a journal's formatting rules are part of its configuration even
+    /// though they are edited in the Export pane — so the row states them and
+    /// sends you there rather than growing a second editor for the same thing.
+    /// The tests are no longer a row: they are the section below, because they
+    /// are what the whole pane is for.
     @ViewBuilder
     private func configuration(_ journal: Journal) -> some View {
         let flagged = store.libraryStatus(for: journal).flaggedParts
         let requirements = journal.sourceRequirements ?? SourceRequirements()
-        let checks = journal.checkRules ?? []
         let structure = journal.structure ?? JournalStructure()
 
         VStack(alignment: .leading, spacing: 0) {
             configRow(
                 .requirements,
                 detail: requirements.bullets.isEmpty
-                    ? "No requirements yet"
-                    : "\(requirements.bullets.count) requirement\(requirements.bullets.count == 1 ? "" : "s")",
+                    ? "No summary yet"
+                    : summaryDetail(requirements),
                 flagged: flagged.contains(.requirements)
             ) { editingRequirements = true }
-
-            Divider()
-
-            configRow(
-                .checks,
-                detail: checks.isEmpty
-                    ? "No checks yet"
-                    : "\(checks.filter { !$0.isManual }.count) automatic · \(checks.filter(\.isManual).count) manual",
-                flagged: flagged.contains(.checks)
-            ) { editingRules = true }
 
             Divider()
 
@@ -185,9 +202,60 @@ struct ChecksView: View {
                     : "\(structure.sections.count) section\(structure.sections.count == 1 ? "" : "s") · \(structure.requiredTitles.count) required",
                 flagged: flagged.contains(.structure)
             ) { editingStructure = true }
+
+            Divider()
+
+            exportRow(journal)
         }
         .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
         .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.separator))
+    }
+
+    /// "38 requirements · 7 limits, 9 components" — the summary's own shape,
+    /// since its bullets are written in standard categories.
+    private func summaryDetail(_ requirements: SourceRequirements) -> String {
+        let counts = SourceRequirements.categoryCounts(requirements.bullets)
+        let parts = SourceRequirements.categoryOrder
+            .compactMap { key in counts[key].map { "\($0) \(key)" } }
+        let total = "\(requirements.bullets.count) requirement\(requirements.bullets.count == 1 ? "" : "s")"
+        return parts.isEmpty ? total : "\(total) · \(parts.joined(separator: ", "))"
+    }
+
+    /// The export row: what this journal's outline produces, and a way in.
+    @ViewBuilder
+    private func exportRow(_ journal: Journal) -> some View {
+        let config = journal.exportConfig
+        HStack(spacing: 10) {
+            Image(systemName: "square.and.arrow.up")
+                .foregroundStyle(.secondary)
+                .frame(width: 18)
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Export").fontWeight(.medium)
+                Text(exportDetail(config))
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Spacer()
+            Button("Open…") {
+                NotificationCenter.default.post(name: .showPane, object: nil,
+                                                userInfo: ["pane": "export"])
+            }
+            .controlSize(.small)
+            .help("Export formatting is part of this journal's configuration — edited in the Export pane")
+        }
+        .padding(.vertical, 10)
+        .padding(.horizontal, 14)
+        .contentShape(Rectangle())
+    }
+
+    private func exportDetail(_ config: ExportConfig?) -> String {
+        guard let config, !config.documents.isEmpty else {
+            return "Not configured — the standard outline is used"
+        }
+        let format = config.documents[0].format
+        let documents = "\(config.documents.count) document\(config.documents.count == 1 ? "" : "s")"
+        return "\(documents) · \(String(format: "%g", format.fontSize)) pt · "
+            + "\(String(format: "%g", format.lineSpacing))× spacing · "
+            + (format.lineNumbers ? "line numbers on" : "line numbers off")
     }
 
     private func configRow(_ part: ProfilePart, detail: String, flagged: Bool,
@@ -236,6 +304,7 @@ struct ChecksView: View {
                                                figureURL: { store.figureURL(for: $0) })
             let technical = results.filter { !$0.manual }
             let manualRules = results.filter(\.manual)
+            testsHeader(journal, results: results)
             summaryBanner(results)
             if !technical.isEmpty {
                 sectionHeader("Technical", note: "checked automatically against the manuscript and export")
@@ -257,11 +326,39 @@ struct ChecksView: View {
                 }
             }
             if results.isEmpty {
-                Text("This journal has no checks configured yet — open Checks above to add them.")
+                Text("This journal has no tests yet — Edit Tests… turns its requirements into ones the app can check.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
         }
+    }
+
+    /// The heading the pane is really about.
+    ///
+    /// "Tests", not "Checks": each one is a test of a requirement stated in the
+    /// Summary or the Structure above, and the whole list is how a cut proves
+    /// it can be submitted.  The editor is the same popup as before.
+    @ViewBuilder
+    private func testsHeader(_ journal: Journal, results: [ChecklistResult]) -> some View {
+        let flagged = store.libraryStatus(for: journal).flaggedParts.contains(.checks)
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text("Tests").font(.headline)
+            if flagged {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.yellow)
+                Text("MODIFIED")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.orange)
+                    .help("This journal's tests differ from your library — Update Library… to reconcile them.")
+            }
+            Text("one per requirement above, evaluated against this cut")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+            Spacer()
+            Button("Edit Tests…") { editingRules = true }
+                .controlSize(.small)
+        }
+        .padding(.top, 12)
     }
 
     private func sectionHeader(_ title: String, note: String) -> some View {
@@ -369,10 +466,15 @@ struct ChecklistRow: View {
 
 // MARK: - SourceRequirementsSheet
 
-/// The journal's own instructions: a link to the page they came from and the
-/// distilled bullets.  One requirement per line, because that is how journals
-/// publish them — and free text, because no schema survives contact with a
-/// real set of author instructions.
+/// **Summary** — the journal's own instructions, distilled.
+///
+/// One requirement per line, because that is how journals publish them, and
+/// free text, because no schema survives contact with a real set of author
+/// instructions.  What it does have is a **standard vocabulary**: bullets are
+/// written as `description:`, `limits:`, `components:`, `format:` or `extra:`,
+/// which groups them here and makes the limits — the half that becomes tests —
+/// findable without reading the prose.  Anything deeper belongs to the journal:
+/// the link at the top is always the authority.
 struct SourceRequirementsSheet: View {
     @Environment(ManuscriptStore.self) private var store
 
@@ -391,8 +493,8 @@ struct SourceRequirementsSheet: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("\(journal.displayName) — Requirements").font(.headline)
-                    Text("The journal's own instructions, distilled. Checks are what the app enforces.")
+                    Text("\(journal.displayName) — Summary").font(.headline)
+                    Text("The journal's instructions, distilled. The tests below the pane are what the app enforces.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -422,9 +524,10 @@ struct SourceRequirementsSheet: View {
                         .font(.caption)
                     PlainTextEditor(text: $bulletDraft)
                         .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(.separator))
-                    Text("One requirement per line. Leading bullet characters are stripped, so pasting from the journal's page works.")
+                    Text("One requirement per line. Start each with a category — description: / limits: / components: / format: / extra: — to keep the summary readable. Leading bullet characters are stripped, so pasting from the journal's page works.")
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 .padding(14)
             } else {
@@ -439,17 +542,26 @@ struct SourceRequirementsSheet: View {
                             .help(link)
                         }
                         if requirements.bullets.isEmpty {
-                            Text("No requirements yet — Edit to paste this journal's instructions, one per line.")
+                            Text("No summary yet — Edit to paste this journal's instructions, one per line.")
                                 .font(.callout)
                                 .foregroundStyle(.tertiary)
                         } else {
-                            ForEach(Array(requirements.bullets.enumerated()), id: \.offset) { _, bullet in
-                                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                                    Text("•").foregroundStyle(.tertiary)
-                                    Text(bullet)
-                                        .textSelection(.enabled)
-                                        .fixedSize(horizontal: false, vertical: true)
+                            ForEach(Array(SourceRequirements.grouped(requirements.bullets).enumerated()),
+                                    id: \.offset) { _, group in
+                                VStack(alignment: .leading, spacing: 5) {
+                                    Text((group.category ?? "other").uppercased())
+                                        .font(.caption2.weight(.semibold))
+                                        .foregroundStyle(.tertiary)
+                                    ForEach(Array(group.items.enumerated()), id: \.offset) { _, item in
+                                        HStack(alignment: .firstTextBaseline, spacing: 8) {
+                                            Text("•").foregroundStyle(.tertiary)
+                                            Text(item)
+                                                .textSelection(.enabled)
+                                                .fixedSize(horizontal: false, vertical: true)
+                                        }
+                                    }
                                 }
+                                .padding(.top, 4)
                             }
                         }
                     }

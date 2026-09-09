@@ -104,6 +104,11 @@ struct ManuscriptCommands: Commands {
 /// Strongly-typed notification names used to communicate between the menu bar and
 /// `ContentView`.  Using named extensions avoids typos that would come from raw strings.
 extension Notification.Name {
+    /// Asks `ContentView` to switch panes (userInfo["pane"] = SidebarItem raw
+    /// value).  The journal profile's Export row uses it: export formatting is
+    /// part of a journal's configuration, but it is edited in Export, and
+    /// duplicating that editor would be worse than sending you there.
+    static let showPane = Notification.Name("ManuscriptEditor.showPane")
     /// Posted when the user chooses File → New Manuscript (⌘N).
     static let newManuscript  = Notification.Name("ManuscriptEditor.newManuscript")
     /// Posted when the user chooses File → Open Manuscript (Local)… (⌘O).
