@@ -52,12 +52,6 @@ private enum AnyAccount: Identifiable {
         }
     }
 
-    var isConnector: Bool {
-        if case .connector = self { return true }
-        return false
-    }
-
-
 }
 
 // MARK: - AccountsView
@@ -133,24 +127,12 @@ struct AccountsView: View {
                                     .help(ok ? "Tested just now — working"
                                              : "Tested just now — failed")
                             }
-                            // Connectors are removed from the detail pane, out
-                            // of reach of a mis-click in a list you scroll.
-                            if !account.isConnector {
-                                Button {
-                                    delete(account)
-                                } label: {
-                                    Image(systemName: "minus.circle.fill")
-                                        .foregroundStyle(.red)
-                                }
-                                .buttonStyle(.plain)
-                                .help("Remove this account (its Keychain secret included)")
-                            }
+                            // No delete button in the list: every account is
+                            // removed from the bottom of its detail pane,
+                            // out of reach of a mis-click in a list you scroll.
                         }
                         .padding(.vertical, 3)
                         .tag(account.id)
-                        .contextMenu {
-                            Button("Delete Account", role: .destructive) { delete(account) }
-                        }
                     }
                 }
                 .listStyle(.plain)
@@ -181,10 +163,14 @@ struct AccountsView: View {
     private var detail: some View {
         if let id = selectedID,
            let backend = appStore.backends.first(where: { $0.id == id }) {
-            BackendAccountForm(account: backend)
+            BackendAccountForm(account: backend,
+                               testedThisSession: $testedThisSession,
+                               onRemove: { delete(.backend(backend)) })
         } else if let id = selectedID,
                   let ai = appStore.aiServices.first(where: { $0.id == id }) {
-            AIAccountForm(account: ai)
+            AIAccountForm(account: ai,
+                          testedThisSession: $testedThisSession,
+                          onRemove: { delete(.ai(ai)) })
         } else if let id = selectedID,
                   let connector = appStore.connectors.first(where: { $0.id == id }) {
             ConnectorDetailView(connector: connector,
@@ -224,6 +210,8 @@ struct AccountsView: View {
 
 private struct TestConnectionRow: View {
     let run: () async throws -> String
+    /// Reported so the list can show the session dot — see `AccountsView`.
+    var onResult: ((Bool) -> Void)? = nil
 
     @State private var isTesting = false
     @State private var result: Result<String, Error>?
@@ -234,8 +222,8 @@ private struct TestConnectionRow: View {
                 isTesting = true
                 result = nil
                 Task {
-                    do { result = .success(try await run()) }
-                    catch { result = .failure(error) }
+                    do { result = .success(try await run()); onResult?(true) }
+                    catch { result = .failure(error); onResult?(false) }
                     isTesting = false
                 }
             } label: {
@@ -273,10 +261,12 @@ private struct SecretTestField: View {
     let prompt: String
     @Binding var secret: String
     let run: () async throws -> String
+    var saveFailed = false
+    /// Reported so the list can show the session dot — see `AccountsView`.
+    var onResult: ((Bool) -> Void)? = nil
 
     @State private var isTesting = false
     @State private var result: Result<String, Error>?
-    var saveFailed = false
 
     var body: some View {
         HStack(spacing: 8) {
@@ -287,8 +277,8 @@ private struct SecretTestField: View {
                 isTesting = true
                 result = nil
                 Task {
-                    do { result = .success(try await run()) }
-                    catch { result = .failure(error) }
+                    do { result = .success(try await run()); onResult?(true) }
+                    catch { result = .failure(error); onResult?(false) }
                     isTesting = false
                 }
             } label: {
@@ -330,17 +320,61 @@ private struct SecretTestField: View {
     }
 }
 
+// MARK: - Removal (same shape for every account flavour)
+
+/// The last section of every detail pane: one red button behind a
+/// confirmation.  Deleting an account is not a list gesture — it is a decision
+/// made while looking at the account you mean.
+struct RemoveAccountSection: View {
+    let label: String
+    let confirmTitle: String
+    let confirmMessage: String
+    let note: String
+    let onRemove: () -> Void
+
+    @State private var confirming = false
+
+    var body: some View {
+        Section {
+            Button(role: .destructive) {
+                confirming = true
+            } label: {
+                Label(label, systemImage: "trash")
+                    .foregroundStyle(.red)
+            }
+            Text(note)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .confirmationDialog(confirmTitle, isPresented: $confirming, titleVisibility: .visible) {
+            Button("Remove", role: .destructive) { onRemove() }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text(confirmMessage)
+        }
+    }
+}
+
 // MARK: - Backend account form
 
 struct BackendAccountForm: View {
     @Environment(AppStore.self) private var appStore
     let account: BackendAccount
+    /// Test results for this window's lifetime — see `AccountsView`.
+    @Binding var testedThisSession: [UUID: Bool]
+    let onRemove: () -> Void
+
     @State private var draft: BackendAccount
     @State private var token: String
     @State private var tokenSaveFailed = false
 
-    init(account: BackendAccount) {
+    init(account: BackendAccount,
+         testedThisSession: Binding<[UUID: Bool]>,
+         onRemove: @escaping () -> Void) {
         self.account = account
+        _testedThisSession = testedThisSession
+        self.onRemove = onRemove
         _draft = State(initialValue: account)
         _token = State(initialValue: KeychainService.secret(for: account.id) ?? "")
     }
@@ -359,7 +393,8 @@ struct BackendAccountForm: View {
                     SecretTestField(prompt: "Personal access token",
                                     secret: $token,
                                     run: { try await AccountTesting.test(backend: draft) },
-                                    saveFailed: tokenSaveFailed)
+                                    saveFailed: tokenSaveFailed,
+                                    onResult: { testedThisSession[account.id] = $0 })
                     if draft.provider == .github {
                         Text("Fine-grained token with Contents read & write (plus \"Administration\" if you'll create repositories from the app). Stored in your Keychain only.")
                             .font(.caption)
@@ -372,6 +407,13 @@ struct BackendAccountForm: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
+
+                RemoveAccountSection(
+                    label: "Remove Account",
+                    confirmTitle: "Remove “\(draft.displayName)”?",
+                    confirmMessage: "The token is deleted from your Keychain. Manuscripts syncing to it stay local until you pick another account. Nothing on \(draft.provider.rawValue) is touched.",
+                    note: "Removes this account and its Keychain token from the app.",
+                    onRemove: onRemove)
             }
             .formStyle(.grouped)
         }
@@ -392,11 +434,19 @@ struct BackendAccountForm: View {
 struct AIAccountForm: View {
     @Environment(AppStore.self) private var appStore
     let account: AIServiceAccount
+    /// Test results for this window's lifetime — see `AccountsView`.
+    @Binding var testedThisSession: [UUID: Bool]
+    let onRemove: () -> Void
+
     @State private var draft: AIServiceAccount
     @State private var key: String
 
-    init(account: AIServiceAccount) {
+    init(account: AIServiceAccount,
+         testedThisSession: Binding<[UUID: Bool]>,
+         onRemove: @escaping () -> Void) {
         self.account = account
+        _testedThisSession = testedThisSession
+        self.onRemove = onRemove
         _draft = State(initialValue: account)
         _key = State(initialValue: KeychainService.secret(for: account.id) ?? "")
     }
@@ -415,7 +465,8 @@ struct AIAccountForm: View {
                     if draft.provider.requiresAPIKey {
                         SecretTestField(prompt: "API key",
                                         secret: $key,
-                                        run: { try await AccountTesting.test(aiService: draft) })
+                                        run: { try await AccountTesting.test(aiService: draft) },
+                                        onResult: { testedThisSession[account.id] = $0 })
                         Text("Stored in your Keychain only — never in app or manuscript files.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -423,7 +474,8 @@ struct AIAccountForm: View {
                         Text("No key needed — connects to the local service.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                        TestConnectionRow { try await AccountTesting.test(aiService: draft) }
+                        TestConnectionRow(run: { try await AccountTesting.test(aiService: draft) },
+                                          onResult: { testedThisSession[account.id] = $0 })
                     }
                 }
 
@@ -432,6 +484,13 @@ struct AIAccountForm: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
+
+                RemoveAccountSection(
+                    label: "Remove Account",
+                    confirmTitle: "Remove “\(draft.displayName)”?",
+                    confirmMessage: "The API key is deleted from your Keychain. Manuscripts using it fall back to no AI until you pick another.",
+                    note: "Removes this account and its Keychain key from the app.",
+                    onRemove: onRemove)
             }
             .formStyle(.grouped)
         }

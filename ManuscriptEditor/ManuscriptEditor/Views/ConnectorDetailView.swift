@@ -19,8 +19,6 @@ struct ConnectorDetailView: View {
     @Binding var testedThisSession: [UUID: Bool]
     let onRemove: () -> Void
 
-    @State private var confirmingRemove = false
-
     @State private var pathDraft = ""
     @State private var testing = false
     @State private var testMessage: String?
@@ -130,25 +128,12 @@ struct ConnectorDetailView: View {
                 Text("Status")
             }
 
-            Section {
-                Button(role: .destructive) {
-                    confirmingRemove = true
-                } label: {
-                    Label("Remove Connector", systemImage: "trash")
-                        .foregroundStyle(.red)
-                }
-                Text("Removes this connection from the app. The tool itself and your sign-in are untouched.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-        .confirmationDialog("Remove the \(connector.kind.displayName) connection?",
-                            isPresented: $confirmingRemove, titleVisibility: .visible) {
-            Button("Remove", role: .destructive) { onRemove() }
-            Button("Cancel", role: .cancel) { }
-        } message: {
-            Text("Manuscripts using it will fall back to no AI until you pick another.")
+            RemoveAccountSection(
+                label: "Remove Connector",
+                confirmTitle: "Remove the \(connector.kind.displayName) connection?",
+                confirmMessage: "Manuscripts using it fall back to no AI until you pick another.",
+                note: "Removes this connection from the app. The tool itself and your sign-in are untouched.",
+                onRemove: onRemove)
         }
         .formStyle(.grouped)
         .padding()

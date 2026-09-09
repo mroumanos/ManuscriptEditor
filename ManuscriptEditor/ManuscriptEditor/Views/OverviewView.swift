@@ -31,7 +31,6 @@ struct OverviewView: View {
                 VStack(alignment: .leading, spacing: 28) {
                     summaryCard
                     settingsCard
-                    contextCard
                     JournalLineageCard()
                 }
                 .padding(28)
@@ -203,6 +202,23 @@ struct OverviewView: View {
                     }
                     Spacer()
                 }
+                // The context table hangs off the model picker, because it is
+                // the same decision continued: having said *who* answers, this
+                // says what they are allowed to read.  With no model chosen
+                // there is nobody to send anything to, so it stays away.
+                if hasAIModel {
+                    HStack(alignment: .top, spacing: 8) {
+                        Text("Context").font(.caption).foregroundStyle(.secondary)
+                            .frame(width: 76, alignment: .leading)
+                            .padding(.top, 6)
+                        VStack(alignment: .leading, spacing: 6) {
+                            AIContextTable()
+                            Text("Ticked rows are sent with every AI request from this manuscript. Unticked rows are never sent.")
+                                .font(.caption2).foregroundStyle(.tertiary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                }
             }
             .padding(14)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -221,49 +237,10 @@ struct OverviewView: View {
         }
     }
 
-    // MARK: - Context card
-
-    /// What an AI request is allowed to see.
-    ///
-    /// It sits directly under Settings because the model choice above and the
-    /// context here are the same decision made twice: *who* answers, and *what
-    /// they get to read*.  It is shown whether or not a model is selected —
-    /// deciding what is shareable shouldn't require turning AI on first.
-    private var contextCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text("AI Context")
-                    .font(.headline)
-                    .foregroundStyle(.secondary)
-                Text(selectedModelLabel ?? "No model selected")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-                Spacer()
-            }
-            Text("Ticked rows are sent with every AI request from this manuscript. Unticked rows are never sent.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            AIContextTable()
-                .frame(maxWidth: 640)
-        }
-        .frame(maxWidth: 640, alignment: .leading)
-    }
-
-    /// The model this manuscript writes with, named the way the picker names it.
-    private var selectedModelLabel: String? {
+    /// Whether this manuscript has somewhere to send a request.
+    private var hasAIModel: Bool {
         let settings = store.manuscript?.settings
-        if let id = settings?.activeConnectorID,
-           let connector = appStore.connectors.first(where: { $0.id == id }) {
-            let model = settings?.aiModel ?? connector.selectedModel
-            let label = AIModelCatalog.models(for: connector.kind)
-                .first { $0.id == model }?.label
-            return label ?? connector.kind.displayName
-        }
-        if let id = settings?.activeAIServiceID,
-           let service = appStore.aiServices.first(where: { $0.id == id }) {
-            return service.displayName
-        }
-        return nil
+        return settings?.activeConnectorID != nil || settings?.activeAIServiceID != nil
     }
 
     // MARK: - Summary card

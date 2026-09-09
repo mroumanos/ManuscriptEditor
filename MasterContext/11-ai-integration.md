@@ -118,6 +118,19 @@ backend and AI-service rows:
 - Ollama's row has a URL instead of a path (`http://localhost:11434`), same
   shape otherwise.
 
+**One shape for every account.** Connectors, storage backends and API-key AI
+services all follow the same two rules, in `RemoveAccountSection` and
+`AccountsView.testedThisSession`:
+
+- **Removal is the last section of the detail pane** — one red button behind a
+  confirmation, never a minus in the list or a context-menu item. Deleting an
+  account (and its Keychain secret) is a decision made while looking at the
+  account you mean, not a gesture in a list you scroll.
+- **The status dot is scoped to the settings window.** It appears when a test
+  succeeds or fails and disappears when the window closes. A tick read back from
+  storage claims live status for a token that may have been revoked, or a tool
+  uninstalled, since it was written.
+
 ### 3.1 Resolving the executable — the real risk
 
 **A GUI app launched from Finder does not inherit the shell's `PATH`.** `claude`,
@@ -191,9 +204,13 @@ name; fold it into this UI once the AI connectors have proved the pattern.
 ## 4. Context
 
 > **Built.** `Models/AIContext.swift`, the store block in `ManuscriptStore`
-> (`aiContextEntries` … `aiContextBundle()`), `Views/AIContextTable.swift`,
-> shown in Overview under Settings. §4.3's AI button waits for the intent layer
-> and the prompt log, so nothing can run before there is somewhere to log it.
+> (`aiContextEntries` … `aiContextBundle()`), `Views/AIContextTable.swift`.
+>
+> It renders **inside the Settings card, immediately below the AI model
+> picker**, and only once a model is chosen — the two are one decision
+> continued (*who* answers, then *what they may read*), and with no model there
+> is nobody to send anything to. §4.3's AI button waits for the intent layer and
+> the prompt log, so nothing can run before there is somewhere to log it.
 
 ### 4.1 The model
 
