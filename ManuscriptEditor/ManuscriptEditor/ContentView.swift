@@ -236,6 +236,11 @@ struct ContentView: View {
                     // Plain text in the title bar — no liquid-glass bubbles.
                     ToolbarItem(placement: .principal) { ToolbarBanner() }
                         .sharedBackgroundVisibility(.hidden)
+                    // Assist + prompt log, left of the save state: the switch
+                    // that lets this app talk to a model, and the record of
+                    // everything it has said.
+                    ToolbarItem(placement: .primaryAction) { AssistToolbarItem() }
+                        .sharedBackgroundVisibility(.hidden)
                     ToolbarItem(placement: .primaryAction) { SaveStatusIndicator() }
                         .sharedBackgroundVisibility(.hidden)
                 }

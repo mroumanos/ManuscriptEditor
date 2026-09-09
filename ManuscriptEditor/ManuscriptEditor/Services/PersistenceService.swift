@@ -98,6 +98,32 @@ struct PersistenceService: Sendable {
         return dir
     }
 
+    /// `{manuscriptDir}/ai/` — the prompt log and its payloads.  Its own
+    /// folder rather than `manuscript.json`: one fast-forward prompt carries a
+    /// whole journal, and the manuscript file is rewritten on every save.
+    func aiDirectory(for manuscriptID: UUID) -> URL {
+        let dir = manuscriptDirectory(for: manuscriptID)
+            .appendingPathComponent("ai", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir
+    }
+
+    /// `{manuscriptDir}/ai/prompts/`
+    func aiPromptsDirectory(for manuscriptID: UUID) -> URL {
+        let dir = aiDirectory(for: manuscriptID)
+            .appendingPathComponent("prompts", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir
+    }
+
+    /// `{manuscriptDir}/ai/responses/`
+    func aiResponsesDirectory(for manuscriptID: UUID) -> URL {
+        let dir = aiDirectory(for: manuscriptID)
+            .appendingPathComponent("responses", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir
+    }
+
     /// `{manuscriptDir}/attachments/` — files uploaded straight into the
     /// export package, kept with the manuscript so they travel with it.
     func attachmentsDirectory(for manuscriptID: UUID) -> URL {

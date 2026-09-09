@@ -816,13 +816,17 @@ legible.
   override). The overridden side is stamped into its version history first,
   so both directions are recoverable. A checksum precheck short-circuits
   "already in sync"; a dirty upstream is auto-stamped rather than refused.
-- AC: A **Smart (AI)** toggle on the card header upgrades both buttons: the
-  connected Claude account rewrites each section toward the target's
-  requirements during the copy (`SmartSyncService`, one structured-outputs
-  call to claude-opus-5). Disabled until a Claude account with a stored key
-  is selected in Manuscript → AI; failures surface as banners and log
-  entries. This implements the Phase II "AI-adapted sync" from
-  02-domain-model (explicitly approved Aug 2026).
+- AC: **✦ Assist** in the title bar upgrades both buttons (the card's own
+  "Smart" toggle was retired Sep 2026 — one switch, app-wide). With Assist on
+  and a model selected, the selected model rewrites each section toward the
+  target journal's requirements, structure and **checks** during the copy
+  (`journal.fastForward`, `Services/AI/Intents/FastForwardIntent.swift`), and
+  the buttons wear the assist treatment so the change in behaviour is visible
+  before it is pressed. The model only supplies replacement section text; the
+  override, the stamping and the recovery path are the mechanical ones
+  unchanged, so a failed or unreadable reply writes nothing. Every request is
+  recorded in the manuscript's prompt log. This implements the Phase II
+  "AI-adapted sync" from 02-domain-model (explicitly approved Aug 2026).
 
 ## G. Side-by-side comparison & editing
 

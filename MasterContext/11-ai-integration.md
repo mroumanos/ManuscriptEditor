@@ -264,6 +264,12 @@ is the entire safety story, and the reason not to give it a bespoke edit path.
 
 ## 5. "AI active"
 
+> **Built.** `Theme/AssistStyle.swift` (`.assistAffordance(active:busy:)`),
+> `Views/AssistToolbarItem.swift`, `ManuscriptSettings.aiAssistEnabled`.
+> The toggle is per-manuscript and persisted: one paper may be adapted with a
+> model's help while another, under an embargo or a co-author's objection, is
+> written entirely by hand.
+
 One toolbar toggle: **✦ Assist**, with the prompt-log icon beside it (§6).
 
 - **No connector tests green** → disabled, pointing at Settings → Accounts.
@@ -285,6 +291,11 @@ control: Assist off is today's mechanical behaviour exactly; Assist on runs
 ---
 
 ## 6. The prompt log
+
+> **Built.** `Models/AIPromptLog.swift`, `Services/AI/AIPromptLogService.swift`,
+> `Views/PromptLogView.swift`. Append-only; nothing in the app edits or deletes
+> an entry. `gatherRemoteFiles` ships `ai/`, `ai/prompts/` and `ai/responses/`
+> with the manuscript.
 
 Every request, whether fired by a button or (later) typed by hand, is recorded.
 
@@ -320,6 +331,18 @@ without anyone having to remember.
 ---
 
 ## 7. Intents
+
+> **Built.** `Services/AI/AIIntent.swift` (descriptor + `AIIntentRegistry`),
+> `Services/AI/AIRequestService.swift` (the one place a prompt leaves the app —
+> it assembles context, dispatches to a connector or a keyed service, and the
+> store records the outcome either way).
+>
+> The protocol landed smaller than sketched below: an intent **describes
+> itself** and owns its prompt and its parsing, but does not carry
+> `apply(_:to:)`. Applying a fast-forward is the existing `syncJournal`
+> override — reusing it is what keeps stamping, recovery and the checksum
+> precheck identical whether or not a model was involved, and a second write
+> path would have been the risk, not the abstraction.
 
 ```swift
 /// Everything an AI feature needs to describe itself, so what is prompted and
@@ -357,6 +380,13 @@ profile (requirements bullets, structure, checks with their limits) → per-sect
 adapted content → writes the downstream cut and stamps a version. Never touches
 the upstream; never applies without the diff being visible.
 
+**Proved end to end (Sep 2026).** One real `claude -p` run against a two-section
+manuscript with a 120-word limit: Opus 5 answered in 12.6 s, expanded the
+abbreviations the journal's instructions asked for (`HF` → heart failure,
+`SGLT2i` → sodium-glucose cotransporter 2 inhibitor, `eGFR` → estimated
+glomerular filtration rate), returned Methods unchanged because it already
+suited the target, and preserved every number — 412, 72 hours, 10 mg, p = 0.03.
+
 **Verified, not asserted.** The target's checks are already machine-evaluable
 (`ChecklistService`), so after applying, re-run them and report which now pass.
 "10 of 11 checks pass, abstract still 12 words over" is a measurement; "the AI
@@ -372,11 +402,11 @@ worse than a frontier one.
 |---|---|---|
 | 1 | ✅ **Built** — `AIConnector`, path resolution, Test, settings rows (Claude Code only); model choice in Overview | Everything else needs a way to reach a model |
 | 2 | ✅ **Built** — context model, `context/` storage, Overview table with the locked primer | Nothing can be prompted without it |
-| 3 | `AIIntent` + registry + the greppable convention + runners | The seam |
-| 4 | Prompt log (`ai/`, popup, diff) | Built *before* the first intent, so nothing ever runs unlogged |
-| 5 | `AssistStyle`, `.assistAffordance`, the toolbar toggle | Visual language, once |
+| 3 | ✅ **Built** — `AIIntent` + registry + the greppable convention + runners | The seam |
+| 4 | ✅ **Built** — prompt log (`ai/`, popup, diff) | Built *before* the first intent, so nothing ever runs unlogged |
+| 5 | ✅ **Built** — `AssistStyle`, `.assistAffordance`, the toolbar toggle | Visual language, once |
 | 6 | `context.compose` | Small, self-contained, undoable |
-| 7 | `journal.fastForward`; retire the Smart toggle | The real one; check-verified |
+| 7 | ✅ **Built** — `journal.fastForward`; Smart toggle retired | The real one; check-verified |
 | 8 | Fold Zotero into connectors | After the pattern is proved |
 
 ---

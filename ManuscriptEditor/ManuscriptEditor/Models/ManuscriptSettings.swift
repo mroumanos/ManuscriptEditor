@@ -36,6 +36,13 @@ struct ManuscriptSettings: Codable, Sendable {
     var activeConnectorID: UUID?
     var aiModel: String?
 
+    /// Whether AI affordances are live for this manuscript ("✦ Assist" in the
+    /// toolbar).  Per-manuscript and persisted: one paper may be adapted with
+    /// a model's help while another, under an embargo or a co-author's
+    /// objection, is written entirely by hand — and that decision should
+    /// survive quitting the app.  nil = off, so older files open with AI off.
+    var aiAssistEnabled: Bool? = nil
+
     /// The remote repository this manuscript syncs to, in "owner/name" form.
     /// Per-manuscript (two manuscripts can use one account with different
     /// repos).  nil = no remote configured yet.  Optional fields keep older

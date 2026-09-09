@@ -23,7 +23,7 @@ final class ManuscriptStore {
     // MARK: - State
 
     var manuscript: Manuscript? {
-        didSet { if oldValue?.id != manuscript?.id { loadLog() } }
+        didSet { if oldValue?.id != manuscript?.id { loadLog(); loadPromptLog() } }
     }
     var lastSaved: Date?
     var saveError: String?
@@ -1965,63 +1965,173 @@ final class ManuscriptStore {
         manuscript?.journals.first { $0.id == id }?.name
     }
 
-    /// True while a smart sync's AI call is in flight (spinner in the card).
-    var isSmartSyncBusy = false
+    // MARK: - AI assist
+    //
+    // Every request the app makes goes through here: it resolves where the
+    // prompt is going, honours the context checkboxes, and writes the prompt
+    // log whether the run succeeded or failed.  An intent that skips this
+    // would be a request nobody can audit afterwards.
 
-    /// Smart sync: adapts sections via the connected Claude account, then
-    /// performs the override.  Forward adapts the upstream's content toward
-    /// this journal's requirements; backward adapts this journal's content
-    /// toward the upstream's.
-    func smartSync(journalID: UUID, forward: Bool, appStore: AppStore) async {
-        guard let m = manuscript,
-              let source = syncSource(forJournal: journalID) else { return }
-        guard let accountID = m.settings.activeAIServiceID,
-              let account = appStore.aiServices.first(where: { $0.id == accountID }) else {
-            showBanner(.error, "Smart sync needs an AI service — pick one in Overview → Saving & Backend.")
-            return
+    /// True while an assist request is in flight (spinner + shimmer).
+    var isAssistBusy = false
+
+    /// This manuscript's prompt log, newest first.  Reloaded when a
+    /// manuscript opens; appended to in memory as requests complete, so the
+    /// popup never has to re-read the folder.
+    var promptLog: [AIPromptLogEntry] = []
+
+    /// "✦ Assist" — whether AI affordances are live for this manuscript.
+    var isAssistEnabled: Bool { manuscript?.settings.aiAssistEnabled == true }
+
+    func setAssistEnabled(_ enabled: Bool) {
+        touch(undoAction: nil, undoable: false) { $0.settings.aiAssistEnabled = enabled }
+    }
+
+    func loadPromptLog() {
+        promptLog = []
+        guard let id = manuscript?.id else { return }
+        promptLog = AIPromptLogService(persistence: persistence).entries(for: id)
+    }
+
+    /// Where this manuscript's requests go, or nil if it has no model chosen.
+    ///
+    /// A connector is only offered once it has tested successfully — an
+    /// untested tool means a request that hangs on a sign-in prompt nobody
+    /// can see.
+    func aiDestination(appStore: AppStore) -> AIDestination? {
+        guard let settings = manuscript?.settings else { return nil }
+        if let id = settings.activeConnectorID,
+           var connector = appStore.connectors.first(where: { $0.id == id }) {
+            if let model = settings.aiModel, !model.isEmpty { connector.selectedModel = model }
+            return .connector(connector)
         }
-        let key = KeychainService.secret(for: account.id)
-        if account.provider.requiresAPIKey, (key ?? "").isEmpty {
-            showBanner(.error, "No API key stored for \(account.displayName) — add one in Settings → Accounts.")
+        if let id = settings.activeAIServiceID,
+           let account = appStore.aiServices.first(where: { $0.id == id }) {
+            let key = KeychainService.secret(for: account.id)
+            if account.provider.requiresAPIKey, (key ?? "").isEmpty { return nil }
+            return .service(account, apiKey: key)
+        }
+        return nil
+    }
+
+    /// Whether the assist toggle can do anything: a model is selected and
+    /// reachable.
+    func canAssist(appStore: AppStore) -> Bool { aiDestination(appStore: appStore) != nil }
+
+    // AI INTENT  journal.fastForward — see Services/AI/Intents/FastForwardIntent.swift
+    //
+    /// A fast-forward that adapts on the way down.
+    ///
+    /// The mechanical override is unchanged and still does the writing: the
+    /// model only supplies replacement section text, which `syncJournal` /
+    /// `pushToUpstream` apply through the same path a plain copy uses — so
+    /// the overridden side is stamped into version history first, exactly as
+    /// it would have been.  A failed or unreadable reply changes nothing.
+    func assistFastForward(journalID: UUID, forward: Bool, appStore: AppStore) async {
+        guard let m = manuscript, let source = syncSource(forJournal: journalID) else { return }
+        guard let destination = aiDestination(appStore: appStore) else {
+            showBanner(.error, "Assist needs a model — pick one in Overview → Settings → AI.")
             return
         }
 
         let journal = m.journals.first { $0.id == journalID }
+        // Forward pulls the upstream's content down into this journal, so the
+        // TARGET is this journal; backward pushes up, so the target is the
+        // upstream.  The target's profile is what the adaptation aims at.
         let sections: [ManuscriptSection]
-        let targetName: String
-        let targetRequirements: JournalRequirements?
+        let target: Journal?
         if forward {
-            // Upstream's latest content, adapted toward THIS journal.
-            let base = syncBase(forUpstream: source.upstreamJournalID)
-            sections = (base?.content ?? m).sections
-            targetName = journal?.name ?? "the journal"
-            targetRequirements = journal?.requirements
+            sections = (syncBase(forUpstream: source.upstreamJournalID)?.content ?? m).sections
+            target = journal
         } else {
-            // This journal's latest content, adapted toward the upstream.
-            let upstream = source.upstreamJournalID
-                .flatMap { id in m.journals.first { $0.id == id } }
             sections = latestVersion(forJournal: journalID)?.content.sections ?? []
-            targetName = upstream?.name ?? "the source manuscript"
-            targetRequirements = upstream?.requirements
+            target = source.upstreamJournalID.flatMap { id in m.journals.first { $0.id == id } }
+        }
+        guard let target else {
+            showBanner(.error, "Assist can only adapt toward a journal — Source has no requirements to aim at.")
+            return
         }
 
-        isSmartSyncBusy = true
-        defer { isSmartSyncBusy = false }
+        let started = Date()
+        let bundle = aiContextBundle()
+        let summary = "\(forward ? "Fast-forward" : "Fast-backward") \(target.name) from \(forward ? source.upstreamName : (journal?.name ?? "journal"))"
+
+        isAssistBusy = true
+        defer { isAssistBusy = false }
+
+        var prompt = ""
         do {
-            let adapted = try await SmartSyncService().adaptSections(
-                sections, targetName: targetName,
-                requirements: targetRequirements, account: account, apiKey: key)
-            if forward {
-                if syncJournal(journalID, adaptedSections: adapted) != nil {
-                    showBanner(.success, "Smart-forwarded \(journalName(journalID) ?? "journal") from \(source.upstreamName).")
-                }
+            let sent = FastForwardIntent.adaptableSections(sections)
+            prompt = AIRequestService.prompt(
+                context: bundle,
+                task: try FastForwardIntent.task(sections: sections, target: target))
+
+            let result = try await AIRequestService.send(prompt: prompt, to: destination)
+            let adapted = try FastForwardIntent.adaptedSections(from: result.text, expecting: sent)
+
+            // Measured before the write, while the old text is still in hand.
+            let changes = sent.compactMap { section -> AIPromptLogChange? in
+                guard let after = adapted[section.id] else { return nil }
+                return AIPromptLogChange.measure(title: section.title,
+                                                 before: section.plainText, after: after)
+            }
+
+            let applied = forward
+                ? syncJournal(journalID, adaptedSections: adapted) != nil
+                : pushToUpstream(journalID, adaptedSections: adapted)
+
+            record(AIPromptLogEntry(
+                intentID: FastForwardIntent.descriptor.id,
+                summary: summary,
+                connectorLabel: destination.label,
+                model: result.model,
+                startedAt: started,
+                duration: result.duration,
+                outcome: applied ? .applied : .noChange,
+                detail: result.modelWasSubstituted
+                    ? "\(result.model) answered, not the model selected."
+                    : (applied ? nil : "The override didn't run — nothing was written."),
+                contextTitles: bundle.pieces.map(\.title),
+                excludedContextTitles: bundle.excludedTitles,
+                promptCharacters: prompt.count,
+                responseCharacters: result.text.count,
+                changes: changes),
+                prompt: prompt, response: result.text)
+
+            if applied {
+                showBanner(.success, "\(summary) — \(changes.count) section\(changes.count == 1 ? "" : "s") adapted by \(result.model).")
             } else {
-                if pushToUpstream(journalID, adaptedSections: adapted) {
-                    showBanner(.success, "Smart-backward: \(source.upstreamName) updated from \(journalName(journalID) ?? "journal").")
-                }
+                showBanner(.error, "\(summary) failed: the override didn't run.")
             }
         } catch {
-            showBanner(.error, "Smart sync failed: \(error.localizedDescription)")
+            record(AIPromptLogEntry(
+                intentID: FastForwardIntent.descriptor.id,
+                summary: summary,
+                connectorLabel: destination.label,
+                model: destination.requestedModel,
+                startedAt: started,
+                duration: Date().timeIntervalSince(started),
+                outcome: .failed,
+                detail: error.localizedDescription,
+                contextTitles: bundle.pieces.map(\.title),
+                excludedContextTitles: bundle.excludedTitles,
+                promptCharacters: prompt.count),
+                prompt: prompt, response: "")
+            showBanner(.error, "Assist failed: \(error.localizedDescription)")
+        }
+    }
+
+    /// Writes one entry to disk and to the in-memory log.
+    ///
+    /// A log that couldn't be written is reported: the alternative is a
+    /// request that ran with no record, which is the one outcome this whole
+    /// mechanism exists to prevent.
+    private func record(_ entry: AIPromptLogEntry, prompt: String, response: String) {
+        promptLog.insert(entry, at: 0)
+        guard let id = manuscript?.id else { return }
+        if !AIPromptLogService(persistence: persistence)
+            .append(entry, prompt: prompt, response: response, to: id) {
+            showBanner(.error, "Couldn't write the prompt log — this request isn't recorded on disk.")
         }
     }
 
@@ -2436,7 +2546,10 @@ final class ManuscriptStore {
         var files: [GitHubBackendService.File] = []
         let manuscriptJSON = dir.appendingPathComponent("manuscript.json")
         files.append(.init(path: "manuscript.json", data: try Data(contentsOf: manuscriptJSON)))
-        for sub in ["figures", "data", "attachments", "context"] {
+        // `ai/` is listed with its two children: the walk is deliberately
+        // one level deep, and the prompt log ships with the manuscript.
+        for sub in ["figures", "data", "attachments", "context",
+                    "ai", "ai/prompts", "ai/responses"] {
             let subdir = dir.appendingPathComponent(sub, isDirectory: true)
             guard let names = try? FileManager.default.contentsOfDirectory(atPath: subdir.path) else { continue }
             for name in names.sorted() where !name.hasPrefix(".") {

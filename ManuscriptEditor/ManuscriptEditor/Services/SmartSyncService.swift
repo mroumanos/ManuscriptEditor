@@ -1,13 +1,14 @@
 // SmartSyncService.swift
 //
-// Smart sync (Phase II AI capability, explicitly approved Aug 2026): adapts
-// manuscript sections from one journal toward another's requirements using
-// the manuscript's connected AI service — any provider the app supports
-// (Claude, ChatGPT, Gemini, or a local Ollama), one non-streaming call per
-// sync.  Every provider is asked for the same JSON shape
-// {"sections": [{"id", "content"}]}; Claude uses structured outputs, the
-// others their JSON-mode equivalents.
-
+// The keyed-HTTP half of the AI transport: one prompt in, the model's text
+// out, for any provider the app supports (Claude, ChatGPT, Gemini, or a local
+// Ollama), non-streaming.
+//
+// It knows nothing about manuscripts.  What to ask and what to do with the
+// answer belong to an intent (`Services/AI/Intents/`), and every caller
+// arrives through `AIRequestService`, which is where the context checkboxes
+// and the prompt log are enforced.
+//
 import Foundation
 
 struct SmartSyncService {
@@ -24,62 +25,20 @@ struct SmartSyncService {
         }
     }
 
-    private struct AdaptedSection: Decodable { let id: String; let content: String }
-    private struct AdaptedPayload: Decodable { let sections: [AdaptedSection] }
-
-    /// Rewrites each active, non-empty section toward `targetName`'s
-    /// requirements.  Returns section id → adapted plain text.
-    func adaptSections(_ sections: [ManuscriptSection],
-                       targetName: String,
-                       requirements: JournalRequirements?,
-                       account: AIServiceAccount,
-                       apiKey: String?) async throws -> [UUID: String] {
-        let payload = sections
-            .filter { $0.active && !$0.content.isEmpty }
-            .map { ["id": $0.id.uuidString, "title": $0.title, "text": $0.content.plain] }
-        guard !payload.isEmpty else { return [:] }
-
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = .sortedKeys
-        let reqText = (try? requirements.map { String(data: try encoder.encode($0), encoding: .utf8) ?? "" })
-            .flatMap { $0 } ?? "none specified — use a clear, general scientific register"
-        let sectionsJSON = String(data: try JSONSerialization.data(withJSONObject: payload,
-                                                                   options: [.sortedKeys]),
-                                  encoding: .utf8) ?? "[]"
-
-        let prompt = """
-        You are adapting sections of a scientific manuscript for submission to \
-        "\(targetName)". Rewrite each section's text to suit that venue while \
-        preserving every scientific claim, number, and citation marker exactly \
-        as written — adapt register, structure, and length toward the \
-        requirements; never invent or drop content.
-
-        Target journal requirements (JSON): \(reqText)
-
-        Sections (JSON array of {id, title, text}): \(sectionsJSON)
-
-        Respond with JSON only, in the shape \
-        {"sections": [{"id": "<same id>", "content": "<adapted text>"}]} — \
-        one entry per input section.
-        """
-
-        let text = try await complete(prompt: prompt, account: account, apiKey: apiKey)
-        guard let adapted = try? JSONDecoder().decode(AdaptedPayload.self, from: Data(text.utf8))
-        else { throw SmartSyncError.badResponse("missing or malformed JSON in the reply") }
-
-        var out: [UUID: String] = [:]
-        for section in adapted.sections {
-            if let id = UUID(uuidString: section.id) { out[id] = section.content }
-        }
-        return out
-    }
-
     // MARK: - Provider dispatch
 
     /// One prompt in, the model's text out — per provider.
-    private func complete(prompt: String,
-                          account: AIServiceAccount,
-                          apiKey: String?) async throws -> String {
+    ///
+    /// Internal rather than private: `AIRequestService` sends every intent's
+    /// prompt through here, so the keyed-API path has one implementation
+    /// rather than a second one that drifts.
+    /// `expectsJSON` puts the provider into its JSON mode.  An intent that
+    /// wants prose back passes false, rather than every provider branch
+    /// assuming the shape the first intent happened to need.
+    func sendPrompt(_ prompt: String,
+                    account: AIServiceAccount,
+                    apiKey: String?,
+                    expectsJSON: Bool = true) async throws -> String {
         var request: URLRequest
         let custom = account.customEndpoint.isEmpty ? nil : URL(string: account.customEndpoint)
 
@@ -88,44 +47,38 @@ struct SmartSyncService {
             request = URLRequest(url: custom ?? URL(string: "https://api.anthropic.com/v1/messages")!)
             request.setValue(apiKey ?? "", forHTTPHeaderField: "x-api-key")
             request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
-            let schema: [String: Any] = [
-                "type": "object",
-                "properties": ["sections": ["type": "array", "items": [
-                    "type": "object",
-                    "properties": ["id": ["type": "string"], "content": ["type": "string"]],
-                    "required": ["id", "content"], "additionalProperties": false]]],
-                "required": ["sections"], "additionalProperties": false,
-            ]
             request.httpBody = try JSONSerialization.data(withJSONObject: [
                 "model": "claude-opus-5",
                 "max_tokens": 16000,
-                "output_config": ["format": ["type": "json_schema", "schema": schema]],
                 "messages": [["role": "user", "content": prompt]],
             ] as [String: Any])
         case .chatgpt:
             request = URLRequest(url: custom ?? URL(string: "https://api.openai.com/v1/chat/completions")!)
             request.setValue("Bearer \(apiKey ?? "")", forHTTPHeaderField: "Authorization")
-            request.httpBody = try JSONSerialization.data(withJSONObject: [
+            var body: [String: Any] = [
                 "model": "gpt-4o",
-                "response_format": ["type": "json_object"],
                 "messages": [["role": "user", "content": prompt]],
-            ] as [String: Any])
+            ]
+            if expectsJSON { body["response_format"] = ["type": "json_object"] }
+            request.httpBody = try JSONSerialization.data(withJSONObject: body)
         case .gemini:
             let base = custom ?? URL(string:
                 "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=\(apiKey ?? "")")!
             request = URLRequest(url: base)
-            request.httpBody = try JSONSerialization.data(withJSONObject: [
-                "contents": [["parts": [["text": prompt]]]],
-                "generationConfig": ["responseMimeType": "application/json"],
-            ] as [String: Any])
+            var body: [String: Any] = ["contents": [["parts": [["text": prompt]]]]]
+            if expectsJSON {
+                body["generationConfig"] = ["responseMimeType": "application/json"]
+            }
+            request.httpBody = try JSONSerialization.data(withJSONObject: body)
         case .ollama:
             request = URLRequest(url: custom ?? URL(string: "http://localhost:11434/api/chat")!)
-            request.httpBody = try JSONSerialization.data(withJSONObject: [
+            var body: [String: Any] = [
                 "model": "llama3.1",
-                "format": "json",
                 "stream": false,
                 "messages": [["role": "user", "content": prompt]],
-            ] as [String: Any])
+            ]
+            if expectsJSON { body["format"] = "json" }
+            request.httpBody = try JSONSerialization.data(withJSONObject: body)
         }
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
