@@ -52,12 +52,12 @@ private enum AnyAccount: Identifiable {
         }
     }
 
-    /// Connectors show whether they last tested green — the only row type where
-    /// "configured" and "working" are different states.
-    var statusDot: Color? {
-        guard case .connector(let c) = self, let ok = c.lastTestSucceeded else { return nil }
-        return ok ? .green : .orange
+    var isConnector: Bool {
+        if case .connector = self { return true }
+        return false
     }
+
+
 }
 
 // MARK: - AccountsView
@@ -67,6 +67,12 @@ struct AccountsView: View {
 
     @State private var selectedID: UUID?
     @State private var showAddSheet = false
+
+    /// Connectors tested since this window opened.  Deliberately NOT read from
+    /// the stored result: a tick that survives a relaunch reads as live status
+    /// for a tool that might have been uninstalled since.  It means "I just
+    /// watched this work", so it lives and dies with the window.
+    @State private var testedThisSession: [UUID: Bool] = [:]
 
     private var accounts: [AnyAccount] {
         appStore.connectors.map(AnyAccount.connector)
@@ -121,18 +127,24 @@ struct AccountsView: View {
                                     .font(.caption).foregroundStyle(.secondary)
                             }
                             Spacer()
-                            if let dot = account.statusDot {
-                                Circle().fill(dot).frame(width: 7, height: 7)
-                                    .help(dot == .green ? "Tested and working" : "Last test failed")
+                            if let ok = testedThisSession[account.id] {
+                                Circle().fill(ok ? Color.green : Color.orange)
+                                    .frame(width: 7, height: 7)
+                                    .help(ok ? "Tested just now — working"
+                                             : "Tested just now — failed")
                             }
-                            Button {
-                                delete(account)
-                            } label: {
-                                Image(systemName: "minus.circle.fill")
-                                    .foregroundStyle(.red)
+                            // Connectors are removed from the detail pane, out
+                            // of reach of a mis-click in a list you scroll.
+                            if !account.isConnector {
+                                Button {
+                                    delete(account)
+                                } label: {
+                                    Image(systemName: "minus.circle.fill")
+                                        .foregroundStyle(.red)
+                                }
+                                .buttonStyle(.plain)
+                                .help("Remove this account (its Keychain secret included)")
                             }
-                            .buttonStyle(.plain)
-                            .help("Remove this account (its Keychain secret included)")
                         }
                         .padding(.vertical, 3)
                         .tag(account.id)
@@ -175,7 +187,9 @@ struct AccountsView: View {
             AIAccountForm(account: ai)
         } else if let id = selectedID,
                   let connector = appStore.connectors.first(where: { $0.id == id }) {
-            ConnectorDetailView(connector: connector)
+            ConnectorDetailView(connector: connector,
+                                testedThisSession: $testedThisSession,
+                                onRemove: { delete(.connector(connector)) })
         } else {
             ContentUnavailableView(
                 "No Account Selected",

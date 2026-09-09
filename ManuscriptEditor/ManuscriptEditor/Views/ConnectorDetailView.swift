@@ -15,6 +15,11 @@ struct ConnectorDetailView: View {
     @Environment(AppStore.self) private var appStore
 
     let connector: AIConnector
+    /// Test results for this window's lifetime — see `AccountsView`.
+    @Binding var testedThisSession: [UUID: Bool]
+    let onRemove: () -> Void
+
+    @State private var confirmingRemove = false
 
     @State private var pathDraft = ""
     @State private var testing = false
@@ -124,6 +129,26 @@ struct ConnectorDetailView: View {
             } header: {
                 Text("Status")
             }
+
+            Section {
+                Button(role: .destructive) {
+                    confirmingRemove = true
+                } label: {
+                    Label("Remove Connector", systemImage: "trash")
+                        .foregroundStyle(.red)
+                }
+                Text("Removes this connection from the app. The tool itself and your sign-in are untouched.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .confirmationDialog("Remove the \(connector.kind.displayName) connection?",
+                            isPresented: $confirmingRemove, titleVisibility: .visible) {
+            Button("Remove", role: .destructive) { onRemove() }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Manuscripts using it will fall back to no AI until you pick another.")
         }
         .formStyle(.grouped)
         .padding()
@@ -195,6 +220,7 @@ struct ConnectorDetailView: View {
             pathDraft = edited.executablePath
             testMessage = message
             testSucceeded = !result.modelWasSubstituted
+            testedThisSession[connector.id] = !result.modelWasSubstituted
         } catch {
             let message = error.localizedDescription
             edited.lastTestSucceeded = false
@@ -204,6 +230,7 @@ struct ConnectorDetailView: View {
             pathDraft = edited.executablePath
             testMessage = message
             testSucceeded = false
+            testedThisSession[connector.id] = false
         }
     }
 }
