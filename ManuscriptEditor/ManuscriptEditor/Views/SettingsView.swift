@@ -8,7 +8,7 @@
 //   Accounts — every external account in one place: storage backends
 //              (GitHub, GitLab, …) and AI services (Claude, OpenAI, …),
 //              each with credentials in the Keychain and Test Connection
-//   Journals — the global journal library (search, details, requirements)
+//   Journals — the template library (search, metadata, details, clone)
 //   User     — the local identity: name + signing key for stamps/comments
 
 import SwiftUI

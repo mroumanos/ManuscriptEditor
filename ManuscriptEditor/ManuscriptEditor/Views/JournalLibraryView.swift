@@ -1,6 +1,6 @@
 // JournalLibraryView.swift
 //
-// Settings → Journals: the global journal library.  Search reusable
+// Settings → Journals: the **template library**.  Search reusable
 // journal profiles and inspect their details (name, country, publisher, how
 // many requirements they carry, whether they bundle an export outline).
 // Entries come from the built-in presets, "Save to Journal Library" in a
@@ -42,7 +42,7 @@ struct JournalLibraryView: View {
     var body: some View {
         HSplitView {
             VStack(spacing: 0) {
-                TextField("Search journals…", text: $query)
+                TextField("Search templates…", text: $query)
                     .textFieldStyle(.roundedBorder)
                     .padding(10)
 
@@ -74,15 +74,19 @@ struct JournalLibraryView: View {
 
                 Divider()
                 HStack {
-                    // Profiles are created from a manuscript, where there is
-                    // something to configure them against — an empty profile
-                    // made here would have no cut to test.
-                    Text("Profiles are created by saving a journal from a manuscript")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                        .padding(10)
+                    Button {
+                        if let made = JournalProfileLibrary.shared
+                            .createEmpty(named: "New Template", articleType: nil) {
+                            selectedID = made.id
+                        }
+                    } label: {
+                        Label("Add Template", systemImage: "plus")
+                    }
+                    .buttonStyle(.borderless)
+                    .padding(10)
+                    .help("An empty template — its rules are written from a manuscript that adopts it")
                     Spacer()
-                    Text("\(profiles.count) in library")
+                    Text("\(profiles.count) template\(profiles.count == 1 ? "" : "s")")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .padding(.trailing, 10)
@@ -102,9 +106,9 @@ struct JournalLibraryView: View {
             }
         } else {
             ContentUnavailableView(
-                "No Journal Selected",
+                "No Template Selected",
                 systemImage: "building.columns",
-                description: Text("Search the library and select a journal to see its profile.")
+                description: Text("Pick a template to see what it requires. Its rules are edited from a manuscript that uses it.")
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
@@ -133,103 +137,157 @@ struct JournalLibraryView: View {
 /// that in the row is better than hiding it and leaving the shape different
 /// from the pane people already know.
 private struct LibraryProfileDetail: View {
-    let profile: JournalProfile
+    let profile: JournalTemplate
     let registry: Journal?
     let onDelete: () -> Void
 
-    @State private var showingSummary = false
-    @State private var showingStructure = false
+    @State private var nameDraft = ""
+    @State private var typeDraft = ""
+    @State private var countryDraft = ""
+    @State private var loadedFor: UUID?
+
+    @State private var showingDetails = false
+    @State private var cloning = false
+    @State private var cloneName = ""
     @State private var confirmingDelete = false
+
+    @Environment(AppStore.self) private var appStore
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(profile.name).font(.title3.weight(.semibold))
-                    HStack(spacing: 6) {
-                        if let type = profile.articleType, !type.isEmpty {
-                            Text(type)
-                                .font(.caption)
-                                .padding(.horizontal, 7).padding(.vertical, 2)
-                                .background(Color.accentColor.opacity(0.12), in: Capsule())
-                                .foregroundStyle(Color.accentColor)
-                        }
-                        Text([registry?.publisher, registry?.country]
-                            .compactMap { $0?.isEmpty == false ? $0 : nil }
-                            .joined(separator: " · "))
-                            .font(.caption).foregroundStyle(.secondary)
+                // Metadata is editable here; the RULES are not.  A template's
+                // tests are written against a manuscript's real content, so
+                // there is nothing here to write them against.
+                Form {
+                    Section("Template") {
+                        TextField("Name", text: $nameDraft, onEditingChanged: { editing in
+                            if !editing { commitMetadata() }
+                        })
+                        .onSubmit(commitMetadata)
+                        TextField("Type (Research Article, Research Brief…)", text: $typeDraft,
+                                  onEditingChanged: { editing in if !editing { commitMetadata() } })
+                            .onSubmit(commitMetadata)
+                        TextField("Country", text: $countryDraft,
+                                  onEditingChanged: { editing in if !editing { commitCountry() } })
+                            .onSubmit(commitCountry)
                     }
                 }
+                .formStyle(.grouped)
+                .frame(height: 150)
 
                 VStack(spacing: 0) {
-                    row("doc.text", "Summary", summaryDetail, open: { showingSummary = true })
+                    row("doc.text", "Summary", summaryDetail)
                     Divider()
                     row("list.bullet.indent", "Structure",
                         profile.structure.sections.isEmpty
                             ? "No structure recorded"
-                            : "\(profile.structure.sections.count) sections · \(profile.structure.requiredTitles.count) required",
-                        open: { showingStructure = true })
+                            : "\(profile.structure.sections.count) sections · \(profile.structure.requiredTitles.count) required")
                     Divider()
-                    row("square.and.arrow.up", "Export", exportDetail, open: nil,
-                        disabledNote: "Add this journal to a manuscript to edit its outline")
+                    row("checklist", "Tests",
+                        profile.checks.isEmpty
+                            ? "No tests recorded"
+                            : "\(profile.checks.filter { !$0.isManual }.count) automatic · \(profile.checks.filter(\.isManual).count) manual")
+                    Divider()
+                    row("square.and.arrow.up", "Export", exportDetail)
                 }
                 .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
                 .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.separator))
 
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text("Tests").font(.headline)
-                    Text("edited from a manuscript that has adopted this journal")
-                        .font(.caption).foregroundStyle(.tertiary)
-                    Spacer()
-                }
-                if profile.checks.isEmpty {
-                    Text("No tests recorded for this journal.")
-                        .font(.callout).foregroundStyle(.secondary)
-                } else {
-                    VStack(spacing: 0) {
-                        ForEach(profile.checks) { rule in
-                            HStack(spacing: 8) {
-                                Image(systemName: rule.isManual ? "hand.raised" : "checklist")
-                                    .font(.caption)
-                                    .foregroundStyle(.tertiary)
-                                    .frame(width: 14)
-                                Text(rule.displayName)
-                                    .font(.callout)
-                                    .lineLimit(1)
-                                Spacer()
-                                if rule.isManual {
-                                    Text("manual").font(.caption2).foregroundStyle(.tertiary)
-                                }
-                            }
-                            .padding(.horizontal, 12).padding(.vertical, 6)
-                            if rule.id != profile.checks.last?.id { Divider().padding(.leading, 34) }
-                        }
-                    }
-                    .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
-                    .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.separator))
-                }
+                Text("A template's summary, structure, tests and export outline are edited from a manuscript that uses it — add this template to a manuscript, change it there, and save it back.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
 
-                Button(role: .destructive) { confirmingDelete = true } label: {
-                    Label("Delete Profile", systemImage: "trash").foregroundStyle(.red)
+                HStack(spacing: 10) {
+                    Button {
+                        showingDetails = true
+                    } label: {
+                        Label("Details", systemImage: "doc.text.magnifyingglass")
+                    }
+                    Button {
+                        cloneName = "\(profile.name) copy"
+                        cloning = true
+                    } label: {
+                        Label("Clone", systemImage: "doc.on.doc")
+                    }
+                    .help("A copy under a new identity, carrying these rules — edit the copy from a manuscript")
+                    Spacer()
+                    Button(role: .destructive) { confirmingDelete = true } label: {
+                        Label("Delete", systemImage: "trash").foregroundStyle(.red)
+                    }
                 }
-                .padding(.top, 6)
             }
             .padding(20)
             .frame(maxWidth: .infinity, alignment: .topLeading)
+        }
+        .onAppear(perform: loadDrafts)
+        .onChange(of: profile.id) { _, _ in loadDrafts() }
+        .sheet(isPresented: $showingDetails) {
+            VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(profile.displayName).font(.headline)
+                    Text("Read-only — add this template to a manuscript to edit its rules.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                JournalProfileReview(profile: profile)
+                    .frame(height: 380)
+                HStack {
+                    Spacer()
+                    Button("Done") { showingDetails = false }
+                        .keyboardShortcut(.defaultAction)
+                }
+            }
+            .padding(18)
+            .frame(width: 560)
+        }
+        .alert("Clone Template", isPresented: $cloning) {
+            TextField("Name for the copy", text: $cloneName)
+            Button("Clone") {
+                _ = JournalProfileLibrary.shared.clone(profile, named: cloneName)
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("A copy of “\(profile.displayName)” with its own identity, carrying the same rules and remembering where it came from.")
         }
         .confirmationDialog("Delete “\(profile.displayName)” from your library?",
                             isPresented: $confirmingDelete, titleVisibility: .visible) {
             Button("Delete", role: .destructive) { onDelete() }
             Button("Cancel", role: .cancel) { }
         } message: {
-            Text("Manuscripts already using it keep their own copy — they'll show as not in your library.")
+            Text("Manuscripts already using it keep their own copy — they'll show as edited, with nothing to compare against.")
         }
-        .sheet(isPresented: $showingSummary) {
-            profileSheet("Summary") { JournalProfileReview(profile: profile) }
-        }
-        .sheet(isPresented: $showingStructure) {
-            profileSheet("Structure") { JournalProfileReview(profile: profile) }
-        }
+    }
+
+    private func loadDrafts() {
+        guard loadedFor != profile.id else { return }
+        loadedFor = profile.id
+        nameDraft = profile.name
+        typeDraft = profile.articleType ?? ""
+        countryDraft = registry?.country ?? ""
+    }
+
+    private func commitMetadata() {
+        let name = nameDraft.trimmingCharacters(in: .whitespaces)
+        let type = typeDraft.trimmingCharacters(in: .whitespaces)
+        guard !name.isEmpty,
+              name != profile.name || type != (profile.articleType ?? "") else { return }
+        _ = JournalProfileLibrary.shared.rename(id: profile.id, name: name,
+                                                articleType: type.isEmpty ? nil : type)
+    }
+
+    /// Country isn't part of a template's rules, so it stays on the registry
+    /// entry that carries publisher and country for display.
+    private func commitCountry() {
+        let country = countryDraft.trimmingCharacters(in: .whitespaces)
+        var entry = registry ?? {
+            var made = Journal.empty()
+            made.name = profile.name
+            made.articleType = profile.articleType
+            return made
+        }()
+        entry.country = country.isEmpty ? nil : country
+        appStore.upsertLibraryJournal(entry)
     }
 
     private var summaryDetail: String {
@@ -252,8 +310,7 @@ private struct LibraryProfileDetail: View {
             + "\(String(format: "%g", format.lineSpacing))× spacing"
     }
 
-    private func row(_ icon: String, _ title: String, _ detail: String,
-                     open: (() -> Void)?, disabledNote: String? = nil) -> some View {
+    private func row(_ icon: String, _ title: String, _ detail: String) -> some View {
         HStack(spacing: 10) {
             Image(systemName: icon).foregroundStyle(.secondary).frame(width: 18)
             VStack(alignment: .leading, spacing: 1) {
@@ -261,30 +318,9 @@ private struct LibraryProfileDetail: View {
                 Text(detail).font(.caption).foregroundStyle(.secondary)
             }
             Spacer()
-            Button("Open…") { open?() }
-                .controlSize(.small)
-                .disabled(open == nil)
-                .help(disabledNote ?? "")
         }
         .padding(.vertical, 10).padding(.horizontal, 14)
     }
 
-    @ViewBuilder
-    private func profileSheet(_ title: String, @ViewBuilder content: () -> some View) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("\(profile.displayName) — \(title)").font(.headline)
-            content()
-                .frame(height: 380)
-            HStack {
-                Spacer()
-                Button("Done") {
-                    showingSummary = false
-                    showingStructure = false
-                }
-                .keyboardShortcut(.defaultAction)
-            }
-        }
-        .padding(18)
-        .frame(width: 560)
-    }
+
 }

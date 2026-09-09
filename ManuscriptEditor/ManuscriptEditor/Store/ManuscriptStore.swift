@@ -1339,6 +1339,11 @@ final class ManuscriptStore {
             m.journals[idx].structure = profile.structure
             if let export = profile.export { m.journals[idx].exportConfig = export }
             m.journals[idx].profileID = profile.id
+            // The template's own name and checksum, so "edited since" is a
+            // comparison rather than a guess — and so renaming either side
+            // doesn't break the link.
+            m.journals[idx].templateName = profile.name
+            m.journals[idx].templateChecksum = profile.checksum
             m.journals[idx].profileLineage = profile.lineage.isEmpty ? nil : profile.lineage
             m.journals[idx].configOrigin = profile.origin
             m.journals[idx].configURL = profile.originURL
@@ -1372,10 +1377,12 @@ final class ManuscriptStore {
         touch(undoable: false) { m in
             guard let idx = m.journals.firstIndex(where: { $0.id == journalID }) else { return }
             m.journals[idx].profileID = profile.id
+            m.journals[idx].templateName = profile.name
+            m.journals[idx].templateChecksum = profile.checksum
             m.journals[idx].profileLineage = profile.lineage.isEmpty ? nil : profile.lineage
         }
         writeProfile(journalID: journalID)
-        showBanner(.success, "\(journal.displayName) saved to your journal library.")
+        showBanner(.success, "Saved to the “\(profile.displayName)” template.")
     }
 
     /// Folds this cut's own sections into the journal's structure.
@@ -1443,10 +1450,13 @@ final class ManuscriptStore {
             guard let idx = m.journals.firstIndex(where: { $0.id == journalID }) else { return }
             m.journals[idx].profileID = profile.id
             m.journals[idx].profileLineage = profile.lineage
-            m.journals[idx].name = profile.name
+            // The new template takes the name given for it; the journal keeps
+            // its own — they are different things.
+            m.journals[idx].templateName = profile.name
+            m.journals[idx].templateChecksum = profile.checksum
         }
         writeProfile(journalID: journalID)
-        showBanner(.success, "\(profile.displayName) added to your journal library.")
+        showBanner(.success, "“\(profile.displayName)” added to your templates.")
     }
 
     /// The library profile a journal descends from, for labelling.

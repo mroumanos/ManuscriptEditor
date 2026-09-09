@@ -115,6 +115,47 @@ final class JournalProfileLibrary {
         return true
     }
 
+    /// A copy of a template under a new GUID and name.
+    ///
+    /// Cloning is the safe way to start from something that works: the copy
+    /// carries the original's rules and remembers it as its ancestor, so a
+    /// manuscript using either one is told how they relate.
+    @discardableResult
+    func clone(_ profile: JournalTemplate, named name: String) -> JournalTemplate? {
+        var copy = profile
+        copy.id = UUID()
+        copy.name = name
+        copy.lineage = [profile.id] + profile.lineage
+        copy.origin = .library
+        return save(copy) ? copy : nil
+    }
+
+    /// An empty template — a name and nothing else.
+    ///
+    /// Deliberately empty: rules are written against a manuscript's actual
+    /// content, so a template made here starts blank and is filled in from
+    /// the first journal that adopts it.
+    @discardableResult
+    func createEmpty(named name: String, articleType: String?) -> JournalTemplate? {
+        let profile = JournalTemplate(id: UUID(), name: name, articleType: articleType,
+                                      origin: .library)
+        return save(profile) ? profile : nil
+    }
+
+    /// Renames a template and its metadata, leaving its rules alone.
+    @discardableResult
+    func rename(id: UUID, name: String, articleType: String?) -> Bool {
+        guard var profile = profiles[id] else { return false }
+        let oldFolder = folder(for: profile)
+        profile.name = name
+        profile.articleType = articleType
+        guard save(profile) else { return false }
+        // The slug follows the name, so the old folder is left behind.
+        let newFolder = folder(for: profile)
+        if oldFolder != newFolder { try? FileManager.default.removeItem(at: oldFolder) }
+        return true
+    }
+
     /// Removes a profile from the library entirely.
     func remove(id: UUID) {
         guard let profile = profiles[id] else { return }

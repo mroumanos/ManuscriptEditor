@@ -73,14 +73,14 @@ struct ChecksView: View {
                 StructureEditorSheet(journal: journal, isPresented: $editingStructure)
             }
         }
-        .confirmationDialog("Replace this journal's configuration with your library's copy?",
+        .confirmationDialog("Replace this journal's configuration with its template's?",
                             isPresented: $adoptingLibrary, titleVisibility: .visible) {
-            Button("Update From Library") {
+            Button("Update From Template") {
                 if let journal = paneJournal { store.adoptLibraryProfile(journalID: journal.id) }
             }
             Button("Cancel", role: .cancel) { }
         } message: {
-            Text("The summary, structure and tests are replaced. Nothing you have written is touched, and ⌘Z undoes it.")
+            Text("The summary, structure, tests and export outline are replaced. Nothing you have written is touched, and ⌘Z undoes it.")
         }
         .sheet(isPresented: $savingToLibrary) {
             if let journal = paneJournal {
@@ -142,9 +142,9 @@ struct ChecksView: View {
                     Button {
                         adoptingLibrary = true
                     } label: {
-                        Label("Update From Library", systemImage: "arrow.down.circle")
+                        Label("Update From Template", systemImage: "arrow.down.circle")
                     }
-                    .help("Replace this journal's summary, structure and tests with your library's copy. Your manuscript's content is untouched.")
+                    .help("Replace this journal's summary, structure, tests and export outline with its template's. Your manuscript's content is untouched.")
                 }
                 Button {
                     savingToLibrary = true
@@ -187,58 +187,35 @@ struct ChecksView: View {
 
     // MARK: - Part status
 
-    /// How one part of this journal's configuration stands against the library.
+    /// Whether this part differs from the template as your library holds it.
     ///
-    /// Three states, because "not flagged" was doing two jobs: a part that
-    /// matches your library and a part your library has never seen looked
-    /// identical, and only one of them is settled.
-    enum PartState {
-        /// Identical to your library's copy.
-        case matches
-        /// Edited here since it came from the library.
-        case modified
-        /// Not in your library at all — this journal, or this part, is new.
-        case new
-
-        var systemImage: String {
-            switch self {
-            case .matches:  return "checkmark.seal.fill"
-            case .modified: return "pencil.circle.fill"
-            case .new:      return "plus.circle.fill"
-            }
-        }
-        var color: Color {
-            switch self {
-            case .matches:  return .green
-            case .modified: return .orange
-            case .new:      return .blue
-            }
-        }
-        var help: String {
-            switch self {
-            case .matches:  return "Matches your journal library"
-            case .modified: return "Edited here — differs from your journal library"
-            case .new:      return "Not in your journal library yet"
-            }
-        }
-    }
-
-    private func partState(_ part: ProfilePart, journal: Journal) -> PartState {
+    /// One state, not three.  A green tick on every unedited row was noise —
+    /// the same noise a signature badge already carries — and the "new" case
+    /// was hinging on whether the library had ever seen this GUID, which is not
+    /// the question anyone is asking.  The question is: **have I changed this
+    /// since it came from the template?**  So the comparison is against the
+    /// template's checksum, and the answer is an orange pencil or nothing.
+    private func isEdited(_ part: ProfilePart, journal: Journal) -> Bool {
         switch store.libraryStatus(for: journal) {
         case .matches:
-            return .matches
+            return false
         case .differs(let parts), .derived(_, let parts):
-            return parts.contains(part) ? .modified : .matches
+            return parts.contains(part)
         case .nameMatchDifferentID, .absent:
-            return .new
+            // No template to compare against — this configuration exists only
+            // here, so every part of it is unsaved work.
+            return true
         }
     }
 
-    private func partBadge(_ state: PartState) -> some View {
-        Image(systemName: state.systemImage)
-            .foregroundStyle(state.color)
-            .font(.caption)
-            .help(state.help)
+    @ViewBuilder
+    private func editedBadge(_ edited: Bool) -> some View {
+        if edited {
+            Image(systemName: "pencil.circle.fill")
+                .foregroundStyle(.orange)
+                .font(.caption)
+                .help("Edited here — differs from this journal's template in your library")
+        }
     }
 
     // MARK: - The journal's configuration
@@ -262,7 +239,7 @@ struct ChecksView: View {
                 detail: requirements.bullets.isEmpty
                     ? "No summary yet"
                     : summaryDetail(requirements),
-                state: partState(.requirements, journal: journal)
+                edited: isEdited(.requirements, journal: journal)
             ) { editingRequirements = true }
 
             Divider()
@@ -272,7 +249,7 @@ struct ChecksView: View {
                 detail: structure.sections.isEmpty
                     ? "No structure yet"
                     : "\(structure.sections.count) section\(structure.sections.count == 1 ? "" : "s") · \(structure.requiredTitles.count) required",
-                state: partState(.structure, journal: journal)
+                edited: isEdited(.structure, journal: journal)
             ) { editingStructure = true }
 
             Divider()
@@ -304,7 +281,7 @@ struct ChecksView: View {
             VStack(alignment: .leading, spacing: 1) {
                 HStack(spacing: 6) {
                     Text("Export").fontWeight(.medium)
-                    partBadge(partState(.export, journal: journal))
+                    editedBadge(isEdited(.export, journal: journal))
                 }
                 Text(exportDetail(config))
                     .font(.caption).foregroundStyle(.secondary)
@@ -333,7 +310,7 @@ struct ChecksView: View {
             + (format.lineNumbers ? "line numbers on" : "line numbers off")
     }
 
-    private func configRow(_ part: ProfilePart, detail: String, state: PartState,
+    private func configRow(_ part: ProfilePart, detail: String, edited: Bool,
                            open: @escaping () -> Void) -> some View {
         HStack(spacing: 10) {
             Image(systemName: icon(for: part))
@@ -342,7 +319,7 @@ struct ChecksView: View {
             VStack(alignment: .leading, spacing: 1) {
                 HStack(spacing: 6) {
                     Text(part.label).fontWeight(.medium)
-                    partBadge(state)
+                    editedBadge(edited)
                 }
                 Text(detail).font(.caption).foregroundStyle(.secondary)
             }
@@ -411,7 +388,7 @@ struct ChecksView: View {
     private func testsHeader(_ journal: Journal, results: [ChecklistResult]) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             Text("Tests").font(.headline)
-            partBadge(partState(.checks, journal: journal))
+            editedBadge(isEdited(.checks, journal: journal))
             Text("one per requirement above, evaluated against this cut")
                 .font(.caption)
                 .foregroundStyle(.tertiary)
@@ -791,7 +768,7 @@ struct SaveProfileToLibrarySheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             VStack(alignment: .leading, spacing: 3) {
-                Text("Update Journal Library").font(.headline)
+                Text("Save Template").font(.headline)
                 Text(summary)
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -804,16 +781,16 @@ struct SaveProfileToLibrarySheet: View {
                 // answer isn't always this journal's name, since a branch
                 // overwrites its ancestor.
                 Picker("", selection: $choice) {
-                    Text("Overwrite “\(target?.displayName ?? journal.displayName)”")
+                    Text("Overwrite the “\(target?.displayName ?? journal.displayName)” template")
                         .tag(Choice.overwrite)
-                    Text("Save as a new profile of my own").tag(Choice.branch)
+                    Text("Save as a new template of my own").tag(Choice.branch)
                 }
                 .pickerStyle(.radioGroup)
                 .labelsHidden()
             }
 
             if choice == .branch || target == nil {
-                TextField("Name for the new profile", text: $newName)
+                TextField("Name for the new template", text: $newName)
                     .textFieldStyle(.roundedBorder)
                 if let target {
                     Text("Kept alongside \"\(target.displayName)\" and remembers it as its source, so anyone you share this manuscript with sees it as a modified version of that profile.")

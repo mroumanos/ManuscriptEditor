@@ -34,6 +34,10 @@ struct JournalLineageCard: View {
     @State private var showSyncInfo = false
     /// Journal awaiting the delete confirmation (context menu).
     @State private var pendingDelete: Journal?
+    /// The journal being renamed.  A journal's name is its own — the template
+    /// it came from keeps its name and its link.
+    @State private var renamingJournal: Journal?
+    @State private var renameDraft = ""
     /// Lineage row under the pointer — interactive rows highlight on hover.
     @State private var hoveredJournalID: UUID?
     @State private var showAddJournal = false
@@ -91,6 +95,24 @@ struct JournalLineageCard: View {
                 // alert(item:) on an ANCESTOR suppresses one on a descendant
                 // just like two on the same node do: with this alert on the
                 // outer VStack, the ⏪⏩ sync confirmations never fired.
+                .alert("Rename Journal", isPresented: Binding(
+                    get: { renamingJournal != nil },
+                    set: { if !$0 { renamingJournal = nil } })) {
+                    TextField("Journal name", text: $renameDraft)
+                    Button("Rename") {
+                        if var journal = renamingJournal {
+                            let trimmed = renameDraft.trimmingCharacters(in: .whitespaces)
+                            if !trimmed.isEmpty {
+                                journal.name = trimmed
+                                store.updateJournal(journal)
+                            }
+                        }
+                        renamingJournal = nil
+                    }
+                    Button("Cancel", role: .cancel) { renamingJournal = nil }
+                } message: {
+                    Text("Only this journal is renamed. The template it was created from keeps its own name, and stays linked.")
+                }
                 .alert(item: $pendingDelete) { journal in
                     Alert(
                         title: Text("Delete \(journal.name)?"),
@@ -307,6 +329,10 @@ struct JournalLineageCard: View {
             }
         }
         .contextMenu {
+            Button("Rename Journal…") {
+                renameDraft = journal.name
+                renamingJournal = journal
+            }
             Button("Delete Journal…", role: .destructive) { pendingDelete = journal }
         }
     }
@@ -448,7 +474,11 @@ struct JournalLineageCard: View {
 // MARK: - AddJournalSheet
 
 /// Cut a new journal: FROM Source or any journal, TO a profile from the
-/// global journal library (Settings → Journals) or a custom name.
+/// **template** in the library (Settings → Journals) or a custom name.
+///
+/// A template is a starting point, not an identity: the journal it creates
+/// takes its own name, keeps a pointer to the template it came from, and can
+/// be renamed on either side without breaking the link.
 struct AddJournalSheet: View {
     @Environment(ManuscriptStore.self) private var store
     @Environment(AppStore.self)        private var appStore
@@ -489,9 +519,18 @@ struct AddJournalSheet: View {
         } ?? appStore.journalLibrary.first { $0.name == profile.name }
     }
 
-    /// Profiles every ≥2-letter search term matches (name, article type,
+    /// What the list shows: every available template, narrowed by the search
+    /// as you type.  It used to show nothing until you typed, so a library
+    /// full of templates looked empty from here.
+    private var browsable: [JournalTemplate] {
+        journalQuery.trimmingCharacters(in: .whitespaces).count >= 2
+            ? journalMatches
+            : availableProfiles
+    }
+
+    /// Templates every ≥2-letter search term matches (name, article type,
     /// publisher, or country).
-    private var journalMatches: [JournalProfile] {
+    private var journalMatches: [JournalTemplate] {
         let terms = journalQuery.lowercased()
             .split(separator: " ").map(String.init).filter { $0.count >= 2 }
         guard !terms.isEmpty else { return [] }
@@ -514,14 +553,13 @@ struct AddJournalSheet: View {
                 }
             }
 
-            // To: search the saved journal library (typed formats included)
-            // instead of scrolling a picker — same pattern as the Authors
-            // and Bibliography search.  Everything is app-saved; no web
-            // query.  Custom journals are unchanged: name one below.
+            // The templates, browsable and searchable — the list shows
+            // everything until you narrow it, because a library full of
+            // templates looked empty when this was search-only.
             if let choice = libraryChoice,
                let profile = JournalProfileLibrary.shared.profile(id: choice) {
                 HStack(spacing: 6) {
-                    Text("To:").foregroundStyle(.secondary)
+                    Text("Template:").foregroundStyle(.secondary)
                     Text(profile.displayName).fontWeight(.medium)
                     Button {
                         libraryChoice = nil
@@ -529,9 +567,15 @@ struct AddJournalSheet: View {
                         Image(systemName: "xmark.circle.fill").foregroundStyle(.tertiary)
                     }
                     .buttonStyle(.plain)
-                    .help("Choose a different journal")
+                    .help("Choose a different template")
                     Spacer()
                 }
+                // The journal's name is its own: a template is a starting
+                // point, and you can cut "BMJ test 1" from BMJ without
+                // renaming the template or losing the link to it.
+                TextField("Name for this journal", text: $customName,
+                          prompt: Text(profile.displayName))
+                    .textFieldStyle(.roundedBorder)
                 // Review what you're signing up for BEFORE adding: the
                 // journal's summary, the shape it expects, and the tests that
                 // will start running.
@@ -543,7 +587,7 @@ struct AddJournalSheet: View {
                         Image(systemName: "magnifyingglass")
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                        TextField("Search saved journals…", text: $journalQuery)
+                        TextField("Search templates…", text: $journalQuery)
                             .textFieldStyle(.plain)
                     }
                     .padding(.horizontal, 7)
@@ -552,13 +596,14 @@ struct AddJournalSheet: View {
                                 in: RoundedRectangle(cornerRadius: 7))
                     .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(.separator))
 
-                    if !journalMatches.isEmpty {
+                    if !browsable.isEmpty {
                         // Inline (not floating): a sheet's window would clip
                         // an overlay card at its edge.
                         FitScrollView(maxScreenFraction: 0.3) {
                             VStack(alignment: .leading, spacing: 0) {
-                                SearchSectionHeader(title: "Library", count: journalMatches.count)
-                                ForEach(journalMatches) { profile in
+                                SearchSectionHeader(title: journalQuery.isEmpty ? "Templates" : "Matches",
+                                                    count: browsable.count)
+                                ForEach(browsable) { profile in
                                     let entry = registryEntry(for: profile)
                                     SearchResultRow(
                                         icon: "plus.circle",
@@ -576,8 +621,10 @@ struct AddJournalSheet: View {
                         .background(Color(NSColor.controlBackgroundColor),
                                     in: RoundedRectangle(cornerRadius: 7))
                         .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(.separator))
-                    } else if journalQuery.trimmingCharacters(in: .whitespaces).count >= 2 {
-                        Text("No saved journals match — name a custom journal below.")
+                    } else {
+                        Text(journalQuery.isEmpty
+                             ? "No templates in your library yet — name a custom journal below."
+                             : "No templates match — name a custom journal below.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -594,7 +641,7 @@ struct AddJournalSheet: View {
                 }
             }
 
-            Text("The new journal is cut from the FROM journal's latest stamped version (stamping it first if needed), appears in the lineage, and gets its own tab. Manage reusable journal profiles in Settings → Journals.")
+            Text("A template is a starting point: the new journal takes its summary, structure, tests and export outline, keeps its own name, and remembers which template it came from. It is cut from the FROM journal's latest stamped version (stamping it first if needed), appears in the lineage, and gets its own tab. Manage templates in Settings → Journals.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -608,7 +655,8 @@ struct AddJournalSheet: View {
                     isPresented = false
                 }
                 .keyboardShortcut(.defaultAction)
-                .disabled(libraryChoice == nil && customName.trimmingCharacters(in: .whitespaces).isEmpty)
+                .disabled(libraryChoice == nil
+                          && customName.trimmingCharacters(in: .whitespaces).isEmpty)
             }
         }
         .padding(24)
@@ -625,8 +673,11 @@ struct AddJournalSheet: View {
             // requirement fields the older checks read.
             template = registryEntry(for: profile) ?? Journal.empty()
             template.id = UUID()
-            template.name = profile.name
+            let chosenName = customName.trimmingCharacters(in: .whitespaces)
+            template.name = chosenName.isEmpty ? profile.name : chosenName
             template.articleType = profile.articleType
+            template.templateName = profile.name
+            template.templateChecksum = profile.checksum
             template.profileID = profile.id
             template.profileLineage = profile.lineage.isEmpty ? nil : profile.lineage
             template.sourceRequirements = profile.requirements

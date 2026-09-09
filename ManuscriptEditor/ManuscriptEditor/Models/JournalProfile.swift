@@ -1,6 +1,15 @@
 // JournalProfile.swift
 //
-// A journal's configuration is THREE files in one folder:
+// A journal **template**: the reusable configuration a manuscript's journal is
+// created from, and compared against afterwards.
+//
+// A journal in a manuscript is an INSTANCE — it has its own name ("BMJ test
+// 1"), its own content, and its own copy of the rules.  The template is what
+// it was cut from, identified by GUID and by a CHECKSUM of its contents, so a
+// manuscript can say "this came from BMJ, and I have edited it since" even
+// after either side is renamed.  See `Journal.templateID` / `templateChecksum`.
+//
+// A template's configuration is FOUR files in one folder:
 //
 //   <slug>/requirements.json   the journal's own instructions, as bullets,
 //                              plus a link to the page they came from
@@ -42,6 +51,10 @@ import CryptoKit
 
 /// One of the three files a profile is made of.  Comparison, warnings, and
 /// the Checks pane's cards are all per-part.
+/// A journal template, in the words the app uses for it.  The type keeps its
+/// original name so the on-disk format and every existing file stay valid.
+typealias JournalTemplate = JournalProfile
+
 enum ProfilePart: String, Codable, CaseIterable, Sendable {
     case requirements, checks, structure
     /// The export outline and its formatting.  Part of the profile since Sep
@@ -454,6 +467,16 @@ struct JournalProfile: Codable, Identifiable, Sendable, Equatable {
     /// The content signature of one part — what "differs from your library"
     /// is decided on.  Ignores identifiers and timestamps, so re-saving an
     /// unchanged profile never lights the warning.
+    /// One checksum over every part.
+    ///
+    /// This is what a manuscript stores when it adopts a template, and what
+    /// tells it later that its copy has been edited — a comparison that must
+    /// survive either side being renamed, so it deliberately covers the
+    /// configuration and not the name.
+    var checksum: String {
+        ProfilePart.allCases.map { fingerprint($0) }.joined(separator: ":")
+    }
+
     func fingerprint(_ part: ProfilePart) -> String {
         switch part {
         case .requirements: return ProfileFingerprint.of(requirementsDoc)

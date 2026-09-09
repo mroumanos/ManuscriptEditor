@@ -63,11 +63,27 @@ struct Journal: Codable, Identifiable, Sendable {
     /// (matched by rule text).  Optional for backward-compatible decoding.
     var manualChecksDone: [String]? = nil
 
-    /// The GUID of the profile this journal follows — the identity that maps
-    /// it to an entry in the user's journal library, surviving renames and
-    /// distinguishing one journal's several article types.  nil until the
-    /// journal is seeded from a profile.
+    /// The GUID of the **template** this journal was created from — the
+    /// identity that maps it to an entry in the user's library, surviving
+    /// renames on either side.  nil until the journal is seeded from one.
     var profileID: UUID? = nil
+
+    /// The template's own name, kept separately from this journal's.
+    ///
+    /// A journal is an INSTANCE of a template: "BMJ test 1" can be cut from
+    /// the BMJ template, and renaming the instance must not rename the
+    /// template it saves back to.  nil = same as the journal's name (every
+    /// journal created before names were decoupled).
+    var templateName: String? = nil
+
+    /// The template's checksum at the moment this journal adopted it.
+    ///
+    /// This is how "edited since" is decided: not a name, not a flag someone
+    /// has to remember to set, but a comparison against what the template
+    /// actually contained. A manuscript that travels carries this, so the
+    /// person who opens it is told the rules were changed rather than left to
+    /// guess which copy is authoritative.
+    var templateChecksum: String? = nil
 
     /// The library profiles this journal's configuration was branched from,
     /// nearest first — carried so the lineage survives sharing the
@@ -99,7 +115,7 @@ struct Journal: Codable, Identifiable, Sendable {
     var profile: JournalProfile {
         JournalProfile(
             id: profileID ?? JournalProfile.bundledID(slug: profileSlug),
-            name: name, articleType: articleType,
+            name: templateName ?? name, articleType: articleType,
             lineage: profileLineage ?? [],
             requirements: sourceRequirements ?? SourceRequirements(),
             checks: checkRules ?? [],

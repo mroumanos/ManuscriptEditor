@@ -808,6 +808,28 @@ legible.
 
 ![Detailed lineage between two journals](examples/lineage-detailed.png)
 
+### Journal templates (Sep 2026 — implemented)
+
+- AC: A library entry is a **TEMPLATE**, and a manuscript's journal is an
+  INSTANCE of one. "BMJ test 1" can be cut from the BMJ template; renaming
+  either side breaks nothing, because the link is a GUID
+  (`Journal.profileID`) plus the template's name and **checksum** at adoption
+  (`templateName`, `templateChecksum`). Saving back never renames the
+  template — `Journal.profile` carries `templateName ?? name`.
+- AC: Add Journal **browses** the templates (search narrows, it doesn't gate),
+  and names the journal separately from the template it uses. A library full
+  of templates used to look empty here because the list was search-only.
+- AC: A journal is renamed from Overview (right-click → Rename Journal…); only
+  the instance changes.
+- AC: Settings → Journals manages templates: editable name, type and country;
+  **Details** (read-only, says the rules are edited from a manuscript);
+  **Clone** (new GUID, same rules, remembers its ancestor); Add; Delete. Rules
+  are never editable there — they are written against a manuscript's content.
+- AC: One badge, not three: an **orange pencil** when a part differs from the
+  template as your library holds it, nothing when it matches. Green ticks
+  repeated what the signature badge already says, and the "new" case was
+  answering a question nobody asked.
+
 ### Journal profile pane (Sep 2026 — implemented)
 
 - AC: The pane reads **Summary · Structure · Export**, each a row that opens —
