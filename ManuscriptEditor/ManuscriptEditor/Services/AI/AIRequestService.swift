@@ -60,14 +60,15 @@ struct AIRequestService: Sendable {
 
     /// How long a manuscript-sized request is given before it is abandoned.
     ///
-    /// Fifteen minutes, against the connector's own 120 s default.  A
-    /// fast-forward asks for every section of a paper to be rewritten, and the
-    /// generation — not the network — is what takes the time: a real
-    /// seven-section manuscript ran past ten minutes.  Killing a request that
-    /// was about to land is the worse failure, and nothing is written until it
-    /// returns, so the cutoff is generous and the row shows the clock against
-    /// it.
-    static let longRunTimeout = 900
+    /// Forty-five minutes — a backstop, not the real guard.
+    ///
+    /// The measured pass on a seven-section manuscript took 14 min 20 s, and a
+    /// longer paper on a slower day would sail past any cutoff picked to be
+    /// "generous enough".  What actually distinguishes a working run from a
+    /// dead one is **silence**, and `AIConnectorRunner.stallTimeout` handles
+    /// that in three minutes flat.  So this stays far out of the way of honest
+    /// work and only catches a run that keeps talking but never finishes.
+    static let longRunTimeout = 2700
 
     /// Sends one prompt and returns the raw text.  No parsing, no application —
     /// an intent owns both, so this stays the same for every future feature.

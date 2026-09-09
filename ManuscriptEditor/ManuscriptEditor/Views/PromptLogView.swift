@@ -21,8 +21,14 @@ struct PromptLogView: View {
 
     @State private var expanded: UUID?
     @State private var payload: (prompt: String, response: String)?
-    /// Which entry's tool transcript is open.
-    @State private var transcriptFor: UUID?
+    /// Which log popover is open, if any.
+    @State private var openLog: OpenLog?
+
+    /// One case per log a row can show, carrying the entry so two expanded
+    /// rows can't fight over one flag.
+    enum OpenLog: Hashable {
+        case prompt(UUID), response(UUID), session(UUID)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -157,70 +163,70 @@ struct PromptLogView: View {
             labelled("Size", "\(entry.promptCharacters) characters out, \(entry.responseCharacters) back")
             labelled("Intent", entry.intentID)
 
-            // The tool keeps its own transcript of the run.  The app hands it
-            // the session id, so that file can be pointed at directly rather
-            // than hunted for under ~/.claude/projects.
-            if let session = entry.sessionID {
-                HStack(alignment: .top, spacing: 6) {
-                    Text("Tool log")
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(.tertiary)
-                        .frame(width: 56, alignment: .leading)
-                    if let url = AIConnectorRunner.transcriptURL(for: session) {
-                        Button {
-                            transcriptFor = (transcriptFor == entry.id) ? nil : entry.id
-                        } label: {
-                            Label("Session log", systemImage: "list.bullet.rectangle")
-                                .font(.caption2)
-                        }
-                        .buttonStyle(.link)
-                        .help("What the tool itself recorded for this run — \(url.path)")
-                        .popover(isPresented: Binding(
-                            get: { transcriptFor == entry.id },
-                            set: { if !$0 { transcriptFor = nil } }), arrowEdge: .bottom) {
-                            SessionTranscriptView(url: url)
-                        }
-                        Button {
-                            NSWorkspace.shared.activateFileViewerSelecting([url])
-                        } label: {
-                            Label("Reveal", systemImage: "folder")
-                                .font(.caption2)
-                        }
-                        .buttonStyle(.link)
-                    } else {
-                        Text("session \(session.prefix(8)) — the tool kept no transcript")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                }
-            }
+            // Everything this run left behind, each in its own window rather
+            // than crammed into the row: what was asked, what came back, and
+            // what the tool itself recorded while producing it.
+            HStack(alignment: .top, spacing: 10) {
+                Text("Logs")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+                    .frame(width: 56, alignment: .leading)
 
-            if let payload {
-                DisclosureGroup("Prompt") {
-                    ScrollView {
-                        Text(payload.prompt)
-                            .font(.system(.caption2, design: .monospaced))
-                            .textSelection(.enabled)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .frame(height: 130)
+                logButton("Prompt", systemImage: "text.alignleft", tag: .prompt(entry.id)) {
+                    LogTextPopover(title: "Prompt",
+                                   subtitle: "Exactly what was sent, context first",
+                                   text: payload?.prompt ?? "")
                 }
-                .font(.caption)
-                DisclosureGroup("Response") {
-                    ScrollView {
-                        Text(payload.response.isEmpty ? "(nothing came back)" : payload.response)
-                            .font(.system(.caption2, design: .monospaced))
-                            .textSelection(.enabled)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .frame(height: 130)
+
+                logButton("Output", systemImage: "text.quote", tag: .response(entry.id)) {
+                    LogTextPopover(title: "Output",
+                                   subtitle: entry.outcome == .failed
+                                       ? "What came back before it failed"
+                                       : "The model's raw reply, before it was parsed",
+                                   text: payload?.response ?? "")
                 }
-                .font(.caption)
+
+                if let session = entry.sessionID,
+                   let url = AIConnectorRunner.transcriptURL(for: session) {
+                    logButton("Session log", systemImage: "list.bullet.rectangle",
+                              tag: .session(entry.id)) {
+                        SessionTranscriptView(url: url)
+                    }
+                    Button {
+                        NSWorkspace.shared.activateFileViewerSelecting([url])
+                    } label: {
+                        Label("Reveal", systemImage: "folder").font(.caption2)
+                    }
+                    .buttonStyle(.link)
+                    .help(url.path)
+                } else if let session = entry.sessionID {
+                    Text("session \(session.prefix(8)) — the tool kept no transcript")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+                Spacer()
             }
+            .padding(.top, 2)
         }
         .padding(.leading, 22)
         .padding(.top, 2)
+    }
+
+    /// A link that opens one log in a popover.
+    private func logButton<Content: View>(_ title: String, systemImage: String,
+                                          tag: OpenLog,
+                                          @ViewBuilder content: @escaping () -> Content) -> some View {
+        Button {
+            openLog = (openLog == tag) ? nil : tag
+        } label: {
+            Label(title, systemImage: systemImage).font(.caption2)
+        }
+        .buttonStyle(.link)
+        .popover(isPresented: Binding(get: { openLog == tag },
+                                      set: { if !$0 { openLog = nil } }),
+                 arrowEdge: .bottom) {
+            content()
+        }
     }
 
     private func labelled(_ label: String, _ value: String) -> some View {
@@ -402,5 +408,55 @@ struct SessionTranscriptView: View {
         default:
             return ""
         }
+    }
+}
+
+// MARK: - One log, in a window of its own
+
+/// A plain text log — a prompt, a reply — shown the way the session log is:
+/// monospaced, scrollable, selectable, copyable.
+struct LogTextPopover: View {
+    let title: String
+    let subtitle: String
+    let text: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(title).font(.callout.weight(.medium))
+                    Text(subtitle).font(.caption2).foregroundStyle(.tertiary)
+                }
+                Spacer()
+                Button {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(text, forType: .string)
+                } label: {
+                    Image(systemName: "doc.on.doc")
+                }
+                .buttonStyle(.borderless)
+                .help("Copy")
+            }
+
+            if text.isEmpty {
+                Text("Nothing was recorded — the request failed before this existed.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .frame(height: 300, alignment: .top)
+            } else {
+                ScrollView {
+                    Text(text)
+                        .font(.system(.caption2, design: .monospaced))
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .frame(height: 300)
+                Text("\(text.count.formatted()) characters")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .padding(14)
+        .frame(width: 520)
     }
 }

@@ -420,12 +420,17 @@ arrives (`AssistLiveOutputView`) — a 4,000-character tail, because a
 full-manuscript run produced 71,000 output tokens and copying that buffer on
 every delta would cost more than the request. During the thinking phase there is
 deliberately nothing to show, and the view says so rather than looking broken.
-In Log → AI Requests, **Session log** opens what the tool itself recorded for
-that run (`SessionTranscriptView`): one readable row per event — prompt size,
-model reply, API error, cost — with a Raw toggle for the file as written.
+In Log → AI Requests every entry offers its three logs, each in a window of its
+own rather than crammed into the row: **Prompt** (what was sent, context
+first), **Output** (the raw reply before parsing) and **Session log** (what the
+tool itself recorded — one readable row per event: prompt size, model reply, API
+error, cost — with a Raw toggle for the file as written), plus Reveal.
 
 **How long it takes.** Measured, on a real seven-section manuscript: **14 min
-20 s, $3.53, 71,099 output tokens** for one pass. The generation, not the
+20 s, $3.53, 71,099 output tokens** for one pass. No wall clock chosen to be
+"generous enough" survives a longer paper on a slower day, so the hard cutoff is
+45 minutes and does almost nothing: the real guard is silence, which
+`AIConnectorRunner.stallTimeout` catches in three minutes. The generation, not the
 network, is the cost — the model rewrites every section in full, and thinks
 first. That is the number to design against, and it is the argument for
 splitting a fast-forward into per-section requests rather than one. So the cutoff is 15 minutes (`AIRequestService.longRunTimeout`), the

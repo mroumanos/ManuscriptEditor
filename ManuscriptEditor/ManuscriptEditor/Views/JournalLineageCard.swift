@@ -257,9 +257,13 @@ struct JournalLineageCard: View {
                     pendingSync = PendingSync(journal: journal, forward: false)
                 } label: {
                     Image(systemName: "backward.fill")
+                        .padding(.horizontal, 5).padding(.vertical, 3)
+                        // No .bordered: its capsule put an oval around every
+                        // glyph, and the only frame these buttons should ever
+                        // wear is the assist treatment.
                         .assistAffordance(active: assisting, busy: store.isAssistBusy)
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(.plain)
                 .disabled(running)
                 .help(assisting
                       ? "Assisted fast-backward: adapt \(journal.name)'s latest toward \(upstreamName) and override it"
@@ -276,9 +280,10 @@ struct JournalLineageCard: View {
                     pendingSync = PendingSync(journal: journal, forward: true)
                 } label: {
                     Image(systemName: "forward.fill")
+                        .padding(.horizontal, 5).padding(.vertical, 3)
                         .assistAffordance(active: assisting, busy: store.isAssistBusy)
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(.plain)
                 .disabled(running)
                 .help(assisting
                       ? "Assisted fast-forward: adapt \(upstreamName)'s latest toward \(journal.name)'s requirements and override it"
