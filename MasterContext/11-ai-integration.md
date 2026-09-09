@@ -448,6 +448,35 @@ abbreviations the journal's instructions asked for (`HF` → heart failure,
 glomerular filtration rate), returned Methods unchanged because it already
 suited the target, and preserved every number — 412, 72 hours, 10 mg, p = 0.03.
 
+**What the first real run got wrong, and what fixed it (Sep 2026).** A
+44-minute pass on a seven-section manuscript applied cleanly and was still
+wrong in three ways. Each fix is a rule the prompt now leads with:
+
+1. **It dropped every citation.** A citation is not a character in the text — it
+   is a `.link` attribute on the RTF carrying `cite://<uuid>`. The plain mirror
+   that was sent contained no trace of the Introduction's fourteen references,
+   and writing the answer back as `RichText(plain:)` destroyed all twenty-one in
+   the manuscript. `Services/AI/AIRefMarkers.swift` now sends each one as
+   `[[cite:3]]` and restores it to the exact link run afterwards; the same
+   protection covers part tokens (`[[authors.names]]`, which the model had
+   replaced with an invented author list). A marker that doesn't come back is
+   reported in the banner and the log rather than lost quietly.
+2. **It ignored the length checks.** The checks were sent as names ("Body ≤ 1200
+   words"), which is a rule, not an instruction. They are now evaluated against
+   the content being adapted and sent with their measurements — *FAILING · Body
+   ≤ 1200 words · 2,360 of 1,200 words used* — plus a per-section **word
+   budget** apportioned to each section's current share, so a limit spanning six
+   sections is arithmetic done here rather than guessed there.
+3. **It left required-but-empty sections empty.** `payloads` sends every active
+   section including empty ones, question series arrive as their questions with
+   word limits, and answers come back per question id — the earlier run returned
+   the submission questions verbatim and the write silently discarded them,
+   because a question section renders from `questions`, not `content`.
+
+After applying, the target's checks are re-run and any that still fail are
+named in the banner and the log entry. The measure and the instruction are the
+same thing, which is the point.
+
 **Verified, not asserted.** The target's checks are already machine-evaluable
 (`ChecklistService`), so after applying, re-run them and report which now pass.
 "10 of 11 checks pass, abstract still 12 words over" is a measurement; "the AI

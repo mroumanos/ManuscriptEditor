@@ -1,10 +1,11 @@
 // FastForwardIntent.swift
 //
 // AI INTENT  journal.fastForward
-//   Sends:   enabled context rows · the upstream's section text ·
-//            the target journal's profile (requirements bullets, structure,
-//            and every check with its limits)
-//   Writes:  the downstream cut's sections, as a new stamped version
+//   Sends:   enabled context rows · the upstream's sections, with every
+//            citation and part token marked · the target journal's profile ·
+//            **the target's checks, evaluated, with their current numbers**
+//   Writes:  the downstream cut's sections and submission answers, as a new
+//            stamped version
 //   Reverts: the overridden content is stamped into version history first,
 //            so the previous state is a version, not a lost edit
 //
@@ -14,15 +15,24 @@
 // way down — which is the work a researcher actually does by hand between two
 // venues, and the reason cuts exist at all.
 //
-// TWO RULES THIS PROMPT IS BUILT AROUND
+// THREE RULES THIS PROMPT IS BUILT AROUND
 // ─────────────────────────────────────────────────────────────────────────────
 // 1. **Never invent, never drop.** Every claim, number, citation marker and
 //    figure/table reference survives verbatim.  A model that improves a result
 //    is worse than useless in a scientific manuscript.
-// 2. **The checks are the specification.** The target's checks are already
-//    machine-evaluated by `ChecklistService`; sending them means the model is
-//    aiming at the same limits the app will grade it against afterwards,
-//    rather than at a paraphrase of them.
+//
+// 2. **The checks are the specification, with their numbers.**  The first
+//    version sent the checks as names ("Body ≤ 1200 words") and got back prose
+//    that ignored them.  A rule is only actionable with its measurement, so
+//    every check is evaluated against the content being adapted and sent as
+//    *failing, 2,360 of 1,200 words* — and where a limit spans several sections
+//    the prompt hands over an explicit per-section budget, because "make these
+//    six sections total under 1,200 words" is arithmetic, not judgement.
+//
+// 3. **Required sections get written, not skipped.**  A section that is empty
+//    upstream but required by the target — submission questions, most often —
+//    is sent with its questions and their word limits and must come back
+//    answered from the manuscript's own content.
 //
 // See MasterContext/11-ai-integration.md §7.2.
 
@@ -33,11 +43,12 @@ struct FastForwardIntent: AIIntent {
     static let descriptor = AIIntentDescriptor(
         id: "journal.fastForward",
         title: "Fast-forward a journal",
-        summary: "Adapts the upstream's content toward the target journal's requirements while copying it down.",
+        summary: "Adapts the upstream's content toward the target journal's requirements, limits and checks while copying it down.",
         sends: ["Enabled context rows",
-                "The upstream's section text",
-                "The target journal's requirements, structure and checks"],
-        writes: "The target journal's sections, stamped as a new version",
+                "The upstream's sections, with citations and part tokens marked",
+                "The target journal's requirements, structure and checks",
+                "Each check's current measurement against the content being adapted"],
+        writes: "The target journal's sections and submission answers, stamped as a new version",
         reversal: "The previous content is stamped into version history first")
 
     // MARK: - Errors
@@ -49,61 +60,134 @@ struct FastForwardIntent: AIIntent {
         var errorDescription: String? {
             switch self {
             case .nothingToAdapt:
-                return "There are no sections with content to adapt."
+                return "There are no sections to adapt."
             case .unreadable(let detail):
                 return "The model's reply couldn't be read: \(detail)"
             }
         }
     }
 
-    // MARK: - Prompt
+    // MARK: - What gets sent
 
-    /// The sections that will be sent — active and non-empty, in order.
-    static func adaptableSections(_ sections: [ManuscriptSection]) -> [ManuscriptSection] {
-        sections.filter { $0.active && !$0.isEmptyContent }.sorted { $0.order < $1.order }
+    /// One section as it goes out, and everything needed to put it back.
+    struct Payload {
+        let section: ManuscriptSection
+        /// Prose sections: the marked text.
+        let prepared: AIRefMarkers.Prepared?
+        /// Question series: each question, prepared separately.
+        let questions: [(question: QuestionEntry, prepared: AIRefMarkers.Prepared)]
     }
+
+    /// The sections that will be sent.
+    ///
+    /// Active sections, **including empty ones** — an empty required section is
+    /// exactly the case that needs writing, and skipping it was why submission
+    /// questions came back untouched.
+    static func payloads(_ sections: [ManuscriptSection]) -> [Payload] {
+        sections.filter(\.active).sorted { $0.order < $1.order }.map { section in
+            switch section.sectionKind {
+            case .text:
+                return Payload(section: section,
+                               prepared: AIRefMarkers.prepare(section.content),
+                               questions: [])
+            case .questions:
+                return Payload(section: section, prepared: nil,
+                               questions: section.orderedQuestions.map {
+                                   ($0, AIRefMarkers.prepare($0.response))
+                               })
+            }
+        }
+    }
+
+    // MARK: - Prompt
 
     /// Builds the task half of the prompt.  Context is prepended by
     /// `AIRequestService.prompt(context:task:)`, which is the only thing that
     /// reads the checkboxes.
-    static func task(sections: [ManuscriptSection], target: Journal) throws -> String {
-        let adaptable = adaptableSections(sections)
-        guard !adaptable.isEmpty else { throw FastForwardError.nothingToAdapt }
+    static func task(content: Manuscript, target: Journal) throws -> String {
+        let payloads = payloads(content.sections)
+        guard !payloads.isEmpty else { throw FastForwardError.nothingToAdapt }
 
-        let payload = adaptable.map {
-            ["id": $0.id.uuidString, "title": $0.title, "text": $0.plainText]
+        var sectionJSON: [[String: Any]] = []
+        for payload in payloads {
+            var entry: [String: Any] = [
+                "id": payload.section.id.uuidString,
+                "title": payload.section.title,
+            ]
+            switch payload.section.sectionKind {
+            case .text:
+                entry["kind"] = "prose"
+                entry["words"] = payload.section.wordCount
+                entry["text"] = payload.prepared?.text ?? ""
+            case .questions:
+                entry["kind"] = "questions"
+                entry["questions"] = payload.questions.map { item -> [String: Any] in
+                    var q: [String: Any] = [
+                        "id": item.question.id.uuidString,
+                        "prompt": item.question.prompt,
+                        "answer": item.prepared.text,
+                    ]
+                    if let limit = item.question.wordLimit { q["wordLimit"] = limit }
+                    return q
+                }
+            }
+            sectionJSON.append(entry)
         }
-        let sectionsJSON = String(
-            data: try JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys]),
+        let sectionsText = String(
+            data: try JSONSerialization.data(withJSONObject: sectionJSON, options: [.sortedKeys]),
             encoding: .utf8) ?? "[]"
 
         return """
-        Adapt the sections of this manuscript for submission to \
-        "\(target.displayName)".
+        Adapt this manuscript for submission to "\(target.displayName)".
 
         \(profileText(for: target))
 
-        RULES
-        - Preserve every scientific claim, number, statistic, p-value, unit, \
-        citation marker and figure/table reference exactly as written. Never \
-        add a finding, never remove one, never soften or strengthen a claim.
-        - Adapt register, structure, emphasis and LENGTH toward the \
-        requirements and limits above. Where a limit applies, come in under it.
-        - Keep each section's subject matter; do not move content between \
-        sections and do not merge or split them.
-        - If a section already suits the target, return it unchanged.
+        \(checkText(content: content, target: target))
 
-        SECTIONS (JSON array of {id, title, text}):
-        \(sectionsJSON)
+        RULES — in order of importance
 
-        Reply with JSON only, in exactly this shape, one entry per input \
-        section, with the same ids:
-        {"sections": [{"id": "<the same id>", "content": "<the adapted text>"}]}
+        1. TOKENS IN DOUBLE BRACKETS ARE NOT TEXT. `[[cite:3]]`, `[[figref:1]]`, \
+        `[[tabref:2]]`, `[[title]]`, `[[authors.names]]` and any other `[[…]]` \
+        stand for citations, figures, tables and manuscript fields. Reproduce \
+        every one of them exactly as written, in the same place in the argument. \
+        Never delete one, never renumber one, never invent a new one, and never \
+        replace one with words of your own — `[[authors.names]]` must come back \
+        as `[[authors.names]]`, not as a list of names. A dropped token is a \
+        lost citation.
+
+        2. PRESERVE THE SCIENCE. Every claim, number, statistic, p-value, \
+        confidence interval, unit, sample size and date exactly as given. Never \
+        add a finding, never remove one, never soften or strengthen a claim, \
+        never introduce a fact that is not already in the material you were sent.
+
+        3. MEET THE CHECKS ABOVE. Every check listed as FAILING must pass after \
+        your rewrite; every check listed as passing must still pass. Where a \
+        length limit is failing, cut — tighten sentences, remove redundancy, \
+        drop background that the target's readers already have — rather than \
+        deleting findings. Respect the per-section budgets where they are given.
+
+        4. WRITE THE EMPTY ONES. A section or question that arrives empty still \
+        has to be answered, from the manuscript's own content, within its word \
+        limit. Do not leave it blank and do not answer with a placeholder.
+
+        5. ADAPT, DON'T RESTRUCTURE. Keep each section's subject matter; do not \
+        move content between sections, merge them or split them.
+
+        SECTIONS (JSON):
+        \(sectionsText)
+
+        Reply with JSON only, in exactly this shape — one entry per section, \
+        with the same ids. Prose sections use "content"; question sections use \
+        "answers", one entry per question id:
+
+        {"sections": [
+          {"id": "<section id>", "content": "<the adapted text>"},
+          {"id": "<section id>", "answers": [{"id": "<question id>", "content": "<the answer>"}]}
+        ]}
         """
     }
 
-    /// The target journal as the model needs to see it: what the journal asks
-    /// for, the shape it expects, and the limits the app will check.
+    /// The target journal as the model needs to see it.
     static func profileText(for journal: Journal) -> String {
         var lines: [String] = ["TARGET JOURNAL: \(journal.displayName)"]
         if !journal.publisher.isEmpty { lines.append("Publisher: \(journal.publisher)") }
@@ -125,8 +209,6 @@ struct FastForwardIntent: AIIntent {
             }
         }
 
-        // The limits, spelled out: these are exactly what ChecklistService
-        // grades the result against afterwards.
         var limits: [String] = []
         let r = journal.requirements
         if let n = r.maxBodyWords      { limits.append("body: at most \(n) words in total") }
@@ -139,44 +221,154 @@ struct FastForwardIntent: AIIntent {
             lines.append("\nLimits:")
             lines.append(contentsOf: limits.map { "- \($0)" })
         }
+        return lines.joined(separator: "\n")
+    }
 
-        let checks = (journal.checkRules ?? []).filter { $0.isEnabled && !$0.isManual }
-        if !checks.isEmpty {
-            lines.append("\nThe adapted text will be checked automatically against these rules:")
-            for check in checks {
-                var line = "- \(check.displayName)"
-                if let note = check.note, !note.isEmpty { line += " — \(note)" }
-                lines.append(line)
-            }
+    // MARK: - The checks, with their numbers
+
+    /// Every automatic check, evaluated against the content being adapted.
+    ///
+    /// This is the part that makes limits actionable.  "Body ≤ 1200 words" is a
+    /// rule; "FAILING — 2,360 of 1,200 words used, cut 1,160" is an
+    /// instruction, and where the limit spans sections the budget is worked out
+    /// here rather than left to the model's arithmetic.
+    static func checkText(content: Manuscript, target: Journal) -> String {
+        let results = ChecklistService.run(manuscript: content, journal: target)
+            .filter { !$0.manual }
+        guard !results.isEmpty else { return "" }
+
+        var lines = ["CHECKS — these are evaluated automatically after you answer:"]
+        for result in results {
+            lines.append("- \(result.passed ? "passing" : "FAILING") · \(result.rule) · \(result.details)")
+        }
+
+        let budgets = wordBudgets(content: content, target: target)
+        if !budgets.isEmpty {
+            lines.append("\nWORD BUDGET — the length limits above, divided across the sections they cover, keeping each section's share of the current text:")
+            lines.append(contentsOf: budgets.map { "- \($0.title): about \($0.budget) words (currently \($0.current))" })
         }
         return lines.joined(separator: "\n")
     }
 
+    /// Splits each failing length limit across the sections it measures.
+    ///
+    /// Proportional to what each section currently contributes, so a limit that
+    /// covers six sections doesn't turn into six guesses — and the arithmetic
+    /// the model would otherwise have to do in its head is done here, where it
+    /// can be checked.
+    static func wordBudgets(content: Manuscript,
+                            target: Journal) -> [(title: String, current: Int, budget: Int)] {
+        var out: [(String, Int, Int)] = []
+        var claimed = Set<UUID>()
+
+        for rule in (target.checkRules ?? []) where rule.isEnabled && !rule.isManual {
+            for condition in rule.conditions
+            where condition.metric == .words && condition.comparator == .atMost {
+                let covered = sections(for: condition, in: content)
+                    .filter { !claimed.contains($0.id) }
+                guard covered.count > 1 else { continue }
+                let total = covered.reduce(0) { $0 + $1.wordCount }
+                let limit = Int(condition.number)
+                guard total > limit, total > 0 else { continue }
+                for section in covered {
+                    claimed.insert(section.id)
+                    let share = Double(section.wordCount) / Double(total)
+                    out.append((section.title, section.wordCount,
+                                max(25, Int((Double(limit) * share).rounded()))))
+                }
+            }
+        }
+        return out
+    }
+
+    /// The body sections a condition measures.
+    private static func sections(for condition: CheckCondition,
+                                 in content: Manuscript) -> [ManuscriptSection] {
+        var out: [ManuscriptSection] = []
+        for scope in condition.scopes {
+            switch scope.kind {
+            case .body:
+                out.append(contentsOf: content.sections.filter(\.active))
+            case .section:
+                let name = (scope.name ?? "").lowercased()
+                out.append(contentsOf: content.sections.filter {
+                    $0.active && $0.title.lowercased() == name
+                })
+            default:
+                continue
+            }
+        }
+        var seen = Set<UUID>()
+        return out.filter { seen.insert($0.id).inserted }.sorted { $0.order < $1.order }
+    }
+
     // MARK: - Response
 
-    private struct AdaptedSection: Decodable { let id: String; let content: String }
+    private struct AdaptedAnswer: Decodable { let id: String; let content: String }
+    private struct AdaptedSection: Decodable {
+        let id: String
+        let content: String?
+        let answers: [AdaptedAnswer]?
+    }
     private struct AdaptedPayload: Decodable { let sections: [AdaptedSection] }
 
-    /// Reads the reply into section id → adapted text.
+    /// What the model returned, ready to write.
+    struct Adaptation {
+        /// Prose sections: section id → rebuilt rich text.
+        var sections: [UUID: RichText] = [:]
+        /// Question series: section id → (question id → rebuilt answer).
+        var answers: [UUID: [UUID: RichText]] = [:]
+        /// Markers the model failed to return, per section title — every one a
+        /// citation or field that would have been lost.
+        var missingTokens: [String: [String]] = [:]
+
+        var isEmpty: Bool { sections.isEmpty && answers.isEmpty }
+        var sectionCount: Int { sections.count + answers.count }
+    }
+
+    /// Reads the reply and rebuilds rich text, restoring every marked
+    /// reference to the link it stood for.
     ///
     /// Entries with an unknown id or empty text are dropped rather than
     /// guessed at: writing a section the model didn't actually return would be
     /// the worst possible failure mode here.
-    static func adaptedSections(from reply: String,
-                                expecting sections: [ManuscriptSection]) throws -> [UUID: String] {
+    static func adaptation(from reply: String, sent: [Payload]) throws -> Adaptation {
         guard let data = AIRequestService.extractJSONObject(from: reply) else {
             throw FastForwardError.unreadable("no JSON object in the reply")
         }
         guard let payload = try? JSONDecoder().decode(AdaptedPayload.self, from: data) else {
             throw FastForwardError.unreadable("the JSON didn't have the expected shape")
         }
-        let known = Set(sections.map(\.id))
-        var out: [UUID: String] = [:]
+
+        let bySection = Dictionary(uniqueKeysWithValues: sent.map { ($0.section.id, $0) })
+        var out = Adaptation()
+
         for entry in payload.sections {
-            guard let id = UUID(uuidString: entry.id), known.contains(id) else { continue }
-            let text = entry.content.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !text.isEmpty { out[id] = entry.content }
+            guard let id = UUID(uuidString: entry.id), let sent = bySection[id] else { continue }
+
+            if let text = entry.content,
+               !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+               let prepared = sent.prepared {
+                let restored = AIRefMarkers.restore(text, from: prepared)
+                out.sections[id] = restored.rich
+                if !restored.missing.isEmpty {
+                    out.missingTokens[sent.section.title, default: []] += restored.missing
+                }
+            }
+
+            for answer in entry.answers ?? [] {
+                guard let questionID = UUID(uuidString: answer.id),
+                      let item = sent.questions.first(where: { $0.question.id == questionID }),
+                      !answer.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                else { continue }
+                let restored = AIRefMarkers.restore(answer.content, from: item.prepared)
+                out.answers[id, default: [:]][questionID] = restored.rich
+                if !restored.missing.isEmpty {
+                    out.missingTokens[sent.section.title, default: []] += restored.missing
+                }
+            }
         }
+
         guard !out.isEmpty else {
             throw FastForwardError.unreadable("no sections came back that matched the ones sent")
         }

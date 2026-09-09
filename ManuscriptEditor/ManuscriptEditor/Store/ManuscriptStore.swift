@@ -1863,7 +1863,7 @@ final class ManuscriptStore {
     /// journal.  Never recursive.
     @discardableResult
     func syncJournal(_ journalID: UUID,
-                     adaptedSections: [UUID: String]? = nil,
+                     adaptation: FastForwardIntent.Adaptation? = nil,
                      assistedBy model: String? = nil) -> ManuscriptVersion? {
         guard let head = latestVersion(forJournal: journalID),
               let source = syncSource(forJournal: journalID) else { return nil }
@@ -1874,7 +1874,7 @@ final class ManuscriptStore {
         guard let m = manuscript else { return nil }
 
         var baseContent = base?.content ?? m
-        if let adaptedSections { applyAdaptedSections(adaptedSections, to: &baseContent) }
+        if let adaptation { applyAdaptation(adaptation, to: &baseContent) }
         let fromLabel: String
         if let base {
             fromLabel = base.sourceStamp == true
@@ -1915,14 +1915,14 @@ final class ManuscriptStore {
     /// content is transplanted into the live manuscript (undoable).
     @discardableResult
     func pushToUpstream(_ journalID: UUID,
-                        adaptedSections: [UUID: String]? = nil,
+                        adaptation: FastForwardIntent.Adaptation? = nil,
                         assistedBy model: String? = nil) -> Bool {
         guard let source = syncSource(forJournal: journalID) else { return false }
         // Freeze this journal so lineage hangs from a stamp.
         let base = syncBase(forUpstream: journalID)
         guard var content = base?.content ?? latestVersion(forJournal: journalID)?.content
         else { return false }
-        if let adaptedSections { applyAdaptedSections(adaptedSections, to: &content) }
+        if let adaptation { applyAdaptation(adaptation, to: &content) }
 
         if let upstreamID = source.upstreamJournalID {
             guard let upstreamHead = latestVersion(forJournal: upstreamID) else { return false }
@@ -1960,11 +1960,25 @@ final class ManuscriptStore {
         return true
     }
 
-    /// Overwrites matching sections with AI-adapted plain text (smart sync).
-    private func applyAdaptedSections(_ adapted: [UUID: String], to content: inout Manuscript) {
+    /// Writes an adaptation into a manuscript snapshot.
+    ///
+    /// Rich text, not plain: a citation lives in the RTF's link attribute, so
+    /// writing `RichText(plain:)` over a section silently destroyed every
+    /// reference in it.  `AIRefMarkers` has already rebuilt those links.
+    private func applyAdaptation(_ adaptation: FastForwardIntent.Adaptation,
+                                 to content: inout Manuscript) {
         for i in content.sections.indices {
-            if let text = adapted[content.sections[i].id] {
-                content.sections[i].content = RichText(plain: text)
+            let id = content.sections[i].id
+            if let rich = adaptation.sections[id] {
+                content.sections[i].content = rich
+            }
+            if let answers = adaptation.answers[id] {
+                for q in (content.sections[i].questions ?? []).indices {
+                    let questionID = content.sections[i].questions![q].id
+                    if let rich = answers[questionID] {
+                        content.sections[i].questions![q].response = rich
+                    }
+                }
             }
         }
     }
@@ -2069,13 +2083,18 @@ final class ManuscriptStore {
         // Forward pulls the upstream's content down into this journal, so the
         // TARGET is this journal; backward pushes up, so the target is the
         // upstream.  The target's profile is what the adaptation aims at.
-        let sections: [ManuscriptSection]
+        //
+        // The whole snapshot travels, not just its sections: the checks are
+        // evaluated against it (abstract, figures, tables and references all
+        // count toward limits), and that evaluation is what makes the limits
+        // actionable in the prompt.
+        let baseContent: Manuscript
         let target: Journal?
         if forward {
-            sections = (syncBase(forUpstream: source.upstreamJournalID)?.content ?? m).sections
+            baseContent = syncBase(forUpstream: source.upstreamJournalID)?.content ?? m
             target = journal
         } else {
-            sections = latestVersion(forJournal: journalID)?.content.sections ?? []
+            baseContent = latestVersion(forJournal: journalID)?.content ?? m
             target = source.upstreamJournalID.flatMap { id in m.journals.first { $0.id == id } }
         }
         guard let target else {
@@ -2098,31 +2117,40 @@ final class ManuscriptStore {
 
         var prompt = ""
         do {
-            let sent = FastForwardIntent.adaptableSections(sections)
+            let sent = FastForwardIntent.payloads(baseContent.sections)
             prompt = AIRequestService.prompt(
                 context: bundle,
-                task: try FastForwardIntent.task(sections: sections, target: target))
+                task: try FastForwardIntent.task(content: baseContent, target: target))
 
             let result = try await AIRequestService.send(
                 prompt: prompt, to: destination, sessionID: entryID,
                 onProgress: { [weak self] progress in
                     Task { @MainActor in self?.assistRuns[journalID]?.progress = progress }
                 })
-            let adapted = try FastForwardIntent.adaptedSections(from: result.text, expecting: sent)
+            let adaptation = try FastForwardIntent.adaptation(from: result.text, sent: sent)
 
             // Measured before the write, while the old text is still in hand.
-            let changes = sent.compactMap { section -> AIPromptLogChange? in
-                guard let after = adapted[section.id] else { return nil }
-                return AIPromptLogChange.measure(title: section.title,
-                                                 before: section.plainText, after: after)
+            let changes = sent.compactMap { payload -> AIPromptLogChange? in
+                let after: String
+                if let rich = adaptation.sections[payload.section.id] {
+                    after = rich.plain
+                } else if let answers = adaptation.answers[payload.section.id] {
+                    after = payload.questions
+                        .compactMap { answers[$0.question.id]?.plain }
+                        .joined(separator: "\n\n")
+                } else {
+                    return nil
+                }
+                return AIPromptLogChange.measure(title: payload.section.title,
+                                                 before: payload.section.plainText, after: after)
             }
 
             // Assisted or not, the write is the same mechanical override —
             // which is what guarantees the previous content is stamped into
             // version history first and the change can be rolled back.
             let applied = forward
-                ? syncJournal(journalID, adaptedSections: adapted, assistedBy: result.model) != nil
-                : pushToUpstream(journalID, adaptedSections: adapted, assistedBy: result.model)
+                ? syncJournal(journalID, adaptation: adaptation, assistedBy: result.model) != nil
+                : pushToUpstream(journalID, adaptation: adaptation, assistedBy: result.model)
 
             record(AIPromptLogEntry(
                 id: entryID,
@@ -2133,9 +2161,8 @@ final class ManuscriptStore {
                 startedAt: started,
                 duration: result.duration,
                 outcome: applied ? .applied : .noChange,
-                detail: result.modelWasSubstituted
-                    ? "\(result.model) answered, not the model selected."
-                    : (applied ? nil : "The override didn't run — nothing was written."),
+                detail: assistDetail(applied: applied, result: result,
+                                     adaptation: adaptation, target: target, journalID: journalID),
                 contextTitles: bundle.pieces.map(\.title),
                 excludedContextTitles: bundle.excludedTitles,
                 promptCharacters: prompt.count,
@@ -2145,7 +2172,16 @@ final class ManuscriptStore {
                 prompt: prompt, response: result.text)
 
             if applied {
-                showBanner(.success, "\(summary) — \(changes.count) section\(changes.count == 1 ? "" : "s") adapted by \(result.model). Stamped as a new version; the previous content is in Versions.")
+                let failures = failingChecks(forJournal: journalID, target: target)
+                var message = "\(summary) — \(changes.count) section\(changes.count == 1 ? "" : "s") adapted by \(result.model). Stamped as a new version; the previous content is in Versions."
+                if !adaptation.missingTokens.isEmpty {
+                    let lost = adaptation.missingTokens.values.reduce(0) { $0 + $1.count }
+                    message += " \(lost) citation\(lost == 1 ? "" : "s") or field\(lost == 1 ? "" : "s") came back missing — see the prompt log."
+                }
+                if !failures.isEmpty {
+                    message += " \(failures.count) check\(failures.count == 1 ? "" : "s") still failing."
+                }
+                showBanner(failures.isEmpty && adaptation.missingTokens.isEmpty ? .success : .error, message)
             } else {
                 showBanner(.error, "\(summary) failed: the override didn't run.")
             }
@@ -2167,6 +2203,46 @@ final class ManuscriptStore {
                 prompt: prompt, response: "")
             showBanner(.error, "Assist failed: \(error.localizedDescription)")
         }
+    }
+
+    /// The checks the target still fails after an assisted write.
+    ///
+    /// The point of sending the checks with their numbers is that the result
+    /// can be graded the same way — so the log says whether the adaptation
+    /// actually met the journal's rules rather than only that it ran.
+    private func failingChecks(forJournal journalID: UUID, target: Journal) -> [ChecklistResult] {
+        guard let content = latestVersion(forJournal: journalID)?.content ?? manuscript
+        else { return [] }
+        return ChecklistService.run(manuscript: content, journal: target)
+            .filter { !$0.manual && !$0.passed }
+    }
+
+    /// What the log entry says beyond "applied": a substituted model, tokens
+    /// the reply dropped, and any check the result still fails.
+    private func assistDetail(applied: Bool,
+                              result: AISendResult,
+                              adaptation: FastForwardIntent.Adaptation,
+                              target: Journal,
+                              journalID: UUID) -> String? {
+        var parts: [String] = []
+        if result.modelWasSubstituted {
+            parts.append("\(result.model) answered, not the model selected.")
+        }
+        if !applied {
+            parts.append("The override didn't run — nothing was written.")
+            return parts.joined(separator: " ")
+        }
+        for (section, tokens) in adaptation.missingTokens.sorted(by: { $0.key < $1.key }) {
+            parts.append("\(section): dropped \(tokens.joined(separator: ", ")).")
+        }
+        let failures = failingChecks(forJournal: journalID, target: target)
+        if failures.isEmpty {
+            parts.append("Every automatic check passes.")
+        } else {
+            parts.append("Still failing: "
+                + failures.map { "\($0.rule) (\($0.details))" }.joined(separator: "; ") + ".")
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: " ")
     }
 
     /// Writes one entry to disk and to the in-memory log.
