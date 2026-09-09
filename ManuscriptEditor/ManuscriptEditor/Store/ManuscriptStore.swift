@@ -1862,7 +1862,8 @@ final class ManuscriptStore {
     /// journal.  Never recursive.
     @discardableResult
     func syncJournal(_ journalID: UUID,
-                     adaptedSections: [UUID: String]? = nil) -> ManuscriptVersion? {
+                     adaptedSections: [UUID: String]? = nil,
+                     assistedBy model: String? = nil) -> ManuscriptVersion? {
         guard let head = latestVersion(forJournal: journalID),
               let source = syncSource(forJournal: journalID) else { return nil }
 
@@ -1883,8 +1884,11 @@ final class ManuscriptStore {
         }
 
         let number = (m.versions.map(\.number).max() ?? 0) + 1
+        // The label names the model when one was involved: a rollback target
+        // is only useful if you can tell at a glance which versions were
+        // written by hand and which were adapted.
         let version = signed(ManuscriptVersion.cut(
-            label: "Synced from \(fromLabel)",
+            label: model.map { "Adapted from \(fromLabel) by \($0)" } ?? "Synced from \(fromLabel)",
             from: baseContent,
             parentID: base?.id,
             journalID: journalID,
@@ -1898,7 +1902,8 @@ final class ManuscriptStore {
         NotificationCenter.default.post(
             name: .journalHeadChanged, object: nil,
             userInfo: ["old": head.id, "new": version.id])
-        log(.info, "Fast-forwarded \(journalName(journalID) ?? "journal") from \(fromLabel)")
+        log(.info, model.map { "Adapted \(journalName(journalID) ?? "journal") from \(fromLabel) with \($0)" }
+                   ?? "Fast-forwarded \(journalName(journalID) ?? "journal") from \(fromLabel)")
         return version
     }
 
@@ -1909,7 +1914,8 @@ final class ManuscriptStore {
     /// content is transplanted into the live manuscript (undoable).
     @discardableResult
     func pushToUpstream(_ journalID: UUID,
-                        adaptedSections: [UUID: String]? = nil) -> Bool {
+                        adaptedSections: [UUID: String]? = nil,
+                        assistedBy model: String? = nil) -> Bool {
         guard let source = syncSource(forJournal: journalID) else { return false }
         // Freeze this journal so lineage hangs from a stamp.
         let base = syncBase(forUpstream: journalID)
@@ -1919,8 +1925,9 @@ final class ManuscriptStore {
 
         if let upstreamID = source.upstreamJournalID {
             guard let upstreamHead = latestVersion(forJournal: upstreamID) else { return false }
+            let pushLabel = "Pushed back from \(journalName(journalID) ?? "journal")"
             let next = signed(ManuscriptVersion.cut(
-                label: "Pushed back from \(journalName(journalID) ?? "journal")",
+                label: model.map { "\(pushLabel), adapted by \($0)" } ?? pushLabel,
                 from: content,
                 parentID: base?.id,
                 journalID: upstreamID,
@@ -2076,9 +2083,12 @@ final class ManuscriptStore {
                                                  before: section.plainText, after: after)
             }
 
+            // Assisted or not, the write is the same mechanical override —
+            // which is what guarantees the previous content is stamped into
+            // version history first and the change can be rolled back.
             let applied = forward
-                ? syncJournal(journalID, adaptedSections: adapted) != nil
-                : pushToUpstream(journalID, adaptedSections: adapted)
+                ? syncJournal(journalID, adaptedSections: adapted, assistedBy: result.model) != nil
+                : pushToUpstream(journalID, adaptedSections: adapted, assistedBy: result.model)
 
             record(AIPromptLogEntry(
                 intentID: FastForwardIntent.descriptor.id,
@@ -2099,7 +2109,7 @@ final class ManuscriptStore {
                 prompt: prompt, response: result.text)
 
             if applied {
-                showBanner(.success, "\(summary) — \(changes.count) section\(changes.count == 1 ? "" : "s") adapted by \(result.model).")
+                showBanner(.success, "\(summary) — \(changes.count) section\(changes.count == 1 ? "" : "s") adapted by \(result.model). Stamped as a new version; the previous content is in Versions.")
             } else {
                 showBanner(.error, "\(summary) failed: the override didn't run.")
             }

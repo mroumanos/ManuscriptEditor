@@ -270,7 +270,10 @@ is the entire safety story, and the reason not to give it a bespoke edit path.
 > model's help while another, under an embargo or a co-author's objection, is
 > written entirely by hand.
 
-One toolbar toggle: **✦ Assist**, with the prompt-log icon beside it (§6).
+One toggle: **✦ Assist**, a compact icon in the journal tab bar immediately
+**left of Active/Compare** — those three say how the workspace is behaving right
+now, and unlike a title-bar button the tab bar is visible in every pane. No
+label: grey when off, assist violet when on, pulsing while a request is out.
 
 - **No connector tests green** → disabled, pointing at Settings → Accounts.
 - **Configured, off** → available; everything renders normally.
@@ -293,9 +296,9 @@ control: Assist off is today's mechanical behaviour exactly; Assist on runs
 ## 6. The prompt log
 
 > **Built.** `Models/AIPromptLog.swift`, `Services/AI/AIPromptLogService.swift`,
-> `Views/PromptLogView.swift`. Append-only; nothing in the app edits or deletes
-> an entry. `gatherRemoteFiles` ships `ai/`, `ai/prompts/` and `ai/responses/`
-> with the manuscript.
+> `Views/PromptLogView.swift` (the **AI Requests** section of the Log pane).
+> Append-only; nothing in the app edits or deletes an entry. `gatherRemoteFiles`
+> ships `ai/`, `ai/prompts/` and `ai/responses/` with the manuscript.
 
 Every request, whether fired by a button or (later) typed by hand, is recorded.
 
@@ -317,11 +320,15 @@ A fast-forward prompt carries an entire journal; keeping payloads out of
 continuity in v1. Button-driven only for now; the log is built as a *transcript*
 so that adding a custom prompt box later is an addition, not a rewrite.
 
-**The popup** (message icon beside the Assist toggle) lists entries newest
+**Where it is read: Log → AI Requests**, the third section of the Log pane
+under Changelog and Events — not a popover behind an icon of its own. That pane
+is already where someone goes to ask "what happened to this manuscript", and a
+request to a model is one of the things that happened. Entries are newest
 first: intent, connector + model, when, and a **summary diff of what the
 response changed** — reusing `SentenceSimilarity` from compare mode, which
 already answers "what changed between two texts" in ~1.2 ms and gives the log
-the same green/yellow vocabulary the editors use.
+the same green/yellow vocabulary the editors use. Expanding a row shows the
+context sent, what was withheld, and the prompt and response verbatim.
 
 Why this matters more than the generation features: for scientific work,
 *"which parts of this were AI-written, from what prompt, by which model"* is a
@@ -361,6 +368,17 @@ Runners sit underneath, one per connector shape:
 - `AgentCLIRunner` — spawns the resolved executable; per-CLI differences are
   argv only (`claude -p --model … --output-format json`, `codex exec …`).
 - `HTTPRunner` — Ollama today; the keyed API path reuses it.
+
+**Every write is a version (required).** An intent that changes the manuscript
+must land as a stamped version, never as an in-place edit — a model's work is
+exactly the kind that has to be reversible after the fact, when the problem is
+noticed a day later rather than one ⌘Z ago. `journal.fastForward` gets this by
+writing through the same `syncJournal` / `pushToUpstream` override a manual copy
+uses: the overridden content is stamped into history first, and the new version
+is labelled **"Adapted from … by \<model\>"** so an assisted version can be
+told from a hand-made one at a glance in Versions. An intent that edits a text
+box instead (`context.compose`) goes through the undo manager, which is that
+case's equivalent — but nothing writes with neither.
 
 **Discoverability (required).** Every intent lives in `Services/AI/Intents/`, is
 registered in `AIIntentRegistry.all`, and carries an `// AI INTENT` banner.

@@ -1,6 +1,9 @@
 // PromptLogView.swift
 //
-// The prompt log, as a popover off the toolbar's message icon.
+// **AI Requests** — the third section of the Log pane, under Changelog and
+// Events.  It belongs there rather than behind an icon of its own: the log
+// pane is already where someone goes to ask "what happened to this
+// manuscript", and a request to a model is one of the things that happened.
 //
 // Newest first, one row per request: what was asked, which tool and model
 // answered, and what it changed — measured with the same sentence comparison
@@ -20,54 +23,46 @@ struct PromptLogView: View {
     @State private var payload: (prompt: String, response: String)?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            header
-            Divider()
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Text("AI Requests")
+                    .font(.headline)
+                    .foregroundStyle(.secondary)
+                Text("ships with the manuscript — every prompt, kept")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                Spacer()
+            }
             if store.promptLog.isEmpty {
                 empty
             } else {
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 0) {
-                        ForEach(store.promptLog) { entry in
-                            row(entry)
-                            Divider()
+                VStack(spacing: 0) {
+                    ForEach(store.promptLog) { entry in
+                        row(entry)
+                        if entry.id != store.promptLog.last?.id {
+                            Divider().padding(.leading, 34)
                         }
                     }
                 }
+                .background(Color(NSColor.controlBackgroundColor),
+                            in: RoundedRectangle(cornerRadius: 10))
+                .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.separator, lineWidth: 1))
             }
         }
-        .frame(width: 460, height: 420)
-    }
-
-    private var header: some View {
-        HStack(spacing: 6) {
-            Image(systemName: AssistStyle.symbol).foregroundStyle(.secondary)
-            Text("Prompt Log").font(.headline)
-            Spacer()
-            Text("ships with the manuscript")
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
     }
 
     private var empty: some View {
-        VStack(spacing: 6) {
-            Spacer()
-            Image(systemName: "bubble.left")
-                .font(.system(size: 28, weight: .thin))
-                .foregroundStyle(.tertiary)
-            Text("Nothing sent yet")
+        HStack(spacing: 8) {
+            Image(systemName: AssistStyle.symbol).foregroundStyle(.tertiary)
+            Text("Nothing sent yet — every AI request from this manuscript is recorded here, with what it changed.")
+                .font(.callout)
                 .foregroundStyle(.secondary)
-            Text("Every AI request from this manuscript is recorded here — what was asked, what answered, and what it changed.")
-                .font(.caption)
-                .multilineTextAlignment(.center)
-                .foregroundStyle(.tertiary)
-                .padding(.horizontal, 30)
             Spacer()
         }
-        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
+        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.separator, lineWidth: 1))
     }
 
     @ViewBuilder

@@ -236,11 +236,6 @@ struct ContentView: View {
                     // Plain text in the title bar — no liquid-glass bubbles.
                     ToolbarItem(placement: .principal) { ToolbarBanner() }
                         .sharedBackgroundVisibility(.hidden)
-                    // Assist + prompt log, left of the save state: the switch
-                    // that lets this app talk to a model, and the record of
-                    // everything it has said.
-                    ToolbarItem(placement: .primaryAction) { AssistToolbarItem() }
-                        .sharedBackgroundVisibility(.hidden)
                     ToolbarItem(placement: .primaryAction) { SaveStatusIndicator() }
                         .sharedBackgroundVisibility(.hidden)
                 }
@@ -807,6 +802,11 @@ struct JournalTabBar: View {
             }
 
             Divider().frame(height: 20)
+
+            // Assist sits with the view mode, not in the title bar: all three
+            // say how the workspace is behaving right now.
+            AssistToggle()
+                .padding(.leading, 8)
 
             Picker("", selection: $mode) {
                 ForEach(TabViewMode.allCases, id: \.self) { m in

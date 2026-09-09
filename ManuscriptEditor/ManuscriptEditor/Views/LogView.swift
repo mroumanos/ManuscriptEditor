@@ -131,6 +131,9 @@ struct LogView: View {
                 }
                 }
 
+                PromptLogView()
+                    .padding(.top, 8)
+
                 Spacer(minLength: 0)
             }
             .padding(24)
