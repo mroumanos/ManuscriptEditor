@@ -398,6 +398,16 @@ profile (requirements bullets, structure, checks with their limits) → per-sect
 adapted content → writes the downstream cut and stamps a version. Never touches
 the upstream; never applies without the diff being visible.
 
+**How long it takes.** A real seven-section manuscript ran past ten minutes:
+the generation, not the network, is the cost — the model rewrites every section
+in full. So the cutoff is 15 minutes (`AIRequestService.longRunTimeout`), the
+busy row shows a bar and a running clock against it
+(`Views/AssistRunIndicator.swift`), and the indicator is keyed to the journal
+whose button was pressed rather than the card. The context also stops repeating
+the manuscript body when the intent already sends the sections
+(`aiContextBundle(includeSectionText:)`) — it was going out twice, ~46 kB for
+that manuscript.
+
 **Proved end to end (Sep 2026).** One real `claude -p` run against a two-section
 manuscript with a 120-word limit: Opus 5 answered in 12.6 s, expanded the
 abbreviations the journal's instructions asked for (`HF` → heart failure,

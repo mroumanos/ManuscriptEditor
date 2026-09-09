@@ -246,7 +246,13 @@ struct JournalLineageCard: View {
                 // Assist on, the same button adapts on the way — so it wears
                 // the assist treatment rather than becoming a second button.
                 let assisting = assistActive
-                if store.isAssistBusy { ProgressView().controlSize(.small) }
+                // Only this journal's row reacts: a request on one cut says
+                // nothing about the others.
+                let running = store.isAssisting(journal.id)
+                if let startedAt = store.assistStartedAt(journal.id) {
+                    AssistRunIndicator(startedAt: startedAt,
+                                       timeout: AIRequestService.longRunTimeout)
+                }
                 Button {
                     pendingSync = PendingSync(journal: journal, forward: false)
                 } label: {
@@ -254,7 +260,7 @@ struct JournalLineageCard: View {
                         .assistAffordance(active: assisting, busy: store.isAssistBusy)
                 }
                 .buttonStyle(.bordered)
-                .disabled(store.isAssistBusy)
+                .disabled(running)
                 .help(assisting
                       ? "Assisted fast-backward: adapt \(journal.name)'s latest toward \(upstreamName) and override it"
                       : "Fast-backward: override \(upstreamName) with \(journal.name)'s latest")
@@ -273,7 +279,7 @@ struct JournalLineageCard: View {
                         .assistAffordance(active: assisting, busy: store.isAssistBusy)
                 }
                 .buttonStyle(.bordered)
-                .disabled(store.isAssistBusy)
+                .disabled(running)
                 .help(assisting
                       ? "Assisted fast-forward: adapt \(upstreamName)'s latest toward \(journal.name)'s requirements and override it"
                       : "Fast-forward: override \(journal.name) with \(upstreamName)'s latest")

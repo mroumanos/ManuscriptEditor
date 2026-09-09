@@ -55,12 +55,23 @@ struct AISendResult: Sendable {
 
 struct AIRequestService: Sendable {
 
+    /// How long a manuscript-sized request is given before it is abandoned.
+    ///
+    /// Fifteen minutes, against the connector's own 120 s default.  A
+    /// fast-forward asks for every section of a paper to be rewritten, and the
+    /// generation — not the network — is what takes the time: a real
+    /// seven-section manuscript ran past ten minutes.  Killing a request that
+    /// was about to land is the worse failure, and nothing is written until it
+    /// returns, so the cutoff is generous and the row shows the clock against
+    /// it.
+    static let longRunTimeout = 900
+
     /// Sends one prompt and returns the raw text.  No parsing, no application —
     /// an intent owns both, so this stays the same for every future feature.
     static func send(prompt: String,
                      to destination: AIDestination,
                      expectsJSON: Bool = true,
-                     timeout: Int = 600) async throws -> AISendResult {
+                     timeout: Int = longRunTimeout) async throws -> AISendResult {
         switch destination {
         case .connector(let connector):
             var edited = connector

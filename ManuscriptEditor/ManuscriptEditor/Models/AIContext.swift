@@ -182,9 +182,16 @@ struct AIContextBundle {
     ///
     /// `fileText` resolves an attached file to text; it returns nil for
     /// anything unreadable, which is dropped rather than sent as noise.
+    /// `includeSectionText` is false when the *intent* is already sending the
+    /// sections — a fast-forward puts every section in its own payload, and
+    /// repeating them in the context doubles a manuscript-sized prompt for
+    /// nothing, which costs minutes on a long run.  The manuscript row still
+    /// goes (title, authors, abstract, journals, and each section's title and
+    /// length), so the model still knows the shape of the paper.
     static func build(entries: [AIContextEntry],
                       manuscript: Manuscript?,
-                      fileText: (String) -> String?) -> AIContextBundle {
+                      fileText: (String) -> String?,
+                      includeSectionText: Bool = true) -> AIContextBundle {
         var pieces: [Piece] = []
         var excluded: [String] = []
 
@@ -194,7 +201,8 @@ struct AIContextBundle {
             case .appPrimer:
                 pieces.append(Piece(title: AIContextPrimer.title, text: AIContextPrimer.text))
             case .manuscriptData:
-                if let manuscript, let text = manuscriptSummary(manuscript) {
+                if let manuscript,
+                   let text = manuscriptSummary(manuscript, includeSectionText: includeSectionText) {
                     pieces.append(Piece(title: "This manuscript", text: text))
                 }
             case .freeText:
@@ -223,7 +231,8 @@ struct AIContextBundle {
     /// The manuscript as structured text: what it contains and how it is
     /// shaped, including each journal's limits, since that is what an
     /// adaptation has to satisfy.
-    private static func manuscriptSummary(_ m: Manuscript) -> String? {
+    private static func manuscriptSummary(_ m: Manuscript,
+                                          includeSectionText: Bool = true) -> String? {
         var lines: [String] = []
         let title = (m.articleTitle?.isEmpty == false ? m.articleTitle! : m.title)
         if !title.isEmpty { lines.append("Title: \(title)") }
@@ -242,7 +251,7 @@ struct AIContextBundle {
             lines.append("\nSections:")
             for section in sections {
                 lines.append("\n### \(section.title) (\(section.wordCount) words)")
-                lines.append(section.plainText)
+                if includeSectionText { lines.append(section.plainText) }
             }
         }
         if !m.figures.isEmpty || !m.tables.isEmpty || !m.bibliography.isEmpty {

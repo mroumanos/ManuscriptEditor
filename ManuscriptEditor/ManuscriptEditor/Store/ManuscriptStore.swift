@@ -1252,10 +1252,11 @@ final class ManuscriptStore {
     }
 
     /// The payload actually sent with a request — enabled rows only.
-    func aiContextBundle() -> AIContextBundle {
+    func aiContextBundle(includeSectionText: Bool = true) -> AIContextBundle {
         AIContextBundle.build(entries: aiContextEntries,
                               manuscript: manuscript,
-                              fileText: { [weak self] in self?.contextFileText($0) })
+                              fileText: { [weak self] in self?.contextFileText($0) },
+                              includeSectionText: includeSectionText)
     }
 
     // MARK: - Export attachments
@@ -1979,8 +1980,23 @@ final class ManuscriptStore {
     // log whether the run succeeded or failed.  An intent that skips this
     // would be a request nobody can audit afterwards.
 
-    /// True while an assist request is in flight (spinner + shimmer).
-    var isAssistBusy = false
+    /// Requests in flight, keyed by the journal whose button started them,
+    /// with the moment each began.
+    ///
+    /// Per-journal rather than one global flag: a fast-forward can take
+    /// minutes, and a spinner on every row says the whole card is working when
+    /// only one journal is.  The start time is here because the row needs to
+    /// show how long it has been going — a request with no elapsed counter is
+    /// indistinguishable from a hung one.
+    private(set) var assistRuns: [UUID: Date] = [:]
+
+    /// True while any request is in flight — the ✦ toggle pulses on this.
+    var isAssistBusy: Bool { !assistRuns.isEmpty }
+
+    func isAssisting(_ journalID: UUID) -> Bool { assistRuns[journalID] != nil }
+
+    /// When this journal's request started, for the elapsed counter.
+    func assistStartedAt(_ journalID: UUID) -> Date? { assistRuns[journalID] }
 
     /// This manuscript's prompt log, newest first.  Reloaded when a
     /// manuscript opens; appended to in memory as requests complete, so the
@@ -2060,11 +2076,13 @@ final class ManuscriptStore {
         }
 
         let started = Date()
-        let bundle = aiContextBundle()
+        // The section text goes in the intent's own payload below, so the
+        // context sends the manuscript's shape without repeating its body.
+        let bundle = aiContextBundle(includeSectionText: false)
         let summary = "\(forward ? "Fast-forward" : "Fast-backward") \(target.name) from \(forward ? source.upstreamName : (journal?.name ?? "journal"))"
 
-        isAssistBusy = true
-        defer { isAssistBusy = false }
+        assistRuns[journalID] = started
+        defer { assistRuns[journalID] = nil }
 
         var prompt = ""
         do {

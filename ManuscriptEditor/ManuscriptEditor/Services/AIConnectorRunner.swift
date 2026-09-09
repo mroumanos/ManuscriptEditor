@@ -45,7 +45,10 @@ enum AIConnectorError: LocalizedError {
         case .launchFailed(let detail):
             return "Couldn't start the tool: \(detail)"
         case .timedOut(let seconds):
-            return "No answer after \(seconds)s. The tool may be waiting for a sign-in — run it once in Terminal."
+            // Two very different causes, and the second only looks like a
+            // hang: a first run waiting on a sign-in, or a request genuinely
+            // bigger than the time allowed.
+            return "No answer after \(seconds / 60) min, so the request was given up on and nothing was written. If this tool has never run here, it may be waiting for a sign-in — run it once in Terminal. Otherwise the manuscript may simply be too large for one pass."
         case .toolFailed(let detail):
             return detail
         case .emptyResponse:
