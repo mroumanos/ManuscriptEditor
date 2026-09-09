@@ -7,6 +7,7 @@
 //   <slug>/checks.json         the executable rules (automatic and manual)
 //   <slug>/structure.json      the sections a manuscript for this journal
 //                              starts with — and that checks verify
+//   <slug>/export.json         the export outline and its formatting
 //
 // Splitting them means a diff shows WHICH half changed, and the Checks pane
 // can flag "your copy of the checks differs from your library" without
@@ -43,6 +44,11 @@ import CryptoKit
 /// the Checks pane's cards are all per-part.
 enum ProfilePart: String, Codable, CaseIterable, Sendable {
     case requirements, checks, structure
+    /// The export outline and its formatting.  Part of the profile since Sep
+    /// 2026: it used to be saved into a second, parallel library from the
+    /// Export pane, which is why a profile saved under a new name never showed
+    /// up when adding a journal.  One library, one save.
+    case export
 
     var fileName: String { "\(rawValue).json" }
 
@@ -55,6 +61,7 @@ enum ProfilePart: String, Codable, CaseIterable, Sendable {
         case .requirements: return "Summary"
         case .checks:       return "Tests"
         case .structure:    return "Structure"
+        case .export:       return "Export"
         }
     }
 }
@@ -375,6 +382,9 @@ struct JournalProfile: Codable, Identifiable, Sendable, Equatable {
     var requirements: SourceRequirements = SourceRequirements()
     var checks: [CheckRule] = []
     var structure: JournalStructure = JournalStructure()
+    /// The export outline this journal expects.  nil = never configured, so
+    /// the standard outline is derived instead.
+    var export: ExportConfig? = nil
 
     var origin: Origin = .bundled
     /// Link to where this configuration came from, when it has one.
@@ -391,10 +401,12 @@ struct JournalProfile: Codable, Identifiable, Sendable, Equatable {
          lineage: [UUID] = [],
          requirements: SourceRequirements = SourceRequirements(),
          checks: [CheckRule] = [], structure: JournalStructure = JournalStructure(),
+         export: ExportConfig? = nil,
          origin: Origin = .bundled, originURL: String? = nil, updatedAt: Date? = nil) {
         self.id = id; self.name = name; self.articleType = articleType
         self.lineage = lineage
         self.requirements = requirements; self.checks = checks; self.structure = structure
+        self.export = export
         self.origin = origin; self.originURL = originURL; self.updatedAt = updatedAt
     }
 
@@ -447,6 +459,9 @@ struct JournalProfile: Codable, Identifiable, Sendable, Equatable {
         case .requirements: return ProfileFingerprint.of(requirementsDoc)
         case .checks:       return ProfileFingerprint.of(checksDoc)
         case .structure:    return ProfileFingerprint.of(structureDoc)
+        // No outline and an empty outline are the same thing here, so a
+        // journal that never configured one doesn't read as "differs".
+        case .export:       return export.map { ProfileFingerprint.of($0) } ?? ""
         }
     }
 
@@ -470,12 +485,17 @@ struct JournalProfile: Codable, Identifiable, Sendable, Equatable {
                                              editedAt: req.updatedAt),
             checks: load(.checks, as: ChecksDoc.self)?.checks ?? [],
             structure: JournalStructure(sections: load(.structure, as: StructureDoc.self)?.sections ?? []),
+            export: load(.export, as: ExportConfig.self),
             origin: origin, originURL: originURL, updatedAt: req.updatedAt
         )
     }
 
-    /// Writes all three files, creating the folder.  Returns false if any
+    /// Writes the profile's files, creating the folder.  Returns false if any
     /// write fails, so a caller can report rather than silently drop edits.
+    ///
+    /// `export.json` is written only when there is one: a journal that never
+    /// had its outline configured should not gain an empty file that then
+    /// reads as "differs from your library".
     @discardableResult
     func write(to folder: URL) -> Bool {
         let encoder = JSONEncoder()
@@ -489,6 +509,12 @@ struct JournalProfile: Codable, Identifiable, Sendable, Equatable {
                 .write(to: folder.appendingPathComponent(ProfilePart.checks.fileName), options: .atomic)
             try encoder.encode(structureDoc)
                 .write(to: folder.appendingPathComponent(ProfilePart.structure.fileName), options: .atomic)
+            let exportURL = folder.appendingPathComponent(ProfilePart.export.fileName)
+            if let export {
+                try encoder.encode(export).write(to: exportURL, options: .atomic)
+            } else {
+                try? FileManager.default.removeItem(at: exportURL)
+            }
             return true
         } catch {
             return false

@@ -37,7 +37,6 @@ struct ExportView: View {
     @State private var showingPreview = false
     @State private var errorMessage: String?
     /// The journal being saved into the global library (drives the sheet).
-    @State private var savingToLibrary: Journal?
 
     /// Which journal's outline is being edited/exported (nil = Source),
     /// derived from the pane's tab.
@@ -171,12 +170,7 @@ struct ExportView: View {
                     })
             }
         }
-        .sheet(item: $savingToLibrary) { journal in
-            SaveToJournalLibrarySheet(journal: journal, isPresented: Binding(
-                get: { savingToLibrary != nil },
-                set: { if !$0 { savingToLibrary = nil } }
-            ))
-        }
+
     }
 
     // MARK: - Header
@@ -194,16 +188,10 @@ struct ExportView: View {
                 Label(journalName, systemImage: journalID == nil ? "doc.text" : "building.columns")
                     .font(.headline)
 
-                if let journal = journals.first(where: { $0.id == journalID }) {
-                    Button {
-                        savingToLibrary = journal
-                    } label: {
-                        Label("Save Outline to Library…", systemImage: "books.vertical")
-                    }
-                    .controlSize(.small)
-                    .help("Store this journal's export outline (and checks) as a reusable library profile")
-                }
-
+                // Saving lives in the journal's profile pane (Checks), which
+                // now carries the export outline as part of the profile — two
+                // saves into two different libraries were why a journal saved
+                // here never appeared when adding one.
                 if let content = exportContent, journalID != nil,
                    let head = store.latestVersion(forJournal: journalID) {
                     Text("Exports v\(store.journalOrdinal(of: head)) · \(content.updatedAt.formatted(date: .abbreviated, time: .shortened))")

@@ -387,9 +387,6 @@ struct SidebarView: View {
                 renameDraft = section.title
                 renamingSectionID = section.id
             }
-            Button(isActive ? "Deactivate in This Journal" : "Activate in This Journal") {
-                store.setSectionActive(!isActive, id: section.id, ref: activeRef)
-            }
             Button("Delete Section", role: .destructive) { deleteSection(section) }
         }
         .alert("Rename Section", isPresented: Binding(

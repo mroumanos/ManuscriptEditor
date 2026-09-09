@@ -104,6 +104,7 @@ struct Journal: Codable, Identifiable, Sendable {
             requirements: sourceRequirements ?? SourceRequirements(),
             checks: checkRules ?? [],
             structure: structure ?? JournalStructure(),
+            export: exportConfig,
             origin: configOrigin ?? .bundled,
             originURL: configURL
         )

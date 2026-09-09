@@ -18,11 +18,13 @@ struct JournalProfileReview: View {
     private enum Tab: String, CaseIterable, Identifiable {
         case requirements, structure, checks
         var id: String { rawValue }
+        /// The same words the profile pane uses — one vocabulary, wherever a
+        /// profile is shown.
         var label: String {
             switch self {
-            case .requirements: return "Requirements"
+            case .requirements: return "Summary"
             case .structure:    return "Structure"
-            case .checks:       return "Checks"
+            case .checks:       return "Tests"
             }
         }
     }
@@ -77,14 +79,23 @@ struct JournalProfileReview: View {
             .help(profile.requirements.url)
         }
         if profile.requirements.bullets.isEmpty {
-            empty("No requirements recorded for this journal.")
+            empty("No summary recorded for this journal.")
         } else {
-            ForEach(Array(profile.requirements.bullets.enumerated()), id: \.offset) { _, bullet in
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text("•").foregroundStyle(.tertiary)
-                    Text(bullet)
-                        .font(.callout)
-                        .fixedSize(horizontal: false, vertical: true)
+            // Grouped by the summary's standard categories, the same way the
+            // manuscript's own Summary sheet shows them.
+            ForEach(Array(SourceRequirements.grouped(profile.requirements.bullets).enumerated()),
+                    id: \.offset) { _, group in
+                Text((group.category ?? "other").uppercased())
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+                    .padding(.top, 4)
+                ForEach(Array(group.items.enumerated()), id: \.offset) { _, item in
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text("•").foregroundStyle(.tertiary)
+                        Text(item)
+                            .font(.callout)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
             }
         }

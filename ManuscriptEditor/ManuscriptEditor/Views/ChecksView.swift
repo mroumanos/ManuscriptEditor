@@ -39,6 +39,8 @@ struct ChecksView: View {
     @State private var editingStructure = false
     @State private var savingToLibrary = false
     @State private var adoptingLibrary = false
+    @State private var editingType = false
+    @State private var typeDraft = ""
 
     var body: some View {
         ScrollView {
@@ -93,24 +95,44 @@ struct ChecksView: View {
     private func header(_ journal: Journal) -> some View {
         let status = store.libraryStatus(for: journal)
         HStack(spacing: 10) {
-            Text(journal.displayName).font(.headline)
-            Spacer()
-            if let link = store.profileLink(for: journal) {
-                if link.url.isEmpty {
-                    Label(link.label, systemImage: "internaldrive")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                } else if let url = URL(string: link.url) {
-                    Link(destination: url) {
-                        Label(link.label, systemImage: "chevron.left.forwardslash.chevron.right")
-                            .font(.caption2)
+            Text(journal.name).font(.headline)
+            // Free-form on purpose: journals invent their own format names
+            // ("Research Brief", "Rapid Communication", "Registered Report")
+            // and a fixed list would be wrong within a year.  The type names
+            // the profile and groups a journal's formats together.
+            Button {
+                typeDraft = journal.articleType ?? ""
+                editingType = true
+            } label: {
+                Text(journal.articleType?.isEmpty == false ? journal.articleType! : "Add type…")
+                    .font(.caption)
+                    .padding(.horizontal, 7).padding(.vertical, 2)
+                    .background(Color.accentColor.opacity(journal.articleType == nil ? 0.06 : 0.12),
+                                in: Capsule())
+                    .foregroundStyle(journal.articleType == nil ? Color.secondary : Color.accentColor)
+            }
+            .buttonStyle(.plain)
+            .help("The article format this cut targets — Research Article, Research Brief, …")
+            .popover(isPresented: $editingType, arrowEdge: .bottom) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Article type").font(.callout.weight(.medium))
+                    TextField("Research Article, Research Brief, …", text: $typeDraft)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 260)
+                        .onSubmit { commitType(journal) }
+                    Text("Names this journal's profile and groups its formats together. Leave empty for a journal with only one.")
+                        .font(.caption2).foregroundStyle(.tertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(width: 260, alignment: .leading)
+                    HStack {
+                        Spacer()
+                        Button("Set") { commitType(journal) }
+                            .keyboardShortcut(.defaultAction)
                     }
-                    .help("Open this journal's configuration: \(link.url)")
                 }
+                .padding(14)
             }
-            if status.isModified {
-                modifiedTag
-            }
+            Spacer()
             if status.canSave {
                 // Both directions, side by side: push this manuscript's
                 // configuration into the library, or take the library's.
@@ -138,17 +160,12 @@ struct ChecksView: View {
         }
     }
 
-    /// The MODIFIED badge: this manuscript's rules are not the ones in your
-    /// library.  Shown on import too — that is the point of carrying the
-    /// profile with the manuscript.
-    private var modifiedTag: some View {
-        Text("MODIFIED")
-            .font(.caption2.weight(.bold))
-            .foregroundStyle(.white)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(Color.orange, in: Capsule())
-            .help("This manuscript's configuration differs from your journal library")
+    private func commitType(_ journal: Journal) {
+        var edited = journal
+        let trimmed = typeDraft.trimmingCharacters(in: .whitespaces)
+        edited.articleType = trimmed.isEmpty ? nil : trimmed
+        store.updateJournal(edited)
+        editingType = false
     }
 
     private func saveHelp(_ status: ProfileLibraryStatus, journal: Journal) -> String {
@@ -168,6 +185,62 @@ struct ChecksView: View {
         }
     }
 
+    // MARK: - Part status
+
+    /// How one part of this journal's configuration stands against the library.
+    ///
+    /// Three states, because "not flagged" was doing two jobs: a part that
+    /// matches your library and a part your library has never seen looked
+    /// identical, and only one of them is settled.
+    enum PartState {
+        /// Identical to your library's copy.
+        case matches
+        /// Edited here since it came from the library.
+        case modified
+        /// Not in your library at all — this journal, or this part, is new.
+        case new
+
+        var systemImage: String {
+            switch self {
+            case .matches:  return "checkmark.seal.fill"
+            case .modified: return "pencil.circle.fill"
+            case .new:      return "plus.circle.fill"
+            }
+        }
+        var color: Color {
+            switch self {
+            case .matches:  return .green
+            case .modified: return .orange
+            case .new:      return .blue
+            }
+        }
+        var help: String {
+            switch self {
+            case .matches:  return "Matches your journal library"
+            case .modified: return "Edited here — differs from your journal library"
+            case .new:      return "Not in your journal library yet"
+            }
+        }
+    }
+
+    private func partState(_ part: ProfilePart, journal: Journal) -> PartState {
+        switch store.libraryStatus(for: journal) {
+        case .matches:
+            return .matches
+        case .differs(let parts), .derived(_, let parts):
+            return parts.contains(part) ? .modified : .matches
+        case .nameMatchDifferentID, .absent:
+            return .new
+        }
+    }
+
+    private func partBadge(_ state: PartState) -> some View {
+        Image(systemName: state.systemImage)
+            .foregroundStyle(state.color)
+            .font(.caption)
+            .help(state.help)
+    }
+
     // MARK: - The journal's configuration
 
     /// What this journal expects, in three openable rows.
@@ -180,7 +253,6 @@ struct ChecksView: View {
     /// are what the whole pane is for.
     @ViewBuilder
     private func configuration(_ journal: Journal) -> some View {
-        let flagged = store.libraryStatus(for: journal).flaggedParts
         let requirements = journal.sourceRequirements ?? SourceRequirements()
         let structure = journal.structure ?? JournalStructure()
 
@@ -190,7 +262,7 @@ struct ChecksView: View {
                 detail: requirements.bullets.isEmpty
                     ? "No summary yet"
                     : summaryDetail(requirements),
-                flagged: flagged.contains(.requirements)
+                state: partState(.requirements, journal: journal)
             ) { editingRequirements = true }
 
             Divider()
@@ -200,7 +272,7 @@ struct ChecksView: View {
                 detail: structure.sections.isEmpty
                     ? "No structure yet"
                     : "\(structure.sections.count) section\(structure.sections.count == 1 ? "" : "s") · \(structure.requiredTitles.count) required",
-                flagged: flagged.contains(.structure)
+                state: partState(.structure, journal: journal)
             ) { editingStructure = true }
 
             Divider()
@@ -230,7 +302,10 @@ struct ChecksView: View {
                 .foregroundStyle(.secondary)
                 .frame(width: 18)
             VStack(alignment: .leading, spacing: 1) {
-                Text("Export").fontWeight(.medium)
+                HStack(spacing: 6) {
+                    Text("Export").fontWeight(.medium)
+                    partBadge(partState(.export, journal: journal))
+                }
                 Text(exportDetail(config))
                     .font(.caption).foregroundStyle(.secondary)
             }
@@ -258,7 +333,7 @@ struct ChecksView: View {
             + (format.lineNumbers ? "line numbers on" : "line numbers off")
     }
 
-    private func configRow(_ part: ProfilePart, detail: String, flagged: Bool,
+    private func configRow(_ part: ProfilePart, detail: String, state: PartState,
                            open: @escaping () -> Void) -> some View {
         HStack(spacing: 10) {
             Image(systemName: icon(for: part))
@@ -267,14 +342,7 @@ struct ChecksView: View {
             VStack(alignment: .leading, spacing: 1) {
                 HStack(spacing: 6) {
                     Text(part.label).fontWeight(.medium)
-                    if flagged {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .foregroundStyle(.yellow)
-                        Text("MODIFIED")
-                            .font(.caption2.weight(.semibold))
-                            .foregroundStyle(.orange)
-                            .help("This part differs from your journal library — Update Library… to reconcile it.")
-                    }
+                    partBadge(state)
                 }
                 Text(detail).font(.caption).foregroundStyle(.secondary)
             }
@@ -292,6 +360,7 @@ struct ChecksView: View {
         case .requirements: return "doc.text"
         case .checks:       return "checklist"
         case .structure:    return "list.bullet.indent"
+        case .export:       return "square.and.arrow.up"
         }
     }
 
@@ -340,17 +409,9 @@ struct ChecksView: View {
     /// it can be submitted.  The editor is the same popup as before.
     @ViewBuilder
     private func testsHeader(_ journal: Journal, results: [ChecklistResult]) -> some View {
-        let flagged = store.libraryStatus(for: journal).flaggedParts.contains(.checks)
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             Text("Tests").font(.headline)
-            if flagged {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundStyle(.yellow)
-                Text("MODIFIED")
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(.orange)
-                    .help("This journal's tests differ from your library — Update Library… to reconcile them.")
-            }
+            partBadge(partState(.checks, journal: journal))
             Text("one per requirement above, evaluated against this cut")
                 .font(.caption)
                 .foregroundStyle(.tertiary)
@@ -696,87 +757,6 @@ struct StructureEditorSheet: View {
     }
 }
 
-// MARK: - SaveToJournalLibrarySheet
-
-/// Saves a manuscript journal's export outline into the journal registry —
-/// the list of journals available when adding one to any manuscript.  The
-/// journal's REQUIREMENTS, CHECKS, and STRUCTURE go to the profile library
-/// instead, from the Checks pane's Save to Library.
-struct SaveToJournalLibrarySheet: View {
-    @Environment(ManuscriptStore.self) private var store
-    @Environment(AppStore.self)        private var appStore
-
-    let journal: Journal
-    @Binding var isPresented: Bool
-
-    private enum Destination: Hashable { case new, existing(UUID) }
-    @State private var destination: Destination = .new
-    @State private var name: String = ""
-    @State private var country: String = ""
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Save Export Outline to Library").font(.headline)
-
-            Picker("Save as", selection: $destination) {
-                Text("New library journal").tag(Destination.new)
-                ForEach(appStore.journalLibrary) { entry in
-                    Text("Overwrite \"\(entry.name)\"").tag(Destination.existing(entry.id))
-                }
-            }
-
-            if destination == .new {
-                TextField("Name", text: $name)
-                    .textFieldStyle(.roundedBorder)
-                TextField("Country (optional)", text: $country)
-                    .textFieldStyle(.roundedBorder)
-            }
-
-            Text("Stores this journal's export outline in the journal registry — available in Settings → Journals and when adding a journal to any manuscript. Requirements, checks, and structure are saved separately, from the Checks pane.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            HStack {
-                Spacer()
-                Button("Cancel") { isPresented = false }
-                    .keyboardShortcut(.cancelAction)
-                Button("Save") {
-                    save()
-                    isPresented = false
-                }
-                .keyboardShortcut(.defaultAction)
-                .disabled(destination == .new
-                          && name.trimmingCharacters(in: .whitespaces).isEmpty)
-            }
-        }
-        .padding(22)
-        .frame(width: 440)
-        .onAppear { name = journal.name }
-    }
-
-    private func save() {
-        // Effective export outline: the stored customization or the standard
-        // derivation for this journal's current content.
-        let outline = store.exportConfig(forJournal: journal.id)
-        switch destination {
-        case .new:
-            var entry = journal
-            entry.id = UUID()
-            entry.name = name.trimmingCharacters(in: .whitespaces)
-            entry.country = country.isEmpty ? nil : country
-            entry.exportConfig = outline
-            entry.viewConfigID = nil
-            appStore.upsertLibraryJournal(entry)
-        case .existing(let id):
-            guard var entry = appStore.journalLibrary.first(where: { $0.id == id }) else { return }
-            entry.requirements = journal.requirements
-            entry.exportConfig = outline
-            appStore.upsertLibraryJournal(entry)
-        }
-    }
-}
-
 // MARK: - SaveProfileToLibrarySheet
 
 /// Reconciling a manuscript's profile with the user's library.
@@ -796,6 +776,8 @@ struct SaveProfileToLibrarySheet: View {
     private enum Choice: Hashable { case overwrite, branch }
     @State private var choice: Choice = .overwrite
     @State private var newName: String = ""
+    /// Seeded from the journal so the branch has a sensible name to start from.
+    @State private var seeded = false
 
     private var status: ProfileLibraryStatus { store.libraryStatus(for: journal) }
     private var ancestor: JournalProfile? { store.libraryAncestor(for: journal) }
@@ -817,8 +799,13 @@ struct SaveProfileToLibrarySheet: View {
             }
 
             if target != nil {
+                // Name the profile being overwritten.  "Overwrite the profile
+                // in my library" left you to work out WHICH one — and the
+                // answer isn't always this journal's name, since a branch
+                // overwrites its ancestor.
                 Picker("", selection: $choice) {
-                    Text("Overwrite the profile in my library").tag(Choice.overwrite)
+                    Text("Overwrite “\(target?.displayName ?? journal.displayName)”")
+                        .tag(Choice.overwrite)
                     Text("Save as a new profile of my own").tag(Choice.branch)
                 }
                 .pickerStyle(.radioGroup)

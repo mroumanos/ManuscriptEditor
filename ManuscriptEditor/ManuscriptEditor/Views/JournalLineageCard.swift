@@ -458,28 +458,48 @@ struct AddJournalSheet: View {
     @State private var fromJournalID: UUID?          // nil = Source
     @State private var libraryChoice: UUID?          // journalLibrary entry id
     @State private var customName = ""
+    @State private var customType = ""
     @State private var journalQuery = ""
 
     private var journals: [Journal] { store.manuscript?.journals ?? [] }
 
-    /// Library entries not already added to this manuscript (by name +
-    /// article type — the same journal's other formats stay addable).
-    private var availableLibrary: [Journal] {
-        appStore.journalLibrary.filter { entry in
-            !journals.contains { $0.name == entry.name && $0.articleType == entry.articleType }
-        }
+    /// **Profiles** not already added to this manuscript.
+    ///
+    /// The profile library is the library — a journal saved from its profile
+    /// pane used to land in a different list from the one this sheet read, so
+    /// a new profile (say AJPH Research Brief) simply never appeared here.
+    /// One source now; the legacy journal registry only fills in publisher and
+    /// country when it happens to know them.
+    private var availableProfiles: [JournalProfile] {
+        JournalProfileLibrary.shared.profiles.values
+            .filter { profile in
+                !journals.contains {
+                    $0.profileID == profile.id
+                        || ($0.name == profile.name && $0.articleType == profile.articleType)
+                }
+            }
+            .sorted { $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending }
     }
 
-    /// Saved-library entries every ≥2-letter search term matches (name,
-    /// article type, publisher, or country).
-    private var journalMatches: [Journal] {
+    /// The registry entry behind a profile, when there is one — publisher,
+    /// country, and the numeric requirement fields older checks still read.
+    private func registryEntry(for profile: JournalProfile) -> Journal? {
+        appStore.journalLibrary.first {
+            $0.name == profile.name && $0.articleType == profile.articleType
+        } ?? appStore.journalLibrary.first { $0.name == profile.name }
+    }
+
+    /// Profiles every ≥2-letter search term matches (name, article type,
+    /// publisher, or country).
+    private var journalMatches: [JournalProfile] {
         let terms = journalQuery.lowercased()
             .split(separator: " ").map(String.init).filter { $0.count >= 2 }
         guard !terms.isEmpty else { return [] }
-        return availableLibrary.filter { entry in
-            let hay = "\(entry.name) \(entry.articleType ?? "") \(entry.publisher) \(entry.country ?? "")"
-                .lowercased()
-            return terms.allSatisfy { hay.contains($0) }
+        return availableProfiles.filter { profile in
+            let entry = registryEntry(for: profile)
+            let hay = "\(profile.name) \(profile.articleType ?? "") "
+                + "\(entry?.publisher ?? "") \(entry?.country ?? "")"
+            return terms.allSatisfy { hay.lowercased().contains($0) }
         }
     }
 
@@ -499,10 +519,10 @@ struct AddJournalSheet: View {
             // and Bibliography search.  Everything is app-saved; no web
             // query.  Custom journals are unchanged: name one below.
             if let choice = libraryChoice,
-               let entry = appStore.journalLibrary.first(where: { $0.id == choice }) {
+               let profile = JournalProfileLibrary.shared.profile(id: choice) {
                 HStack(spacing: 6) {
                     Text("To:").foregroundStyle(.secondary)
-                    Text(entry.displayName).fontWeight(.medium)
+                    Text(profile.displayName).fontWeight(.medium)
                     Button {
                         libraryChoice = nil
                     } label: {
@@ -513,18 +533,10 @@ struct AddJournalSheet: View {
                     Spacer()
                 }
                 // Review what you're signing up for BEFORE adding: the
-                // journal's requirements, the shape it expects, and the
-                // checks that will start running.
-                if let profile = JournalProfileLibrary.shared
-                    .profile(name: entry.name, articleType: entry.articleType) {
-                    JournalProfileReview(profile: profile)
-                        .frame(height: 260)
-                } else {
-                    Text("No profile for this journal yet — it will be added with no requirements, structure, or checks. You can fill them in from its Checks pane.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+                // journal's summary, the shape it expects, and the tests that
+                // will start running.
+                JournalProfileReview(profile: profile)
+                    .frame(height: 260)
             } else {
                 VStack(alignment: .leading, spacing: 6) {
                     HStack(spacing: 5) {
@@ -546,14 +558,16 @@ struct AddJournalSheet: View {
                         FitScrollView(maxScreenFraction: 0.3) {
                             VStack(alignment: .leading, spacing: 0) {
                                 SearchSectionHeader(title: "Library", count: journalMatches.count)
-                                ForEach(journalMatches) { entry in
+                                ForEach(journalMatches) { profile in
+                                    let entry = registryEntry(for: profile)
                                     SearchResultRow(
                                         icon: "plus.circle",
-                                        title: entry.displayName,
-                                        subtitle: [entry.publisher, entry.country ?? ""]
+                                        title: profile.displayName,
+                                        subtitle: [entry?.publisher ?? "", entry?.country ?? "",
+                                                   "\(profile.checks.count) tests"]
                                             .filter { !$0.isEmpty }.joined(separator: " · ")
                                     ) {
-                                        libraryChoice = entry.id
+                                        libraryChoice = profile.id
                                         journalQuery = ""
                                     }
                                 }
@@ -569,6 +583,13 @@ struct AddJournalSheet: View {
                     }
 
                     TextField("…or custom journal name", text: $customName)
+                        .textFieldStyle(.roundedBorder)
+                    // Free-form on purpose: "Research Brief", "Rapid
+                    // Communication", "Registered Report" — journals invent
+                    // these, and a fixed list would be wrong within a year.
+                    // It groups a journal's formats and names its profile.
+                    TextField("…and type, optionally (Research Article, Research Brief…)",
+                              text: $customType)
                         .textFieldStyle(.roundedBorder)
                 }
             }
@@ -598,24 +619,31 @@ struct AddJournalSheet: View {
     private func add() {
         var template: Journal
         if let choice = libraryChoice,
-           let entry = appStore.journalLibrary.first(where: { $0.id == choice }) {
-            template = entry
-        } else {
-            var custom = Journal.empty()
-            custom.name = customName.trimmingCharacters(in: .whitespaces)
-            template = custom
-        }
-        // Adopt the reviewed profile up front: the generated view reads the
-        // journal's STRUCTURE, so it has to be in place before the outline
-        // is derived.
-        if let profile = JournalProfileLibrary.shared
-            .profile(name: template.name, articleType: template.articleType) {
+           let profile = JournalProfileLibrary.shared.profile(id: choice) {
+            // The registry entry, when there is one, contributes only what a
+            // profile doesn't carry: publisher, country, and the numeric
+            // requirement fields the older checks read.
+            template = registryEntry(for: profile) ?? Journal.empty()
+            template.id = UUID()
+            template.name = profile.name
+            template.articleType = profile.articleType
             template.profileID = profile.id
+            template.profileLineage = profile.lineage.isEmpty ? nil : profile.lineage
             template.sourceRequirements = profile.requirements
             template.checkRules = profile.checks
             template.structure = profile.structure
+            if let export = profile.export { template.exportConfig = export }
             template.configOrigin = profile.origin
             template.configURL = profile.originURL
+            if template.submissionURL.isEmpty {
+                template.submissionURL = profile.requirements.url
+            }
+        } else {
+            var custom = Journal.empty()
+            custom.name = customName.trimmingCharacters(in: .whitespaces)
+            custom.articleType = customType.trimmingCharacters(in: .whitespaces).isEmpty
+                ? nil : customType.trimmingCharacters(in: .whitespaces)
+            template = custom
         }
         // Every journal gets its 1-1 auto-generated view (export/checks basis).
         let view = ViewConfig.from(journal: template)

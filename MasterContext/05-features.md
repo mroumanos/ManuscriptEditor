@@ -819,10 +819,24 @@ legible.
   reached from a button beside the heading. Every required structure section
   also gets its own `EXISTS` test, so a missing section names itself rather
   than hiding inside one "matches the structure" verdict.
-- AC: Summary bullets use a standard vocabulary — `description:` / `limits:` /
-  `components:` / `format:` / `extra:` — grouped on display, counted in the
-  row's detail. The link at the top is always the authority; the summary is a
-  distillation, not a substitute.
+- AC: Summary bullets use a standard vocabulary — `description:` (what this
+  format is), `limits:` (every hard number), `components:` (what a submission
+  is made of), `format:` (how it must be laid out), `extra:` (priorities and
+  policies) — grouped on display, counted in the row's detail, and applied to
+  every profile in the library. The link at the top is always the authority;
+  the summary is a distillation, not a substitute.
+- AC: **One library.** A journal's profile carries its export outline as a
+  fourth file, `Add Journal` and Settings → Journals both read the profile
+  library, and the Export pane no longer saves anywhere. Two parallel
+  libraries were why a profile saved from a manuscript never appeared when
+  adding a journal.
+- AC: Each part shows its standing against the library: a green seal when it
+  matches, an orange pencil when it was edited here, a blue plus when the
+  library has never seen it. "Not flagged" used to mean both "settled" and
+  "unknown".
+- AC: A journal's **article type is free-form and editable** from its profile
+  header — journals invent format names, and the type is what names a profile
+  and groups a journal's formats.
 - AC: Saving to the library **captures the cut's own active sections** into the
   structure (hidden sections excluded — switching one off is how you say it
   isn't part of this submission), keeping the note and kind of entries already

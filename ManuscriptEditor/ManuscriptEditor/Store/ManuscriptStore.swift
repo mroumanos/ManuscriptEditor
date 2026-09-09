@@ -1337,6 +1337,7 @@ final class ManuscriptStore {
             m.journals[idx].sourceRequirements = profile.requirements
             m.journals[idx].checkRules = profile.checks
             m.journals[idx].structure = profile.structure
+            if let export = profile.export { m.journals[idx].exportConfig = export }
             m.journals[idx].profileID = profile.id
             m.journals[idx].profileLineage = profile.lineage.isEmpty ? nil : profile.lineage
             m.journals[idx].configOrigin = profile.origin
@@ -1346,7 +1347,7 @@ final class ManuscriptStore {
             }
         }
         writeProfile(journalID: journalID)
-        showBanner(.success, "\(journal.displayName) updated from your journal library — \(profile.requirements.bullets.count) requirements, \(profile.checks.count) tests.")
+        showBanner(.success, "\(journal.displayName) updated from your journal library — \(profile.requirements.bullets.count) requirements, \(profile.checks.count) tests\(profile.export == nil ? "" : ", and its export outline").")
         return true
     }
 
