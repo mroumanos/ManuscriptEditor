@@ -443,15 +443,22 @@ struct JournalLineageCard: View {
 
     /// The model named in the confirmation, so "this leaves your machine" is
     /// attached to who receives it.
+    ///
+    /// Reads the settings rather than resolving a destination: resolving one
+    /// reads the stored API key, and this is computed on every row render.
     private var modelLabel: String {
-        switch store.aiDestination(appStore: appStore) {
-        case .connector(let c):
-            let model = store.manuscript?.settings.aiModel ?? c.selectedModel
-            return AIModelCatalog.models(for: c.kind).first { $0.id == model }?.label
-                ?? c.kind.displayName
-        case .service(let a, _): return a.displayName
-        case nil: return "the selected model"
+        guard let settings = store.manuscript?.settings else { return "the selected model" }
+        if let id = settings.activeConnectorID,
+           let connector = appStore.connectors.first(where: { $0.id == id }) {
+            let model = settings.aiModel ?? connector.selectedModel
+            return AIModelCatalog.models(for: connector.kind).first { $0.id == model }?.label
+                ?? connector.kind.displayName
         }
+        if let id = settings.activeAIServiceID,
+           let account = appStore.aiServices.first(where: { $0.id == id }) {
+            return account.displayName
+        }
+        return "the selected model"
     }
 
     // Sync messages live in the window-toolbar banner (shared app-wide).
@@ -493,22 +500,26 @@ struct AddJournalSheet: View {
 
     private var journals: [Journal] { store.manuscript?.journals ?? [] }
 
-    /// **Profiles** not already added to this manuscript.
+    /// Every template in the library.
     ///
-    /// The profile library is the library — a journal saved from its profile
-    /// pane used to land in a different list from the one this sheet read, so
-    /// a new profile (say AJPH Research Brief) simply never appeared here.
-    /// One source now; the legacy journal registry only fills in publisher and
-    /// country when it happens to know them.
-    private var availableProfiles: [JournalProfile] {
+    /// **Nothing is hidden.**  Templates used to disappear once a manuscript
+    /// had a journal using them — a rule that made sense when a library entry
+    /// WAS the journal, and stopped making sense the moment journals became
+    /// instances: two cuts at the same venue ("BMJ test 1" and "BMJ test 2")
+    /// are exactly what a template is for.  A template already in use says so
+    /// in its row instead of vanishing from it.
+    private var availableProfiles: [JournalTemplate] {
         JournalProfileLibrary.shared.profiles.values
-            .filter { profile in
-                !journals.contains {
-                    $0.profileID == profile.id
-                        || ($0.name == profile.name && $0.articleType == profile.articleType)
-                }
-            }
             .sorted { $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending }
+    }
+
+    /// The journals in this manuscript already cut from a template.
+    private func journalsUsing(_ profile: JournalTemplate) -> [Journal] {
+        journals.filter {
+            $0.profileID == profile.id
+                || ($0.profileID == nil && $0.name == profile.name
+                    && $0.articleType == profile.articleType)
+        }
     }
 
     /// The registry entry behind a profile, when there is one — publisher,
@@ -605,11 +616,14 @@ struct AddJournalSheet: View {
                                                     count: browsable.count)
                                 ForEach(browsable) { profile in
                                     let entry = registryEntry(for: profile)
+                                    let inUse = journalsUsing(profile)
                                     SearchResultRow(
                                         icon: "plus.circle",
                                         title: profile.displayName,
                                         subtitle: [entry?.publisher ?? "", entry?.country ?? "",
-                                                   "\(profile.checks.count) tests"]
+                                                   "\(profile.checks.count) tests",
+                                                   inUse.isEmpty ? ""
+                                                       : "in use by \(inUse.map(\.name).joined(separator: ", "))"]
                                             .filter { !$0.isEmpty }.joined(separator: " · ")
                                     ) {
                                         libraryChoice = profile.id

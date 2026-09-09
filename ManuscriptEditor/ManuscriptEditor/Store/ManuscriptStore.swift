@@ -1313,6 +1313,30 @@ final class ManuscriptStore {
         JournalProfileLibrary.shared.status(of: journal.profile)
     }
 
+    /// Points a journal at a template explicitly, and takes its rules.
+    ///
+    /// A journal can be orphaned — its template deleted, renamed past
+    /// recognition, or never present on this machine because the manuscript
+    /// came from someone else.  Name matching cannot rescue that (a journal
+    /// called "BMJ test 1" matches nothing), so the link has to be something
+    /// you can state.  Without this, an orphaned journal has no way back to a
+    /// template at all.
+    @discardableResult
+    func linkToTemplate(_ templateID: UUID, journalID: UUID) -> Bool {
+        guard let template = JournalProfileLibrary.shared.profile(id: templateID),
+              manuscript?.journals.contains(where: { $0.id == journalID }) == true
+        else { return false }
+        touch(undoAction: "Link Template") { m in
+            guard let idx = m.journals.firstIndex(where: { $0.id == journalID }) else { return }
+            m.journals[idx].profileID = template.id
+            m.journals[idx].templateName = template.name
+            m.journals[idx].templateChecksum = template.checksum
+            m.journals[idx].profileLineage = template.lineage.isEmpty ? nil : template.lineage
+        }
+        adoptLibraryProfile(journalID: journalID)
+        return true
+    }
+
     /// The other direction: replaces this journal's configuration with the
     /// library's copy.
     ///
@@ -2149,7 +2173,26 @@ final class ManuscriptStore {
 
     /// Whether the assist toggle can do anything: a model is selected and
     /// reachable.
-    func canAssist(appStore: AppStore) -> Bool { aiDestination(appStore: appStore) != nil }
+    ///
+    /// **Deliberately does not touch the Keychain.**  This is read on every
+    /// render of the ✦ toggle, and `aiDestination` reads the stored API key —
+    /// so asking it here meant a Keychain read on every SwiftUI update pass,
+    /// which is exactly the kind of thing that turns into a permission prompt
+    /// storm.  `hasKey` already records whether a key was stored, which is all
+    /// the toggle needs to know; the key itself is read once, when a request
+    /// is actually sent.
+    func canAssist(appStore: AppStore) -> Bool {
+        guard let settings = manuscript?.settings else { return false }
+        if let id = settings.activeConnectorID,
+           appStore.connectors.contains(where: { $0.id == id }) {
+            return true
+        }
+        if let id = settings.activeAIServiceID,
+           let account = appStore.aiServices.first(where: { $0.id == id }) {
+            return !account.provider.requiresAPIKey || account.hasKey
+        }
+        return false
+    }
 
     // AI INTENT  journal.fastForward — see Services/AI/Intents/FastForwardIntent.swift
     //

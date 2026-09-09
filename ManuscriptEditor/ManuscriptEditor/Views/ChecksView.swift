@@ -39,6 +39,7 @@ struct ChecksView: View {
     @State private var editingStructure = false
     @State private var savingToLibrary = false
     @State private var adoptingLibrary = false
+    @State private var linkingTemplate = false
     @State private var editingType = false
     @State private var typeDraft = ""
 
@@ -81,6 +82,11 @@ struct ChecksView: View {
             Button("Cancel", role: .cancel) { }
         } message: {
             Text("The summary, structure, tests and export outline are replaced. Nothing you have written is touched, and ⌘Z undoes it.")
+        }
+        .sheet(isPresented: $linkingTemplate) {
+            if let journal = paneJournal {
+                LinkTemplateSheet(journal: journal, isPresented: $linkingTemplate)
+            }
         }
         .sheet(isPresented: $savingToLibrary) {
             if let journal = paneJournal {
@@ -138,7 +144,16 @@ struct ChecksView: View {
                 // configuration into the library, or take the library's.
                 // Only having the first one meant a profile corrected in the
                 // library could never reach the manuscript that needed it.
-                if status.isModified {
+                // An orphan — its template is gone, or was never on this
+                // machine — can only be re-linked by saying which one.
+                if case .absent = status {
+                    Button {
+                        linkingTemplate = true
+                    } label: {
+                        Label("Link Template…", systemImage: "link")
+                    }
+                    .help("This journal's template isn't in your library. Point it at one, or save it as a new template.")
+                } else if status.isModified {
                     Button {
                         adoptingLibrary = true
                     } label: {
@@ -844,5 +859,77 @@ struct SaveProfileToLibrarySheet: View {
         case .absent:
             return "Your library has no profile for this journal yet."
         }
+    }
+}
+
+
+// MARK: - LinkTemplateSheet
+
+/// Points an orphaned journal at a template.
+///
+/// A journal loses its template when the template is deleted, or when the
+/// manuscript arrives from someone whose library you don't have.  Its rules
+/// still work — the manuscript carries them — but nothing can be compared or
+/// updated until it is linked again, and a journal named "BMJ test 1" cannot
+/// be matched back by name.  So it is stated, not guessed.
+struct LinkTemplateSheet: View {
+    @Environment(ManuscriptStore.self) private var store
+
+    let journal: Journal
+    @Binding var isPresented: Bool
+
+    @State private var query = ""
+    @State private var choice: UUID?
+
+    private var templates: [JournalTemplate] {
+        let all = JournalProfileLibrary.shared.profiles.values
+            .sorted { $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending }
+        let q = query.trimmingCharacters(in: .whitespaces).lowercased()
+        guard q.count >= 2 else { return all }
+        return all.filter { $0.displayName.lowercased().contains(q) }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Link a Template").font(.headline)
+                Text("“\(journal.name)” has no template in your library. Linking one lets this journal be compared against it and updated from it. Nothing you have written changes.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            TextField("Search templates…", text: $query)
+                .textFieldStyle(.roundedBorder)
+
+            List(templates, selection: $choice) { template in
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(template.displayName).fontWeight(.medium)
+                    Text("\(template.requirements.bullets.count) requirements · \(template.checks.count) tests")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                .tag(template.id)
+            }
+            .frame(height: 240)
+
+            Text("Linking replaces this journal's summary, structure, tests and export outline with the template's. To keep what you have instead, close this and use Save Template.")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            HStack {
+                Spacer()
+                Button("Cancel") { isPresented = false }
+                    .keyboardShortcut(.cancelAction)
+                Button("Link") {
+                    if let choice { store.linkToTemplate(choice, journalID: journal.id) }
+                    isPresented = false
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(choice == nil)
+            }
+        }
+        .padding(20)
+        .frame(width: 460)
     }
 }
