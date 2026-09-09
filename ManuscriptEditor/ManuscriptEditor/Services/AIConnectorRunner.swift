@@ -82,6 +82,13 @@ struct AIRunProgress: Sendable, Equatable {
     var thinkingTokens: Int = 0
     var responseCharacters: Int = 0
 
+    /// The most recent stretch of the answer, for watching it arrive.
+    ///
+    /// A tail rather than the whole buffer: a full-manuscript run produced
+    /// 71,000 output tokens, and copying that string on every delta would cost
+    /// more than the request.  What a live view can show is the end anyway.
+    var tail: String = ""
+
     var summary: String {
         switch phase {
         case .starting: return "Starting…"
@@ -353,6 +360,8 @@ enum AIConnectorRunner {
     /// while the caller may be reading progress, and this is the whole of the
     /// shared state.
     private final class StreamCollector: @unchecked Sendable {
+        /// How much of the answer's end to keep for the live view.
+        private let tailLength = 4_000
         private let lock = NSLock()
         private let onProgress: (@Sendable (AIRunProgress) -> Void)?
         private var progress = AIRunProgress()
@@ -393,6 +402,7 @@ enum AIConnectorRunner {
                         buffer += piece
                         progress.phase = .writing
                         progress.responseCharacters = buffer.count
+                        progress.tail = String(buffer.suffix(tailLength))
                         snapshot = progress
                     }
                 case "result":

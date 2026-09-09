@@ -415,9 +415,20 @@ tokens, then response characters), the row shows it, and **silence** — no even
 for three minutes — is what counts as stuck, instead of a wall clock that cannot
 tell a big job from a dead one.
 
-**How long it takes.** A real seven-section manuscript ran past ten minutes:
-the generation, not the network, is the cost — the model rewrites every section
-in full. So the cutoff is 15 minutes (`AIRequestService.longRunTimeout`), the
+**Watching a run.** The busy row carries an eye that opens the answer as it
+arrives (`AssistLiveOutputView`) — a 4,000-character tail, because a
+full-manuscript run produced 71,000 output tokens and copying that buffer on
+every delta would cost more than the request. During the thinking phase there is
+deliberately nothing to show, and the view says so rather than looking broken.
+In Log → AI Requests, **Session log** opens what the tool itself recorded for
+that run (`SessionTranscriptView`): one readable row per event — prompt size,
+model reply, API error, cost — with a Raw toggle for the file as written.
+
+**How long it takes.** Measured, on a real seven-section manuscript: **14 min
+20 s, $3.53, 71,099 output tokens** for one pass. The generation, not the
+network, is the cost — the model rewrites every section in full, and thinks
+first. That is the number to design against, and it is the argument for
+splitting a fast-forward into per-section requests rather than one. So the cutoff is 15 minutes (`AIRequestService.longRunTimeout`), the
 busy row shows a bar and a running clock against it
 (`Views/AssistRunIndicator.swift`), and the indicator is keyed to the journal
 whose button was pressed rather than the card. The context also stops repeating

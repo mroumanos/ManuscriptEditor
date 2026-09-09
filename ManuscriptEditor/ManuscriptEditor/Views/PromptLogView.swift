@@ -21,6 +21,8 @@ struct PromptLogView: View {
 
     @State private var expanded: UUID?
     @State private var payload: (prompt: String, response: String)?
+    /// Which entry's tool transcript is open.
+    @State private var transcriptFor: UUID?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -166,15 +168,27 @@ struct PromptLogView: View {
                         .frame(width: 56, alignment: .leading)
                     if let url = AIConnectorRunner.transcriptURL(for: session) {
                         Button {
-                            NSWorkspace.shared.activateFileViewerSelecting([url])
+                            transcriptFor = (transcriptFor == entry.id) ? nil : entry.id
                         } label: {
-                            Label("Show the tool's own transcript", systemImage: "doc.text.magnifyingglass")
+                            Label("Session log", systemImage: "list.bullet.rectangle")
                                 .font(.caption2)
                         }
                         .buttonStyle(.link)
-                        .help(url.path)
+                        .help("What the tool itself recorded for this run — \(url.path)")
+                        .popover(isPresented: Binding(
+                            get: { transcriptFor == entry.id },
+                            set: { if !$0 { transcriptFor = nil } }), arrowEdge: .bottom) {
+                            SessionTranscriptView(url: url)
+                        }
+                        Button {
+                            NSWorkspace.shared.activateFileViewerSelecting([url])
+                        } label: {
+                            Label("Reveal", systemImage: "folder")
+                                .font(.caption2)
+                        }
+                        .buttonStyle(.link)
                     } else {
-                        Text("session \(session.prefix(8)) — no transcript on disk")
+                        Text("session \(session.prefix(8)) — the tool kept no transcript")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
@@ -237,5 +251,156 @@ struct PromptLogView: View {
         let service = AIPromptLogService(persistence: store.persistence)
         return (service.promptText(entry.id, in: id) ?? "(not stored)",
                 service.responseText(entry.id, in: id) ?? "")
+    }
+}
+
+// MARK: - The tool's own transcript
+
+/// Claude Code's `.jsonl` record of one run, read from disk on demand.
+///
+/// Rendered as one row per event rather than raw JSON: the file is a stream of
+/// bookkeeping (queue operations, attachments, thinking-token ticks) with the
+/// interesting parts — the prompt, the answer, and any API error — buried in
+/// it.  The raw line is one click away for when the summary isn't enough.
+struct SessionTranscriptView: View {
+    let url: URL
+
+    @State private var events: [Event] = []
+    @State private var showingRaw = false
+    @State private var raw = ""
+
+    struct Event: Identifiable {
+        let id = UUID()
+        let kind: String
+        let time: String
+        let detail: String
+        let raw: String
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Image(systemName: "list.bullet.rectangle").foregroundStyle(.secondary)
+                Text("Session log").font(.callout.weight(.medium))
+                Spacer()
+                Toggle("Raw", isOn: $showingRaw)
+                    .toggleStyle(.switch)
+                    .controlSize(.mini)
+                Button {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(raw, forType: .string)
+                } label: {
+                    Image(systemName: "doc.on.doc")
+                }
+                .buttonStyle(.borderless)
+                .help("Copy the whole file")
+            }
+
+            if showingRaw {
+                ScrollView {
+                    Text(raw)
+                        .font(.system(.caption2, design: .monospaced))
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .frame(height: 300)
+            } else if events.isEmpty {
+                Text("The tool wrote no events for this run.")
+                    .font(.callout).foregroundStyle(.secondary)
+                    .frame(height: 300, alignment: .top)
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(events) { event in
+                            HStack(alignment: .top, spacing: 8) {
+                                Text(event.kind)
+                                    .font(.caption2.weight(.semibold))
+                                    .foregroundStyle(color(event.kind))
+                                    .frame(width: 78, alignment: .leading)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(event.detail)
+                                        .font(.caption2)
+                                        .textSelection(.enabled)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                }
+                                Text(event.time)
+                                    .font(.caption2.monospacedDigit())
+                                    .foregroundStyle(.tertiary)
+                            }
+                            .padding(.vertical, 3)
+                            Divider()
+                        }
+                    }
+                }
+                .frame(height: 300)
+            }
+
+            Text(url.lastPathComponent)
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+        }
+        .padding(14)
+        .frame(width: 520)
+        .onAppear(perform: load)
+    }
+
+    private func color(_ kind: String) -> Color {
+        switch kind {
+        case "user":      return .accentColor
+        case "assistant": return .green
+        case "error":     return .red
+        default:          return .secondary
+        }
+    }
+
+    private func load() {
+        raw = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
+        events = raw.split(separator: "\n").compactMap { line in
+            guard let data = line.data(using: .utf8),
+                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+            else { return nil }
+            let kind = json["type"] as? String ?? "?"
+            let time = (json["timestamp"] as? String)
+                .map { String($0.dropFirst(11).prefix(8)) } ?? ""
+            return Event(kind: kind, time: time,
+                         detail: describe(kind: kind, json: json),
+                         raw: String(line))
+        }
+    }
+
+    /// One readable line per event — the size of a prompt, the text of an
+    /// answer, the message of an error.
+    private func describe(kind: String, json: [String: Any]) -> String {
+        let message = json["message"] as? [String: Any]
+        switch kind {
+        case "user":
+            if let content = message?["content"] as? String {
+                return "prompt · \(content.count) characters"
+            }
+            return "prompt"
+        case "assistant":
+            let model = message?["model"] as? String ?? ""
+            var text = ""
+            if let blocks = message?["content"] as? [[String: Any]] {
+                text = blocks.compactMap { $0["text"] as? String }.joined(separator: " ")
+            }
+            let head = text.replacingOccurrences(of: "\n", with: " ").prefix(200)
+            return head.isEmpty ? "reply (\(model))" : "\(model): \(head)"
+        case "attachment":
+            return (json["attachment"] as? [String: Any])?["type"] as? String ?? "attachment"
+        case "system":
+            return [json["subtype"] as? String,
+                    (json["estimated_tokens"] as? Int).map { "\($0) thinking tokens" }]
+                .compactMap { $0 }.joined(separator: " · ")
+        case "result":
+            let error = (json["is_error"] as? Bool) == true ? "FAILED · " : ""
+            let seconds = ((json["duration_ms"] as? Int) ?? 0) / 1000
+            let cost = (json["total_cost_usd"] as? Double).map { String(format: "$%.2f", $0) } ?? ""
+            return "\(error)\(seconds)s · \(cost)"
+        default:
+            return ""
+        }
     }
 }
