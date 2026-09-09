@@ -37,6 +37,8 @@ private struct AppData: Codable {
     var views:      [ViewConfig]
     /// Global journal library (added later — optional keeps old files decoding).
     var journalLibrary: [Journal]?
+    /// Local AI connectors (added later — optional keeps old files decoding).
+    var connectors: [AIConnector]?
 }
 
 // MARK: - AppStore
@@ -67,6 +69,11 @@ final class AppStore {
     /// Journals tab.
     var journalLibrary: [Journal]      = []
 
+    /// Locally installed services the app can drive — an agent CLI the user is
+    /// already signed into, or a local model server.  Credential-free by
+    /// design: see `AIConnector`.
+    var connectors: [AIConnector]      = []
+
     // MARK: - Persistence path
 
     private var saveURL: URL {
@@ -87,6 +94,7 @@ final class AppStore {
             aiServices = decoded.aiServices
             views      = decoded.views
             journalLibrary = decoded.journalLibrary ?? []
+            connectors     = decoded.connectors ?? []
         }
         // Seed/merge presets: any preset not yet in the library is appended,
         // so newly shipped presets reach existing installs too.  The key is
@@ -140,7 +148,8 @@ final class AppStore {
     /// Encodes and writes app data atomically.  Safe to call after any mutation.
     func save() {
         let snapshot = AppData(backends: backends, aiServices: aiServices,
-                               views: views, journalLibrary: journalLibrary)
+                               views: views, journalLibrary: journalLibrary,
+                               connectors: connectors)
         guard let data = try? JSONEncoder().encode(snapshot) else { return }
         try? data.write(to: saveURL, options: .atomic)
     }
@@ -194,6 +203,28 @@ final class AppStore {
     // MARK: - Journal library
 
     /// Adds (or replaces, matching by id) a library entry.
+    // MARK: - Connectors
+
+    func addConnector(_ connector: AIConnector) {
+        connectors.append(connector)
+        save()
+    }
+
+    func updateConnector(_ connector: AIConnector) {
+        guard let idx = connectors.firstIndex(where: { $0.id == connector.id }) else { return }
+        connectors[idx] = connector
+        save()
+    }
+
+    func removeConnector(id: UUID) {
+        connectors.removeAll { $0.id == id }
+        save()
+    }
+
+    /// The connectors that have tested green — what "AI active" is allowed to
+    /// switch on.
+    var readyConnectors: [AIConnector] { connectors.filter(\.isReady) }
+
     func upsertLibraryJournal(_ journal: Journal) {
         if let idx = journalLibrary.firstIndex(where: { $0.id == journal.id }) {
             journalLibrary[idx] = journal

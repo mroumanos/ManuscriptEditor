@@ -17,33 +17,46 @@ import SwiftUI
 private enum AnyAccount: Identifiable {
     case backend(BackendAccount)
     case ai(AIServiceAccount)
+    /// A local service with no credential at all — see `AIConnector`.
+    case connector(AIConnector)
 
     var id: UUID {
         switch self {
-        case .backend(let a): return a.id
-        case .ai(let a):      return a.id
+        case .backend(let a):   return a.id
+        case .ai(let a):        return a.id
+        case .connector(let c): return c.id
         }
     }
 
     var displayName: String {
         switch self {
-        case .backend(let a): return a.displayName
-        case .ai(let a):      return a.displayName
+        case .backend(let a):   return a.displayName
+        case .ai(let a):        return a.displayName
+        case .connector(let c): return c.displayName
         }
     }
 
     var providerName: String {
         switch self {
-        case .backend(let a): return a.provider.rawValue
-        case .ai(let a):      return a.provider.rawValue
+        case .backend(let a):   return a.provider.rawValue
+        case .ai(let a):        return a.provider.rawValue
+        case .connector(let c): return c.subtitle
         }
     }
 
     var systemImage: String {
         switch self {
-        case .backend(let a): return a.provider.systemImage
-        case .ai(let a):      return a.provider.systemImage
+        case .backend(let a):   return a.provider.systemImage
+        case .ai(let a):        return a.provider.systemImage
+        case .connector(let c): return c.kind.systemImage
         }
+    }
+
+    /// Connectors show whether they last tested green — the only row type where
+    /// "configured" and "working" are different states.
+    var statusDot: Color? {
+        guard case .connector(let c) = self, let ok = c.lastTestSucceeded else { return nil }
+        return ok ? .green : .orange
     }
 }
 
@@ -56,7 +69,9 @@ struct AccountsView: View {
     @State private var showAddSheet = false
 
     private var accounts: [AnyAccount] {
-        appStore.backends.map(AnyAccount.backend) + appStore.aiServices.map(AnyAccount.ai)
+        appStore.connectors.map(AnyAccount.connector)
+            + appStore.backends.map(AnyAccount.backend)
+            + appStore.aiServices.map(AnyAccount.ai)
     }
 
     var body: some View {
@@ -106,6 +121,10 @@ struct AccountsView: View {
                                     .font(.caption).foregroundStyle(.secondary)
                             }
                             Spacer()
+                            if let dot = account.statusDot {
+                                Circle().fill(dot).frame(width: 7, height: 7)
+                                    .help(dot == .green ? "Tested and working" : "Last test failed")
+                            }
                             Button {
                                 delete(account)
                             } label: {
@@ -154,6 +173,9 @@ struct AccountsView: View {
         } else if let id = selectedID,
                   let ai = appStore.aiServices.first(where: { $0.id == id }) {
             AIAccountForm(account: ai)
+        } else if let id = selectedID,
+                  let connector = appStore.connectors.first(where: { $0.id == id }) {
+            ConnectorDetailView(connector: connector)
         } else {
             ContentUnavailableView(
                 "No Account Selected",
@@ -164,7 +186,8 @@ struct AccountsView: View {
         }
     }
 
-    /// Deletes an account of either flavor (Keychain secret included).
+    /// Deletes an account of any flavour (Keychain secret included where there
+    /// is one — a connector holds no secret).
     fileprivate func delete(_ account: AnyAccount) {
         switch account {
         case .backend(let a):
@@ -176,6 +199,8 @@ struct AccountsView: View {
                 KeychainService.deleteSecret(for: a.id)
                 appStore.deleteAIServices(at: IndexSet([idx]))
             }
+        case .connector(let c):
+            appStore.removeConnector(id: c.id)
         }
         if selectedID == account.id { selectedID = nil }
     }
@@ -421,6 +446,7 @@ struct AddAccountSheet: View {
     private enum ProviderChoice: Hashable {
         case backend(BackendProvider)
         case ai(AIProvider)
+        case connector(AIConnectorKind)
     }
 
     @State private var choice: ProviderChoice = .backend(.github)
@@ -437,7 +463,13 @@ struct AddAccountSheet: View {
                             .tag(ProviderChoice.backend(p))
                     }
                 }
-                Section("AI") {
+                Section("AI — local (no key)") {
+                    ForEach(AIConnectorKind.allCases) { kind in
+                        Label(kind.displayName, systemImage: kind.systemImage)
+                            .tag(ProviderChoice.connector(kind))
+                    }
+                }
+                Section("AI — API key") {
                     ForEach(AIProvider.allCases, id: \.self) { p in
                         Label(p.rawValue, systemImage: p.systemImage)
                             .tag(ProviderChoice.ai(p))
@@ -445,8 +477,17 @@ struct AddAccountSheet: View {
                 }
             }
 
-            TextField("Display name", text: $displayName)
-                .textFieldStyle(.roundedBorder)
+            // A connector has no name to give: it is the local tool, and there
+            // is only ever one of each.
+            if case .connector(let kind) = choice {
+                Text(kind.howToStart)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                TextField("Display name", text: $displayName)
+                    .textFieldStyle(.roundedBorder)
+            }
 
             HStack {
                 Spacer()
@@ -465,6 +506,10 @@ struct AddAccountSheet: View {
                         if !displayName.isEmpty { account.displayName = displayName }
                         appStore.addAIService(account)
                         id = account.id
+                    case .connector(let kind):
+                        let connector = AIConnector(kind: kind)
+                        appStore.addConnector(connector)
+                        id = connector.id
                     }
                     onAdd(id)
                     isPresented = false

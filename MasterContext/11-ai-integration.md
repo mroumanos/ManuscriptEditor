@@ -136,6 +136,10 @@ once. This is why the field is editable rather than hidden.
 
 ### 3.2 What Test actually does
 
+> **Built.** `AIConnectorRunner` + `ConnectorDetailView`; Claude Code only —
+> the other three kinds appear in the UI and refuse with "isn't wired up yet".
+
+
 Not a ping. Test resolves the binary (above), runs one trivial round-trip, and
 reports what came back — including **which model actually answered**, because a
 model the user selected may not be on their plan. Failure messages name the
@@ -159,6 +163,16 @@ Every connector's dropdown ends with a **free-text entry**, because model lists
 go stale between app releases and a user on a newer CLI should not be blocked by
 ours. Availability is confirmed by Test, not by the dropdown — the list offers,
 it does not promise.
+
+**Which model answered is read, not assumed.** The result JSON has no
+top-level `model` field; `modelUsage` is keyed by model id but lists *every*
+model the run touched — including the small one Claude Code uses for its own
+housekeeping, which routinely burns more tokens than the answer. A real run
+requesting `claude-opus-5` reports `claude-haiku-4-5-…` at 9 output tokens
+beside `claude-opus-5` at 4, so both "first alphabetically" and "the busiest"
+are wrong. The runner matches the **requested** id against that report
+(prefix-wise, since ids carry date suffixes) and flags a genuine substitution
+rather than papering over it.
 
 ### 3.4 Zotero
 
@@ -319,7 +333,7 @@ worse than a frontier one.
 
 | Step | Deliverable | Why here |
 |---|---|---|
-| 1 | `AIConnector`, path resolution, Test, settings rows | Everything else needs a way to reach a model |
+| 1 | ✅ **Built** — `AIConnector`, path resolution, Test, settings rows (Claude Code only) | Everything else needs a way to reach a model |
 | 2 | Context model, `context/` storage, Overview table with the locked primer | Nothing can be prompted without it |
 | 3 | `AIIntent` + registry + the greppable convention + runners | The seam |
 | 4 | Prompt log (`ai/`, popup, diff) | Built *before* the first intent, so nothing ever runs unlogged |
