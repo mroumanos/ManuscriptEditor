@@ -1,83 +1,62 @@
 # 11 — AI Integration (plan)
 
-> **Status: proposed, not built.** This is the design for the AI feature set —
-> account, context, "AI active", the two first integrations, and the local MCP
-> server. Nothing here is implemented yet beyond the pieces noted as *existing*.
-> Phase II per [`09-roadmap.md`](09-roadmap.md).
+> **Status: proposed, not built.** The design for the AI feature set — connectors,
+> context, "AI active", the prompt log, and the two first intents. Nothing here
+> is implemented beyond the pieces marked *existing*. Phase II per
+> [`09-roadmap.md`](09-roadmap.md).
 
 Governing principle, from [`00-master-prompt.md`](00-master-prompt.md):
-**AI adapts; it never silently rewrites.** Every AI result lands as an editable,
-undoable change the user can see and reject.
+**AI adapts; it never silently rewrites.** Every result lands as an editable,
+undoable change, and every request is recorded (§6).
 
 ---
 
-## 1. The architecture decision (read this first)
+## 1. Decisions, and why
 
-The instinct was: ship a **local MCP server**, let **Claude Desktop** be the
-model, and avoid an API key. Half of that is right, and the half that isn't is
-worth stating plainly before any code is written.
+### The app calls out; nothing calls in
 
-### What MCP actually gives us
+**No MCP server.** An MCP server exposes this app *to* a model client — the
+opposite of what we want, which is Manuscript Editor initiating. Dropping it
+removes the tool loop, the write-concurrency problem (an outside tool writing to
+a manuscript the app has open), and leaves each AI action as one request and one
+response — which is precisely what makes the prompt log (§6) tractable.
 
-An MCP **server** exposes tools, resources, and prompts to an MCP **client**
-(Claude Desktop, Claude Code, …). The client owns the model. So a local MCP
-server lets someone sit in Claude Desktop and say *"fast-forward my SNAP/EFO
-manuscript to the AJPH cut"*, and Claude calls into Manuscript Editor. **No API
-key, no per-token cost** — it runs on the user's existing Claude subscription.
+If we ever want someone to drive the app from Claude Desktop, the intent layer
+(§7) is the seam to add it behind; nothing here forecloses it.
 
-What it does **not** give us is a way for a button *inside* Manuscript Editor to
-call a model.
+### Why not have the app ask its client for a completion
 
-### The mechanism that would have — and why we can't use it
+For the record, because it looks like the obvious answer: MCP **sampling**
+(`sampling/createMessage`) lets a server request a completion from its client —
+the 2025-06-18 spec describes it as working "with no server API keys
+necessary." **As of protocol version `2026-07-28` sampling is deprecated and
+scheduled for removal**, with the spec directing new implementations to
+"integrate directly with LLM provider APIs instead." So it is not a foundation.
 
-MCP **sampling** (`sampling/createMessage`) lets a server ask its client for a
-completion. The 2025-06-18 spec describes it exactly as we'd want: servers
-"leverage AI capabilities — with no server API keys necessary."
+### Local agent CLIs, not API keys
 
-**As of protocol version `2026-07-28`, sampling is deprecated and scheduled for
-removal**, and the specification's guidance is explicit:
+The app spawns a **locally installed agent CLI** the user is already signed into,
+so AI features cost nothing beyond the subscription the user already has:
 
-> New implementations should integrate directly with LLM provider APIs instead.
+| CLI | Non-interactive | Subscription sign-in |
+|---|---|---|
+| Claude Code | `claude -p` | yes — only `--bare` requires `ANTHROPIC_API_KEY` |
+| Codex | `codex exec` | yes — "Sign in with ChatGPT" |
+| Gemini CLI | *assumed `-p`; verify* | *assumed; verify* |
 
-(`roots` is deprecated in the same revision. `elicitation` survives and is
-useful to us — see §6.)
+Ollama is the fourth connector and a different shape: a local HTTP server, no
+auth, no cost, fully offline — and the only one whose models we can enumerate.
 
-So we must not build the in-app buttons on sampling. That is the whole fork:
+The **existing API-key path** (`SmartSyncService`, real, `claude-opus-5`) stays
+as a fallback for anyone who would rather pay per token than install a CLI. It
+is not the headline and it is not the default.
 
-| | Who calls the model | Cost | In-app buttons work? |
-|---|---|---|---|
-| **A. MCP server** | Claude Desktop / Claude Code | Covered by the user's Claude subscription | **No** — the user drives from Claude |
-| **B. API key** | Manuscript Editor | Per token, user's key | **Yes** |
+### The app is not sandboxed
 
-### Recommendation: one domain layer, two transports — MCP first
-
-Build the *thinking* once and the *plumbing* twice:
-
-```
-        ┌────────────────────────────────────────────────┐
-        │  AIIntent  (what we want, what we send back)    │
-        │  · AIContextBundle    · AIIntent protocol       │
-        │  · prompt assembly    · result application      │
-        └───────────────┬────────────────┬───────────────┘
-                        │                │
-              ┌─────────▼──────┐  ┌──────▼──────────────┐
-              │ MCPTransport   │  │ APIKeyTransport     │
-              │ app = server;  │  │ app = client;       │
-              │ Claude Desktop │  │ Anthropic Messages  │
-              │ drives         │  │ API (exists today)  │
-              └────────────────┘  └─────────────────────┘
-```
-
-- The intents, the context bundle, the prompt text, and the code that applies a
-  result are **transport-agnostic** and testable without a network.
-- **Ship the MCP server first.** It is the free path, it is genuinely useful,
-  and it forces the domain layer to be clean (a tool call is just an intent
-  invoked from outside).
-- **Keep the API-key transport**, because `SmartSyncService` already implements
-  it against `claude-opus-5` and it is the only way the in-app buttons can work.
-- **"AI active" means *some* transport is configured** — a connected Claude
-  Desktop *or* a verified key. Features light up either way; what a button does
-  when pressed differs (§4).
+`ENABLE_APP_SANDBOX = NO`, so spawning subprocesses and reaching localhost are
+both permitted. This design depends on that; if the app is ever sandboxed for
+App Store distribution, **every CLI connector stops working** and only Ollama
+(network) and the API key survive.
 
 ---
 
@@ -85,23 +64,112 @@ Build the *thinking* once and the *plumbing* twice:
 
 | Piece | Where | State |
 |---|---|---|
-| `AIProvider`, `AIServiceAccount` | `Models/AIServiceAccount.swift` | Real; `.claude` case present |
-| Account add/verify UI | `Views/AccountsView.swift` | Real, GitHub-style, Keychain-backed |
-| Secret storage | `Services/KeychainService.swift` | Real (`setSecret`/`secret`/`deleteSecret` by account id) |
+| `AIProvider`, `AIServiceAccount` | `Models/AIServiceAccount.swift` | Real |
+| Account UI, Keychain-backed | `Views/AccountsView.swift`, `Services/KeychainService.swift` | Real |
+| **Connection testing** | `Services/AccountTesting.swift` | Real — already probes Ollama's `/api/tags` |
 | Per-manuscript AI selection | `ManuscriptSettings.activeAIServiceID` | Real |
-| A working Anthropic call | `Services/SmartSyncService.swift` | Real, non-streaming, `claude-opus-5` |
-| "Smart" sync toggle | `Views/JournalLineageCard.swift` | Real — **to be replaced** by "AI active" (§4) |
+| A working model call | `Services/SmartSyncService.swift` | Real, non-streaming |
+| A local-service integration to copy | `Services/ZoteroService.swift` | Real — localhost:23119, "make sure Zotero is running" |
+| "Smart" sync toggle | `Views/JournalLineageCard.swift` | Real — **to be replaced** (§5) |
 
-The account flow the user asked for ("add and verify my AI account, similar to
-GitHub") is therefore **mostly built**; what it lacks is *verification* — a
-"Verify" button that makes one cheap call and reports success — and the Claude
-Desktop / MCP pairing state.
+`ZoteroService`'s header comment says the app is sandboxed. It isn't; fix while
+passing.
 
 ---
 
-## 3. Context
+## 3. Connectors
 
-### 3.1 The model
+The core abstraction. A **connector** is a local service the app can talk to. No
+username, no password — the credential lives in the tool the user already
+configured.
+
+```swift
+/// A locally installed service the app drives.  Deliberately credential-free:
+/// the user signs into the CLI (or runs the server) once, and the app borrows
+/// that, so no key is stored, transmitted, or billed.
+struct AIConnector: Identifiable, Codable {
+    var id: UUID
+    var kind: AIConnectorKind        // .claudeCLI | .codexCLI | .geminiCLI | .ollama
+    var executablePath: String       // defaulted by probe, editable (see below)
+    var selectedModel: String
+    var lastTestedAt: Date?
+    var lastTestResult: String?
+}
+```
+
+### The settings row
+
+Each connector renders as one row in Settings → Accounts, beside the existing
+backend and AI-service rows:
+
+```
+ ✦  Claude Code                                    [ Test ]
+    Local · signed in through the Claude Code CLI
+    Install with:  npm i -g @anthropic-ai/claude-code   ⧉
+    Path   [ /opt/homebrew/bin/claude              ] [ Browse… ]
+    Model  [ Claude Opus 5                       ⌄ ]
+```
+
+- **No credential fields.** A short line on how to start or install the service,
+  with a copyable command.
+- **Executable path**, defaulted by probing and **editable** — see the next
+  section, which is the part most likely to go wrong.
+- **Test** button, which is load-bearing rather than decorative (§3.2).
+- Ollama's row has a URL instead of a path (`http://localhost:11434`), same
+  shape otherwise.
+
+### 3.1 Resolving the executable — the real risk
+
+**A GUI app launched from Finder does not inherit the shell's `PATH`.** `claude`,
+`codex`, and `gemini` live in `/opt/homebrew/bin`, `/usr/local/bin`,
+`~/.local/bin`, or an nvm directory, and a naive `Process()` will not find any of
+them. Resolution order:
+
+1. The stored `executablePath`, if it still exists and is executable.
+2. A probe of the known locations for that CLI.
+3. `/bin/zsh -lc "command -v <tool>"` — a login shell, which *does* read the
+   user's profile.
+4. Ask: the **Browse…** button.
+
+Whatever resolves is written back to `executablePath`, so the slow path runs
+once. This is why the field is editable rather than hidden.
+
+### 3.2 What Test actually does
+
+Not a ping. Test resolves the binary (above), runs one trivial round-trip, and
+reports what came back — including **which model actually answered**, because a
+model the user selected may not be on their plan. Failure messages name the
+cause: not installed, not signed in, model unavailable, timed out.
+
+`AccountTesting.swift` already does exactly this for Ollama and is where this
+belongs.
+
+### 3.3 Models, per connector
+
+The dropdown lists that connector's models — not a global list.
+
+- **Claude Code** — curated from the current family, defaulting to
+  **Claude Opus 5**: Fable 5.1, Fable 5, Opus 5, Opus 4.8, Opus 4.7, Opus 4.6,
+  Sonnet 5, Sonnet 4.6, Haiku 4.5. Passed as `--model`.
+- **Ollama** — **discovered live** from `/api/tags`; only this connector can
+  enumerate honestly.
+- **Codex / Gemini CLI** — curated list once verified, plus a free-text field.
+
+Every connector's dropdown ends with a **free-text entry**, because model lists
+go stale between app releases and a user on a newer CLI should not be blocked by
+ours. Availability is confirmed by Test, not by the dropdown — the list offers,
+it does not promise.
+
+### 3.4 Zotero
+
+**Deferred.** `ZoteroService` is already a local connector in everything but
+name; fold it into this UI once the AI connectors have proved the pattern.
+
+---
+
+## 4. Context
+
+### 4.1 The model
 
 ```swift
 enum AIContextKind { case appPrimer, manuscriptData, freeText, file }
@@ -112,183 +180,165 @@ struct AIContextEntry: Identifiable, Codable {
     var title: String
     var isEnabled: Bool          // the checkbox — opt OUT of sharing
     var body: String?            // freeText
-    var fileName: String?        // file, copied into context/ (travels with the manuscript)
-    var isLocked: Bool           // appPrimer only: not editable, not deletable
+    var fileName: String?        // file, copied into context/
+    var isLocked: Bool           // appPrimer only
 }
 ```
 
-Stored on the manuscript (so it travels and is reviewable in git), with attached
-files under `context/` beside `figures/` and `data/`.
+Attached files live in `context/`, beside `figures/`, `data/`, `attachments/`.
 
-### 3.2 The rows, in order
+### 4.2 The rows
 
-1. **How Manuscript Editor works** — `appPrimer`, **locked, not editable**,
-   enabled by default. Explains source/cuts/versions/lineage, what a section,
-   check, profile and export are. Generated from a constant in the app so it
-   updates with the app rather than going stale in a user's file.
-2. **This manuscript** — `manuscriptData`, enabled by default, **deselectable**.
-   The manuscript itself: title, authors, sections, journals, checks. This is
-   the row someone unticks when they don't want their content leaving the
+1. **How Manuscript Editor works** — locked, not editable, on by default.
+   Source/cuts/versions/lineage, what a section, check, profile and export are.
+   Generated from a constant in the app so it tracks the app instead of going
+   stale in a user's file.
+2. **This manuscript** — on by default, **deselectable**. The content itself.
+   This is the row someone unticks when they don't want their work leaving the
    machine, and the UI should say so in as many words.
-3. …**custom rows**, added by the user.
-4. **Add row** — free text, or a file.
+3. …custom rows: free text, or a file.
+4. **Add row.**
 
-Every row carries a checkbox. Unticked = never sent. The Overview settings card
-gets a **Context** table (`Views/AIContextTable.swift`), per the request.
+Unticked means never sent — enforced where the payload is assembled, not in the
+view.
 
-### 3.3 The text editor's own AI button
+### 4.3 The free-text row's AI button
 
-A free-text row opens a normal editor with an **AI button top-right**. Pressed,
-it sends: the enabled context so far + whatever is already typed + the intent
-*"write a context note for this app"*, and replaces the box's contents with the
-result. It is one `RichTextController` edit, so **⌘Z undoes it** like any other
-edit — that is the whole safety story, and it is why the result must go through
-the normal text path rather than a bespoke one.
+Top-right of the editor. Sends enabled context + what is already typed + the
+intent *"write a context note for this app"*, and replaces the box's contents.
+It goes through the normal `RichTextController` path, so **⌘Z undoes it** — that
+is the entire safety story, and the reason not to give it a bespoke edit path.
 
 ---
 
-## 4. "AI active"
+## 5. "AI active"
 
-A single toggle in the window toolbar: **✦ Assist**.
+One toolbar toggle: **✦ Assist**, with the prompt-log icon beside it (§6).
 
-- **No transport configured** → disabled, with a tooltip pointing at
-  Settings → Accounts.
-- **Configured but off** → available, everything renders normally.
-- **On** → every AI-capable control takes the *assist* treatment.
+- **No connector tests green** → disabled, pointing at Settings → Accounts.
+- **Configured, off** → available; everything renders normally.
+- **On** → AI-capable controls take the assist treatment.
 
-### The treatment
+**The treatment.** One accent, used sparingly: a gradient stroke/tint from
+`Theme/AssistStyle.swift` — `#7B5CFF → #B06AB3`, ~0.85 opacity on strokes, ~0.12
+on fills, with a light/dark pair like every colour in
+[`06-design-system.md`](06-design-system.md). Applied through a single
+`.assistAffordance(active:)` modifier so a new AI feature adopts the look rather
+than inventing one. No motion except a slow shimmer while a request is in
+flight, where it is a progress signal.
 
-Not a purple wash on everything. One accent, used sparingly:
-
-- A gradient stroke/tint drawn from a new `Theme/AssistStyle.swift`:
-  `#7B5CFF → #B06AB3` (violet → orchid), at ~0.85 opacity for strokes and
-  ~0.12 for fills, with a light/dark pair like every other colour in
-  [`06-design-system.md`](06-design-system.md).
-- Applied via **one modifier**, `.assistAffordance(active:)`, so a new AI
-  feature gets the look by adopting the modifier and cannot invent its own.
-- Motion: none by default. A slow shimmer *only* while a request is in flight —
-  it is a progress signal, not decoration.
-
-### Fast Forward
-
-Per the request: **remove the "Smart" toggle**. The existing Fast Forward button
-becomes the single control, and takes the assist treatment when Assist is on:
-
-- **Assist off** → today's behaviour exactly (mechanical fast-forward).
-- **Assist on, API-key transport** → runs `.fastForwardJournal` in-app and
-  stamps the new version.
-- **Assist on, MCP transport only** → the button explains it hands off, and
-  offers a one-click *"Copy request for Claude"* / *"Open Claude Desktop"*. The
-  work still happens through the same intent, just initiated from the other end.
+**Fast Forward.** Remove the "Smart" toggle. The existing button becomes the one
+control: Assist off is today's mechanical behaviour exactly; Assist on runs
+`journal.fastForward` and stamps the new version.
 
 ---
 
-## 5. The two intents
+## 6. The prompt log
 
-Both conform to one protocol, and both are **documented in a way that greps**.
+Every request, whether fired by a button or (later) typed by hand, is recorded.
+
+**Location — not `manuscript.json`.** Its own folder in the manuscript, so it
+travels with the work and shows up in the remote, without bloating the file the
+app rewrites on every save:
+
+```
+<manuscript>/ai/
+    log.json               index: id, intent, connector, model, when, outcome
+    prompts/<id>.txt       the rendered prompt, verbatim
+    responses/<id>.txt     the raw response
+```
+
+A fast-forward prompt carries an entire journal; keeping payloads out of
+`manuscript.json` keeps saves fast and git diffs readable.
+
+**Entries are independent.** Each carries its own context snapshot — no session
+continuity in v1. Button-driven only for now; the log is built as a *transcript*
+so that adding a custom prompt box later is an addition, not a rewrite.
+
+**The popup** (message icon beside the Assist toggle) lists entries newest
+first: intent, connector + model, when, and a **summary diff of what the
+response changed** — reusing `SentenceSimilarity` from compare mode, which
+already answers "what changed between two texts" in ~1.2 ms and gives the log
+the same green/yellow vocabulary the editors use.
+
+Why this matters more than the generation features: for scientific work,
+*"which parts of this were AI-written, from what prompt, by which model"* is a
+question that will be asked, and a log that ships with the manuscript answers it
+without anyone having to remember.
+
+---
+
+## 7. Intents
 
 ```swift
 /// Everything an AI feature needs to describe itself, so what is prompted and
 /// what is sent is inspectable without reading the call site.
 protocol AIIntent {
-    static var id: String { get }            // "context.compose", "journal.fastForward"
-    static var summary: String { get }       // one line, shown in the UI
-    var contextPolicy: AIContextPolicy { get }   // which context rows this needs
+    static var id: String { get }             // "context.compose", "journal.fastForward"
+    static var summary: String { get }
+    var contextPolicy: AIContextPolicy { get }
     func payload(from: AIPayloadSource) throws -> AIPayload
     func apply(_ result: AIResult, to store: ManuscriptStore) throws
 }
 ```
 
-**Discoverability requirement (from the request).** Every intent lives in
-`Services/AI/Intents/`, is registered in `AIIntentRegistry.all`, and carries a
-`// MARK: - AI INTENT` banner. `grep -rn "AI INTENT"` returns the complete list
-of everything that can talk to a model, and each one states its inputs. A
-Settings → AI pane renders the same registry, so the user sees the identical
-list the code does.
+Runners sit underneath, one per connector shape:
 
-### 5.1 `context.compose`
+- `AgentCLIRunner` — spawns the resolved executable; per-CLI differences are
+  argv only (`claude -p --model … --output-format json`, `codex exec …`).
+- `HTTPRunner` — Ollama today; the keyed API path reuses it.
 
-- **Sends:** enabled context rows + current text box contents.
-- **Asks for:** prose suitable as a context note.
-- **Applies:** replaces the editor's text (undoable).
+**Discoverability (required).** Every intent lives in `Services/AI/Intents/`, is
+registered in `AIIntentRegistry.all`, and carries an `// AI INTENT` banner.
+`grep -rn "AI INTENT"` returns everything that can talk to a model, each
+declaring its inputs. A Settings → AI pane renders the same registry, so the
+user sees the list the code sees.
 
-### 5.2 `journal.fastForward`
+### 7.1 `context.compose`
 
-- **Sends:** enabled context rows + the **upstream** journal's full content +
-  the **target** journal's profile (requirements bullets, structure, checks with
-  their limits).
-- **Asks for:** per-section adapted content that satisfies the target's checks.
-- **Applies:** writes the downstream cut and stamps a version — never touching
-  the upstream, and never applying without the diff being visible.
-- **Verification is the interesting part:** the target's checks already exist
-  and are machine-evaluable (`ChecklistService`). After applying, **re-run the
-  checks and report which now pass** — turning "the AI wrote something" into a
-  measurable claim. When a limit is still blown, say so rather than pretending.
+Enabled context + the text box's contents → prose for a context note → replaces
+the editor's text, undoably.
+
+### 7.2 `journal.fastForward`
+
+Enabled context + the **upstream** journal's full content + the **target**'s
+profile (requirements bullets, structure, checks with their limits) → per-section
+adapted content → writes the downstream cut and stamps a version. Never touches
+the upstream; never applies without the diff being visible.
+
+**Verified, not asserted.** The target's checks are already machine-evaluable
+(`ChecklistService`), so after applying, re-run them and report which now pass.
+"10 of 11 checks pass, abstract still 12 words over" is a measurement; "the AI
+adapted your manuscript" is not. This also makes connectors comparable on the
+same manuscript — including showing honestly where a local Ollama model does
+worse than a frontier one.
 
 ---
 
-## 6. The MCP server
+## 8. Sequencing
 
-A separate executable target, `ManuscriptEditorMCP`, speaking **stdio JSON-RPC**
-so it drops into `claude_desktop_config.json`:
-
-```json
-{ "mcpServers": {
-    "manuscript-editor": { "command": "/Applications/Manuscript Editor.app/Contents/MacOS/ManuscriptEditorMCP" } } }
-```
-
-It reads and writes the same manuscript folders the app does, through the
-existing `PersistenceService` — **not** a second copy of the domain logic.
-
-**Tools** (each one an `AIIntent` or a thin read):
-
-| Tool | Kind | Notes |
+| Step | Deliverable | Why here |
 |---|---|---|
-| `list_manuscripts` | read | id, title, journals |
-| `get_manuscript` | read | honours the context checkboxes — an unticked row is not returned |
-| `get_journal_profile` | read | requirements, structure, checks |
-| `run_checks` | read | the same verdicts the Checks pane shows |
-| `compose_context` | write | `context.compose` |
-| `fast_forward_journal` | write | `journal.fastForward` |
-
-**Safety, since this writes to a user's manuscript from outside the app:**
-
-- Write tools require the manuscript to be **closed in the app** or apply
-  through the store's normal `touch`/undo path — never a blind file write while
-  the app holds it open.
-- Every write stamps a version, so it is recoverable by the existing rollback.
-- The context checkboxes are enforced **server-side**. Unticked means the data
-  does not leave the process, whatever the caller asks for.
-- **elicitation** (still current) is the right way to ask "which target
-  journal?" instead of guessing.
+| 1 | `AIConnector`, path resolution, Test, settings rows | Everything else needs a way to reach a model |
+| 2 | Context model, `context/` storage, Overview table with the locked primer | Nothing can be prompted without it |
+| 3 | `AIIntent` + registry + the greppable convention + runners | The seam |
+| 4 | Prompt log (`ai/`, popup, diff) | Built *before* the first intent, so nothing ever runs unlogged |
+| 5 | `AssistStyle`, `.assistAffordance`, the toolbar toggle | Visual language, once |
+| 6 | `context.compose` | Small, self-contained, undoable |
+| 7 | `journal.fastForward`; retire the Smart toggle | The real one; check-verified |
+| 8 | Fold Zotero into connectors | After the pattern is proved |
 
 ---
 
-## 7. Sequencing
+## 9. Open questions
 
-| Step | Deliverable | Why this order |
-|---|---|---|
-| 0 | Confirm the transport decision (§1) | It changes what ships first |
-| 1 | Context model, `context/` storage, Overview table with the locked primer row | Nothing else can be prompted without it |
-| 2 | `AIIntent` + registry + the greppable convention | The seam both transports sit on |
-| 3 | MCP server: read tools only | Useful and safe on day one; proves the seam from outside |
-| 4 | `AssistStyle` + `.assistAffordance` + the toolbar toggle | Visual language, once |
-| 5 | `context.compose` (both transports) | Small, self-contained, undoable |
-| 6 | `journal.fastForward`; retire the Smart toggle | The real one; check-verified |
-| 7 | Account **verification** + Claude Desktop pairing state | Makes "AI active" honest |
-
----
-
-## 8. Open questions
-
-1. **Transport** — MCP only, API key only, or both (recommended: both, MCP
-   first). §1.
-2. **Where the primer lives** — a constant in the app (updates with releases,
-   what this plan assumes) or a bundled file the user can read before it is
-   sent.
-3. **Cut-level or manuscript-level context** — this plan puts context on the
-   manuscript. A journal-specific context row ("this cut is for a clinical
-   audience") may want to live on the journal instead.
-4. **MCP write concurrency** — simplest safe rule is that write tools refuse
-   while the app has the manuscript open, and say so. Worth confirming that is
-   acceptable before building the alternative.
+1. **Gemini CLI** — non-interactive flag, sign-in model, and model list are
+   assumed above and unverified.
+2. **Codex structured output** — Claude Code has `--json-schema`; Codex's
+   equivalent is unconfirmed, so `journal.fastForward` may need tolerant parsing
+   on that connector.
+3. **Shipping a dependency on someone else's CLI** — whether requiring or
+   bundling Claude Code / Codex in a distributed app is permitted under those
+   subscriptions is a licensing question, not an engineering one.
+4. **Log retention** — every fast-forward payload is large. Keep all of them
+   forever, cap the folder, or store a hash and summary past some size?
