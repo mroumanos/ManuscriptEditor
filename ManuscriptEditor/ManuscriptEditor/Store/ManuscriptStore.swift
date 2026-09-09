@@ -1153,6 +1153,111 @@ final class ManuscriptStore {
         }
     }
 
+    // MARK: - AI context
+
+    /// The context rows for this manuscript, seeding the two built-in rows the
+    /// first time they're asked for.  Seeded lazily rather than at creation so
+    /// manuscripts written before this feature gain them on open.
+    var aiContextEntries: [AIContextEntry] {
+        guard let stored = manuscript?.aiContext, !stored.isEmpty else {
+            return [AIContextEntry(kind: .appPrimer, title: AIContextPrimer.title),
+                    AIContextEntry(kind: .manuscriptData, title: "This manuscript")]
+        }
+        // A stored list that predates a built-in row still gets it, off the
+        // end of the list so the user's own ordering survives.
+        var entries = stored
+        for kind in [AIContextKind.appPrimer, .manuscriptData]
+        where !entries.contains(where: { $0.kind == kind }) {
+            entries.insert(AIContextEntry(kind: kind, title: kind.label),
+                           at: kind == .appPrimer ? 0 : min(1, entries.count))
+        }
+        return entries
+    }
+
+    private func writeContext(_ entries: [AIContextEntry], undo: String?) {
+        touch(undoAction: undo) { $0.aiContext = entries }
+    }
+
+    func setContextEnabled(_ enabled: Bool, id: UUID) {
+        var entries = aiContextEntries
+        guard let idx = entries.firstIndex(where: { $0.id == id }) else { return }
+        // The primer carries no user content and the model is useless without
+        // it, so it isn't switchable.
+        guard !entries[idx].isLocked else { return }
+        entries[idx].isEnabled = enabled
+        writeContext(entries, undo: enabled ? "Include Context" : "Exclude Context")
+    }
+
+    func updateContextEntry(_ entry: AIContextEntry) {
+        var entries = aiContextEntries
+        guard let idx = entries.firstIndex(where: { $0.id == entry.id }) else { return }
+        var edited = entry
+        edited.updatedAt = Date()
+        entries[idx] = edited
+        writeContext(entries, undo: nil)
+    }
+
+    @discardableResult
+    func addContextNote() -> UUID? {
+        var entries = aiContextEntries
+        let entry = AIContextEntry(kind: .freeText, title: "New note")
+        entries.append(entry)
+        writeContext(entries, undo: "Add Context")
+        return entry.id
+    }
+
+    /// Copies a file into the manuscript's `context/` folder and adds a row for
+    /// it, so the attachment travels with the manuscript rather than pointing
+    /// at a path that may not exist on another machine.
+    @discardableResult
+    func addContextFile(from source: URL) -> UUID? {
+        guard let id = manuscript?.id else { return nil }
+        let stored = "\(UUID().uuidString.lowercased())-\(source.lastPathComponent)"
+        let destination = persistence.contextDirectory(for: id).appendingPathComponent(stored)
+        let scoped = source.startAccessingSecurityScopedResource()
+        defer { if scoped { source.stopAccessingSecurityScopedResource() } }
+        do {
+            try FileManager.default.copyItem(at: source, to: destination)
+        } catch {
+            showBanner(.error, "Couldn't add \(source.lastPathComponent) to the context.")
+            return nil
+        }
+        var entries = aiContextEntries
+        let entry = AIContextEntry(kind: .file, title: source.lastPathComponent,
+                                   fileName: stored)
+        entries.append(entry)
+        writeContext(entries, undo: "Add Context File")
+        return entry.id
+    }
+
+    func removeContextEntry(id: UUID) {
+        var entries = aiContextEntries
+        guard let idx = entries.firstIndex(where: { $0.id == id }),
+              !entries[idx].kind.isBuiltIn else { return }
+        if let name = entries[idx].fileName, let mid = manuscript?.id {
+            try? FileManager.default.removeItem(
+                at: persistence.contextDirectory(for: mid).appendingPathComponent(name))
+        }
+        entries.remove(at: idx)
+        writeContext(entries, undo: "Remove Context")
+    }
+
+    /// Reads an attached context file as text.  Anything that isn't decodable
+    /// text is skipped rather than sent as noise.
+    func contextFileText(_ fileName: String) -> String? {
+        guard let id = manuscript?.id else { return nil }
+        let url = persistence.contextDirectory(for: id).appendingPathComponent(fileName)
+        guard let data = try? Data(contentsOf: url) else { return nil }
+        return String(data: data, encoding: .utf8) ?? String(data: data, encoding: .isoLatin1)
+    }
+
+    /// The payload actually sent with a request — enabled rows only.
+    func aiContextBundle() -> AIContextBundle {
+        AIContextBundle.build(entries: aiContextEntries,
+                              manuscript: manuscript,
+                              fileText: { [weak self] in self?.contextFileText($0) })
+    }
+
     // MARK: - Export attachments
 
     /// The stored copy of an uploaded export document.
@@ -2331,7 +2436,7 @@ final class ManuscriptStore {
         var files: [GitHubBackendService.File] = []
         let manuscriptJSON = dir.appendingPathComponent("manuscript.json")
         files.append(.init(path: "manuscript.json", data: try Data(contentsOf: manuscriptJSON)))
-        for sub in ["figures", "data", "attachments"] {
+        for sub in ["figures", "data", "attachments", "context"] {
             let subdir = dir.appendingPathComponent(sub, isDirectory: true)
             guard let names = try? FileManager.default.contentsOfDirectory(atPath: subdir.path) else { continue }
             for name in names.sorted() where !name.hasPrefix(".") {

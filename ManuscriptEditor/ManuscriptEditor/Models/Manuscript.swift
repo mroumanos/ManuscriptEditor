@@ -143,6 +143,11 @@ struct Manuscript: Codable, Identifiable, Sendable {
     /// restorable from the sidebar's hidden-panes rows.
     var hiddenPanes: [String]? = nil
 
+    /// What this manuscript is willing to tell an AI, row by row, each with a
+    /// checkbox.  nil = never configured; the store seeds the two built-in
+    /// rows on first use.  See `AIContext.swift`.
+    var aiContext: [AIContextEntry]? = nil
+
     // MARK: - Factory
 
     /// Creates a brand-new, empty manuscript with the standard set of body sections
@@ -232,6 +237,7 @@ struct Manuscript: Codable, Identifiable, Sendable {
         institutions  = try c.decodeIfPresent([Institution].self,    forKey: .institutions) ?? []
         paneTitles    = try c.decodeIfPresent([String: String].self, forKey: .paneTitles)
         hiddenPanes   = try c.decodeIfPresent([String].self,         forKey: .hiddenPanes)
+        aiContext     = try c.decodeIfPresent([AIContextEntry].self, forKey: .aiContext)
     }
 
     // MARK: - Computed word counts

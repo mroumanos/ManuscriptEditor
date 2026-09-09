@@ -31,6 +31,7 @@ struct OverviewView: View {
                 VStack(alignment: .leading, spacing: 28) {
                     summaryCard
                     settingsCard
+                    contextCard
                     JournalLineageCard()
                 }
                 .padding(28)
@@ -218,6 +219,51 @@ struct OverviewView: View {
                   },
                   secondaryButton: .cancel())
         }
+    }
+
+    // MARK: - Context card
+
+    /// What an AI request is allowed to see.
+    ///
+    /// It sits directly under Settings because the model choice above and the
+    /// context here are the same decision made twice: *who* answers, and *what
+    /// they get to read*.  It is shown whether or not a model is selected —
+    /// deciding what is shareable shouldn't require turning AI on first.
+    private var contextCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text("AI Context")
+                    .font(.headline)
+                    .foregroundStyle(.secondary)
+                Text(selectedModelLabel ?? "No model selected")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                Spacer()
+            }
+            Text("Ticked rows are sent with every AI request from this manuscript. Unticked rows are never sent.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            AIContextTable()
+                .frame(maxWidth: 640)
+        }
+        .frame(maxWidth: 640, alignment: .leading)
+    }
+
+    /// The model this manuscript writes with, named the way the picker names it.
+    private var selectedModelLabel: String? {
+        let settings = store.manuscript?.settings
+        if let id = settings?.activeConnectorID,
+           let connector = appStore.connectors.first(where: { $0.id == id }) {
+            let model = settings?.aiModel ?? connector.selectedModel
+            let label = AIModelCatalog.models(for: connector.kind)
+                .first { $0.id == model }?.label
+            return label ?? connector.kind.displayName
+        }
+        if let id = settings?.activeAIServiceID,
+           let service = appStore.aiServices.first(where: { $0.id == id }) {
+            return service.displayName
+        }
+        return nil
     }
 
     // MARK: - Summary card

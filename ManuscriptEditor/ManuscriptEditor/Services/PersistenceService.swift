@@ -90,6 +90,14 @@ struct PersistenceService: Sendable {
         return dir
     }
 
+    /// `{manuscriptDir}/context/` — files the user attached as AI context.
+    func contextDirectory(for manuscriptID: UUID) -> URL {
+        let dir = manuscriptDirectory(for: manuscriptID)
+            .appendingPathComponent("context", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir
+    }
+
     /// `{manuscriptDir}/attachments/` — files uploaded straight into the
     /// export package, kept with the manuscript so they travel with it.
     func attachmentsDirectory(for manuscriptID: UUID) -> URL {

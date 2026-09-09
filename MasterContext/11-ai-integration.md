@@ -190,6 +190,11 @@ name; fold it into this UI once the AI connectors have proved the pattern.
 
 ## 4. Context
 
+> **Built.** `Models/AIContext.swift`, the store block in `ManuscriptStore`
+> (`aiContextEntries` … `aiContextBundle()`), `Views/AIContextTable.swift`,
+> shown in Overview under Settings. §4.3's AI button waits for the intent layer
+> and the prompt log, so nothing can run before there is somewhere to log it.
+
 ### 4.1 The model
 
 ```swift
@@ -200,13 +205,21 @@ struct AIContextEntry: Identifiable, Codable {
     var kind: AIContextKind
     var title: String
     var isEnabled: Bool          // the checkbox — opt OUT of sharing
-    var body: String?            // freeText
+    var body: String             // freeText
     var fileName: String?        // file, copied into context/
     var isLocked: Bool           // appPrimer only
 }
 ```
 
-Attached files live in `context/`, beside `figures/`, `data/`, `attachments/`.
+The rows live on `Manuscript.aiContext` (`decodeIfPresent`, so older files still
+open); attached files live in `context/`, beside `figures/`, `data/`,
+`attachments/`.
+
+**The built-in rows carry fixed ids** (`AIContextKind.builtInID`). They are
+regenerated on every read until the list is first written, so a fresh `UUID()`
+each time changed the id under the checkbox the user had just clicked —
+unticking "This manuscript" on a manuscript whose context had never been edited
+silently did nothing. Caught by the harness, not by looking at it.
 
 ### 4.2 The rows
 
@@ -341,7 +354,7 @@ worse than a frontier one.
 | Step | Deliverable | Why here |
 |---|---|---|
 | 1 | ✅ **Built** — `AIConnector`, path resolution, Test, settings rows (Claude Code only); model choice in Overview | Everything else needs a way to reach a model |
-| 2 | Context model, `context/` storage, Overview table with the locked primer | Nothing can be prompted without it |
+| 2 | ✅ **Built** — context model, `context/` storage, Overview table with the locked primer | Nothing can be prompted without it |
 | 3 | `AIIntent` + registry + the greppable convention + runners | The seam |
 | 4 | Prompt log (`ai/`, popup, diff) | Built *before* the first intent, so nothing ever runs unlogged |
 | 5 | `AssistStyle`, `.assistAffordance`, the toolbar toggle | Visual language, once |
