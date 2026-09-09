@@ -15,7 +15,14 @@
 //    walks the likely places and, failing that, asks a **login shell** — which
 //    does read the user's profile.
 //
-// 2. **Working directory.**  A non-`--bare` run loads whatever ambient config
+// 2. **Streaming, not a black box.**  `--output-format json` returns nothing
+//    until the run is over, so a request that thinks for six minutes is
+//    indistinguishable from one that has hung — which is exactly the question
+//    asked at minute three.  This reads `stream-json` line by line instead:
+//    thinking tokens and response characters are reported as they arrive, and
+//    "no event for a while" (not a total wall clock) is what counts as stuck.
+//
+// 3. **Working directory.**  A non-`--bare` run loads whatever ambient config
 //    sits in its working directory: hooks from `.claude/settings.json`, servers
 //    from `.mcp.json` — with no trust prompt.  Pointing it at a manuscript
 //    folder that arrived from a collaborator would execute their configuration.
@@ -33,6 +40,7 @@ enum AIConnectorError: LocalizedError {
     case executableNotFound(String)
     case launchFailed(String)
     case timedOut(Int)
+    case stalled(Int)
     case toolFailed(String)
     case emptyResponse
 
@@ -44,6 +52,8 @@ enum AIConnectorError: LocalizedError {
             return "Couldn't find “\(tool)”. Install it, or set the path yourself with Browse…"
         case .launchFailed(let detail):
             return "Couldn't start the tool: \(detail)"
+        case .stalled(let seconds):
+            return "The tool went quiet for \(seconds / 60) min — no thinking, no output — so the request was given up on and nothing was written. If this tool has never run here it may be waiting for a sign-in: run it once in Terminal."
         case .timedOut(let seconds):
             // Two very different causes, and the second only looks like a
             // hang: a first run waiting on a sign-in, or a request genuinely
@@ -53,6 +63,30 @@ enum AIConnectorError: LocalizedError {
             return detail
         case .emptyResponse:
             return "The tool returned nothing."
+        }
+    }
+}
+
+// MARK: - Progress
+
+/// What a run is doing right now, reported as it happens.
+struct AIRunProgress: Sendable, Equatable {
+    enum Phase: Sendable, Equatable {
+        case starting
+        /// Extended thinking, before a single character of the answer exists.
+        /// On a manuscript-sized adaptation this is most of the wait.
+        case thinking
+        case writing
+    }
+    var phase: Phase = .starting
+    var thinkingTokens: Int = 0
+    var responseCharacters: Int = 0
+
+    var summary: String {
+        switch phase {
+        case .starting: return "Starting…"
+        case .thinking: return "Thinking · \(thinkingTokens.formatted()) tokens"
+        case .writing:  return "Writing · \(responseCharacters.formatted()) characters"
         }
     }
 }
@@ -81,6 +115,12 @@ enum AIConnectorRunner {
     /// How long to wait before giving up.  Generous, because a first run can
     /// stall on an interactive sign-in the app can't see.
     static let defaultTimeout: Int = 120
+
+    /// Silence that means stuck.  A working run emits thinking-token or text
+    /// events every few seconds, so three minutes of nothing is a real stall —
+    /// a far better signal than a total wall clock, which cannot tell a big
+    /// job from a dead one.
+    static let stallTimeout: Int = 180
 
     // MARK: Resolving the executable
 
@@ -161,53 +201,72 @@ enum AIConnectorRunner {
     /// persist it — the expensive lookup should happen once, not per request.
     static func run(prompt: String,
                     connector: AIConnector,
+                    sessionID: UUID? = nil,
                     timeout: Int = defaultTimeout,
-                    onResolvePath: ((String) -> Void)? = nil) async throws -> AIRunResult {
+                    onResolvePath: ((String) -> Void)? = nil,
+                    onProgress: (@Sendable (AIRunProgress) -> Void)? = nil) async throws -> AIRunResult {
         switch connector.kind {
         case .claudeCLI:
             return try await runClaudeCode(prompt: prompt, connector: connector,
-                                           timeout: timeout, onResolvePath: onResolvePath)
+                                           sessionID: sessionID,
+                                           timeout: timeout, onResolvePath: onResolvePath,
+                                           onProgress: onProgress)
         case .codexCLI, .geminiCLI, .ollama:
             throw AIConnectorError.notImplemented(connector.kind.displayName)
         }
     }
 
-    /// `claude -p <prompt> --model <id> --output-format json`
+    /// `claude -p <prompt> --model <id> --output-format stream-json --verbose
+    /// --include-partial-messages --session-id <uuid>`
     ///
-    /// Deliberately a minimal argument list: every extra flag is a chance to
-    /// hit a version that doesn't know it, and Claude Code rejects unknown
-    /// options before the run starts.  No tools are requested, so no permission
-    /// prompt should arise.
+    /// Two deliberate choices beyond the minimum:
+    ///
+    /// **stream-json** so the run is observable while it happens (see the file
+    /// header).  **Our own session id** so the CLI's transcript for this run is
+    /// at a path the app can compute — `transcriptURL(for:)` — and offer to
+    /// open, instead of the user hunting through `~/.claude/projects/`.  It
+    /// works even when the run fails, which is when it matters most.
     private static func runClaudeCode(prompt: String,
                                       connector: AIConnector,
+                                      sessionID: UUID?,
                                       timeout: Int,
-                                      onResolvePath: ((String) -> Void)?) async throws -> AIRunResult {
+                                      onResolvePath: ((String) -> Void)?,
+                                      onProgress: (@Sendable (AIRunProgress) -> Void)?) async throws -> AIRunResult {
         let path = try resolve(tool: "claude", storedPath: connector.executablePath)
         onResolvePath?(path)
 
-        var arguments = ["-p", prompt, "--output-format", "json"]
+        var arguments = ["-p", prompt,
+                         "--output-format", "stream-json",
+                         "--verbose", "--include-partial-messages"]
         if !connector.selectedModel.isEmpty {
             arguments.append(contentsOf: ["--model", connector.selectedModel])
         }
+        if let sessionID {
+            arguments.append(contentsOf: ["--session-id", sessionID.uuidString.lowercased()])
+        }
 
         let started = Date()
-        let output = try await execute(path: path, arguments: arguments, timeout: timeout)
+        let collector = StreamCollector(onProgress: onProgress)
+        let output = try await execute(path: path, arguments: arguments,
+                                       stallTimeout: stallTimeout, hardTimeout: timeout,
+                                       onLine: { collector.consume($0) })
         let duration = Date().timeIntervalSince(started)
 
-        // `--output-format json` wraps the answer; a failure inside the run is
-        // reported as the result rather than on stderr, so parse before judging.
-        guard let data = output.stdout.data(using: .utf8),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-        else {
-            // No JSON at all: the tool failed before it got going.
-            let detail = output.stderr.isEmpty ? output.stdout : output.stderr
+        if output.stoppedBecause == .stall { throw AIConnectorError.stalled(stallTimeout) }
+        if output.stoppedBecause == .deadline { throw AIConnectorError.timedOut(timeout) }
+
+        // The last line of a stream-json run is the same object the
+        // non-streaming format returns, so failures still report themselves
+        // through the result rather than stderr.
+        guard let json = collector.result else {
+            let detail = output.stderr.isEmpty ? collector.text : output.stderr
             throw AIConnectorError.toolFailed(
                 detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                     ? "The tool exited with code \(output.status) and said nothing."
                     : detail.trimmingCharacters(in: .whitespacesAndNewlines))
         }
 
-        let result = (json["result"] as? String) ?? ""
+        let result = (json["result"] as? String) ?? collector.text
         let isError = (json["is_error"] as? Bool) ?? (output.status != 0)
         if isError {
             throw AIConnectorError.toolFailed(result.isEmpty
@@ -223,8 +282,26 @@ enum AIConnectorRunner {
                            reportedModel: model,
                            modelWasSubstituted: substituted,
                            costUSD: json["total_cost_usd"] as? Double,
-                           sessionID: json["session_id"] as? String,
+                           sessionID: (json["session_id"] as? String)
+                                      ?? sessionID?.uuidString.lowercased(),
                            duration: duration)
+    }
+
+    /// Where Claude Code keeps the transcript of a run the app started.
+    ///
+    /// It encodes the working directory into the folder name by replacing the
+    /// characters that can't appear in one, so the app's own workspace maps to
+    /// a directory it can compute rather than guess.
+    static func transcriptURL(for sessionID: String) -> URL? {
+        let workspace = workspaceDirectory().path
+        let encoded = workspace
+            .replacingOccurrences(of: "/", with: "-")
+            .replacingOccurrences(of: " ", with: "-")
+            .replacingOccurrences(of: ".", with: "-")
+        let url = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".claude/projects/\(encoded)")
+            .appendingPathComponent("\(sessionID.lowercased()).jsonl")
+        return FileManager.default.fileExists(atPath: url.path) ? url : nil
     }
 
     /// Works out which model actually answered.
@@ -267,18 +344,88 @@ enum AIConnectorRunner {
         (entry as? [String: Any])?["outputTokens"] as? Int ?? 0
     }
 
+    // MARK: Reading the stream
+
+    /// Accumulates a `stream-json` run: the answer text, the final result
+    /// object, and enough of a running tally to show progress.
+    ///
+    /// `@unchecked Sendable` with a lock: lines arrive on a background reader
+    /// while the caller may be reading progress, and this is the whole of the
+    /// shared state.
+    private final class StreamCollector: @unchecked Sendable {
+        private let lock = NSLock()
+        private let onProgress: (@Sendable (AIRunProgress) -> Void)?
+        private var progress = AIRunProgress()
+        private var buffer = ""
+        private(set) var result: [String: Any]?
+
+        init(onProgress: (@Sendable (AIRunProgress) -> Void)?) {
+            self.onProgress = onProgress
+        }
+
+        /// Text assembled from the deltas — the fallback when the final result
+        /// object never arrives.
+        var text: String { lock.withLock { buffer } }
+
+        func consume(_ line: String) {
+            guard let data = line.data(using: .utf8),
+                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+            else { return }
+
+            var snapshot: AIRunProgress?
+            lock.withLock {
+                switch json["type"] as? String {
+                case "system":
+                    // Claude Code reports its thinking as an estimated running
+                    // total, which is the only signal of life during a long
+                    // deliberation — there is no text yet to show.
+                    if json["subtype"] as? String == "thinking_tokens",
+                       let tokens = json["estimated_tokens"] as? Int {
+                        progress.phase = .thinking
+                        progress.thinkingTokens = tokens
+                        snapshot = progress
+                    }
+                case "stream_event":
+                    guard let event = json["event"] as? [String: Any],
+                          let delta = event["delta"] as? [String: Any] else { return }
+                    if delta["type"] as? String == "text_delta",
+                       let piece = delta["text"] as? String {
+                        buffer += piece
+                        progress.phase = .writing
+                        progress.responseCharacters = buffer.count
+                        snapshot = progress
+                    }
+                case "result":
+                    result = json
+                default:
+                    break
+                }
+            }
+            if let snapshot { onProgress?(snapshot) }
+        }
+    }
+
     // MARK: Process plumbing
 
     private struct Output {
-        let stdout: String
+        enum Stop { case finished, stall, deadline }
         let stderr: String
         let status: Int32
+        /// Why the run ended — the tool exiting on its own is not the same as
+        /// us killing it, and the old code could not tell them apart (a
+        /// terminated `claude` exits 143 by itself, which read as a normal
+        /// failure).
+        let stoppedBecause: Stop
     }
 
-    /// Spawns the tool, enforces a deadline, and drains both pipes.
+    /// Spawns the tool, feeds every stdout line to `onLine` as it arrives, and
+    /// gives up either when the stream goes quiet or when the hard deadline
+    /// passes.
     private static func execute(path: String,
                                 arguments: [String],
-                                timeout: Int) async throws -> Output {
+                                stallTimeout: Int,
+                                hardTimeout: Int,
+                                onLine: @escaping @Sendable (String) -> Void) async throws -> Output {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: path)
         process.arguments = arguments
@@ -305,27 +452,81 @@ enum AIConnectorRunner {
             throw AIConnectorError.launchFailed(error.localizedDescription)
         }
 
+        let clock = ActivityClock()
+
         // Read on background queues: a full pipe buffer deadlocks a process
         // that is still writing while we wait for it to exit.
-        async let outData = readToEnd(outPipe)
+        async let lines: Void = readLines(outPipe) { line in
+            clock.touch()
+            onLine(line)
+        }
         async let errData = readToEnd(errPipe)
 
-        let deadline = Task {
-            try await Task.sleep(for: .seconds(timeout))
-            if process.isRunning { process.terminate() }
+        let watchdog = Task {
+            while !Task.isCancelled {
+                try await Task.sleep(for: .seconds(2))
+                guard process.isRunning else { return }
+                if clock.elapsedSinceLastEvent > Double(stallTimeout) {
+                    clock.stop(.stall)
+                    process.terminate()
+                    return
+                }
+                if clock.totalElapsed > Double(hardTimeout) {
+                    clock.stop(.deadline)
+                    process.terminate()
+                    return
+                }
+            }
         }
-        defer { deadline.cancel() }
+        defer { watchdog.cancel() }
 
-        let out = await outData
+        await lines
         let err = await errData
         process.waitUntilExit()
 
-        if process.terminationReason == .uncaughtSignal, process.terminationStatus != 0,
-           deadline.isCancelled == false, !process.isRunning, out.isEmpty {
-            throw AIConnectorError.timedOut(timeout)
-        }
+        return Output(stderr: err,
+                      status: process.terminationStatus,
+                      stoppedBecause: clock.stop)
+    }
 
-        return Output(stdout: out, stderr: err, status: process.terminationStatus)
+    /// Tracks when the run last said anything, and who ended it.
+    private final class ActivityClock: @unchecked Sendable {
+        private let lock = NSLock()
+        private let started = Date()
+        private var last = Date()
+        private var reason: Output.Stop = .finished
+
+        func touch() { lock.withLock { last = Date() } }
+        func stop(_ reason: Output.Stop) { lock.withLock { self.reason = reason } }
+        var stop: Output.Stop { lock.withLock { reason } }
+        var elapsedSinceLastEvent: TimeInterval { lock.withLock { Date().timeIntervalSince(last) } }
+        var totalElapsed: TimeInterval { Date().timeIntervalSince(started) }
+    }
+
+    /// Streams stdout a chunk at a time, handing over each complete line.
+    private static func readLines(_ pipe: Pipe,
+                                  _ handle: @escaping @Sendable (String) -> Void) async {
+        await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                var pending = Data()
+                while true {
+                    let chunk = pipe.fileHandleForReading.availableData
+                    if chunk.isEmpty { break }
+                    pending.append(chunk)
+                    while let newline = pending.firstIndex(of: 0x0A) {
+                        let lineData = pending[pending.startIndex..<newline]
+                        pending.removeSubrange(pending.startIndex...newline)
+                        if let line = String(data: lineData, encoding: .utf8), !line.isEmpty {
+                            handle(line)
+                        }
+                    }
+                }
+                if !pending.isEmpty, let line = String(data: pending, encoding: .utf8) {
+                    handle(line)
+                }
+                continuation.resume()
+            }
+        }
     }
 
     private static func readToEnd(_ pipe: Pipe) async -> String {

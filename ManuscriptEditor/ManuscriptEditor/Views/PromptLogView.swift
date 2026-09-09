@@ -155,6 +155,33 @@ struct PromptLogView: View {
             labelled("Size", "\(entry.promptCharacters) characters out, \(entry.responseCharacters) back")
             labelled("Intent", entry.intentID)
 
+            // The tool keeps its own transcript of the run.  The app hands it
+            // the session id, so that file can be pointed at directly rather
+            // than hunted for under ~/.claude/projects.
+            if let session = entry.sessionID {
+                HStack(alignment: .top, spacing: 6) {
+                    Text("Tool log")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.tertiary)
+                        .frame(width: 56, alignment: .leading)
+                    if let url = AIConnectorRunner.transcriptURL(for: session) {
+                        Button {
+                            NSWorkspace.shared.activateFileViewerSelecting([url])
+                        } label: {
+                            Label("Show the tool's own transcript", systemImage: "doc.text.magnifyingglass")
+                                .font(.caption2)
+                        }
+                        .buttonStyle(.link)
+                        .help(url.path)
+                    } else {
+                        Text("session \(session.prefix(8)) — no transcript on disk")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                }
+            }
+
             if let payload {
                 DisclosureGroup("Prompt") {
                     ScrollView {

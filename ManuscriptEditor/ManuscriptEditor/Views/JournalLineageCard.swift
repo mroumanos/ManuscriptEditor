@@ -249,8 +249,8 @@ struct JournalLineageCard: View {
                 // Only this journal's row reacts: a request on one cut says
                 // nothing about the others.
                 let running = store.isAssisting(journal.id)
-                if let startedAt = store.assistStartedAt(journal.id) {
-                    AssistRunIndicator(startedAt: startedAt,
+                if let run = store.assistRun(journal.id) {
+                    AssistRunIndicator(run: run,
                                        timeout: AIRequestService.longRunTimeout)
                 }
                 Button {

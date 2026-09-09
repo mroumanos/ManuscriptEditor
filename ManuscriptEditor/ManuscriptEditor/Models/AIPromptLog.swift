@@ -111,6 +111,12 @@ struct AIPromptLogEntry: Identifiable, Codable, Sendable, Equatable {
 
     var changes: [AIPromptLogChange] = []
 
+    /// The CLI session id, which is also this entry's id: the app hands the
+    /// tool a session id of its own choosing so the tool's transcript for this
+    /// run sits at a path the app can compute and open.  That matters most
+    /// when a run fails, which is when someone wants the tool's own log.
+    var sessionID: String? = nil
+
     /// Tolerant decoding: the log ships with the manuscript and outlives any
     /// one version of the app.
     init(from decoder: Decoder) throws {
@@ -129,13 +135,16 @@ struct AIPromptLogEntry: Identifiable, Codable, Sendable, Equatable {
         promptCharacters = try c.decodeIfPresent(Int.self, forKey: .promptCharacters) ?? 0
         responseCharacters = try c.decodeIfPresent(Int.self, forKey: .responseCharacters) ?? 0
         changes = try c.decodeIfPresent([AIPromptLogChange].self, forKey: .changes) ?? []
+        sessionID = try c.decodeIfPresent(String.self, forKey: .sessionID)
     }
 
-    init(intentID: String, summary: String, connectorLabel: String, model: String,
+    init(id: UUID = UUID(), intentID: String, summary: String,
+         connectorLabel: String, model: String,
          startedAt: Date, duration: TimeInterval, outcome: Outcome, detail: String? = nil,
          contextTitles: [String] = [], excludedContextTitles: [String] = [],
          promptCharacters: Int = 0, responseCharacters: Int = 0,
-         changes: [AIPromptLogChange] = []) {
+         changes: [AIPromptLogChange] = [], sessionID: String? = nil) {
+        self.id = id
         self.intentID = intentID
         self.summary = summary
         self.connectorLabel = connectorLabel
@@ -149,5 +158,6 @@ struct AIPromptLogEntry: Identifiable, Codable, Sendable, Equatable {
         self.promptCharacters = promptCharacters
         self.responseCharacters = responseCharacters
         self.changes = changes
+        self.sessionID = sessionID
     }
 }

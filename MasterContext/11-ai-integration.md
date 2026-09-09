@@ -398,6 +398,23 @@ profile (requirements bullets, structure, checks with their limits) → per-sect
 adapted content → writes the downstream cut and stamps a version. Never touches
 the upstream; never applies without the diff being visible.
 
+**Seeing what the tool is doing.** Claude Code writes a transcript of every run
+under `~/.claude/projects/<encoded working directory>/<session>.jsonl`. The app
+passes `--session-id` so that file is named after the prompt-log entry and can
+be computed rather than hunted for — `AIConnectorRunner.transcriptURL(for:)`,
+surfaced as **Show the tool's own transcript** in Log → AI Requests, and present
+even when the run failed.
+
+The runner reads `--output-format stream-json --verbose
+--include-partial-messages` rather than waiting for one JSON blob, because the
+blob told us nothing while it mattered. Diagnosing a "stalled" ten-minute run
+meant replaying it by hand outside the app; the stream showed the answer
+immediately — the model was **thinking**, 15,850 tokens of it, before writing a
+character. So progress is now reported as it happens (`AIRunProgress`: thinking
+tokens, then response characters), the row shows it, and **silence** — no event
+for three minutes — is what counts as stuck, instead of a wall clock that cannot
+tell a big job from a dead one.
+
 **How long it takes.** A real seven-section manuscript ran past ten minutes:
 the generation, not the network, is the cost — the model rewrites every section
 in full. So the cutoff is 15 minutes (`AIRequestService.longRunTimeout`), the

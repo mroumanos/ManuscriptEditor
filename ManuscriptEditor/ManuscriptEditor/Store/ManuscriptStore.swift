@@ -1988,15 +1988,23 @@ final class ManuscriptStore {
     /// only one journal is.  The start time is here because the row needs to
     /// show how long it has been going — a request with no elapsed counter is
     /// indistinguishable from a hung one.
-    private(set) var assistRuns: [UUID: Date] = [:]
+    private(set) var assistRuns: [UUID: AssistRun] = [:]
+
+    /// A request in flight on one journal.
+    struct AssistRun: Equatable {
+        let startedAt: Date
+        /// What the tool is doing right now — thinking, or writing.  Absent
+        /// for destinations that don't report it (the keyed HTTP APIs).
+        var progress: AIRunProgress?
+    }
 
     /// True while any request is in flight — the ✦ toggle pulses on this.
     var isAssistBusy: Bool { !assistRuns.isEmpty }
 
     func isAssisting(_ journalID: UUID) -> Bool { assistRuns[journalID] != nil }
 
-    /// When this journal's request started, for the elapsed counter.
-    func assistStartedAt(_ journalID: UUID) -> Date? { assistRuns[journalID] }
+    /// This journal's request, for the elapsed counter and the phase line.
+    func assistRun(_ journalID: UUID) -> AssistRun? { assistRuns[journalID] }
 
     /// This manuscript's prompt log, newest first.  Reloaded when a
     /// manuscript opens; appended to in memory as requests complete, so the
@@ -2081,7 +2089,11 @@ final class ManuscriptStore {
         let bundle = aiContextBundle(includeSectionText: false)
         let summary = "\(forward ? "Fast-forward" : "Fast-backward") \(target.name) from \(forward ? source.upstreamName : (journal?.name ?? "journal"))"
 
-        assistRuns[journalID] = started
+        // The log entry's id is handed to the CLI as its session id, so the
+        // tool's own transcript for this run lands at a path the app can find
+        // later — including when the run fails.
+        let entryID = UUID()
+        assistRuns[journalID] = AssistRun(startedAt: started)
         defer { assistRuns[journalID] = nil }
 
         var prompt = ""
@@ -2091,7 +2103,11 @@ final class ManuscriptStore {
                 context: bundle,
                 task: try FastForwardIntent.task(sections: sections, target: target))
 
-            let result = try await AIRequestService.send(prompt: prompt, to: destination)
+            let result = try await AIRequestService.send(
+                prompt: prompt, to: destination, sessionID: entryID,
+                onProgress: { [weak self] progress in
+                    Task { @MainActor in self?.assistRuns[journalID]?.progress = progress }
+                })
             let adapted = try FastForwardIntent.adaptedSections(from: result.text, expecting: sent)
 
             // Measured before the write, while the old text is still in hand.
@@ -2109,6 +2125,7 @@ final class ManuscriptStore {
                 : pushToUpstream(journalID, adaptedSections: adapted, assistedBy: result.model)
 
             record(AIPromptLogEntry(
+                id: entryID,
                 intentID: FastForwardIntent.descriptor.id,
                 summary: summary,
                 connectorLabel: destination.label,
@@ -2123,7 +2140,8 @@ final class ManuscriptStore {
                 excludedContextTitles: bundle.excludedTitles,
                 promptCharacters: prompt.count,
                 responseCharacters: result.text.count,
-                changes: changes),
+                changes: changes,
+                sessionID: result.sessionID),
                 prompt: prompt, response: result.text)
 
             if applied {
@@ -2133,6 +2151,7 @@ final class ManuscriptStore {
             }
         } catch {
             record(AIPromptLogEntry(
+                id: entryID,
                 intentID: FastForwardIntent.descriptor.id,
                 summary: summary,
                 connectorLabel: destination.label,
@@ -2143,7 +2162,8 @@ final class ManuscriptStore {
                 detail: error.localizedDescription,
                 contextTitles: bundle.pieces.map(\.title),
                 excludedContextTitles: bundle.excludedTitles,
-                promptCharacters: prompt.count),
+                promptCharacters: prompt.count,
+                sessionID: entryID.uuidString.lowercased()),
                 prompt: prompt, response: "")
             showBanner(.error, "Assist failed: \(error.localizedDescription)")
         }

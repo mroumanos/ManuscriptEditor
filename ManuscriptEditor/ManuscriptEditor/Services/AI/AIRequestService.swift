@@ -44,6 +44,9 @@ enum AIDestination: Sendable {
 
 struct AISendResult: Sendable {
     let text: String
+    /// The CLI session this ran under, when there was one — the key to its
+    /// transcript on disk.
+    var sessionID: String? = nil
     /// The model that answered, as reported; falls back to what was requested.
     let model: String
     let duration: TimeInterval
@@ -70,8 +73,10 @@ struct AIRequestService: Sendable {
     /// an intent owns both, so this stays the same for every future feature.
     static func send(prompt: String,
                      to destination: AIDestination,
+                     sessionID: UUID? = nil,
                      expectsJSON: Bool = true,
-                     timeout: Int = longRunTimeout) async throws -> AISendResult {
+                     timeout: Int = longRunTimeout,
+                     onProgress: (@Sendable (AIRunProgress) -> Void)? = nil) async throws -> AISendResult {
         switch destination {
         case .connector(let connector):
             var edited = connector
@@ -80,8 +85,11 @@ struct AIRequestService: Sendable {
             }
             let result = try await AIConnectorRunner.run(prompt: prompt,
                                                         connector: edited,
-                                                        timeout: timeout)
+                                                        sessionID: sessionID,
+                                                        timeout: timeout,
+                                                        onProgress: onProgress)
             return AISendResult(text: result.text,
+                                sessionID: result.sessionID,
                                 model: result.reportedModel ?? edited.selectedModel,
                                 duration: result.duration,
                                 modelWasSubstituted: result.modelWasSubstituted)
@@ -91,6 +99,7 @@ struct AIRequestService: Sendable {
             let text = try await SmartSyncService().sendPrompt(prompt, account: account,
                                                                apiKey: key, expectsJSON: expectsJSON)
             return AISendResult(text: text,
+                                sessionID: nil,
                                 model: account.provider.rawValue,
                                 duration: Date().timeIntervalSince(started),
                                 modelWasSubstituted: false)
