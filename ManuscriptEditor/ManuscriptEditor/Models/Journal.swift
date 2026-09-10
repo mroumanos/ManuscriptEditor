@@ -106,8 +106,12 @@ struct Journal: Codable, Identifiable, Sendable {
     var configURL: String? = nil
 
     /// Stable folder name for this journal's configuration.
+    /// The folder a carried profile lives in — named after the TEMPLATE, not
+    /// this cut.  "BMJ test 1" carries `journals/bmj/`, because what travels
+    /// is the venue's rules, and two cuts of the same venue must not write two
+    /// copies of them.
     var profileSlug: String {
-        JournalProfile.slug(name: name, articleType: articleType)
+        JournalProfile.slug(name: templateName ?? name, articleType: articleType)
     }
 
     /// This journal's configuration as one value — what gets written into the

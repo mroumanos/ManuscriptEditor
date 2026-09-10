@@ -204,16 +204,13 @@ struct FastForwardIntent: AIIntent {
             lines.append("\nWhat a submission here contains:")
             for section in structure.sections {
                 lines.append("- \(section.title)\(section.required ? " (required)" : " (optional)")")
-                // The venue's own guidance, in the order it is written down:
-                // how the section must be written, then why it is asked for.
-                if let format = section.formatNote, !format.isEmpty {
-                    lines.append("    Format: \(format)")
-                }
                 if let note = section.note, !note.isEmpty {
                     lines.append("    Notes: \(note)")
                 }
+                // The venue's boilerplate — which is where its format and its
+                // notes live, written the way it wants them read.
                 if let sample = section.sample, !sample.isEmpty {
-                    lines.append("    This journal's required layout for it:")
+                    lines.append("    This journal's boilerplate for it, including any format and notes it states:")
                     lines.append(sample.split(separator: "\n")
                         .map { "      \($0)" }.joined(separator: "\n"))
                 }

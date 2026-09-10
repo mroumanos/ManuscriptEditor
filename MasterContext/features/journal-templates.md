@@ -64,14 +64,10 @@ section that cannot exist.
 ### Content
 More than a list of headings. Per section:
 
+- **name** — name of the section
 - **presence** — required or optional
-- **the content itself** (`sample`) — the title-page layout a venue expects, the
-  boilerplate it wants
-- **Format** (`formatNote`) — how the section must be *written* here
-- **Notes** (`note`) — why the journal asks for it
-- **export formatting** (`format`) — the typography this venue sets it in
-- **questions** — for a question series, the questions with their word or
-  character limits
+- **the content itself** (`sample`) — a boilerplate to include content like format and notes. Free-form for text sections. Questions and their responses for question series.
+- **export formatting** (`format`) — the typography of the sections export
 
 Plus, for the whole document: `coreFormats` (the typography of the fixed parts —
 title page, byline, abstract …) and `documentFormat` (page geometry).
@@ -166,11 +162,32 @@ lives in the sections you can now edit directly, so the part goes back to being
 
 | Moment | What moves |
 |---|---|
-| **Adding a journal** | The shape: sections created (empty), questions asked, export formatting adopted. No content. |
+| **Adding a journal** | The shape: sections created (includes any default content), questions asked, export formatting adopted. |
 | **Fast-forward / backward** | Content. The template's sections overwrite the ones they map to, then the upstream's material arrives — adapted, if Assist is on. Cancel · Append · Overwrite. |
 | **Save from a cut** | Per part, confirmed, naming what it overwrites. Structure and Export still capture from the cut; Summary and Tests are copied as they stand. |
 
-### 3.6 Sharing a template
+### 3.6 A modified template ships with the manuscript
+
+**Rule: if a journal's rules are not exactly one of the app's defaults, they
+travel with the manuscript.** Modified from a default, or invented here — either
+way, whoever opens this manuscript next must be checked against the rules it was
+written against, not against whatever their own library happens to hold.
+
+- On every save, `writeTravelingProfiles()` writes
+  `journals/<template-slug>/{requirements,checks,structure,export}.json` for
+  each journal whose checksum differs from the bundled default, and **removes**
+  the copy for any journal that still matches one — the app already has that,
+  byte for byte, and a redundant copy only invites drift.
+- The folder is named for the **template**, not the cut: "BMJ test 1" and "BMJ
+  test 2" both carry `journals/bmj/`, because what travels is the venue's rules.
+- `gatherRemoteFiles` includes those folders, so they reach the remote with
+  everything else. They did not before — a modified template stayed on the
+  machine that modified it, which is the gap this rule closes.
+- On open, the manuscript's copy wins for evaluation (see §4). The profile pane
+  shows it as *not linked* or *edited* against the local library, and Link
+  Template… / Save resolve it.
+
+### 3.7 Sharing a template
 
 A template is a folder of four JSON files with a GUID and a checksum, which is
 already most of what sharing needs. To make it a contribution:
@@ -184,7 +201,7 @@ already most of what sharing needs. To make it a contribution:
   the checksum makes "did this actually change" answerable in review, and
   someone else's corrected BMJ arrives as a diff rather than as a second BMJ.
 
-### 3.7 What this costs
+### 3.8 What this costs
 
 Being straight about the size, because it is the largest change since versions:
 

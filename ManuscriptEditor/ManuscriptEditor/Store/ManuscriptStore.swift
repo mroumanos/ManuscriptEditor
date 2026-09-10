@@ -314,6 +314,10 @@ final class ManuscriptStore {
         guard let m = manuscript else { return }
         do {
             try persistence.save(m)
+            // The journals' own rules are part of the manuscript when they
+            // differ from the app's defaults — written alongside it, not left
+            // to whoever opens it next.
+            writeTravelingProfiles()
             lastSaved = Date()
             saveError = nil
         } catch {
@@ -1051,14 +1055,14 @@ final class ManuscriptStore {
         else { return }
         let existing = Set(m.sections.map { $0.title.lowercased() })
         for section in wanted where !existing.contains(section.title.lowercased()) {
-            // The SHAPE only.  Adding a journal must not put words in a
-            // manuscript: a section arrives empty (a question series arrives
-            // with its questions, which are the journal's, not the author's),
-            // and the template's content lands on a FAST-FORWARD, where
-            // overwriting is what the user asked for and can be undone.
+            // A section arrives with whatever the template carries for it —
+            // the venue's boilerplate, its questions, its stated format and
+            // notes.  That is what makes a template a starting point.  Only
+            // NEW sections are filled: an existing one is never written over
+            // by adding a journal.
             guard let id = addSection(type: .custom, title: section.title, kind: section.kind)
             else { continue }
-            applyTemplateQuestions(section, toSectionID: id)
+            applyTemplateDefaults(section, toSectionID: id)
         }
         applyTemplateFormatting(journalID: journalID)
     }
@@ -1110,17 +1114,19 @@ final class ManuscriptStore {
 
     /// Fills a freshly created section with what the template carries for it.
     ///
-    /// The questions a journal asks, which arrive with the section.
+    /// What the template carries for a section, put into a newly created one.
     ///
-    /// Questions are the journal's, not the author's — an empty question
-    /// series is useless, and a venue's questions are part of its shape rather
-    /// than content someone wrote.  Answers are not carried here.
-    private func applyTemplateQuestions(_ entry: StructureSection, toSectionID id: UUID) {
+    /// Content included: a venue's title-page layout, its boilerplate, its
+    /// questions.  Only into a section this call just created — adding a
+    /// journal must never write over something already there.
+    private func applyTemplateDefaults(_ entry: StructureSection, toSectionID id: UUID) {
         touch(undoable: false) { m in
-            guard let idx = m.sections.firstIndex(where: { $0.id == id }) else { return }
+            guard let idx = m.sections.firstIndex(where: { $0.id == id }),
+                  m.sections[idx].isEmptyContent else { return }
             switch entry.kind {
             case .text:
-                return
+                guard let sample = entry.sample, !sample.isEmpty else { return }
+                m.sections[idx].content = RichText(plain: sample)
             case .questions:
                 guard let questions = entry.questions, !questions.isEmpty else { return }
                 m.sections[idx].kind = .questions
@@ -1135,6 +1141,9 @@ final class ManuscriptStore {
                     made.wordLimit = q.wordLimit
                     made.limitUnit = q.limitUnit
                     made.order = index
+                    if let sample = q.sample, !sample.isEmpty {
+                        made.response = RichText(plain: sample)
+                    }
                     return made
                 } + existing.enumerated().map { index, q in
                     var kept = q
@@ -1143,6 +1152,45 @@ final class ManuscriptStore {
                 }
             }
         }
+    }
+
+    /// Writes the profile of every journal whose configuration is **not** one
+    /// of the app's defaults, and removes the copies that are.
+    ///
+    /// A template modified here, or invented here, is part of this manuscript:
+    /// the person who opens it next must be checked against the rules it was
+    /// written against, not against whatever their library happens to hold.
+    /// One that still matches a bundled default doesn't need carrying — the
+    /// app already has it, byte for byte, and a redundant copy in the folder
+    /// only invites drift.
+    func writeTravelingProfiles() {
+        guard let m = manuscript else { return }
+        let bundled = JournalProfile.bundled()
+        for journal in m.journals {
+            let mine = journal.profile
+            let matchesDefault = bundled[mine.id].map { $0.checksum == mine.checksum } ?? false
+            if matchesDefault {
+                removeTravelingProfile(slug: journal.profileSlug)
+            } else {
+                _ = writeProfile(journalID: journal.id)
+            }
+        }
+    }
+
+    /// Drops a manuscript-local copy that is no longer needed.
+    private func removeTravelingProfile(slug: String) {
+        guard let id = manuscript?.id else { return }
+        let folder = persistence.manuscriptDirectory(for: id)
+            .appendingPathComponent("journals", isDirectory: true)
+            .appendingPathComponent(slug, isDirectory: true)
+        try? FileManager.default.removeItem(at: folder)
+    }
+
+    /// Whether this journal's rules travel with the manuscript — true unless
+    /// they are exactly one of the app's defaults.
+    func travelsWithManuscript(_ journal: Journal) -> Bool {
+        let mine = journal.profile
+        return JournalProfile.bundled()[mine.id].map { $0.checksum != mine.checksum } ?? true
     }
 
     /// Seeds every journal that still needs it (called after a manuscript
@@ -3134,8 +3182,16 @@ final class ManuscriptStore {
         files.append(.init(path: "manuscript.json", data: try Data(contentsOf: manuscriptJSON)))
         // `ai/` is listed with its two children: the walk is deliberately
         // one level deep, and the prompt log ships with the manuscript.
+        // A journal template that was modified here, or invented here, has to
+        // travel: whoever opens this manuscript must get the rules it was
+        // written against, not whatever their own library happens to hold.
+        var journalFolders: [String] = []
+        let journalsDir = dir.appendingPathComponent("journals", isDirectory: true)
+        if let slugs = try? FileManager.default.contentsOfDirectory(atPath: journalsDir.path) {
+            journalFolders = slugs.filter { !$0.hasPrefix(".") }.sorted().map { "journals/\($0)" }
+        }
         for sub in ["figures", "data", "attachments", "context",
-                    "ai", "ai/prompts", "ai/responses"] {
+                    "ai", "ai/prompts", "ai/responses"] + journalFolders {
             let subdir = dir.appendingPathComponent(sub, isDirectory: true)
             guard let names = try? FileManager.default.contentsOfDirectory(atPath: subdir.path) else { continue }
             for name in names.sorted() where !name.hasPrefix(".") {

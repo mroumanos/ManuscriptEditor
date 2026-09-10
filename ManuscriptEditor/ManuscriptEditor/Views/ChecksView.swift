@@ -868,29 +868,9 @@ struct StructureEditorSheet: View {
                 .buttonStyle(.borderless)
         }
 
-        // Format first, then Notes: how it has to be written, then why.
-        // Both are sent when adapting a cut to this journal, which is the
-        // point of writing them down here rather than in someone's head.
-        HStack(alignment: .top, spacing: 8) {
-            Text("Format").font(.caption2.weight(.semibold))
-                .foregroundStyle(.tertiary).frame(width: 46, alignment: .leading)
-            TextField("How this section must be written here — layout, headings, order",
-                      text: Binding(get: { section.wrappedValue.formatNote ?? "" },
-                                    set: { section.wrappedValue.formatNote = $0.isEmpty ? nil : $0 }),
-                      axis: .vertical)
-                .textFieldStyle(.roundedBorder)
-                .lineLimit(1...3)
-        }
-        HStack(alignment: .top, spacing: 8) {
-            Text("Notes").font(.caption2.weight(.semibold))
-                .foregroundStyle(.tertiary).frame(width: 46, alignment: .leading)
-            TextField("Why the journal asks for it, and anything else worth knowing",
-                      text: Binding(get: { section.wrappedValue.note ?? "" },
-                                    set: { section.wrappedValue.note = $0.isEmpty ? nil : $0 }),
-                      axis: .vertical)
-                .textFieldStyle(.roundedBorder)
-                .lineLimit(1...3)
-        }
+        // No separate Format/Notes fields: they are boilerplate the venue
+        // wants IN the section, so they live in its content and are read,
+        // edited and sent as part of it.
         if let sample = section.wrappedValue.sample, !sample.isEmpty {
             HStack(alignment: .top, spacing: 8) {
                 Text("Content").font(.caption2.weight(.semibold))
