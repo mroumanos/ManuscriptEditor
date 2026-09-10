@@ -96,6 +96,33 @@ enum SigningService {
         set { UserDefaults.standard.set(newValue, forKey: "identityRemoteVerified") }
     }
 
+    /// **Where the signing key came from**, in the words a reader needs:
+    /// "Local key", "GitHub (mroumanos)", "OpenPGP (A1B2…)".
+    ///
+    /// GitHub and GitLab are not kinds of signature — they are *sources* that
+    /// vouch for a key, the same way an account in Settings → Accounts vouches
+    /// for a service.  Recording the source on the stamp is what lets a
+    /// signature say who stands behind it a year later, when the app's own
+    /// settings have moved on.
+    static var identitySource: String {
+        let handle = identityHandle.trimmingCharacters(in: .whitespaces)
+        switch identityType {
+        case .local:
+            return "Local key"
+        case .github, .gitlab:
+            let label = identityType.label
+            guard identityRemoteVerified else {
+                return handle.isEmpty ? "\(label) (unverified)" : "\(label) (\(handle), unverified)"
+            }
+            return handle.isEmpty ? label : "\(label) (\(handle))"
+        case .openpgp:
+            guard let fingerprint = identityGPGFingerprint, !fingerprint.isEmpty else {
+                return "OpenPGP"
+            }
+            return "OpenPGP (\(fingerprint.suffix(8)))"
+        }
+    }
+
     /// The identity type recorded on artifacts at signing time: a remote type
     /// only counts once its GPG registration check passed; otherwise the
     /// artifact is honestly marked local (badge shows "?").

@@ -111,6 +111,14 @@ struct ManuscriptVersion: Codable, Identifiable, Sendable {
     /// (remote-verified → green ✓) or "local"/nil (unverifiable → ?).
     var stampedByType: String?
 
+    /// Where the signing key came from, recorded in words at stamp time —
+    /// "GitHub (mroumanos)", "OpenPGP (A1B2C3D4)", "Local key".
+    ///
+    /// Separate from `stampedByType`, which is the machine-readable kind: a
+    /// reader a year from now needs to know WHICH account vouched for the key,
+    /// and the app's current settings can't answer that about a past stamp.
+    var stampedBySource: String?
+
     // MARK: - Init
 
     init(id: UUID, label: String, parentID: UUID?, journalID: UUID?, viewConfigID: UUID?,
@@ -135,7 +143,7 @@ struct ManuscriptVersion: Codable, Identifiable, Sendable {
     private enum CodingKeys: String, CodingKey {
         case id, label, parentID, journalID, viewConfigID, number, author,
              createdAt, sourceSnapshotDate, notes, content, checklistResults,
-             sourceStamp, stampedByKey, stampSignature, stampedByType
+             sourceStamp, stampedByKey, stampSignature, stampedByType, stampedBySource
     }
 
     init(from decoder: Decoder) throws {
@@ -156,6 +164,7 @@ struct ManuscriptVersion: Codable, Identifiable, Sendable {
         stampedByKey       = try c.decodeIfPresent(String.self, forKey: .stampedByKey)
         stampSignature     = try c.decodeIfPresent(String.self, forKey: .stampSignature)
         stampedByType      = try c.decodeIfPresent(String.self, forKey: .stampedByType)
+        stampedBySource    = try c.decodeIfPresent(String.self, forKey: .stampedBySource)
     }
 
     // MARK: - Factory

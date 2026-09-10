@@ -27,6 +27,7 @@ struct QuestionSeriesView: View {
     @State private var draftResponse = RichText()
     @State private var draftPrompt = ""
     @State private var draftLimit = ""
+    @State private var draftUnit: QuestionEntry.LimitUnit = .words
 
     private var section: ManuscriptSection? {
         let target = store.manuscript(for: versionRef)
@@ -50,6 +51,11 @@ struct QuestionSeriesView: View {
         }
         .onAppear { selectFirstIfNeeded() }
         .onChange(of: sectionID) { _, _ in selectedID = nil; selectFirstIfNeeded() }
+        // Questions can arrive AFTER this view appears — a section created
+        // from a journal template brings its questions with it — and without
+        // this the list showed two questions beside "No Questions Yet",
+        // because the selection was made once, while there were none.
+        .onChange(of: questions.map(\.id)) { _, _ in selectFirstIfNeeded() }
         .onChange(of: selectedID) { _, _ in loadDraft() }
     }
 
@@ -171,7 +177,7 @@ struct QuestionSeriesView: View {
                         }
 
                     HStack(spacing: 8) {
-                        Text("Word limit")
+                        Text("Limit")
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(.secondary)
                         TextField("none", text: $draftLimit)
@@ -186,13 +192,27 @@ struct QuestionSeriesView: View {
                                 edited.wordLimit = digits.isEmpty ? nil : Int(digits)
                                 store.updateQuestion(edited, sectionID: sectionID, ref: versionRef)
                             }
+                        // Journals ask for both, and counting the wrong one
+                        // silently is worse than not counting.
+                        Picker("", selection: $draftUnit) {
+                            ForEach(QuestionEntry.LimitUnit.allCases, id: \.self) { unit in
+                                Text(unit.label).tag(unit)
+                            }
+                        }
+                        .labelsHidden()
+                        .fixedSize()
+                        .onChange(of: draftUnit) { _, new in
+                            var edited = question
+                            edited.limitUnit = new
+                            store.updateQuestion(edited, sectionID: sectionID, ref: versionRef)
+                        }
                         Spacer()
                         Text(question.countLabel)
                             .font(.callout.monospacedDigit())
                             .foregroundStyle(question.isOverLimit ? Color.red : .secondary)
                             .help(question.wordLimit == nil
                                   ? "No limit set for this question"
-                                  : "Words used against this question's limit")
+                                  : "\(question.unit.label.capitalized) used against this question's limit")
                     }
                 }
                 .padding(.leading, EditorLayout.leftInset)
@@ -210,11 +230,18 @@ struct QuestionSeriesView: View {
                         store.updateQuestion(edited, sectionID: sectionID, ref: versionRef)
                     }
             }
-        } else {
+        } else if questions.isEmpty {
             ContentUnavailableView(
                 "No Questions Yet",
                 systemImage: "list.bullet.rectangle",
-                description: Text("Add the questions this journal asks at submission — each keeps its own answer and word limit."))
+                description: Text("Add the questions this journal asks at submission — each keeps its own answer and limit."))
+        } else {
+            // Questions exist but none is selected: say that, rather than
+            // claiming there are none.
+            ContentUnavailableView(
+                "No Question Selected",
+                systemImage: "list.bullet.rectangle",
+                description: Text("Pick a question on the left to write its answer."))
         }
     }
 
@@ -229,11 +256,12 @@ struct QuestionSeriesView: View {
 
     private func loadDraft() {
         guard let question = selected else {
-            draftPrompt = ""; draftLimit = ""; draftResponse = RichText()
+            draftPrompt = ""; draftLimit = ""; draftUnit = .words; draftResponse = RichText()
             return
         }
         draftPrompt = question.prompt
         draftLimit = question.wordLimit.map(String.init) ?? ""
+        draftUnit = question.unit
         draftResponse = question.response
     }
 }

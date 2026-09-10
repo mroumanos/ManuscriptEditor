@@ -808,6 +808,17 @@ legible.
 
 ![Detailed lineage between two journals](examples/lineage-detailed.png)
 
+### Submission questions (Sep 2026 — updated)
+
+- AC: A question's limit counts **words or characters** — journals ask for
+  both, and counting the wrong one silently is worse than not counting. The
+  unit sits beside the number, travels in the journal template, and a question
+  written before units existed still means words.
+- AC: The detail pane re-selects when questions arrive after it appears (a
+  section created from a template brings its questions with it), and
+  distinguishes "no questions in this series" from "none selected" — the list
+  used to show two questions beside "No Questions Yet".
+
 ### Journal templates carry content (Sep 2026 — implemented)
 
 - AC: A template's structure carries **sample content** per section

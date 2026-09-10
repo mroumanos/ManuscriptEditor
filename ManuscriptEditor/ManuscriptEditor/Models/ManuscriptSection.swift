@@ -181,24 +181,51 @@ struct QuestionEntry: Codable, Identifiable, Sendable, Equatable {
     /// formatting into the export.
     var response: RichText = RichText()
 
-    /// The journal's cap on the answer, in words.  **Nullable**: plenty of
-    /// questions have no limit, and inventing one would be a lie.
+    /// What a limit counts.
+    ///
+    /// Journals ask for both — "250 words" and "1,500 characters including
+    /// spaces" are equally common on submission forms — and counting the wrong
+    /// one silently is worse than not counting.
+    enum LimitUnit: String, Codable, CaseIterable, Sendable {
+        case words, characters
+
+        var label: String { self == .words ? "words" : "characters" }
+        var shortLabel: String { self == .words ? "words" : "chars" }
+    }
+
+    /// The journal's cap on the answer.  **Nullable**: plenty of questions
+    /// have no limit, and inventing one would be a lie.
     var wordLimit: Int? = nil
+
+    /// What that cap counts.  nil = words, so every question written before
+    /// characters were an option keeps meaning what it meant.
+    var limitUnit: LimitUnit? = nil
+
+    var unit: LimitUnit { limitUnit ?? .words }
 
     var order: Int = 0
 
     var responseWordCount: Int { WordCountService.count(response.plain) }
 
+    /// Characters as a journal counts them: the answer as written, including
+    /// spaces, which is what "1,500 characters including spaces" means.
+    var responseCharacterCount: Int { response.plain.count }
+
+    /// The count this question's limit is measured against.
+    var responseCount: Int {
+        unit == .words ? responseWordCount : responseCharacterCount
+    }
+
     /// True when the limit exists and the answer is past it.
     var isOverLimit: Bool {
         guard let wordLimit else { return false }
-        return responseWordCount > wordLimit
+        return responseCount > wordLimit
     }
 
     /// "84 / 250", or just the count when the question has no limit.
     var countLabel: String {
-        guard let wordLimit else { return "\(responseWordCount) words" }
-        return "\(responseWordCount) / \(wordLimit)"
+        guard let wordLimit else { return "\(responseCount) \(unit.label)" }
+        return "\(responseCount) / \(wordLimit)"
     }
 
     var isEmpty: Bool {

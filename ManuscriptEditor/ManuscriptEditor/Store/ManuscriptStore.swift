@@ -1078,6 +1078,7 @@ final class ManuscriptStore {
                     var made = QuestionEntry()
                     made.prompt = q.prompt
                     made.wordLimit = q.wordLimit
+                    made.limitUnit = q.limitUnit
                     made.order = index
                     if let sample = q.sample, !sample.isEmpty {
                         made.response = RichText(plain: sample)
@@ -1530,6 +1531,7 @@ final class ManuscriptStore {
                 let asked = section.orderedQuestions.filter { !$0.prompt.isEmpty }
                 entry.questions = asked.isEmpty ? nil : asked.map {
                     TemplateQuestion(prompt: $0.prompt, wordLimit: $0.wordLimit,
+                                     limitUnit: $0.limitUnit,
                                      sample: $0.response.plain.isEmpty ? nil : $0.response.plain)
                 }
             }
@@ -1803,6 +1805,7 @@ final class ManuscriptStore {
             v.stampedByKey = key
             v.stampSignature = sig
             v.stampedByType = SigningService.effectiveIdentityType
+            v.stampedBySource = SigningService.identitySource
         }
         return v
     }

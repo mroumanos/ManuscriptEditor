@@ -205,6 +205,9 @@ struct SourceRequirements: Codable, Sendable, Equatable {
 struct TemplateQuestion: Codable, Sendable, Equatable {
     var prompt: String
     var wordLimit: Int? = nil
+    /// Words or characters — journals ask for both, so the template carries
+    /// which one this question means.  nil = words.
+    var limitUnit: QuestionEntry.LimitUnit? = nil
     /// A sample or starter answer, when the journal's instructions imply one.
     var sample: String? = nil
 }

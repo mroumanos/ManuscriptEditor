@@ -403,6 +403,7 @@ struct OverviewView: View {
                                 signerName: editor.name,
                                 signerKey: editor.key,
                                 signerType: editor.type,
+                                signerSource: editor.source,
                                 message: editor.message,
                                 signature: editor.signature
                             )
@@ -459,6 +460,8 @@ struct OverviewView: View {
         let message: String?
         let signature: String?
         let date: Date
+        /// Where the key came from, as the artifact recorded it.
+        var source: String? = nil
         /// How many DIFFERENT keys signed as this person.
         ///
         /// More than one means the machine's signing key changed — the app
@@ -485,7 +488,8 @@ struct OverviewView: View {
                 type: version.stampedByType,
                 message: SigningService.stampMessage(
                     id: version.id, createdAt: version.createdAt, author: version.author),
-                signature: version.stampSignature, date: version.createdAt)
+                signature: version.stampSignature, date: version.createdAt,
+                source: version.stampedBySource)
             if (latest[id]?.date ?? .distantPast) < entry.date { latest[id] = entry }
         }
         for note in m.notes where !note.author.isEmpty {
@@ -516,7 +520,8 @@ struct OverviewView: View {
                     type: SigningService.effectiveIdentityType,
                     message: message,
                     signature: SigningService.sign(message),
-                    date: m.updatedAt)
+                    date: m.updatedAt,
+                    source: SigningService.identitySource)
             }
         }
         return latest.values
