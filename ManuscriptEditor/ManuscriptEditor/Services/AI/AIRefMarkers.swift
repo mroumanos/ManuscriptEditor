@@ -106,11 +106,20 @@ enum AIRefMarkers {
 
     /// Rebuilds rich text from the model's reply, putting every reference back.
     ///
-    /// Styling is deliberately not carried over: the adapted prose is new text,
-    /// and the app's editing typography is applied everywhere anyway (global
-    /// editing typography, Aug 2026).  What must survive is *identity*, and
-    /// that lives in the link attribute.
-    static func restore(_ text: String, from prepared: Prepared) -> Restored {
+    /// Prose styling is deliberately not carried over: the adapted text is new
+    /// text, and the app's editing typography is applied everywhere anyway
+    /// (global editing typography, Aug 2026).  What must survive is *identity*
+    /// — the link attribute — **and the citation's own styling**.
+    ///
+    /// That second half was missed the first time: a superscripted citation is
+    /// a smaller font plus a baseline offset, and rebuilding a run with only
+    /// the link left every reference sitting flat in the line.  The only way
+    /// back was to change the citation format and change it again, which is
+    /// the bug report that found this.  With a `context` the display text is
+    /// also recomputed, so a citation renumbered by the adaptation comes back
+    /// with the right number rather than the one it had.
+    static func restore(_ text: String, from prepared: Prepared,
+                        context: RefEngine.Context? = nil) -> Restored {
         let result = NSMutableAttributedString()
         let byMarker = Dictionary(uniqueKeysWithValues: prepared.markers.map { ($0.marker, $0) })
         var seen = Set<String>()
@@ -127,8 +136,7 @@ enum AIRefMarkers {
             let token = String(rest[open.lowerBound..<close.upperBound])
             if let marked = byMarker[token] {
                 seen.insert(token)
-                result.append(NSAttributedString(string: marked.displayText,
-                                                 attributes: [.link: marked.url]))
+                result.append(citation(marked, context: context))
             } else {
                 // A part token, or something the model invented: keep the text
                 // exactly as it stands.  Inventing a reference is not possible
@@ -145,6 +153,29 @@ enum AIRefMarkers {
         let rich = RichText(plain: result.string, rtf: rtf,
                             refs: RefEngine.scanRefs(in: result))
         return Restored(rich: rich, missing: prepared.required.filter { !seen.contains($0) })
+    }
+
+    /// One reference, rendered the way the editor renders it.
+    private static func citation(_ marked: Marked,
+                                 context: RefEngine.Context?) -> NSAttributedString {
+        var attributes: [NSAttributedString.Key: Any] = [.link: marked.url]
+        guard let context, let token = RefEngine.Token.parse(marked.url) else {
+            return NSAttributedString(string: marked.displayText, attributes: attributes)
+        }
+        if let tip = RefEngine.tooltip(for: token, context: context) {
+            attributes[.toolTip] = tip
+        }
+        CitationTextView.applyCitationRaise(
+            &attributes,
+            raised: RefEngine.isSuperscripted(token, context: context),
+            // The raise is proportional to the body size, and the editing
+            // typography is global (Aug 2026), so the user's configured size
+            // is the right base even though the family is applied by the
+            // editor when it renders.
+            baseFont: NSFont.systemFont(ofSize: EditorTypography.current.size))
+        let text = RefEngine.displayText(for: token, context: context)
+        return NSAttributedString(string: text.isEmpty ? marked.displayText : text,
+                                  attributes: attributes)
     }
 
     // MARK: - Helpers

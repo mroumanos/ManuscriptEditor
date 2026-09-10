@@ -318,9 +318,16 @@ struct FastForwardIntent: AIIntent {
         var sections: [UUID: RichText] = [:]
         /// Question series: section id → (question id → rebuilt answer).
         var answers: [UUID: [UUID: RichText]] = [:]
-        /// Markers the model failed to return, per section title — every one a
-        /// citation or field that would have been lost.
+        /// Markers the model failed to return, per section title.
         var missingTokens: [String: [String]] = [:]
+        /// Sections REFUSED because the reply dropped a citation or a field.
+        ///
+        /// Refused, not written-with-a-warning: a section that lost a
+        /// reference is worse than a section that wasn't adapted.  The
+        /// upstream text stays and the log names what was dropped — the title
+        /// page came back once with `[[authors.names]]` replaced by an
+        /// invented author list, and that must not be able to land.
+        var refused: [String] = []
 
         var isEmpty: Bool { sections.isEmpty && answers.isEmpty }
         var sectionCount: Int { sections.count + answers.count }
@@ -332,7 +339,10 @@ struct FastForwardIntent: AIIntent {
     /// Entries with an unknown id or empty text are dropped rather than
     /// guessed at: writing a section the model didn't actually return would be
     /// the worst possible failure mode here.
-    static func adaptation(from reply: String, sent: [Payload]) throws -> Adaptation {
+    /// - Parameter context: the manuscript's reference context, so a restored
+    ///   citation comes back numbered and styled the way the editor draws it.
+    static func adaptation(from reply: String, sent: [Payload],
+                           context: RefEngine.Context? = nil) throws -> Adaptation {
         guard let data = AIRequestService.extractJSONObject(from: reply) else {
             throw FastForwardError.unreadable("no JSON object in the reply")
         }
@@ -349,10 +359,12 @@ struct FastForwardIntent: AIIntent {
             if let text = entry.content,
                !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
                let prepared = sent.prepared {
-                let restored = AIRefMarkers.restore(text, from: prepared)
-                out.sections[id] = restored.rich
-                if !restored.missing.isEmpty {
+                let restored = AIRefMarkers.restore(text, from: prepared, context: context)
+                if restored.missing.isEmpty {
+                    out.sections[id] = restored.rich
+                } else {
                     out.missingTokens[sent.section.title, default: []] += restored.missing
+                    out.refused.append(sent.section.title)
                 }
             }
 
@@ -361,15 +373,22 @@ struct FastForwardIntent: AIIntent {
                       let item = sent.questions.first(where: { $0.question.id == questionID }),
                       !answer.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                 else { continue }
-                let restored = AIRefMarkers.restore(answer.content, from: item.prepared)
-                out.answers[id, default: [:]][questionID] = restored.rich
-                if !restored.missing.isEmpty {
+                let restored = AIRefMarkers.restore(answer.content, from: item.prepared,
+                                                    context: context)
+                if restored.missing.isEmpty {
+                    out.answers[id, default: [:]][questionID] = restored.rich
+                } else {
                     out.missingTokens[sent.section.title, default: []] += restored.missing
+                    out.refused.append("\(sent.section.title) — \(item.question.prompt.prefix(40))")
                 }
             }
         }
 
         guard !out.isEmpty else {
+            if !out.refused.isEmpty {
+                throw FastForwardError.unreadable(
+                    "every section came back with a citation or field missing (\(out.refused.joined(separator: ", ")))")
+            }
             throw FastForwardError.unreadable("no sections came back that matched the ones sent")
         }
         return out

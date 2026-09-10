@@ -2258,7 +2258,9 @@ final class ManuscriptStore {
                 onProgress: { [weak self] progress in
                     Task { @MainActor in self?.assistRuns[journalID]?.progress = progress }
                 })
-            let adaptation = try FastForwardIntent.adaptation(from: result.text, sent: sent)
+            let adaptation = try FastForwardIntent.adaptation(
+                from: result.text, sent: sent,
+                context: RefEngine.context(for: baseContent))
 
             // Measured before the write, while the old text is still in hand.
             let changes = sent.compactMap { payload -> AIPromptLogChange? in
@@ -2305,14 +2307,13 @@ final class ManuscriptStore {
             if applied {
                 let failures = failingChecks(forJournal: journalID, target: target)
                 var message = "\(summary) — \(changes.count) section\(changes.count == 1 ? "" : "s") adapted by \(result.model). Stamped as a new version; the previous content is in Versions."
-                if !adaptation.missingTokens.isEmpty {
-                    let lost = adaptation.missingTokens.values.reduce(0) { $0 + $1.count }
-                    message += " \(lost) citation\(lost == 1 ? "" : "s") or field\(lost == 1 ? "" : "s") came back missing — see the prompt log."
+                if !adaptation.refused.isEmpty {
+                    message += " \(adaptation.refused.count) section\(adaptation.refused.count == 1 ? "" : "s") kept unchanged because the reply dropped a citation or field: \(adaptation.refused.joined(separator: ", "))."
                 }
                 if !failures.isEmpty {
                     message += " \(failures.count) check\(failures.count == 1 ? "" : "s") still failing."
                 }
-                showBanner(failures.isEmpty && adaptation.missingTokens.isEmpty ? .success : .error, message)
+                showBanner(failures.isEmpty && adaptation.refused.isEmpty ? .success : .error, message)
             } else {
                 showBanner(.error, "\(summary) failed: the override didn't run.")
             }
@@ -2364,7 +2365,7 @@ final class ManuscriptStore {
             return parts.joined(separator: " ")
         }
         for (section, tokens) in adaptation.missingTokens.sorted(by: { $0.key < $1.key }) {
-            parts.append("\(section): dropped \(tokens.joined(separator: ", ")).")
+            parts.append("\(section): kept unchanged — the reply dropped \(tokens.joined(separator: ", ")).")
         }
         let failures = failingChecks(forJournal: journalID, target: target)
         if failures.isEmpty {
