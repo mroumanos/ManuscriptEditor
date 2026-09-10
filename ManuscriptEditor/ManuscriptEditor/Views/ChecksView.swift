@@ -45,6 +45,7 @@ struct ChecksView: View {
     /// The part whose Load is awaiting confirmation — it replaces what is here.
     @State private var loadingPart: ProfilePart?
     @State private var showingTemplate = false
+    @State private var templatePart: ProfilePart?
     @State private var linkingTemplate = false
     @State private var editingType = false
     @State private var typeDraft = ""
@@ -103,24 +104,23 @@ struct ChecksView: View {
         } message: {
             Text("Takes “\(linkedTemplate?.displayName ?? "the template")”'s copy of this part. Nothing you have written in the manuscript changes, and ⌘Z undoes it.")
         }
-        .sheet(isPresented: $showingTemplate) {
+        // The template's own parts, shown the way Settings shows them and the
+        // way this pane's own editors lay them out.
+        .sheet(item: $templatePart) { part in
             if let template = linkedTemplate {
-                VStack(alignment: .leading, spacing: 10) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(template.displayName).font(.headline)
-                        Text("The template this journal is linked to — read-only here; edit it by saving parts from this journal.")
-                            .font(.caption).foregroundStyle(.secondary)
-                    }
-                    JournalProfileReview(profile: template).frame(height: 380)
-                    HStack {
-                        Spacer()
-                        Button("Done") { showingTemplate = false }
-                            .keyboardShortcut(.defaultAction)
-                    }
-                }
-                .padding(18)
-                .frame(width: 560)
+                TemplatePartSheet(template: template, part: part,
+                                  isPresented: Binding(get: { templatePart != nil },
+                                                       set: { if !$0 { templatePart = nil } }))
             }
+        }
+        .confirmationDialog("\(linkedTemplate?.displayName ?? "Template")",
+                            isPresented: $showingTemplate, titleVisibility: .visible) {
+            ForEach(ProfilePart.allCases) { part in
+                Button(part.label) { showingTemplate = false; templatePart = part }
+            }
+            Button("Cancel", role: .cancel) { showingTemplate = false }
+        } message: {
+            Text("Which part of this template would you like to see?")
         }
         .confirmationDialog(savePrompt.title,
                             isPresented: Binding(get: { savingPart != nil },
@@ -395,10 +395,8 @@ struct ChecksView: View {
         let formats = structure.sections.filter { $0.format != nil }.count
             + (structure.coreFormats?.count ?? 0)
         if formats > 0 { parts.append("\(formats) export format\(formats == 1 ? "" : "s")") }
-        let guidance = structure.sections.filter {
-            $0.formatNote?.isEmpty == false || $0.note?.isEmpty == false
-        }.count
-        if guidance > 0 { parts.append("\(guidance) with guidance") }
+        // Format and Notes are part of a section, not a thing to count
+        // alongside it — they travel with the content and are read there.
         return parts.joined(separator: " · ")
     }
 

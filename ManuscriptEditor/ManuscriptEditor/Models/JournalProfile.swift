@@ -55,7 +55,9 @@ import CryptoKit
 /// original name so the on-disk format and every existing file stay valid.
 typealias JournalTemplate = JournalProfile
 
-enum ProfilePart: String, Codable, CaseIterable, Sendable {
+enum ProfilePart: String, Codable, CaseIterable, Sendable, Identifiable {
+    var id: String { rawValue }
+
     case requirements, checks, structure
     /// The export outline and its formatting.  Part of the profile since Sep
     /// 2026: it used to be saved into a second, parallel library from the

@@ -146,10 +146,12 @@ private struct LibraryProfileDetail: View {
     @State private var countryDraft = ""
     @State private var loadedFor: UUID?
 
-    @State private var showingDetails = false
+    /// Which component's read-only view is open.
+    @State private var openPart: ProfilePart?
     @State private var cloning = false
     @State private var cloneName = ""
     @State private var confirmingDelete = false
+    @State private var confirmingRename = false
 
     @Environment(AppStore.self) private var appStore
 
@@ -159,37 +161,49 @@ private struct LibraryProfileDetail: View {
                 // Metadata is editable here; the RULES are not.  A template's
                 // tests are written against a manuscript's real content, so
                 // there is nothing here to write them against.
+                // Typing here changes nothing until Rename is pressed.  A
+                // template lives outside any manuscript, so renaming it cannot
+                // be undone with ⌘Z — and a change that can't be undone should
+                // not happen because a field lost focus.
                 Form {
                     Section("Template") {
-                        TextField("Name", text: $nameDraft, onEditingChanged: { editing in
-                            if !editing { commitMetadata() }
-                        })
-                        .onSubmit(commitMetadata)
-                        TextField("Type (Research Article, Research Brief…)", text: $typeDraft,
-                                  onEditingChanged: { editing in if !editing { commitMetadata() } })
-                            .onSubmit(commitMetadata)
-                        TextField("Country", text: $countryDraft,
-                                  onEditingChanged: { editing in if !editing { commitCountry() } })
-                            .onSubmit(commitCountry)
+                        TextField("Name", text: $nameDraft)
+                        TextField("Type (Research Article, Research Brief…)", text: $typeDraft)
+                        TextField("Country", text: $countryDraft)
+                        HStack {
+                            Text(metadataChanged
+                                 ? "Not saved yet — renaming a template can't be undone."
+                                 : "Renaming a template can't be undone.")
+                                .font(.caption)
+                                .foregroundStyle(metadataChanged
+                                                 ? AnyShapeStyle(Color.orange)
+                                                 : AnyShapeStyle(.tertiary))
+                            Spacer()
+                            Button("Revert") { loadedFor = nil; loadDrafts() }
+                                .disabled(!metadataChanged)
+                            Button("Rename…") { confirmingRename = true }
+                                .disabled(!metadataChanged)
+                        }
                     }
                 }
                 .formStyle(.grouped)
-                .frame(height: 150)
+                .frame(height: 190)
 
+                // The same four components, in the same order, opening the
+                // same read-only view the profile pane opens — a template
+                // should not look like a different object depending on where
+                // you meet it.
                 VStack(spacing: 0) {
-                    row("doc.text", "Summary", summaryDetail)
+                    row(.requirements, "doc.text", summaryDetail)
                     Divider()
-                    row("list.bullet.indent", "Content",
-                        profile.structure.sections.isEmpty
-                            ? "No structure recorded"
-                            : "\(profile.structure.sections.count) sections · \(profile.structure.requiredTitles.count) required")
+                    row(.structure, "list.bullet.indent", contentDetail)
                     Divider()
-                    row("checklist", "Tests",
+                    row(.checks, "checklist",
                         profile.checks.isEmpty
                             ? "No tests recorded"
-                            : "\(profile.checks.filter { !$0.isManual }.count) automatic · \(profile.checks.filter(\.isManual).count) manual")
+                            : "\(profile.checks.count) tests · \(profile.checks.filter { !$0.isManual }.count) automatic, \(profile.checks.filter(\.isManual).count) manual")
                     Divider()
-                    row("square.and.arrow.up", "Export", exportDetail)
+                    row(.export, "square.and.arrow.up", exportDetail)
                 }
                 .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
                 .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.separator))
@@ -200,11 +214,6 @@ private struct LibraryProfileDetail: View {
                     .fixedSize(horizontal: false, vertical: true)
 
                 HStack(spacing: 10) {
-                    Button {
-                        showingDetails = true
-                    } label: {
-                        Label("Details", systemImage: "doc.text.magnifyingglass")
-                    }
                     Button {
                         cloneName = "\(profile.name) copy"
                         cloning = true
@@ -223,23 +232,10 @@ private struct LibraryProfileDetail: View {
         }
         .onAppear(perform: loadDrafts)
         .onChange(of: profile.id) { _, _ in loadDrafts() }
-        .sheet(isPresented: $showingDetails) {
-            VStack(alignment: .leading, spacing: 10) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(profile.displayName).font(.headline)
-                    Text("Read-only — add this template to a manuscript to edit its rules.")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
-                JournalProfileReview(profile: profile)
-                    .frame(height: 380)
-                HStack {
-                    Spacer()
-                    Button("Done") { showingDetails = false }
-                        .keyboardShortcut(.defaultAction)
-                }
-            }
-            .padding(18)
-            .frame(width: 560)
+        .sheet(item: $openPart) { part in
+            TemplatePartSheet(template: profile, part: part,
+                              isPresented: Binding(get: { openPart != nil },
+                                                   set: { if !$0 { openPart = nil } }))
         }
         .alert("Clone Template", isPresented: $cloning) {
             TextField("Name for the copy", text: $cloneName)
@@ -250,6 +246,13 @@ private struct LibraryProfileDetail: View {
         } message: {
             Text("A copy of “\(profile.displayName)” with its own identity, carrying the same rules and remembering where it came from.")
         }
+        .confirmationDialog("Rename “\(profile.displayName)”?",
+                            isPresented: $confirmingRename, titleVisibility: .visible) {
+            Button("Rename") { commitMetadata(); commitCountry() }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Becomes “\(nameDraft.trimmingCharacters(in: .whitespaces))\(typeDraft.trimmingCharacters(in: .whitespaces).isEmpty ? "" : " — " + typeDraft.trimmingCharacters(in: .whitespaces))”. Manuscripts stay linked to it — they follow the identity, not the name — but this cannot be undone with ⌘Z.")
+        }
         .confirmationDialog("Delete “\(profile.displayName)” from your library?",
                             isPresented: $confirmingDelete, titleVisibility: .visible) {
             Button("Delete", role: .destructive) { onDelete() }
@@ -257,6 +260,13 @@ private struct LibraryProfileDetail: View {
         } message: {
             Text("Manuscripts already using it keep their own copy — they'll show as edited, with nothing to compare against.")
         }
+    }
+
+    /// Whether the fields differ from what is stored.
+    private var metadataChanged: Bool {
+        nameDraft.trimmingCharacters(in: .whitespaces) != profile.name
+            || typeDraft.trimmingCharacters(in: .whitespaces) != (profile.articleType ?? "")
+            || countryDraft.trimmingCharacters(in: .whitespaces) != (registry?.country ?? "")
     }
 
     private func loadDrafts() {
@@ -274,6 +284,7 @@ private struct LibraryProfileDetail: View {
               name != profile.name || type != (profile.articleType ?? "") else { return }
         _ = JournalProfileLibrary.shared.rename(id: profile.id, name: name,
                                                 articleType: type.isEmpty ? nil : type)
+        loadedFor = nil
     }
 
     /// Country isn't part of a template's rules, so it stays on the registry
@@ -310,16 +321,34 @@ private struct LibraryProfileDetail: View {
             + "\(String(format: "%g", format.lineSpacing))× spacing"
     }
 
-    private func row(_ icon: String, _ title: String, _ detail: String) -> some View {
+    private func row(_ part: ProfilePart, _ icon: String, _ detail: String) -> some View {
         HStack(spacing: 10) {
             Image(systemName: icon).foregroundStyle(.secondary).frame(width: 18)
             VStack(alignment: .leading, spacing: 1) {
-                Text(title).fontWeight(.medium)
+                Text(part.label).fontWeight(.medium)
                 Text(detail).font(.caption).foregroundStyle(.secondary)
             }
             Spacer()
+            Button("Open…") { openPart = part }
+                .controlSize(.small)
         }
         .padding(.vertical, 10).padding(.horizontal, 14)
+    }
+
+    /// The same one-line summary the profile pane shows for Content.
+    private var contentDetail: String {
+        let structure = profile.structure
+        guard !structure.sections.isEmpty else { return "No content recorded" }
+        var parts = ["\(structure.sections.count) section\(structure.sections.count == 1 ? "" : "s")",
+                     "\(structure.requiredTitles.count) required"]
+        let withSample = structure.sections.filter { $0.sample?.isEmpty == false }.count
+        if withSample > 0 { parts.append("\(withSample) with content") }
+        let questions = structure.sections.reduce(0) { $0 + ($1.questions?.count ?? 0) }
+        if questions > 0 { parts.append("\(questions) question\(questions == 1 ? "" : "s")") }
+        let formats = structure.sections.filter { $0.format != nil }.count
+            + (structure.coreFormats?.count ?? 0)
+        if formats > 0 { parts.append("\(formats) export format\(formats == 1 ? "" : "s")") }
+        return parts.joined(separator: " · ")
     }
 
 

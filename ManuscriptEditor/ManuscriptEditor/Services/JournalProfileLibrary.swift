@@ -150,9 +150,16 @@ final class JournalProfileLibrary {
         profile.name = name
         profile.articleType = articleType
         guard save(profile) else { return false }
-        // The slug follows the name, so the old folder is left behind.
+        // Write first, then clean up — and only a folder that is genuinely
+        // stale.  Deleting before a successful write, or deleting a folder
+        // that turns out to hold something else, is how a rename becomes data
+        // loss.
         let newFolder = folder(for: profile)
-        if oldFolder != newFolder { try? FileManager.default.removeItem(at: oldFolder) }
+        if oldFolder != newFolder,
+           JournalProfile.read(from: newFolder, origin: .library)?.id == profile.id,
+           JournalProfile.read(from: oldFolder, origin: .library)?.id == profile.id {
+            try? FileManager.default.removeItem(at: oldFolder)
+        }
         return true
     }
 

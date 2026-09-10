@@ -96,10 +96,23 @@ This is the part that took three tries to get right.
 add the incoming content after it) and **Overwrite**. A cut you have already
 worked on shouldn't have to be replaced wholesale to take an upstream revision.
 
-**Everything above is one undoable step.** ⌘Z reverses adding a journal,
-loading a part, linking a template, and any sync. The exception is deliberate:
-writing to the **library** is a file outside the manuscript, so *Save* is not
-undoable — the confirmation says what it overwrites before it happens.
+**The rule: nothing changes irreversibly without asking.**
+
+⌘Z reverses every manuscript-side action — adding a journal, loading a part,
+linking a template, renaming a journal, any sync including an assisted
+fast-forward (one keystroke, and the previous content is also a stamped
+version). Bookkeeping that only records what already happened (seeding a
+profile on open, storing the template checksum after a save) is deliberately
+not undoable, because there is nothing there to undo.
+
+Writes to the **library** are files outside the manuscript, so ⌘Z cannot reach
+them. Every one of them is therefore **confirmed first, naming what it
+overwrites**: saving a part, saving or branching the whole template, cloning,
+deleting, and renaming. Renaming used to commit when a text field lost focus —
+silent and irreversible, the one combination this rule exists to prevent — and
+now needs Rename… pressed, with Revert beside it. `rename` also writes before
+it cleans up, and only removes a folder it has confirmed still holds the same
+template.
 
 ## 4. The corpus, and where to fix it
 
