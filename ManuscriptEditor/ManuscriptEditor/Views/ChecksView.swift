@@ -39,6 +39,9 @@ struct ChecksView: View {
     @State private var editingStructure = false
     @State private var savingToLibrary = false
     @State private var adoptingLibrary = false
+    /// The part whose Save is awaiting confirmation.  Every save overwrites
+    /// something in the library, so none of them happen on one click.
+    @State private var savingPart: ProfilePart?
     @State private var linkingTemplate = false
     @State private var editingType = false
     @State private var typeDraft = ""
@@ -82,6 +85,20 @@ struct ChecksView: View {
             Button("Cancel", role: .cancel) { }
         } message: {
             Text("The summary, structure, tests and export outline are replaced. Nothing you have written is touched, and ⌘Z undoes it.")
+        }
+        .confirmationDialog(savePrompt.title,
+                            isPresented: Binding(get: { savingPart != nil },
+                                                 set: { if !$0 { savingPart = nil } }),
+                            titleVisibility: .visible) {
+            Button(savePrompt.verb, role: .destructive) {
+                if let part = savingPart, let journal = paneJournal {
+                    store.saveTemplatePart(part, journalID: journal.id)
+                }
+                savingPart = nil
+            }
+            Button("Cancel", role: .cancel) { savingPart = nil }
+        } message: {
+            Text(savePrompt.message)
         }
         .sheet(isPresented: $linkingTemplate) {
             if let journal = paneJournal {
@@ -161,17 +178,53 @@ struct ChecksView: View {
                     }
                     .help("Replace this journal's summary, structure, tests and export outline with its template's. Your manuscript's content is untouched.")
                 }
-                Button {
-                    savingToLibrary = true
-                } label: {
-                    Label(status.saveVerb, systemImage: "books.vertical")
-                }
-                .help(saveHelp(status, journal: journal))
             } else {
+                // The status line stays: "nothing here differs" is worth
+                // saying, and it is the only place that says it.
                 Label("Matches your library", systemImage: "checkmark.seal")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+            // Permanent, not conditional: adding this journal to the library
+            // as a template of its own is a thing you may want at any moment —
+            // not only when something happens to differ.
+            Button {
+                savingToLibrary = true
+            } label: {
+                Label("Add to Template Library", systemImage: "books.vertical")
+            }
+            .help("Save this journal's whole configuration as a template — overwriting the one it came from, or as a new one.")
+        }
+    }
+
+    /// What a save is about to do, said before it does it.
+    ///
+    /// Every one of these overwrites the template in your library, and other
+    /// manuscripts follow that template — so the wording names the template and
+    /// says what changes.  The structure's warning is the strongest on purpose:
+    /// saving it captures the text currently in this cut's sections as the
+    /// template's sample content, which is how someone's own manuscript could
+    /// quietly become everyone's starting point.
+    private var savePrompt: (title: String, verb: String, message: String) {
+        let name = store.libraryAncestor(for: paneJournal ?? Journal.empty())?.displayName
+            ?? paneJournal?.templateName
+            ?? paneJournal?.displayName
+            ?? "this template"
+        switch savingPart {
+        case .requirements:
+            return ("Overwrite the summary in “\(name)”?", "Overwrite Summary",
+                    "This journal's summary replaces the template's. Manuscripts tracking that template will see the new one.")
+        case .checks:
+            return ("Overwrite the tests in “\(name)”?", "Overwrite Tests",
+                    "This journal's tests replace the template's — including any you removed.")
+        case .structure:
+            return ("Overwrite the structure in “\(name)”?", "Overwrite Structure",
+                    "The template takes this cut's ACTIVE sections and, as its sample content, THE TEXT CURRENTLY IN THEM — the title page layout, the submission questions and their answers. Anything written here becomes the starting point for every journal cut from this template. Hidden sections are left out.")
+        case .export:
+            return ("Overwrite the export outline in “\(name)”?", "Overwrite Export",
+                    "This journal's outline, formats and page breaks replace the template's.")
+        case nil:
+            return ("Overwrite the template?", "Overwrite", "")
         }
     }
 
@@ -254,8 +307,8 @@ struct ChecksView: View {
                 detail: requirements.bullets.isEmpty
                     ? "No summary yet"
                     : summaryDetail(requirements),
-                edited: isEdited(.requirements, journal: journal)
-            ) { editingRequirements = true }
+                edited: isEdited(.requirements, journal: journal),
+                open: { editingRequirements = true })
 
             Divider()
 
@@ -264,8 +317,15 @@ struct ChecksView: View {
                 detail: structure.sections.isEmpty
                     ? "No structure yet"
                     : "\(structure.sections.count) section\(structure.sections.count == 1 ? "" : "s") · \(structure.requiredTitles.count) required",
-                edited: isEdited(.structure, journal: journal)
-            ) { editingStructure = true }
+                edited: isEdited(.structure, journal: journal),
+                open: { editingStructure = true })
+
+            Divider()
+
+            configRow(.checks,
+                      detail: testsDetail(journal),
+                      edited: isEdited(.checks, journal: journal),
+                      open: { editingRules = true })
 
             Divider()
 
@@ -288,30 +348,14 @@ struct ChecksView: View {
     /// The export row: what this journal's outline produces, and a way in.
     @ViewBuilder
     private func exportRow(_ journal: Journal) -> some View {
-        let config = journal.exportConfig
-        HStack(spacing: 10) {
-            Image(systemName: "square.and.arrow.up")
-                .foregroundStyle(.secondary)
-                .frame(width: 18)
-            VStack(alignment: .leading, spacing: 1) {
-                HStack(spacing: 6) {
-                    Text("Export").fontWeight(.medium)
-                    editedBadge(isEdited(.export, journal: journal))
-                }
-                Text(exportDetail(config))
-                    .font(.caption).foregroundStyle(.secondary)
-            }
-            Spacer()
-            Button("Open…") {
-                NotificationCenter.default.post(name: .showPane, object: nil,
-                                                userInfo: ["pane": "export"])
-            }
-            .controlSize(.small)
-            .help("Export formatting is part of this journal's configuration — edited in the Export pane")
-        }
-        .padding(.vertical, 10)
-        .padding(.horizontal, 14)
-        .contentShape(Rectangle())
+        configRow(.export,
+                  detail: exportDetail(journal.exportConfig),
+                  edited: isEdited(.export, journal: journal),
+                  open: {
+                      NotificationCenter.default.post(name: .showPane, object: nil,
+                                                      userInfo: ["pane": "export"])
+                  },
+                  openNote: "Export formatting is part of this journal's configuration — edited in the Export pane")
     }
 
     private func exportDetail(_ config: ExportConfig?) -> String {
@@ -326,7 +370,7 @@ struct ChecksView: View {
     }
 
     private func configRow(_ part: ProfilePart, detail: String, edited: Bool,
-                           open: @escaping () -> Void) -> some View {
+                           open: (() -> Void)?, openNote: String? = nil) -> some View {
         HStack(spacing: 10) {
             Image(systemName: icon(for: part))
                 .foregroundStyle(.secondary)
@@ -339,8 +383,18 @@ struct ChecksView: View {
                 Text(detail).font(.caption).foregroundStyle(.secondary)
             }
             Spacer()
-            Button("Open…", action: open)
+            Button("Open…") { open?() }
                 .controlSize(.small)
+                .disabled(open == nil)
+                .help(openNote ?? "")
+            // Save sits to the right of Open on every row, and lights up only
+            // when this part actually differs from the template.
+            Button("Save") { savingPart = part }
+                .controlSize(.small)
+                .disabled(!edited)
+                .help(edited
+                      ? "Overwrite this part of the template in your library"
+                      : "Matches the template")
         }
         .padding(.vertical, 10)
         .padding(.horizontal, 14)
@@ -403,15 +457,21 @@ struct ChecksView: View {
     private func testsHeader(_ journal: Journal, results: [ChecklistResult]) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             Text("Tests").font(.headline)
-            editedBadge(isEdited(.checks, journal: journal))
-            Text("one per requirement above, evaluated against this cut")
+            Text("one per requirement above, evaluated against this cut — open or save them in the card")
                 .font(.caption)
                 .foregroundStyle(.tertiary)
             Spacer()
-            Button("Edit Tests…") { editingRules = true }
-                .controlSize(.small)
         }
         .padding(.top, 12)
+    }
+
+    /// "18 tests · 16 automatic, 2 manual"
+    private func testsDetail(_ journal: Journal) -> String {
+        let checks = journal.checkRules ?? []
+        guard !checks.isEmpty else { return "No tests yet" }
+        let manual = checks.filter(\.isManual).count
+        return "\(checks.count) test\(checks.count == 1 ? "" : "s") · "
+            + "\(checks.count - manual) automatic, \(manual) manual"
     }
 
     private func sectionHeader(_ title: String, note: String) -> some View {

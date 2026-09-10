@@ -1051,7 +1051,40 @@ final class ManuscriptStore {
         else { return }
         let existing = Set(m.sections.map { $0.title.lowercased() })
         for section in wanted where !existing.contains(section.title.lowercased()) {
-            _ = addSection(type: .custom, title: section.title, kind: section.kind)
+            guard let id = addSection(type: .custom, title: section.title, kind: section.kind)
+            else { continue }
+            applyTemplateSample(section, toSectionID: id)
+        }
+    }
+
+    /// Fills a freshly created section with what the template carries for it.
+    ///
+    /// Only ever on creation, and only into an empty section: a template is a
+    /// starting point, and overwriting something already written would make
+    /// adding a journal destructive.
+    private func applyTemplateSample(_ entry: StructureSection, toSectionID id: UUID) {
+        touch(undoable: false) { m in
+            guard let idx = m.sections.firstIndex(where: { $0.id == id }),
+                  m.sections[idx].isEmptyContent else { return }
+            switch entry.kind {
+            case .text:
+                if let sample = entry.sample, !sample.isEmpty {
+                    m.sections[idx].content = RichText(plain: sample)
+                }
+            case .questions:
+                guard let questions = entry.questions, !questions.isEmpty else { return }
+                m.sections[idx].kind = .questions
+                m.sections[idx].questions = questions.enumerated().map { index, q in
+                    var made = QuestionEntry()
+                    made.prompt = q.prompt
+                    made.wordLimit = q.wordLimit
+                    made.order = index
+                    if let sample = q.sample, !sample.isEmpty {
+                        made.response = RichText(plain: sample)
+                    }
+                    return made
+                }
+            }
         }
     }
 
@@ -1313,6 +1346,54 @@ final class ManuscriptStore {
         JournalProfileLibrary.shared.status(of: journal.profile)
     }
 
+    /// Writes ONE part of this journal's configuration into its template.
+    ///
+    /// Per part, because the parts move independently: you tighten a test
+    /// without meaning to publish the summary you were halfway through
+    /// rewriting, and a single Save that took all four made every save a
+    /// bigger decision than it needed to be.  Each part carries its own
+    /// checksum, so each knows on its own whether it differs.
+    ///
+    /// Saving the STRUCTURE also captures this cut's section content as the
+    /// template's sample text — the callers warn about that, because it is
+    /// how someone's own manuscript text could end up as everyone's starting
+    /// point.
+    @discardableResult
+    func saveTemplatePart(_ part: ProfilePart, journalID: UUID) -> Bool {
+        if part == .structure { captureStructureFromSections(journalID: journalID) }
+        guard let journal = manuscript?.journals.first(where: { $0.id == journalID })
+        else { return false }
+        let mine = journal.profile
+        let library = JournalProfileLibrary.shared
+
+        // Start from the template as it stands, so the other parts are left
+        // exactly as they are.
+        guard var target = journal.profileID.flatMap({ library.profile(id: $0) })
+                ?? library.profile(name: mine.name, articleType: mine.articleType) else {
+            showBanner(.error, "\(journal.name) has no template to save into — use Link Template… or Add to Template Library.")
+            return false
+        }
+        switch part {
+        case .requirements: target.requirements = mine.requirements
+        case .checks:       target.checks = mine.checks
+        case .structure:    target.structure = mine.structure
+        case .export:       target.export = mine.export
+        }
+        guard library.save(target) else {
+            showBanner(.error, "Couldn't write \(target.displayName) to your templates.")
+            return false
+        }
+        touch(undoable: false) { m in
+            guard let idx = m.journals.firstIndex(where: { $0.id == journalID }) else { return }
+            m.journals[idx].profileID = target.id
+            m.journals[idx].templateName = target.name
+            m.journals[idx].templateChecksum = target.checksum
+        }
+        writeProfile(journalID: journalID)
+        showBanner(.success, "\(part.label) saved to the “\(target.displayName)” template.")
+        return true
+    }
+
     /// Points a journal at a template explicitly, and takes its rules.
     ///
     /// A journal can be orphaned — its template deleted, renamed past
@@ -1434,6 +1515,24 @@ final class ManuscriptStore {
                 ?? StructureSection(title: section.title)
             entry.title = section.title
             entry.kind = section.sectionKind
+            // The section's CONTENT becomes the template's sample: what a
+            // title page looks like at this venue, the questions it asks and
+            // their limits.  This is the half that makes a template a starting
+            // point rather than a list of headings — and the reason saving the
+            // structure needs a warning, because it takes what is written now.
+            switch section.sectionKind {
+            case .text:
+                let text = section.content.plain.trimmingCharacters(in: .whitespacesAndNewlines)
+                entry.sample = text.isEmpty ? nil : section.content.plain
+                entry.questions = nil
+            case .questions:
+                entry.sample = nil
+                let asked = section.orderedQuestions.filter { !$0.prompt.isEmpty }
+                entry.questions = asked.isEmpty ? nil : asked.map {
+                    TemplateQuestion(prompt: $0.prompt, wordLimit: $0.wordLimit,
+                                     sample: $0.response.plain.isEmpty ? nil : $0.response.plain)
+                }
+            }
             captured.append(entry)
         }
         // Anything the structure required that this cut doesn't have yet.

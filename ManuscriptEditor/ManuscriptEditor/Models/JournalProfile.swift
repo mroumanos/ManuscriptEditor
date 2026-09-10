@@ -197,6 +197,18 @@ struct SourceRequirements: Codable, Sendable, Equatable {
     }
 }
 
+/// One submission question as a template carries it.
+///
+/// Not a `QuestionEntry`: that one has an id and an answer, which belong to a
+/// manuscript.  A template carries the question and its limit — the parts that
+/// are the journal's, not the author's.
+struct TemplateQuestion: Codable, Sendable, Equatable {
+    var prompt: String
+    var wordLimit: Int? = nil
+    /// A sample or starter answer, when the journal's instructions imply one.
+    var sample: String? = nil
+}
+
 // MARK: - JournalStructure
 
 /// One prose section a manuscript for this journal is expected to have.
@@ -217,6 +229,23 @@ struct StructureSection: Codable, Sendable, Equatable, Identifiable {
     /// Why the journal asks for it — shown in the structure editor.
     var note: String? = nil
 
+    /// The section's SAMPLE CONTENT, carried by the template.
+    ///
+    /// A structure that only names sections says a journal wants a title page
+    /// without saying what one looks like there.  The sample is the layout —
+    /// the title block a venue expects, the boilerplate paragraph, the phrasing
+    /// of a statement — so a journal cut from this template starts from
+    /// something, not from an empty box.  Plain text: a template should carry
+    /// wording, not one manuscript's typography.
+    var sample: String? = nil
+
+    /// The journal's submission questions, for a `.questions` section.
+    ///
+    /// The questions ARE the requirement, so they belong to the template: cut
+    /// a journal from it and the series arrives already asked, each with its
+    /// word limit.
+    var questions: [TemplateQuestion]? = nil
+
     /// Set when this entry came from a file that also listed the app's fixed
     /// parts.  Those are dropped on read and never written again; the flag
     /// exists only so the filtering can happen at one place.
@@ -224,10 +253,15 @@ struct StructureSection: Codable, Sendable, Equatable, Identifiable {
 
     var id: String { title.lowercased() }
 
-    private enum CodingKeys: String, CodingKey { case title, required, note, kind, core }
+    private enum CodingKeys: String, CodingKey {
+        case title, required, note, kind, core, sample, questions
+    }
 
-    init(title: String, required: Bool = true, kind: SectionKind = .text, note: String? = nil) {
+    init(title: String, required: Bool = true, kind: SectionKind = .text,
+         note: String? = nil, sample: String? = nil,
+         questions: [TemplateQuestion]? = nil) {
         self.title = title; self.required = required; self.kind = kind; self.note = note
+        self.sample = sample; self.questions = questions
     }
 
     init(from decoder: Decoder) throws {
@@ -235,6 +269,8 @@ struct StructureSection: Codable, Sendable, Equatable, Identifiable {
         title = try c.decode(String.self, forKey: .title)
         required = try c.decodeIfPresent(Bool.self, forKey: .required) ?? true
         note = try c.decodeIfPresent(String.self, forKey: .note)
+        sample = try c.decodeIfPresent(String.self, forKey: .sample)
+        questions = try c.decodeIfPresent([TemplateQuestion].self, forKey: .questions)
         // `kind` briefly meant "core"/"text" when structure files also listed
         // the app's fixed parts; anything but a section kind marks the entry
         // for dropping, and only "questions" changes what gets created.
@@ -251,6 +287,8 @@ struct StructureSection: Codable, Sendable, Equatable, Identifiable {
         try c.encode(required, forKey: .required)
         if kind != .text { try c.encode(kind.rawValue, forKey: .kind) }
         try c.encodeIfPresent(note, forKey: .note)
+        try c.encodeIfPresent(sample, forKey: .sample)
+        try c.encodeIfPresent(questions, forKey: .questions)
     }
 }
 

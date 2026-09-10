@@ -808,6 +808,27 @@ legible.
 
 ![Detailed lineage between two journals](examples/lineage-detailed.png)
 
+### Journal templates carry content (Sep 2026 — implemented)
+
+- AC: A template's structure carries **sample content** per section
+  (`StructureSection.sample`) and, for a question series, the **questions
+  themselves** with their word limits (`TemplateQuestion`). A journal cut from
+  a template starts from the title-page layout that venue expects and with its
+  submission questions already asked — a structure that only named sections
+  said a journal wants a title page without saying what one looks like there.
+  Applied on creation and only into an empty section, so adding a journal is
+  never destructive.
+- AC: The four parts save **individually** (`saveTemplatePart`), each against
+  its own checksum, with **Open** then **Save** on every row and Save enabled
+  only when that part differs. The parts move independently: tightening a test
+  should not publish a half-rewritten summary.
+- AC: Every save is confirmed and names what it overwrites. The structure's
+  warning is the strongest, because saving it captures the text currently in
+  this cut's sections as the template's sample content — how someone's own
+  manuscript could quietly become everyone's starting point.
+- AC: **Add to Template Library** is permanent, not conditional on drift, and
+  "Matches your library" still says when nothing differs.
+
 ### Journal templates (Sep 2026 — implemented)
 
 - AC: A library entry is a **TEMPLATE**, and a manuscript's journal is an
