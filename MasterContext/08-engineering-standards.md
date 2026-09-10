@@ -238,3 +238,13 @@ Requires: clean tree on main, the Developer ID cert, `gh` auth.
   collaboration) is stub-only** — don't build it.
 - Update the relevant Master Context doc in the same change when a requirement
   shifts.
+
+19. **A verification harness must not be able to prompt for the Keychain.**
+    A harness links the app's code, and creating a version signs it, which
+    reads the app's own signing key. From a different binary macOS asks the
+    user for permission — so a test run on someone's machine produces a
+    Keychain prompt that looks, reasonably, like the tool reading their
+    passwords. Harnesses set `MANUSCRIPT_EDITOR_NO_SIGNING=1`
+    (`SigningService.signingDisabled`) and the versions they make are simply
+    unsigned. Nothing a verification run does should ever ask the user for
+    anything.

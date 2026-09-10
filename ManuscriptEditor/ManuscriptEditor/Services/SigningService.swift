@@ -444,8 +444,20 @@ enum SigningService {
     /// builds), which read as a prompt storm.
     private static var cachedKey: P256.Signing.PrivateKey?
 
+    /// Set by a verification harness to keep signing out of the Keychain.
+    ///
+    /// A harness links this code and creates versions, which signs them, which
+    /// reads the app's signing key — from a DIFFERENT binary, so macOS asks the
+    /// user for permission every run.  Test runs should not be able to produce
+    /// a Keychain prompt on someone's machine, so they opt out here and the
+    /// versions they make are simply unsigned.
+    static var signingDisabled: Bool {
+        ProcessInfo.processInfo.environment["MANUSCRIPT_EDITOR_NO_SIGNING"] == "1"
+    }
+
     /// Loads the private key, generating and storing one on first use.
     private static func privateKey() -> P256.Signing.PrivateKey? {
+        if signingDisabled { return nil }
         if let cachedKey { return cachedKey }
         if let stored = KeychainService.secret(for: keySlot),
            let data = Data(base64Encoded: stored),
