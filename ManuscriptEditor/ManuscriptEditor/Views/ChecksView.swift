@@ -264,6 +264,19 @@ struct ChecksView: View {
     /// since it came from the template?**  So the comparison is against the
     /// template's checksum, and the answer is an orange pencil or nothing.
     private func isEdited(_ part: ProfilePart, journal: Journal) -> Bool {
+        // The structure is computed from this cut's sections, their text and
+        // their export formatting — none of which is in the stored structure
+        // until a save happens.  So it is compared against what a save WOULD
+        // produce, which is why editing a section's text lights up Save.
+        if part == .structure,
+           let prospective = store.structureCapture(journalID: journal.id) {
+            guard let template = journal.profileID
+                    .flatMap({ JournalProfileLibrary.shared.profile(id: $0) })
+            else { return true }
+            var mine = journal.profile
+            mine.structure = prospective
+            return mine.fingerprint(.structure) != template.fingerprint(.structure)
+        }
         switch store.libraryStatus(for: journal) {
         case .matches:
             return false

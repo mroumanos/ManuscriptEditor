@@ -1,18 +1,19 @@
 {
-  "articleType": null,
-  "bullets": [
-    "Health Services Research publishes empirical health-services work with a structured abstract and explicit policy relevance.",
-    "Body up to 6,000 words",
-    "abstract up to 250 words",
-    "up to 4 figures",
-    "up to 4 tables",
-    "required sections: Introduction, Methods, Results, Discussion",
-    "AMA citation style",
-    "Structured abstract (Objective/Data Sources/Study Design/Findings/Conclusions)",
-    "What This Study Adds box required",
-    "This summary is the app's distillation — open the author instructions above to confirm against the journal's current text."
-  ],
-  "id": "39A701F1-D9A8-5A88-98E8-72202EE45DE5",
-  "journal": "Health Services Research",
-  "url": "https://onlinelibrary.wiley.com/page/journal/14756773/homepage/forauthors.html"
+ "articleType": null,
+ "bullets": [
+  "description: health Services Research publishes empirical health-services work with a structured abstract and explicit policy relevance.",
+  "limits: body up to 6,000 words",
+  "limits: abstract up to 250 words",
+  "limits: up to 4 figures",
+  "limits: up to 4 tables",
+  "components: required sections: Introduction, Methods, Results, Discussion",
+  "components: structured abstract (Objective/Data Sources/Study Design/Findings/Conclusions)",
+  "components: what This Study Adds box required",
+  "format: AMA citation style",
+  "extra: this summary is the app's distillation — open the author instructions above to confirm against the journal's current text."
+ ],
+ "id": "39A701F1-D9A8-5A88-98E8-72202EE45DE5",
+ "journal": "Health Services Research",
+ "updatedAt": "2026-09-10T17:05:39Z",
+ "url": "https://onlinelibrary.wiley.com/page/journal/14756773/homepage/forauthors.html"
 }

@@ -257,3 +257,12 @@ Requires: clean tree on main, the Developer ID cert, `gh` auth.
     under one author's name. An identity that regenerates itself on a failed
     read is not an identity. `KeychainService.read` returns
     `found/notFound/unreadable`, and only `notFound` may create anything.
+
+21. **The journal corpus in the repo is the source of truth, not the user's
+    library.** `JournalProfileLibrary.load()` re-seeds any bundled profile the
+    library no longer holds — so a correction made only in
+    `~/Library/Application Support/.../JournalLibrary/` is restored to the
+    stale version the moment its folder goes missing. Twice. Fix
+    `ManuscriptEditor/JournalProfiles/<slug>/` (version-controlled, reviewable)
+    and let the library re-seed; only touch a library copy to clear one that
+    predates the fix.

@@ -1,117 +1,198 @@
 {
-  "checks": [
+ "checks": [
+  {
+   "combinator": "ALL",
+   "conditions": [
     {
-      "combinator": "ALL",
-      "conditions": [
-        {
-          "comparator": "<=",
-          "metric": "LENGTH_WORDS",
-          "number": 2700,
-          "scopes": [
-            {
-              "kind": "body"
-            }
-          ]
-        }
-      ],
-      "name": "Body ≤ 2,700 words"
-    },
-    {
-      "combinator": "ALL",
-      "conditions": [
-        {
-          "comparator": "<=",
-          "metric": "LENGTH_WORDS",
-          "number": 150,
-          "scopes": [
-            {
-              "kind": "abstract"
-            }
-          ]
-        }
-      ],
-      "name": "Abstract ≤ 150 words"
-    },
-    {
-      "combinator": "ALL",
-      "conditions": [
-        {
-          "comparator": "<=",
-          "metric": "COUNT",
-          "number": 5,
-          "scopes": [
-            {
-              "kind": "figures"
-            }
-          ]
-        }
-      ],
-      "name": "Figures ≤ 5"
-    },
-    {
-      "combinator": "ALL",
-      "conditions": [
-        {
-          "comparator": "<=",
-          "metric": "COUNT",
-          "number": 4,
-          "scopes": [
-            {
-              "kind": "tables"
-            }
-          ]
-        }
-      ],
-      "name": "Tables ≤ 4"
-    },
-    {
-      "combinator": "ALL",
-      "conditions": [
-        {
-          "comparator": "<=",
-          "metric": "COUNT",
-          "number": 70,
-          "scopes": [
-            {
-              "kind": "references"
-            }
-          ]
-        }
-      ],
-      "name": "References ≤ 70"
-    },
-    {
-      "combinator": "ALL",
-      "conditions": [
-        {
-          "comparator": "==",
-          "metric": "STRUCTURE",
-          "number": 1,
-          "scopes": []
-        }
-      ],
-      "name": "Sections match the journal's structure",
-      "note": "Every section marked required in the structure file must be present and non-empty"
-    },
-    {
-      "conditions": [],
-      "manual": true,
-      "name": "Structured abstract: Background, Methods, Results, Conclusions",
-      "note": "Tick once verified by hand"
-    },
-    {
-      "conditions": [],
-      "manual": true,
-      "name": "Ethics statement required in Methods",
-      "note": "Tick once verified by hand"
-    },
-    {
-      "conditions": [],
-      "manual": true,
-      "name": "Statistical analysis plan described in Methods",
-      "note": "Tick once verified by hand"
+     "comparator": "<=",
+     "metric": "LENGTH_WORDS",
+     "number": 2700,
+     "scopes": [
+      {
+       "kind": "body"
+      }
+     ]
     }
-  ],
-  "id": "95B71BE5-C57D-5C1D-A485-266D91C4F567",
-  "journal": "New England Journal of Medicine"
+   ],
+   "name": "Body ≤ 2,700 words"
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "metric": "LENGTH_WORDS",
+     "number": 150,
+     "scopes": [
+      {
+       "kind": "abstract"
+      }
+     ]
+    }
+   ],
+   "name": "Abstract ≤ 150 words"
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "metric": "COUNT",
+     "number": 5,
+     "scopes": [
+      {
+       "kind": "figures"
+      }
+     ]
+    }
+   ],
+   "name": "Figures ≤ 5"
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "metric": "COUNT",
+     "number": 4,
+     "scopes": [
+      {
+       "kind": "tables"
+      }
+     ]
+    }
+   ],
+   "name": "Tables ≤ 4"
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "metric": "COUNT",
+     "number": 70,
+     "scopes": [
+      {
+       "kind": "references"
+      }
+     ]
+    }
+   ],
+   "name": "References ≤ 70"
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "==",
+     "metric": "STRUCTURE",
+     "number": 1,
+     "scopes": []
+    }
+   ],
+   "name": "Sections match the journal's structure",
+   "note": "Every section marked required in the structure file must be present and non-empty"
+  },
+  {
+   "conditions": [],
+   "manual": true,
+   "name": "Structured abstract: Background, Methods, Results, Conclusions",
+   "note": "Tick once verified by hand"
+  },
+  {
+   "conditions": [],
+   "manual": true,
+   "name": "Ethics statement required in Methods",
+   "note": "Tick once verified by hand"
+  },
+  {
+   "conditions": [],
+   "manual": true,
+   "name": "Statistical analysis plan described in Methods",
+   "note": "Tick once verified by hand"
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "id": "C8D6C6A3-4F98-4200-8F4E-F8F4E429A36A",
+     "metric": "EXISTS",
+     "number": 0,
+     "scopes": [
+      {
+       "kind": "section",
+       "name": "Introduction"
+      }
+     ]
+    }
+   ],
+   "id": "E96A4719-52B9-465D-BBA5-8CA5133EF7E8",
+   "name": "Introduction section present",
+   "note": "Required by this journal's structure."
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "id": "A4EAE9D7-F468-4D80-AD3D-B773518FA94C",
+     "metric": "EXISTS",
+     "number": 0,
+     "scopes": [
+      {
+       "kind": "section",
+       "name": "Methods"
+      }
+     ]
+    }
+   ],
+   "id": "4FFB0B98-A676-42F6-B39B-484D33784DFB",
+   "name": "Methods section present",
+   "note": "Required by this journal's structure."
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "id": "A53815BE-BFF5-4496-AE5C-1470F57B90BE",
+     "metric": "EXISTS",
+     "number": 0,
+     "scopes": [
+      {
+       "kind": "section",
+       "name": "Results"
+      }
+     ]
+    }
+   ],
+   "id": "5CDDFC79-EFDB-493C-BE63-2C79DE9AB815",
+   "name": "Results section present",
+   "note": "Required by this journal's structure."
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "id": "B9BC7B21-56B1-4D88-A8E3-847CA3B71D20",
+     "metric": "EXISTS",
+     "number": 0,
+     "scopes": [
+      {
+       "kind": "section",
+       "name": "Discussion"
+      }
+     ]
+    }
+   ],
+   "id": "3CFFFDAD-75D4-4952-A435-1E6A01CB8BF7",
+   "name": "Discussion section present",
+   "note": "Required by this journal's structure."
+  }
+ ],
+ "id": "95B71BE5-C57D-5C1D-A485-266D91C4F567",
+ "journal": "New England Journal of Medicine",
+ "updatedAt": "2026-09-10T17:05:39Z"
 }

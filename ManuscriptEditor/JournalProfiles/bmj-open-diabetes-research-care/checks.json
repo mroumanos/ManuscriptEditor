@@ -1,95 +1,176 @@
 {
-  "checks": [
+ "checks": [
+  {
+   "combinator": "ALL",
+   "conditions": [
     {
-      "combinator": "ALL",
-      "conditions": [
-        {
-          "comparator": "<=",
-          "metric": "LENGTH_WORDS",
-          "number": 4000,
-          "scopes": [
-            {
-              "kind": "body"
-            }
-          ]
-        }
-      ],
-      "name": "Body ≤ 4,000 words"
-    },
-    {
-      "combinator": "ALL",
-      "conditions": [
-        {
-          "comparator": "<=",
-          "metric": "LENGTH_WORDS",
-          "number": 300,
-          "scopes": [
-            {
-              "kind": "abstract"
-            }
-          ]
-        }
-      ],
-      "name": "Abstract ≤ 300 words"
-    },
-    {
-      "combinator": "ALL",
-      "conditions": [
-        {
-          "comparator": "<=",
-          "metric": "COUNT",
-          "number": 5,
-          "scopes": [
-            {
-              "kind": "figures"
-            }
-          ]
-        }
-      ],
-      "name": "Figures ≤ 5"
-    },
-    {
-      "combinator": "ALL",
-      "conditions": [
-        {
-          "comparator": "<=",
-          "metric": "COUNT",
-          "number": 5,
-          "scopes": [
-            {
-              "kind": "tables"
-            }
-          ]
-        }
-      ],
-      "name": "Tables ≤ 5"
-    },
-    {
-      "combinator": "ALL",
-      "conditions": [
-        {
-          "comparator": "==",
-          "metric": "STRUCTURE",
-          "number": 1,
-          "scopes": []
-        }
-      ],
-      "name": "Sections match the journal's structure",
-      "note": "Every section marked required in the structure file must be present and non-empty"
-    },
-    {
-      "conditions": [],
-      "manual": true,
-      "name": "Significance of this study box required",
-      "note": "Tick once verified by hand"
-    },
-    {
-      "conditions": [],
-      "manual": true,
-      "name": "Open-access article processing charge applies",
-      "note": "Tick once verified by hand"
+     "comparator": "<=",
+     "metric": "LENGTH_WORDS",
+     "number": 4000,
+     "scopes": [
+      {
+       "kind": "body"
+      }
+     ]
     }
-  ],
-  "id": "3D8F0EDA-E6BF-5489-8539-E1867428D9C9",
-  "journal": "BMJ Open Diabetes Research & Care"
+   ],
+   "name": "Body ≤ 4,000 words"
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "metric": "LENGTH_WORDS",
+     "number": 300,
+     "scopes": [
+      {
+       "kind": "abstract"
+      }
+     ]
+    }
+   ],
+   "name": "Abstract ≤ 300 words"
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "metric": "COUNT",
+     "number": 5,
+     "scopes": [
+      {
+       "kind": "figures"
+      }
+     ]
+    }
+   ],
+   "name": "Figures ≤ 5"
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "metric": "COUNT",
+     "number": 5,
+     "scopes": [
+      {
+       "kind": "tables"
+      }
+     ]
+    }
+   ],
+   "name": "Tables ≤ 5"
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "==",
+     "metric": "STRUCTURE",
+     "number": 1,
+     "scopes": []
+    }
+   ],
+   "name": "Sections match the journal's structure",
+   "note": "Every section marked required in the structure file must be present and non-empty"
+  },
+  {
+   "conditions": [],
+   "manual": true,
+   "name": "Significance of this study box required",
+   "note": "Tick once verified by hand"
+  },
+  {
+   "conditions": [],
+   "manual": true,
+   "name": "Open-access article processing charge applies",
+   "note": "Tick once verified by hand"
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "id": "9B7B6CC1-6731-476B-96B5-A1DCD349FCF9",
+     "metric": "EXISTS",
+     "number": 0,
+     "scopes": [
+      {
+       "kind": "section",
+       "name": "Introduction"
+      }
+     ]
+    }
+   ],
+   "id": "59285D9B-400B-46DC-BA58-4237F9D7BD56",
+   "name": "Introduction section present",
+   "note": "Required by this journal's structure."
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "id": "13444B55-2889-4890-91CA-70E0242ECB7D",
+     "metric": "EXISTS",
+     "number": 0,
+     "scopes": [
+      {
+       "kind": "section",
+       "name": "Methods"
+      }
+     ]
+    }
+   ],
+   "id": "A9E1A2EB-02F1-4241-8DDB-4EFA79BAF627",
+   "name": "Methods section present",
+   "note": "Required by this journal's structure."
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "id": "2BB1AC1B-EA03-4F10-8273-02D1C5FE75A6",
+     "metric": "EXISTS",
+     "number": 0,
+     "scopes": [
+      {
+       "kind": "section",
+       "name": "Results"
+      }
+     ]
+    }
+   ],
+   "id": "49FAD1C5-4A83-4D78-A4A6-DB659F1D1748",
+   "name": "Results section present",
+   "note": "Required by this journal's structure."
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "id": "B57586B4-8749-4395-965B-350DA7F234EE",
+     "metric": "EXISTS",
+     "number": 0,
+     "scopes": [
+      {
+       "kind": "section",
+       "name": "Discussion"
+      }
+     ]
+    }
+   ],
+   "id": "F9B00434-1592-4CE6-B588-8265164D2687",
+   "name": "Discussion section present",
+   "note": "Required by this journal's structure."
+  }
+ ],
+ "id": "3D8F0EDA-E6BF-5489-8539-E1867428D9C9",
+ "journal": "BMJ Open Diabetes Research & Care",
+ "updatedAt": "2026-09-10T17:05:39Z"
 }

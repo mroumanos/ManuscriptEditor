@@ -1,57 +1,138 @@
 {
-  "checks": [
+ "checks": [
+  {
+   "combinator": "ALL",
+   "conditions": [
     {
-      "combinator": "ALL",
-      "conditions": [
-        {
-          "comparator": "<=",
-          "metric": "LENGTH_WORDS",
-          "number": 4500,
-          "scopes": [
-            {
-              "kind": "body"
-            }
-          ]
-        }
-      ],
-      "name": "Body ≤ 4,500 words"
-    },
-    {
-      "combinator": "ALL",
-      "conditions": [
-        {
-          "comparator": "<=",
-          "metric": "LENGTH_WORDS",
-          "number": 250,
-          "scopes": [
-            {
-              "kind": "abstract"
-            }
-          ]
-        }
-      ],
-      "name": "Abstract ≤ 250 words"
-    },
-    {
-      "combinator": "ALL",
-      "conditions": [
-        {
-          "comparator": "==",
-          "metric": "STRUCTURE",
-          "number": 1,
-          "scopes": []
-        }
-      ],
-      "name": "Sections match the journal's structure",
-      "note": "Every section marked required in the structure file must be present and non-empty"
-    },
-    {
-      "conditions": [],
-      "manual": true,
-      "name": "Structured abstract (Objective/Design/Participants/Main Outcome Measures/Analysis/Results/Conclusions and Implications)",
-      "note": "Tick once verified by hand"
+     "comparator": "<=",
+     "metric": "LENGTH_WORDS",
+     "number": 4500,
+     "scopes": [
+      {
+       "kind": "body"
+      }
+     ]
     }
-  ],
-  "id": "13CE2302-847F-5918-A105-94AFCE9E9C43",
-  "journal": "Journal of Nutrition Education and Behavior"
+   ],
+   "name": "Body ≤ 4,500 words"
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "metric": "LENGTH_WORDS",
+     "number": 250,
+     "scopes": [
+      {
+       "kind": "abstract"
+      }
+     ]
+    }
+   ],
+   "name": "Abstract ≤ 250 words"
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "==",
+     "metric": "STRUCTURE",
+     "number": 1,
+     "scopes": []
+    }
+   ],
+   "name": "Sections match the journal's structure",
+   "note": "Every section marked required in the structure file must be present and non-empty"
+  },
+  {
+   "conditions": [],
+   "manual": true,
+   "name": "Structured abstract (Objective/Design/Participants/Main Outcome Measures/Analysis/Results/Conclusions and Implications)",
+   "note": "Tick once verified by hand"
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "id": "7C80989D-8F71-4356-AC54-5A8E3BDCB9BE",
+     "metric": "EXISTS",
+     "number": 0,
+     "scopes": [
+      {
+       "kind": "section",
+       "name": "Introduction"
+      }
+     ]
+    }
+   ],
+   "id": "40947B19-B0DB-4469-8249-5D4FDC1AFFAD",
+   "name": "Introduction section present",
+   "note": "Required by this journal's structure."
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "id": "0E44AA4F-DF0E-4092-9AE5-47ADBC5126C7",
+     "metric": "EXISTS",
+     "number": 0,
+     "scopes": [
+      {
+       "kind": "section",
+       "name": "Methods"
+      }
+     ]
+    }
+   ],
+   "id": "2145C36C-CD25-46A8-BED7-34D02C62DC1D",
+   "name": "Methods section present",
+   "note": "Required by this journal's structure."
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "id": "06D6BC26-E592-4B5E-9631-CBCB6CB82EF6",
+     "metric": "EXISTS",
+     "number": 0,
+     "scopes": [
+      {
+       "kind": "section",
+       "name": "Results"
+      }
+     ]
+    }
+   ],
+   "id": "10F5E05C-E06A-42AD-8D26-7F0482749171",
+   "name": "Results section present",
+   "note": "Required by this journal's structure."
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "id": "420DB78B-0D91-4764-9402-5463EE0F46D2",
+     "metric": "EXISTS",
+     "number": 0,
+     "scopes": [
+      {
+       "kind": "section",
+       "name": "Discussion"
+      }
+     ]
+    }
+   ],
+   "id": "E80A4D08-7633-46FB-8D8E-C38D9F648EA6",
+   "name": "Discussion section present",
+   "note": "Required by this journal's structure."
+  }
+ ],
+ "id": "13CE2302-847F-5918-A105-94AFCE9E9C43",
+ "journal": "Journal of Nutrition Education and Behavior",
+ "updatedAt": "2026-09-10T17:05:39Z"
 }

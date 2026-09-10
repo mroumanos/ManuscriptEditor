@@ -1,101 +1,182 @@
 {
-  "checks": [
+ "checks": [
+  {
+   "combinator": "ALL",
+   "conditions": [
     {
-      "combinator": "ALL",
-      "conditions": [
-        {
-          "comparator": "<=",
-          "metric": "LENGTH_WORDS",
-          "number": 3000,
-          "scopes": [
-            {
-              "kind": "body"
-            }
-          ]
-        }
-      ],
-      "name": "Body ≤ 3,000 words"
-    },
-    {
-      "combinator": "ALL",
-      "conditions": [
-        {
-          "comparator": "<=",
-          "metric": "LENGTH_WORDS",
-          "number": 150,
-          "scopes": [
-            {
-              "kind": "abstract"
-            }
-          ]
-        }
-      ],
-      "name": "Abstract ≤ 150 words"
-    },
-    {
-      "combinator": "ALL",
-      "conditions": [
-        {
-          "comparator": "<=",
-          "metric": "COUNT",
-          "number": 6,
-          "scopes": [
-            {
-              "kind": "figures"
-            }
-          ]
-        }
-      ],
-      "name": "Figures ≤ 6"
-    },
-    {
-      "combinator": "ALL",
-      "conditions": [
-        {
-          "comparator": "<=",
-          "metric": "COUNT",
-          "number": 30,
-          "scopes": [
-            {
-              "kind": "references"
-            }
-          ]
-        }
-      ],
-      "name": "References ≤ 30"
-    },
-    {
-      "combinator": "ALL",
-      "conditions": [
-        {
-          "comparator": "==",
-          "metric": "STRUCTURE",
-          "number": 1,
-          "scopes": []
-        }
-      ],
-      "name": "Sections match the journal's structure",
-      "note": "Every section marked required in the structure file must be present and non-empty"
-    },
-    {
-      "conditions": [],
-      "manual": true,
-      "name": "Cover letter required",
-      "note": "Tick once verified by hand"
-    },
-    {
-      "conditions": [],
-      "manual": true,
-      "name": "No subheadings within the Abstract",
-      "note": "Tick once verified by hand"
-    },
-    {
-      "conditions": [],
-      "manual": true,
-      "name": "Online Methods appended after references (not counted in word limit)",
-      "note": "Tick once verified by hand"
+     "comparator": "<=",
+     "metric": "LENGTH_WORDS",
+     "number": 3000,
+     "scopes": [
+      {
+       "kind": "body"
+      }
+     ]
     }
-  ],
-  "id": "5697ABCA-7A31-5E68-B1D9-519DBC0742F1",
-  "journal": "Nature"
+   ],
+   "name": "Body ≤ 3,000 words"
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "metric": "LENGTH_WORDS",
+     "number": 150,
+     "scopes": [
+      {
+       "kind": "abstract"
+      }
+     ]
+    }
+   ],
+   "name": "Abstract ≤ 150 words"
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "metric": "COUNT",
+     "number": 6,
+     "scopes": [
+      {
+       "kind": "figures"
+      }
+     ]
+    }
+   ],
+   "name": "Figures ≤ 6"
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "metric": "COUNT",
+     "number": 30,
+     "scopes": [
+      {
+       "kind": "references"
+      }
+     ]
+    }
+   ],
+   "name": "References ≤ 30"
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "==",
+     "metric": "STRUCTURE",
+     "number": 1,
+     "scopes": []
+    }
+   ],
+   "name": "Sections match the journal's structure",
+   "note": "Every section marked required in the structure file must be present and non-empty"
+  },
+  {
+   "conditions": [],
+   "manual": true,
+   "name": "Cover letter required",
+   "note": "Tick once verified by hand"
+  },
+  {
+   "conditions": [],
+   "manual": true,
+   "name": "No subheadings within the Abstract",
+   "note": "Tick once verified by hand"
+  },
+  {
+   "conditions": [],
+   "manual": true,
+   "name": "Online Methods appended after references (not counted in word limit)",
+   "note": "Tick once verified by hand"
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "id": "2982D9F1-7336-45FC-9491-0E879CE57FA4",
+     "metric": "EXISTS",
+     "number": 0,
+     "scopes": [
+      {
+       "kind": "section",
+       "name": "Introduction"
+      }
+     ]
+    }
+   ],
+   "id": "C6C1094B-56AB-4E52-9401-07041D4300E3",
+   "name": "Introduction section present",
+   "note": "Required by this journal's structure."
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "id": "E8A3CBA4-138E-42AA-8C38-53A551A52461",
+     "metric": "EXISTS",
+     "number": 0,
+     "scopes": [
+      {
+       "kind": "section",
+       "name": "Methods"
+      }
+     ]
+    }
+   ],
+   "id": "CF1888C0-BCB1-4996-AC71-2F39663DF485",
+   "name": "Methods section present",
+   "note": "Required by this journal's structure."
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "id": "C199D328-F048-484E-BFBD-F40345BC0C42",
+     "metric": "EXISTS",
+     "number": 0,
+     "scopes": [
+      {
+       "kind": "section",
+       "name": "Results"
+      }
+     ]
+    }
+   ],
+   "id": "A61FE8AE-0411-47E7-9728-B0A34DA3E976",
+   "name": "Results section present",
+   "note": "Required by this journal's structure."
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "id": "D2F0B90F-AF1F-4B9C-8179-990EAE4F33CE",
+     "metric": "EXISTS",
+     "number": 0,
+     "scopes": [
+      {
+       "kind": "section",
+       "name": "Discussion"
+      }
+     ]
+    }
+   ],
+   "id": "34C361CB-BD60-473D-9ECE-CF937B689B8A",
+   "name": "Discussion section present",
+   "note": "Required by this journal's structure."
+  }
+ ],
+ "id": "5697ABCA-7A31-5E68-B1D9-519DBC0742F1",
+ "journal": "Nature",
+ "updatedAt": "2026-09-10T17:05:39Z"
 }

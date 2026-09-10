@@ -1,59 +1,140 @@
 {
-  "checks": [
+ "checks": [
+  {
+   "combinator": "ALL",
+   "conditions": [
     {
-      "combinator": "ALL",
-      "conditions": [
-        {
-          "comparator": "<=",
-          "metric": "LENGTH_WORDS",
-          "number": 300,
-          "scopes": [
-            {
-              "kind": "abstract"
-            }
-          ]
-        }
-      ],
-      "name": "Abstract ≤ 300 words"
-    },
-    {
-      "combinator": "ALL",
-      "conditions": [
-        {
-          "comparator": "==",
-          "metric": "STRUCTURE",
-          "number": 1,
-          "scopes": []
-        }
-      ],
-      "name": "Sections match the journal's structure",
-      "note": "Every section marked required in the structure file must be present and non-empty"
-    },
-    {
-      "conditions": [],
-      "manual": true,
-      "name": "Data availability statement required",
-      "note": "Tick once verified by hand"
-    },
-    {
-      "conditions": [],
-      "manual": true,
-      "name": "Ethics approval statement required for human/animal studies",
-      "note": "Tick once verified by hand"
-    },
-    {
-      "conditions": [],
-      "manual": true,
-      "name": "ORCID iD recommended for all authors",
-      "note": "Tick once verified by hand"
-    },
-    {
-      "conditions": [],
-      "manual": true,
-      "name": "Figures must be high-resolution (≥300 DPI) separate files",
-      "note": "Tick once verified by hand"
+     "comparator": "<=",
+     "metric": "LENGTH_WORDS",
+     "number": 300,
+     "scopes": [
+      {
+       "kind": "abstract"
+      }
+     ]
     }
-  ],
-  "id": "D37575CD-83DC-598A-96C9-0D177FCADA9F",
-  "journal": "PLOS ONE"
+   ],
+   "name": "Abstract ≤ 300 words"
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "==",
+     "metric": "STRUCTURE",
+     "number": 1,
+     "scopes": []
+    }
+   ],
+   "name": "Sections match the journal's structure",
+   "note": "Every section marked required in the structure file must be present and non-empty"
+  },
+  {
+   "conditions": [],
+   "manual": true,
+   "name": "Data availability statement required",
+   "note": "Tick once verified by hand"
+  },
+  {
+   "conditions": [],
+   "manual": true,
+   "name": "Ethics approval statement required for human/animal studies",
+   "note": "Tick once verified by hand"
+  },
+  {
+   "conditions": [],
+   "manual": true,
+   "name": "ORCID iD recommended for all authors",
+   "note": "Tick once verified by hand"
+  },
+  {
+   "conditions": [],
+   "manual": true,
+   "name": "Figures must be high-resolution (≥300 DPI) separate files",
+   "note": "Tick once verified by hand"
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "id": "6FAE0CE5-106C-4A6B-A641-1F6D2AE9B7E7",
+     "metric": "EXISTS",
+     "number": 0,
+     "scopes": [
+      {
+       "kind": "section",
+       "name": "Introduction"
+      }
+     ]
+    }
+   ],
+   "id": "2E42BADF-A1F0-4332-9A68-47E3EA537E19",
+   "name": "Introduction section present",
+   "note": "Required by this journal's structure."
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "id": "7BA131DC-DE1D-4BED-8752-ECBF02BB68DE",
+     "metric": "EXISTS",
+     "number": 0,
+     "scopes": [
+      {
+       "kind": "section",
+       "name": "Methods"
+      }
+     ]
+    }
+   ],
+   "id": "E3D921AF-3901-4F0A-B3E3-FB86DD3FE2A0",
+   "name": "Methods section present",
+   "note": "Required by this journal's structure."
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "id": "EEE19F61-CCED-40C8-BE53-5291AEAB85A0",
+     "metric": "EXISTS",
+     "number": 0,
+     "scopes": [
+      {
+       "kind": "section",
+       "name": "Results"
+      }
+     ]
+    }
+   ],
+   "id": "F5559F8C-4194-4505-93F8-E67DE5553EF9",
+   "name": "Results section present",
+   "note": "Required by this journal's structure."
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "id": "A4331011-2005-450D-ABC8-8D40224FF65B",
+     "metric": "EXISTS",
+     "number": 0,
+     "scopes": [
+      {
+       "kind": "section",
+       "name": "Discussion"
+      }
+     ]
+    }
+   ],
+   "id": "25B3D2D3-7770-4AE0-A3F0-484B032E792B",
+   "name": "Discussion section present",
+   "note": "Required by this journal's structure."
+  }
+ ],
+ "id": "D37575CD-83DC-598A-96C9-0D177FCADA9F",
+ "journal": "PLOS ONE",
+ "updatedAt": "2026-09-10T17:05:39Z"
 }

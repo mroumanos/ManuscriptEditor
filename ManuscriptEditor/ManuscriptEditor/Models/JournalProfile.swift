@@ -242,6 +242,16 @@ struct StructureSection: Codable, Sendable, Equatable, Identifiable {
     /// wording, not one manuscript's typography.
     var sample: String? = nil
 
+    /// How this section is FORMATTED on export at this venue — font, size,
+    /// spacing, line and page numbers.
+    ///
+    /// A journal's shape is not only which sections exist: two venues can want
+    /// the same sections set in different type.  Captured as the effective
+    /// format (the item's override, or the document's), so a journal cut from
+    /// this template adopts something concrete rather than inheriting whatever
+    /// the new document happens to default to.
+    var format: ExportDocumentFormat? = nil
+
     /// The journal's submission questions, for a `.questions` section.
     ///
     /// The questions ARE the requirement, so they belong to the template: cut
@@ -257,14 +267,15 @@ struct StructureSection: Codable, Sendable, Equatable, Identifiable {
     var id: String { title.lowercased() }
 
     private enum CodingKeys: String, CodingKey {
-        case title, required, note, kind, core, sample, questions
+        case title, required, note, kind, core, sample, questions, format
     }
 
     init(title: String, required: Bool = true, kind: SectionKind = .text,
          note: String? = nil, sample: String? = nil,
-         questions: [TemplateQuestion]? = nil) {
+         questions: [TemplateQuestion]? = nil,
+         format: ExportDocumentFormat? = nil) {
         self.title = title; self.required = required; self.kind = kind; self.note = note
-        self.sample = sample; self.questions = questions
+        self.sample = sample; self.questions = questions; self.format = format
     }
 
     init(from decoder: Decoder) throws {
@@ -274,6 +285,7 @@ struct StructureSection: Codable, Sendable, Equatable, Identifiable {
         note = try c.decodeIfPresent(String.self, forKey: .note)
         sample = try c.decodeIfPresent(String.self, forKey: .sample)
         questions = try c.decodeIfPresent([TemplateQuestion].self, forKey: .questions)
+        format = try c.decodeIfPresent(ExportDocumentFormat.self, forKey: .format)
         // `kind` briefly meant "core"/"text" when structure files also listed
         // the app's fixed parts; anything but a section kind marks the entry
         // for dropping, and only "questions" changes what gets created.
@@ -292,6 +304,7 @@ struct StructureSection: Codable, Sendable, Equatable, Identifiable {
         try c.encodeIfPresent(note, forKey: .note)
         try c.encodeIfPresent(sample, forKey: .sample)
         try c.encodeIfPresent(questions, forKey: .questions)
+        try c.encodeIfPresent(format, forKey: .format)
     }
 }
 
@@ -300,17 +313,39 @@ struct StructureSection: Codable, Sendable, Equatable, Identifiable {
 struct JournalStructure: Codable, Sendable, Equatable {
     var sections: [StructureSection] = []
 
+    /// Export formatting for the app's FIXED parts — title page, byline,
+    /// abstract, keywords, figures, tables, references, cover letter — keyed
+    /// by `ExportItem.Kind`.
+    ///
+    /// The fixed parts are the same everywhere, but how a venue sets them is
+    /// not, and that is exactly what a journal template should carry: fork a
+    /// new journal and the title block, byline and abstract adopt the target's
+    /// typography while their CONTENT copies over one for one.
+    var coreFormats: [String: ExportDocumentFormat]? = nil
+
+    /// The document-level format — page geometry (margins, columns) and the
+    /// defaults everything inherits.
+    var documentFormat: ExportDocumentFormat? = nil
+
     var isEmpty: Bool { sections.isEmpty }
     var requiredTitles: [String] { sections.filter(\.required).map(\.title) }
 
-    init(sections: [StructureSection] = []) {
+    init(sections: [StructureSection] = [],
+         coreFormats: [String: ExportDocumentFormat]? = nil,
+         documentFormat: ExportDocumentFormat? = nil) {
         self.sections = StructureSection.configurable(sections)
+        self.coreFormats = coreFormats
+        self.documentFormat = documentFormat
     }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         sections = StructureSection.configurable(
             try c.decodeIfPresent([StructureSection].self, forKey: .sections) ?? [])
+        coreFormats = try c.decodeIfPresent([String: ExportDocumentFormat].self,
+                                            forKey: .coreFormats)
+        documentFormat = try c.decodeIfPresent(ExportDocumentFormat.self,
+                                               forKey: .documentFormat)
     }
 }
 

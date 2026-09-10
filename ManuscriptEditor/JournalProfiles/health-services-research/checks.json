@@ -1,95 +1,176 @@
 {
-  "checks": [
+ "checks": [
+  {
+   "combinator": "ALL",
+   "conditions": [
     {
-      "combinator": "ALL",
-      "conditions": [
-        {
-          "comparator": "<=",
-          "metric": "LENGTH_WORDS",
-          "number": 6000,
-          "scopes": [
-            {
-              "kind": "body"
-            }
-          ]
-        }
-      ],
-      "name": "Body ≤ 6,000 words"
-    },
-    {
-      "combinator": "ALL",
-      "conditions": [
-        {
-          "comparator": "<=",
-          "metric": "LENGTH_WORDS",
-          "number": 250,
-          "scopes": [
-            {
-              "kind": "abstract"
-            }
-          ]
-        }
-      ],
-      "name": "Abstract ≤ 250 words"
-    },
-    {
-      "combinator": "ALL",
-      "conditions": [
-        {
-          "comparator": "<=",
-          "metric": "COUNT",
-          "number": 4,
-          "scopes": [
-            {
-              "kind": "figures"
-            }
-          ]
-        }
-      ],
-      "name": "Figures ≤ 4"
-    },
-    {
-      "combinator": "ALL",
-      "conditions": [
-        {
-          "comparator": "<=",
-          "metric": "COUNT",
-          "number": 4,
-          "scopes": [
-            {
-              "kind": "tables"
-            }
-          ]
-        }
-      ],
-      "name": "Tables ≤ 4"
-    },
-    {
-      "combinator": "ALL",
-      "conditions": [
-        {
-          "comparator": "==",
-          "metric": "STRUCTURE",
-          "number": 1,
-          "scopes": []
-        }
-      ],
-      "name": "Sections match the journal's structure",
-      "note": "Every section marked required in the structure file must be present and non-empty"
-    },
-    {
-      "conditions": [],
-      "manual": true,
-      "name": "Structured abstract (Objective/Data Sources/Study Design/Findings/Conclusions)",
-      "note": "Tick once verified by hand"
-    },
-    {
-      "conditions": [],
-      "manual": true,
-      "name": "What This Study Adds box required",
-      "note": "Tick once verified by hand"
+     "comparator": "<=",
+     "metric": "LENGTH_WORDS",
+     "number": 6000,
+     "scopes": [
+      {
+       "kind": "body"
+      }
+     ]
     }
-  ],
-  "id": "39A701F1-D9A8-5A88-98E8-72202EE45DE5",
-  "journal": "Health Services Research"
+   ],
+   "name": "Body ≤ 6,000 words"
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "metric": "LENGTH_WORDS",
+     "number": 250,
+     "scopes": [
+      {
+       "kind": "abstract"
+      }
+     ]
+    }
+   ],
+   "name": "Abstract ≤ 250 words"
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "metric": "COUNT",
+     "number": 4,
+     "scopes": [
+      {
+       "kind": "figures"
+      }
+     ]
+    }
+   ],
+   "name": "Figures ≤ 4"
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "metric": "COUNT",
+     "number": 4,
+     "scopes": [
+      {
+       "kind": "tables"
+      }
+     ]
+    }
+   ],
+   "name": "Tables ≤ 4"
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "==",
+     "metric": "STRUCTURE",
+     "number": 1,
+     "scopes": []
+    }
+   ],
+   "name": "Sections match the journal's structure",
+   "note": "Every section marked required in the structure file must be present and non-empty"
+  },
+  {
+   "conditions": [],
+   "manual": true,
+   "name": "Structured abstract (Objective/Data Sources/Study Design/Findings/Conclusions)",
+   "note": "Tick once verified by hand"
+  },
+  {
+   "conditions": [],
+   "manual": true,
+   "name": "What This Study Adds box required",
+   "note": "Tick once verified by hand"
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "id": "5282841B-BE26-4464-9BDF-F22724CD1B70",
+     "metric": "EXISTS",
+     "number": 0,
+     "scopes": [
+      {
+       "kind": "section",
+       "name": "Introduction"
+      }
+     ]
+    }
+   ],
+   "id": "D046B132-1456-4C5C-B983-ABB201DAC61B",
+   "name": "Introduction section present",
+   "note": "Required by this journal's structure."
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "id": "7ABB4FA3-D05E-49DB-A71F-851BFFB40B69",
+     "metric": "EXISTS",
+     "number": 0,
+     "scopes": [
+      {
+       "kind": "section",
+       "name": "Methods"
+      }
+     ]
+    }
+   ],
+   "id": "EEA4786C-6F46-42BF-A7C5-7E0091B8A219",
+   "name": "Methods section present",
+   "note": "Required by this journal's structure."
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "id": "9E1D3160-1E39-4B8C-B259-A813F4A2C554",
+     "metric": "EXISTS",
+     "number": 0,
+     "scopes": [
+      {
+       "kind": "section",
+       "name": "Results"
+      }
+     ]
+    }
+   ],
+   "id": "144F9E81-F2DB-4D91-91D8-196C905F6F54",
+   "name": "Results section present",
+   "note": "Required by this journal's structure."
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "id": "727DA7A4-81E8-4B33-B529-EFB44AB09AF5",
+     "metric": "EXISTS",
+     "number": 0,
+     "scopes": [
+      {
+       "kind": "section",
+       "name": "Discussion"
+      }
+     ]
+    }
+   ],
+   "id": "014AB902-1A59-46C0-BE8E-BA569BE36A40",
+   "name": "Discussion section present",
+   "note": "Required by this journal's structure."
+  }
+ ],
+ "id": "39A701F1-D9A8-5A88-98E8-72202EE45DE5",
+ "journal": "Health Services Research",
+ "updatedAt": "2026-09-10T17:05:39Z"
 }

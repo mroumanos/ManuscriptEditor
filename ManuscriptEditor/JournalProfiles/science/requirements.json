@@ -1,19 +1,20 @@
 {
-  "articleType": null,
-  "bullets": [
-    "Research Articles are short: a summary paragraph replaces the abstract, and the word budget counts references and captions.",
-    "Body up to 2,500 words",
-    "abstract up to 125 words",
-    "up to 5 figures",
-    "up to 40 references",
-    "required sections: Introduction, Results, Discussion, Methods",
-    "AMA citation style",
-    "Summary paragraph replaces traditional abstract (125 words max)",
-    "Materials and Methods placed after references (not counted in word limit)",
-    "Supplementary materials uploaded as separate file",
-    "This summary is the app's distillation — open the author instructions above to confirm against the journal's current text."
-  ],
-  "id": "790FAD47-44A9-5A8D-B01E-23C83B386F1B",
-  "journal": "Science",
-  "url": "https://www.science.org/content/page/science-information-authors"
+ "articleType": null,
+ "bullets": [
+  "description: research Articles are short: a summary paragraph replaces the abstract, and the word budget counts references and captions.",
+  "limits: body up to 2,500 words",
+  "limits: abstract up to 125 words",
+  "limits: up to 5 figures",
+  "limits: up to 40 references",
+  "limits: materials and Methods placed after references (not counted in word limit)",
+  "components: required sections: Introduction, Results, Discussion, Methods",
+  "components: summary paragraph replaces traditional abstract (125 words max)",
+  "components: supplementary materials uploaded as separate file",
+  "format: AMA citation style",
+  "extra: this summary is the app's distillation — open the author instructions above to confirm against the journal's current text."
+ ],
+ "id": "790FAD47-44A9-5A8D-B01E-23C83B386F1B",
+ "journal": "Science",
+ "updatedAt": "2026-09-10T17:05:39Z",
+ "url": "https://www.science.org/content/page/science-information-authors"
 }

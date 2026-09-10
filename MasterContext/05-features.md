@@ -829,6 +829,18 @@ legible.
   said a journal wants a title page without saying what one looks like there.
   Applied on creation and only into an empty section, so adding a journal is
   never destructive.
+- AC: The structure captures a venue's **whole shape**: which additional
+  sections exist, the content in them, each one's export formatting, and the
+  export formatting of the CORE parts (title page, byline, abstract, …) plus
+  the document's page geometry. Forking a journal then copies core content
+  one-for-one while adopting the target's typography, and **appends** — the
+  template's content first, the forked content after — for additional
+  sections, so a required title-page layout arrives with your own text under
+  it rather than instead of it.
+- AC: Structure is saveable whenever any of that changes, **including the
+  text**. The comparison runs against `structureCapture` — what a save would
+  produce — not against the last-saved structure, which is why editing a
+  section now lights up Save.
 - AC: The four parts save **individually** (`saveTemplatePart`), each against
   its own checksum, with **Open** then **Save** on every row and Save enabled
   only when that part differs. The parts move independently: tightening a test

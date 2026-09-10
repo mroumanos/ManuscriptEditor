@@ -1,20 +1,21 @@
 {
-  "articleType": null,
-  "bullets": [
-    "Original Articles report clinical research with a structured abstract and a Methods section that states the ethics approval and the statistical plan.",
-    "Body up to 2,700 words",
-    "abstract up to 150 words",
-    "up to 5 figures",
-    "up to 4 tables",
-    "up to 70 references",
-    "required sections: Introduction, Methods, Results, Discussion",
-    "Vancouver citation style",
-    "Structured abstract: Background, Methods, Results, Conclusions",
-    "Ethics statement required in Methods",
-    "Statistical analysis plan described in Methods",
-    "This summary is the app's distillation — open the author instructions above to confirm against the journal's current text."
-  ],
-  "id": "95B71BE5-C57D-5C1D-A485-266D91C4F567",
-  "journal": "New England Journal of Medicine",
-  "url": "https://www.nejm.org/author-center/new-manuscripts"
+ "articleType": null,
+ "bullets": [
+  "description: original Articles report clinical research with a structured abstract and a Methods section that states the ethics approval and the statistical plan.",
+  "limits: body up to 2,700 words",
+  "limits: abstract up to 150 words",
+  "limits: up to 5 figures",
+  "limits: up to 4 tables",
+  "limits: up to 70 references",
+  "components: required sections: Introduction, Methods, Results, Discussion",
+  "components: structured abstract: Background, Methods, Results, Conclusions",
+  "components: ethics statement required in Methods",
+  "format: vancouver citation style",
+  "extra: statistical analysis plan described in Methods",
+  "extra: this summary is the app's distillation — open the author instructions above to confirm against the journal's current text."
+ ],
+ "id": "95B71BE5-C57D-5C1D-A485-266D91C4F567",
+ "journal": "New England Journal of Medicine",
+ "updatedAt": "2026-09-10T17:05:39Z",
+ "url": "https://www.nejm.org/author-center/new-manuscripts"
 }

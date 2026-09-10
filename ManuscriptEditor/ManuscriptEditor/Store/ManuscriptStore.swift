@@ -1055,25 +1055,90 @@ final class ManuscriptStore {
             else { continue }
             applyTemplateSample(section, toSectionID: id)
         }
+        // Sections the manuscript already has still take the template's
+        // content in front of their own — that is the "append" half.
+        for section in wanted {
+            guard let existing = m.sections.first(where: {
+                $0.title.lowercased() == section.title.lowercased()
+            }) else { continue }
+            applyTemplateSample(section, toSectionID: existing.id)
+        }
+        applyTemplateFormatting(journalID: journalID)
+    }
+
+    /// Applies a template's export formatting to a journal's outline.
+    ///
+    /// The formats travel with the structure, so a forked journal ADOPTS the
+    /// target's typography — the title block, byline and abstract set the way
+    /// that venue sets them — while their content copies over one for one.
+    /// Section formats are matched by title, since section ids belong to a
+    /// manuscript and a template is shared across many.
+    func applyTemplateFormatting(journalID: UUID) {
+        guard let journal = manuscript?.journals.first(where: { $0.id == journalID }),
+              let structure = journal.structure,
+              structure.documentFormat != nil || structure.coreFormats != nil
+                  || structure.sections.contains(where: { $0.format != nil })
+        else { return }
+        guard let content = latestVersion(forJournal: journalID)?.content ?? manuscript
+        else { return }
+
+        var config = journal.exportConfig ?? ExportConfig.standard(content: content, journal: journal)
+        guard !config.documents.isEmpty else { return }
+        let formatByTitle = Dictionary(
+            structure.sections.compactMap { entry in entry.format.map { (entry.title.lowercased(), $0) } },
+            uniquingKeysWith: { first, _ in first })
+
+        for d in config.documents.indices {
+            if let documentFormat = structure.documentFormat {
+                config.documents[d].format = documentFormat
+            }
+            for i in config.documents[d].items.indices {
+                let item = config.documents[d].items[i]
+                switch item.kind {
+                case .pageBreak:
+                    continue
+                case .section:
+                    guard let id = item.sectionID,
+                          let title = content.sections.first(where: { $0.id == id })?.title,
+                          let format = formatByTitle[title.lowercased()] else { continue }
+                    config.documents[d].items[i].format = format
+                default:
+                    guard let format = structure.coreFormats?[item.kind.rawValue] else { continue }
+                    config.documents[d].items[i].format = format
+                }
+            }
+        }
+        updateExportConfig(config, forJournal: journalID)
     }
 
     /// Fills a freshly created section with what the template carries for it.
     ///
-    /// Only ever on creation, and only into an empty section: a template is a
-    /// starting point, and overwriting something already written would make
-    /// adding a journal destructive.
+    /// The template's content goes FIRST and whatever is already there
+    /// follows it: forking to a venue whose title page has a required layout
+    /// should give you that layout with your own text under it, not one or the
+    /// other.  Nothing is ever replaced.
     private func applyTemplateSample(_ entry: StructureSection, toSectionID id: UUID) {
         touch(undoable: false) { m in
-            guard let idx = m.sections.firstIndex(where: { $0.id == id }),
-                  m.sections[idx].isEmptyContent else { return }
+            guard let idx = m.sections.firstIndex(where: { $0.id == id }) else { return }
             switch entry.kind {
             case .text:
-                if let sample = entry.sample, !sample.isEmpty {
+                guard let sample = entry.sample, !sample.isEmpty else { return }
+                let existing = m.sections[idx].content.plain
+                if existing.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     m.sections[idx].content = RichText(plain: sample)
+                } else if !existing.contains(sample) {
+                    // Appended, not merged: the two are different material and
+                    // pretending otherwise would lose the seam.
+                    m.sections[idx].content = RichText(plain: sample + "\n\n" + existing)
                 }
             case .questions:
                 guard let questions = entry.questions, !questions.isEmpty else { return }
                 m.sections[idx].kind = .questions
+                // The journal's questions come first; anything already asked
+                // here follows, so a fork never drops an answered question.
+                let asked = Set(questions.map { $0.prompt.lowercased() })
+                let existing = (m.sections[idx].questions ?? [])
+                    .filter { !asked.contains($0.prompt.lowercased()) && !$0.isEmpty }
                 m.sections[idx].questions = questions.enumerated().map { index, q in
                     var made = QuestionEntry()
                     made.prompt = q.prompt
@@ -1084,6 +1149,10 @@ final class ManuscriptStore {
                         made.response = RichText(plain: sample)
                     }
                     return made
+                } + existing.enumerated().map { index, q in
+                    var kept = q
+                    kept.order = questions.count + index
+                    return kept
                 }
             }
         }
@@ -1362,6 +1431,7 @@ final class ManuscriptStore {
     @discardableResult
     func saveTemplatePart(_ part: ProfilePart, journalID: UUID) -> Bool {
         if part == .structure { captureStructureFromSections(journalID: journalID) }
+
         guard let journal = manuscript?.journals.first(where: { $0.id == journalID })
         else { return false }
         let mine = journal.profile
@@ -1377,7 +1447,9 @@ final class ManuscriptStore {
         switch part {
         case .requirements: target.requirements = mine.requirements
         case .checks:       target.checks = mine.checks
-        case .structure:    target.structure = mine.structure
+        case .structure:
+            // What the pane compared against is what gets written.
+            target.structure = structureCapture(journalID: journalID) ?? mine.structure
         case .export:       target.export = mine.export
         }
         guard library.save(target) else {
@@ -1504,11 +1576,44 @@ final class ManuscriptStore {
     /// are requirements this cut has yet to meet, which is exactly what a
     /// structure test is for.
     func captureStructureFromSections(journalID: UUID) {
-        guard let content = latestVersion(forJournal: journalID)?.content ?? manuscript
-        else { return }
-        let existing = manuscript?.journals.first { $0.id == journalID }?.structure?.sections ?? []
+        guard let structure = structureCapture(journalID: journalID) else { return }
+        touch(undoable: false) { m in
+            guard let idx = m.journals.firstIndex(where: { $0.id == journalID }) else { return }
+            m.journals[idx].structure = structure
+        }
+    }
+
+    /// The structure this cut WOULD save — computed, never written.
+    ///
+    /// Pure so the profile pane can compare it against the template on every
+    /// render: a journal's structure is only as current as the last capture,
+    /// and without this, editing a section's text or its export formatting
+    /// left Save greyed out because the stored structure hadn't moved yet.
+    /// The question "does this differ from the template" has to be asked of
+    /// what a save would produce, not of what a previous save produced.
+    func structureCapture(journalID: UUID) -> JournalStructure? {
+        guard let content = latestVersion(forJournal: journalID)?.content ?? manuscript,
+              let journal = manuscript?.journals.first(where: { $0.id == journalID })
+        else { return nil }
+        let existing = journal.structure?.sections ?? []
         let byTitle = Dictionary(existing.map { ($0.title.lowercased(), $0) },
                                  uniquingKeysWith: { first, _ in first })
+
+        // The export outline says how each part is set at this venue.
+        let config = journal.exportConfig ?? ExportConfig.standard(content: content, journal: journal)
+        let document = config.documents.first
+        let documentFormat = document?.format
+        var formatsBySectionID: [UUID: ExportDocumentFormat] = [:]
+        var coreFormats: [String: ExportDocumentFormat] = [:]
+        for item in document?.items ?? [] {
+            let effective = item.format ?? documentFormat
+            guard let effective else { continue }
+            if item.kind == .section, let id = item.sectionID {
+                formatsBySectionID[id] = effective
+            } else if item.kind != .pageBreak {
+                coreFormats[item.kind.rawValue] = effective
+            }
+        }
 
         var captured: [StructureSection] = []
         for section in content.sections.filter(\.active).sorted(by: { $0.order < $1.order }) {
@@ -1516,6 +1621,7 @@ final class ManuscriptStore {
                 ?? StructureSection(title: section.title)
             entry.title = section.title
             entry.kind = section.sectionKind
+            entry.format = formatsBySectionID[section.id]
             // The section's CONTENT becomes the template's sample: what a
             // title page looks like at this venue, the questions it asks and
             // their limits.  This is the half that makes a template a starting
@@ -1541,11 +1647,9 @@ final class ManuscriptStore {
         let capturedTitles = Set(captured.map { $0.title.lowercased() })
         captured += existing.filter { !capturedTitles.contains($0.title.lowercased()) }
 
-        let structure = JournalStructure(sections: captured)
-        touch(undoable: false) { m in
-            guard let idx = m.journals.firstIndex(where: { $0.id == journalID }) else { return }
-            m.journals[idx].structure = structure
-        }
+        return JournalStructure(sections: captured,
+                                coreFormats: coreFormats.isEmpty ? nil : coreFormats,
+                                documentFormat: documentFormat)
     }
 
     /// Branches this journal's configuration into a NEW library profile

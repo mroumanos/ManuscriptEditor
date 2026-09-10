@@ -1,18 +1,19 @@
 {
-  "articleType": null,
-  "bullets": [
-    "PLOS ONE places no limit on length, figures, or supporting information — acceptance turns on methodological rigour rather than novelty — but the abstract is capped and unstructured.",
-    "No body word limit",
-    "abstract up to 300 words",
-    "required sections: Introduction, Methods, Results, Discussion",
-    "Vancouver citation style",
-    "Data availability statement required",
-    "Ethics approval statement required for human/animal studies",
-    "ORCID iD recommended for all authors",
-    "Figures must be high-resolution (≥300 DPI) separate files",
-    "This summary is the app's distillation — open the author instructions above to confirm against the journal's current text."
-  ],
-  "id": "D37575CD-83DC-598A-96C9-0D177FCADA9F",
-  "journal": "PLOS ONE",
-  "url": "https://journals.plos.org/plosone/s/submission-guidelines"
+ "articleType": null,
+ "bullets": [
+  "description: PLOS ONE places no limit on length, figures, or supporting information — acceptance turns on methodological rigour rather than novelty — but the abstract is capped and unstructured.",
+  "limits: no body word limit",
+  "limits: abstract up to 300 words",
+  "components: required sections: Introduction, Methods, Results, Discussion",
+  "components: data availability statement required",
+  "components: ethics approval statement required for human/animal studies",
+  "components: figures must be high-resolution (≥300 DPI) separate files",
+  "format: vancouver citation style",
+  "extra: ORCID iD recommended for all authors",
+  "extra: this summary is the app's distillation — open the author instructions above to confirm against the journal's current text."
+ ],
+ "id": "D37575CD-83DC-598A-96C9-0D177FCADA9F",
+ "journal": "PLOS ONE",
+ "updatedAt": "2026-09-10T17:05:39Z",
+ "url": "https://journals.plos.org/plosone/s/submission-guidelines"
 }

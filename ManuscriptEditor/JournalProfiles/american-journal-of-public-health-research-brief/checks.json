@@ -1,192 +1,353 @@
 {
-  "checks": [
+ "checks": [
+  {
+   "combinator": "ALL",
+   "conditions": [
     {
-      "combinator": "ALL",
-      "conditions": [
-        {
-          "comparator": "<=",
-          "metric": "LENGTH_WORDS",
-          "number": 1200,
-          "scopes": [
-            {
-              "kind": "body"
-            }
-          ]
-        }
-      ],
-      "name": "Body ≤ 1,200 words"
-    },
-    {
-      "combinator": "ALL",
-      "conditions": [
-        {
-          "comparator": "<=",
-          "metric": "LENGTH_WORDS",
-          "number": 180,
-          "scopes": [
-            {
-              "kind": "abstract"
-            }
-          ]
-        }
-      ],
-      "name": "Abstract ≤ 180 words"
-    },
-    {
-      "combinator": "ALL",
-      "conditions": [
-        {
-          "comparator": "<=",
-          "metric": "COUNT",
-          "number": 1,
-          "scopes": [
-            {
-              "kind": "figures"
-            },
-            {
-              "kind": "tables"
-            }
-          ]
-        }
-      ],
-      "name": "Figures + tables ≤ 1"
-    },
-    {
-      "combinator": "ALL",
-      "conditions": [
-        {
-          "comparator": "<=",
-          "metric": "COUNT",
-          "number": 12,
-          "scopes": [
-            {
-              "kind": "references"
-            }
-          ]
-        }
-      ],
-      "name": "References ≤ 12"
-    },
-    {
-      "combinator": "ALL",
-      "conditions": [
-        {
-          "comparator": "<=",
-          "metric": "LENGTH_WORDS",
-          "number": 150,
-          "scopes": [
-            {
-              "kind": "coverLetter"
-            }
-          ]
-        }
-      ],
-      "name": "Cover letter ≤ 150 words"
-    },
-    {
-      "combinator": "ALL",
-      "conditions": [
-        {
-          "comparator": "==",
-          "metric": "STRUCTURE",
-          "number": 1,
-          "scopes": []
-        }
-      ],
-      "name": "Sections match the journal's structure",
-      "note": "Every section marked required in the structure file must be present and non-empty"
-    },
-    {
-      "combinator": "ALL",
-      "conditions": [
-        {
-          "metric": "CONTAINS",
-          "scopes": [
-            {
-              "kind": "abstract"
-            }
-          ],
-          "text": "Objectives"
-        },
-        {
-          "metric": "CONTAINS",
-          "scopes": [
-            {
-              "kind": "abstract"
-            }
-          ],
-          "text": "Methods"
-        },
-        {
-          "metric": "CONTAINS",
-          "scopes": [
-            {
-              "kind": "abstract"
-            }
-          ],
-          "text": "Results"
-        },
-        {
-          "metric": "CONTAINS",
-          "scopes": [
-            {
-              "kind": "abstract"
-            }
-          ],
-          "text": "Conclusions"
-        }
-      ],
-      "name": "Structured abstract headings"
-    },
-    {
-      "combinator": "ALL",
-      "conditions": [
-        {
-          "comparator": "==",
-          "metric": "FONT_SIZE",
-          "number": 12.0,
-          "scopes": [
-            {
-              "kind": "export"
-            }
-          ]
-        }
-      ],
-      "name": "Export font size 12 pt"
-    },
-    {
-      "combinator": "ALL",
-      "conditions": [
-        {
-          "comparator": ">=",
-          "metric": "LINE_SPACING",
-          "number": 1.5,
-          "scopes": [
-            {
-              "kind": "export"
-            }
-          ]
-        }
-      ],
-      "name": "Export spacing ≥ 1.5×"
-    },
-    {
-      "combinator": "ALL",
-      "conditions": [
-        {
-          "comparator": "==",
-          "metric": "LINE_NUMBERS",
-          "number": 1,
-          "scopes": [
-            {
-              "kind": "export"
-            }
-          ]
-        }
-      ],
-      "name": "Continuous line numbers"
+     "comparator": "<=",
+     "metric": "LENGTH_WORDS",
+     "number": 1200,
+     "scopes": [
+      {
+       "kind": "body"
+      }
+     ]
     }
-  ],
-  "id": "BE598C81-274C-582D-8FF2-1491E152ADE9",
-  "journal": "American Journal of Public Health"
+   ],
+   "name": "Body ≤ 1,200 words"
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "metric": "LENGTH_WORDS",
+     "number": 180,
+     "scopes": [
+      {
+       "kind": "abstract"
+      }
+     ]
+    }
+   ],
+   "name": "Abstract ≤ 180 words"
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "metric": "COUNT",
+     "number": 1,
+     "scopes": [
+      {
+       "kind": "figures"
+      },
+      {
+       "kind": "tables"
+      }
+     ]
+    }
+   ],
+   "name": "Figures + tables ≤ 1"
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "metric": "COUNT",
+     "number": 12,
+     "scopes": [
+      {
+       "kind": "references"
+      }
+     ]
+    }
+   ],
+   "name": "References ≤ 12"
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "metric": "LENGTH_WORDS",
+     "number": 150,
+     "scopes": [
+      {
+       "kind": "coverLetter"
+      }
+     ]
+    }
+   ],
+   "name": "Cover letter ≤ 150 words"
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "==",
+     "metric": "STRUCTURE",
+     "number": 1,
+     "scopes": []
+    }
+   ],
+   "name": "Sections match the journal's structure",
+   "note": "Every section marked required in the structure file must be present and non-empty"
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "metric": "CONTAINS",
+     "scopes": [
+      {
+       "kind": "abstract"
+      }
+     ],
+     "text": "Objectives"
+    },
+    {
+     "metric": "CONTAINS",
+     "scopes": [
+      {
+       "kind": "abstract"
+      }
+     ],
+     "text": "Methods"
+    },
+    {
+     "metric": "CONTAINS",
+     "scopes": [
+      {
+       "kind": "abstract"
+      }
+     ],
+     "text": "Results"
+    },
+    {
+     "metric": "CONTAINS",
+     "scopes": [
+      {
+       "kind": "abstract"
+      }
+     ],
+     "text": "Conclusions"
+    }
+   ],
+   "name": "Structured abstract headings"
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "==",
+     "metric": "FONT_SIZE",
+     "number": 12.0,
+     "scopes": [
+      {
+       "kind": "export"
+      }
+     ]
+    }
+   ],
+   "name": "Export font size 12 pt"
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": ">=",
+     "metric": "LINE_SPACING",
+     "number": 1.5,
+     "scopes": [
+      {
+       "kind": "export"
+      }
+     ]
+    }
+   ],
+   "name": "Export spacing ≥ 1.5×"
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "==",
+     "metric": "LINE_NUMBERS",
+     "number": 1,
+     "scopes": [
+      {
+       "kind": "export"
+      }
+     ]
+    }
+   ],
+   "name": "Continuous line numbers"
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "id": "95412F6F-80B2-4CED-9883-55F019FA193F",
+     "metric": "EXISTS",
+     "number": 0,
+     "scopes": [
+      {
+       "kind": "section",
+       "name": "Introduction"
+      }
+     ]
+    }
+   ],
+   "id": "E5D09416-981F-40F0-96E0-79082E6A4114",
+   "name": "Introduction section present",
+   "note": "Required by this journal's structure."
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "id": "84B0CB04-AF23-4E4B-8AE5-792979DFBC19",
+     "metric": "EXISTS",
+     "number": 0,
+     "scopes": [
+      {
+       "kind": "section",
+       "name": "Methods"
+      }
+     ]
+    }
+   ],
+   "id": "8D051AB7-97A9-4B2E-B82E-AF3465BB20F5",
+   "name": "Methods section present",
+   "note": "Required by this journal's structure."
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "id": "B5A47387-0DD5-46A3-93CA-FDDABE783087",
+     "metric": "EXISTS",
+     "number": 0,
+     "scopes": [
+      {
+       "kind": "section",
+       "name": "Results"
+      }
+     ]
+    }
+   ],
+   "id": "D3004B01-1566-4EE7-9FED-8928B204C2CD",
+   "name": "Results section present",
+   "note": "Required by this journal's structure."
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "id": "7CC049C8-CCD4-4D0C-8266-49D169893B0E",
+     "metric": "EXISTS",
+     "number": 0,
+     "scopes": [
+      {
+       "kind": "section",
+       "name": "Discussion"
+      }
+     ]
+    }
+   ],
+   "id": "984A2DE1-0990-4BAC-A8FB-DEBEF73BF1F4",
+   "name": "Discussion section present",
+   "note": "Required by this journal's structure."
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "id": "A4B31980-3DC9-4AD3-8A7B-5E8116166F75",
+     "metric": "EXISTS",
+     "number": 0,
+     "scopes": [
+      {
+       "kind": "section",
+       "name": "Public Health Implications"
+      }
+     ]
+    }
+   ],
+   "id": "1765AFF6-C3F4-42D5-932F-DE53EA4B1168",
+   "name": "Public Health Implications section present",
+   "note": "Required by this journal's structure."
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "id": "CDF6EF77-AEF4-4C84-9463-4267EDA0CD26",
+     "metric": "CONTAINS",
+     "number": 0,
+     "scopes": [
+      {
+       "kind": "abstract"
+      }
+     ],
+     "text": "Public Health Implications"
+    }
+   ],
+   "id": "5A1336E6-8D45-44A3-BCF8-61C9CF7F9A60",
+   "name": "Abstract names Public Health Implications",
+   "note": "Research Briefs use the fifth heading; AJPH also accepts Policy Implications."
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "id": "B02A8A0D-1CA5-43CE-8411-4CA416D13B10",
+     "metric": "EXISTS",
+     "number": 0,
+     "scopes": [
+      {
+       "kind": "export"
+      }
+     ]
+    }
+   ],
+   "id": "940F06A7-2F43-4A4D-9AE9-E4013D18EBD9",
+   "manual": true,
+   "name": "Page numbers throughout",
+   "note": "AJPH requires page numbers as well as continuous line numbers."
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "id": "D23E0716-4EAF-4D15-8038-A00B5F292B08",
+     "metric": "EXISTS",
+     "number": 0,
+     "scopes": [
+      {
+       "kind": "export"
+      }
+     ]
+    }
+   ],
+   "id": "33877783-209A-4A6A-A741-BF5D2683A08B",
+   "manual": true,
+   "name": "Manuscript file is blinded",
+   "note": "No acknowledgements, author or affiliation details, conflicts, funding, IRB names or trial registration — in the file or its name."
+  }
+ ],
+ "id": "BE598C81-274C-582D-8FF2-1491E152ADE9",
+ "journal": "American Journal of Public Health",
+ "updatedAt": "2026-09-10T17:06:08Z"
 }

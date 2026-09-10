@@ -1,19 +1,20 @@
 {
-  "articleType": null,
-  "bullets": [
-    "Cell papers are long-form, with a graphical abstract and highlights alongside the summary.",
-    "Body up to 8,000 words",
-    "abstract up to 150 words",
-    "up to 7 figures",
-    "required sections: Introduction, Results, Discussion, Methods",
-    "APA citation style",
-    "STAR Methods (Structured, Transparent, Accessible Reporting) required",
-    "Graphical abstract required (1200×1200 px recommended)",
-    "Highlights: 3–5 bullet points (85 characters each, max)",
-    "Key Resources Table required in STAR Methods",
-    "This summary is the app's distillation — open the author instructions above to confirm against the journal's current text."
-  ],
-  "id": "39D02B42-938B-5B75-9027-EBEB25C9D1FD",
-  "journal": "Cell",
-  "url": "https://www.cell.com/cell/authors"
+ "articleType": null,
+ "bullets": [
+  "description: this summary is the app's distillation — open the author instructions above to confirm against the journal's current text.",
+  "limits: body up to 8,000 words",
+  "limits: abstract up to 150 words",
+  "limits: up to 7 figures",
+  "components: cell papers are long-form, with a graphical abstract and highlights alongside the summary.",
+  "components: required sections: Introduction, Results, Discussion, Methods",
+  "components: graphical abstract required (1200×1200 px recommended)",
+  "components: key Resources Table required in STAR Methods",
+  "format: APA citation style",
+  "extra: STAR Methods (Structured, Transparent, Accessible Reporting) required",
+  "extra: highlights: 3–5 bullet points (85 characters each, max)"
+ ],
+ "id": "39D02B42-938B-5B75-9027-EBEB25C9D1FD",
+ "journal": "Cell",
+ "updatedAt": "2026-09-10T17:05:39Z",
+ "url": "https://www.cell.com/cell/authors"
 }
