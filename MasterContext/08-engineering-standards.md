@@ -248,3 +248,12 @@ Requires: clean tree on main, the Developer ID cert, `gh` auth.
     (`SigningService.signingDisabled`) and the versions they make are simply
     unsigned. Nothing a verification run does should ever ask the user for
     anything.
+
+20. **"Nothing stored" and "couldn't read it" are different facts.**
+    `KeychainService.secret` returned nil for both, and `SigningService` read
+    nil as "first run" — so a denied Keychain prompt, or a rebuilt app whose
+    signature no longer matched the item's ACL, minted a NEW signing key and
+    wrote it over the old one. One real manuscript ended up with three keys
+    under one author's name. An identity that regenerates itself on a failed
+    read is not an identity. `KeychainService.read` returns
+    `found/notFound/unreadable`, and only `notFound` may create anything.

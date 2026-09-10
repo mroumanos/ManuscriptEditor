@@ -40,16 +40,50 @@ enum KeychainService {
         return status == errSecSuccess
     }
 
-    /// Reads the secret for an account, or nil when none is stored.
-    static func secret(for accountID: UUID) -> String? {
+    /// What a read actually found.
+    ///
+    /// **"Nothing stored" and "couldn't read it" are different facts**, and
+    /// collapsing them into `nil` caused real damage: `SigningService` read nil
+    /// as "first run", minted a fresh signing key, and overwrote the stored
+    /// one — so every denied prompt or code-signature change quietly created a
+    /// NEW identity.  One manuscript ended up with three keys for the same
+    /// person.  A caller holding a credential has to be able to tell the
+    /// difference before it decides to replace anything.
+    enum ReadOutcome {
+        case found(String)
+        /// The slot is genuinely empty.
+        case notFound
+        /// Something is stored but this build could not read it — denied,
+        /// locked, or a different signing identity.  Never treat as empty.
+        case unreadable(OSStatus)
+    }
+
+    static func read(for accountID: UUID) -> ReadOutcome {
         var query = baseQuery(for: accountID)
         query[kSecReturnData as String] = true
         query[kSecMatchLimit as String] = kSecMatchLimitOne
         var item: CFTypeRef?
-        guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess,
-              let data = item as? Data
-        else { return nil }
-        return String(data: data, encoding: .utf8)
+        let status = SecItemCopyMatching(query as CFDictionary, &item)
+        switch status {
+        case errSecSuccess:
+            guard let data = item as? Data,
+                  let string = String(data: data, encoding: .utf8) else {
+                return .unreadable(status)
+            }
+            return .found(string)
+        case errSecItemNotFound:
+            return .notFound
+        default:
+            return .unreadable(status)
+        }
+    }
+
+    /// Reads the secret for an account, or nil when none is stored **or** it
+    /// couldn't be read.  Callers that will WRITE on nil must use `read`
+    /// instead — see `ReadOutcome`.
+    static func secret(for accountID: UUID) -> String? {
+        if case .found(let value) = read(for: accountID) { return value }
+        return nil
     }
 
     /// Removes the secret for an account (e.g. when the account is deleted).

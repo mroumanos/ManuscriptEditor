@@ -455,22 +455,52 @@ enum SigningService {
         ProcessInfo.processInfo.environment["MANUSCRIPT_EDITOR_NO_SIGNING"] == "1"
     }
 
-    /// Loads the private key, generating and storing one on first use.
+    /// Set when the stored key exists but this build couldn't read it.
+    ///
+    /// Surfaced rather than swallowed: an unreadable key means stamps go
+    /// unsigned until it is sorted out, and the user needs to know that is
+    /// what happened rather than discovering a second identity later.
+    private(set) static var keyUnavailableReason: String?
+
+    /// Loads the private key, generating and storing one **only on first use**.
+    ///
+    /// The generate-on-nil version of this function is how one manuscript
+    /// ended up signed by three different keys under one name: a denied
+    /// Keychain prompt, or a rebuilt app whose signature no longer matched the
+    /// item's ACL, read as "no key stored", so a new one was minted and
+    /// written over the old.  An identity that regenerates itself on a failed
+    /// read is not an identity.  Now only `notFound` — a genuinely empty slot
+    /// — creates one.
     private static func privateKey() -> P256.Signing.PrivateKey? {
         if signingDisabled { return nil }
         if let cachedKey { return cachedKey }
-        if let stored = KeychainService.secret(for: keySlot),
-           let data = Data(base64Encoded: stored),
-           let key = try? P256.Signing.PrivateKey(rawRepresentation: data) {
+
+        switch KeychainService.read(for: keySlot) {
+        case .found(let stored):
+            guard let data = Data(base64Encoded: stored),
+                  let key = try? P256.Signing.PrivateKey(rawRepresentation: data) else {
+                keyUnavailableReason = "Your signing key is stored but unreadable — stamps will be unsigned until it is replaced in Settings → Identity."
+                return nil
+            }
+            keyUnavailableReason = nil
+            cachedKey = key
+            return key
+
+        case .unreadable(let status):
+            keyUnavailableReason = "macOS wouldn't release your signing key (status \(status)). Stamps are unsigned until it is unlocked — your existing signatures are untouched."
+            return nil
+
+        case .notFound:
+            let key = P256.Signing.PrivateKey()
+            guard KeychainService.setSecret(key.rawRepresentation.base64EncodedString(),
+                                            for: keySlot) else {
+                keyUnavailableReason = "Couldn't store a signing key in your Keychain."
+                return nil
+            }
+            keyUnavailableReason = nil
             cachedKey = key
             return key
         }
-        let key = P256.Signing.PrivateKey()
-        guard KeychainService.setSecret(key.rawRepresentation.base64EncodedString(), for: keySlot) else {
-            return nil
-        }
-        cachedKey = key
-        return key
     }
 
     /// The user's public key (base64 raw representation), creating the

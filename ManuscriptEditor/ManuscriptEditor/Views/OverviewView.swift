@@ -392,6 +392,13 @@ struct OverviewView: View {
                             .font(.callout)
                     } else {
                         ForEach(editors) { editor in
+                            if editor.keyCount > 1 {
+                                Label("\(editor.name) has signed with \(editor.keyCount) different keys on this machine — earlier stamps stay valid under the key that made them.",
+                                      systemImage: "exclamationmark.triangle")
+                                    .font(.caption)
+                                    .foregroundStyle(.orange)
+                                    .help("The app used to generate a new signing key whenever it couldn't read the stored one. It no longer does.")
+                            }
                             SignatureBadge(
                                 signerName: editor.name,
                                 signerKey: editor.key,
@@ -452,14 +459,27 @@ struct OverviewView: View {
         let message: String?
         let signature: String?
         let date: Date
+        /// How many DIFFERENT keys signed as this person.
+        ///
+        /// More than one means the machine's signing key changed — the app
+        /// used to mint a fresh one whenever the Keychain read failed — and
+        /// the honest thing is to say so on one row rather than list the same
+        /// person three times as if they were three people.
+        var keyCount: Int = 1
     }
 
-    /// One row per distinct signer (key, or name when unsigned), badged
-    /// against their most recent artifact.
+    /// One row per PERSON, badged against their most recent artifact.
+    ///
+    /// Keyed by name, not by signing key: keying by key listed one author
+    /// three times in a manuscript whose signing key had been silently
+    /// regenerated twice.  A person is a person; the keys they signed with are
+    /// a detail of that row.
     private var editors: [EditorEntry] {
         var latest: [String: EditorEntry] = [:]
+        var keysByName: [String: Set<String>] = [:]
         for version in store.versions where !version.author.isEmpty {
-            let id = version.stampedByKey ?? "name:\(version.author)"
+            let id = version.author
+            if let key = version.stampedByKey { keysByName[id, default: []].insert(key) }
             let entry = EditorEntry(
                 id: id, name: version.author, key: version.stampedByKey,
                 type: version.stampedByType,
@@ -469,7 +489,8 @@ struct OverviewView: View {
             if (latest[id]?.date ?? .distantPast) < entry.date { latest[id] = entry }
         }
         for note in m.notes where !note.author.isEmpty {
-            let id = note.authorKey ?? "name:\(note.author)"
+            let id = note.author
+            if let key = note.authorKey { keysByName[id, default: []].insert(key) }
             let entry = EditorEntry(
                 id: id, name: note.author, key: note.authorKey,
                 type: note.authorType,
@@ -485,8 +506,8 @@ struct OverviewView: View {
         // verdict instead of falling to unsigned.
         let userName = SigningService.userName
         if !userName.isEmpty, m.updatedAt > m.createdAt.addingTimeInterval(1) {
-            let id = SigningService.publicKeyBase64 ?? "name:\(userName)"
-            let alreadyListed = latest[id] != nil || latest["name:\(userName)"] != nil
+            let id = userName
+            let alreadyListed = latest[id] != nil
             if !alreadyListed {
                 let message = "editing:\(m.id.uuidString):\(userName)"
                 latest[id] = EditorEntry(
@@ -498,7 +519,13 @@ struct OverviewView: View {
                     date: m.updatedAt)
             }
         }
-        return latest.values.sorted { $0.date > $1.date }
+        return latest.values
+            .map { entry in
+                var out = entry
+                out.keyCount = max(1, keysByName[entry.name]?.count ?? 1)
+                return out
+            }
+            .sorted { $0.date > $1.date }
     }
 
 }
