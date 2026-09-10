@@ -28,7 +28,7 @@
 // — they simply fall under the same "keep every [[…]] exactly as it is" rule in
 // the prompt, and `restore` checks they came back too.
 //
-// See MasterContext/11-ai-integration.md §7.2.
+// See MasterContext/features/ai-assist.md §7.2.
 
 import AppKit
 import Foundation

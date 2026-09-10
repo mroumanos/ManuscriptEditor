@@ -12,7 +12,7 @@
 // there is no key to leak.  That is why this type has no Keychain entry and the
 // settings row has no password field — only a path, a model, and a Test button.
 //
-// See MasterContext/11-ai-integration.md for the design this implements.
+// See MasterContext/features/ai-assist.md for the design this implements.
 
 import Foundation
 

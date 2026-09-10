@@ -6,7 +6,7 @@
 // the outcome, and nothing in the app rewrites or removes one.  A log that can
 // be quietly tidied answers no question worth asking.
 //
-// See MasterContext/11-ai-integration.md §6.
+// See MasterContext/features/ai-assist.md §6.
 
 import Foundation
 

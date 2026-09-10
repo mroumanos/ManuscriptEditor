@@ -11,7 +11,7 @@
 // Motion is limited to a slow shimmer while a request is in flight, where it
 // is a progress signal rather than decoration.
 //
-// See MasterContext/11-ai-integration.md §5.
+// See MasterContext/features/ai-assist.md §5.
 
 import SwiftUI
 

@@ -15,7 +15,7 @@
 // "cut" or a "check" is will produce confident nonsense — so it is always on
 // and not editable.  Everything else is the user's to add, edit, and remove.
 //
-// See MasterContext/11-ai-integration.md §4.
+// See MasterContext/features/ai-assist.md §4.
 
 import Foundation
 

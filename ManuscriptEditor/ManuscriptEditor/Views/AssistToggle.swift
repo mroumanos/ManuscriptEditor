@@ -10,7 +10,7 @@
 // the vocabulary, and it is repeated on every control the toggle brings to
 // life (see `Theme/AssistStyle.swift`).
 //
-// See MasterContext/11-ai-integration.md §5.
+// See MasterContext/features/ai-assist.md §5.
 
 import SwiftUI
 

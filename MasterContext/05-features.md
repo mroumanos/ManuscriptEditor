@@ -829,6 +829,21 @@ legible.
   said a journal wants a title page without saying what one looks like there.
   Applied on creation and only into an empty section, so adding a journal is
   never destructive.
+- AC: The part is called **Content**, and it is what a submission at this venue
+  contains — sections, the text in them, per-section **Format** (how it must be
+  written) and **Notes** (why it is asked for), export settings, and a question
+  series' questions with their limits. All of it is summarised in the row and
+  visible in the editor; Format and Notes are sent when adapting with Assist.
+- AC: **Adding a journal carries the shape, never the content.** Sections
+  arrive empty; a question series arrives with its questions, which are the
+  journal's rather than the author's. The template's content lands on a
+  **fast-forward**, overwriting the sections it maps to — the moment the user
+  asked for this journal's content to be remade.
+- AC: Every sync offers **Cancel · Append · Overwrite**. Append keeps what the
+  cut has and adds the incoming content after it, per section and per question.
+- AC: Each part has **Open · Load · Save** — one component at a time in both
+  directions — and the header says **Linked to \<template\>**, clickable for
+  its details, or offers to link one when it isn't.
 - AC: The structure captures a venue's **whole shape**: which additional
   sections exist, the content in them, each one's export formatting, and the
   export formatting of the CORE parts (title page, byline, abstract, …) plus

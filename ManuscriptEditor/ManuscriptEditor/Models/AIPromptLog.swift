@@ -18,7 +18,7 @@
 //   ai/prompts/<id>.txt      the rendered prompt, verbatim
 //   ai/responses/<id>.txt    the raw response
 //
-// See MasterContext/11-ai-integration.md §6.
+// See MasterContext/features/ai-assist.md §6.
 
 import Foundation
 

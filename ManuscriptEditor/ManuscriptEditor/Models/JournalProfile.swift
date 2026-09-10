@@ -73,7 +73,10 @@ enum ProfilePart: String, Codable, CaseIterable, Sendable {
         switch self {
         case .requirements: return "Summary"
         case .checks:       return "Tests"
-        case .structure:    return "Structure"
+        // "Content", not "Structure": it carries the sections, what goes in
+        // them, how they are set, and the questions a venue asks — a list of
+        // headings was only ever the smallest part of it.
+        case .structure:    return "Content"
         case .export:       return "Export"
         }
     }
@@ -229,7 +232,17 @@ struct StructureSection: Codable, Sendable, Equatable, Identifiable {
     /// journal that asks a set of questions brings them with it: forking to
     /// that journal adds the section already in question form.
     var kind: SectionKind = .text
-    /// Why the journal asks for it — shown in the structure editor.
+    /// How this section must be WRITTEN at this venue, in words: the layout a
+    /// title page needs, the headings a structured abstract uses, the order a
+    /// venue expects an argument in.
+    ///
+    /// Distinct from `format`, which is typography the exporter applies. This
+    /// is guidance a person — or a model — has to read and follow, and it goes
+    /// into the fast-forward prompt for exactly that reason.
+    var formatNote: String? = nil
+
+    /// Why the journal asks for it, and anything else worth knowing.  Also
+    /// sent when adapting, after the format.
     var note: String? = nil
 
     /// The section's SAMPLE CONTENT, carried by the template.
@@ -267,15 +280,16 @@ struct StructureSection: Codable, Sendable, Equatable, Identifiable {
     var id: String { title.lowercased() }
 
     private enum CodingKeys: String, CodingKey {
-        case title, required, note, kind, core, sample, questions, format
+        case title, required, note, kind, core, sample, questions, format, formatNote
     }
 
     init(title: String, required: Bool = true, kind: SectionKind = .text,
          note: String? = nil, sample: String? = nil,
          questions: [TemplateQuestion]? = nil,
-         format: ExportDocumentFormat? = nil) {
+         format: ExportDocumentFormat? = nil, formatNote: String? = nil) {
         self.title = title; self.required = required; self.kind = kind; self.note = note
         self.sample = sample; self.questions = questions; self.format = format
+        self.formatNote = formatNote
     }
 
     init(from decoder: Decoder) throws {
@@ -286,6 +300,7 @@ struct StructureSection: Codable, Sendable, Equatable, Identifiable {
         sample = try c.decodeIfPresent(String.self, forKey: .sample)
         questions = try c.decodeIfPresent([TemplateQuestion].self, forKey: .questions)
         format = try c.decodeIfPresent(ExportDocumentFormat.self, forKey: .format)
+        formatNote = try c.decodeIfPresent(String.self, forKey: .formatNote)
         // `kind` briefly meant "core"/"text" when structure files also listed
         // the app's fixed parts; anything but a section kind marks the entry
         // for dropping, and only "questions" changes what gets created.
@@ -305,6 +320,7 @@ struct StructureSection: Codable, Sendable, Equatable, Identifiable {
         try c.encodeIfPresent(sample, forKey: .sample)
         try c.encodeIfPresent(questions, forKey: .questions)
         try c.encodeIfPresent(format, forKey: .format)
+        try c.encodeIfPresent(formatNote, forKey: .formatNote)
     }
 }
 

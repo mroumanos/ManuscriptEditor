@@ -402,32 +402,36 @@ struct JournalLineageCard: View {
             ? "\n\n✦ Assist is ON: \(modelLabel) rewrites each section toward \(to)'s requirements and checks as it copies. The sections and your enabled context leave this machine, it can take a few minutes, and the request is recorded in the prompt log."
             : "\n\nAssist is off — this is a straight copy."
         let verb = assistActive ? "Assisted" : "Fast"
+        // Three outcomes, not two: replace what is there, or keep it and add
+        // to it.  A cut you have already worked on shouldn't have to be
+        // overwritten to take an upstream revision.
         return Alert(
             title: Text("\(verb) \(pending.forward ? "fast-forward" : "fast-backward") of \(journal.name)?"),
-            message: Text(message),
-            primaryButton: .destructive(Text(assistActive
-                                             ? "Adapt & \(pending.forward ? "Forward" : "Backward")"
-                                             : "Fast-\(pending.forward ? "Forward" : "Backward")")) {
-                perform(pending)
+            message: Text(message + "\n\nOverwrite replaces the target's content. Append keeps what is there and adds the incoming content after it."),
+            primaryButton: .destructive(Text("Overwrite")) {
+                perform(pending, mode: .overwrite)
             },
-            secondaryButton: .cancel()
+            secondaryButton: .default(Text("Append")) {
+                perform(pending, mode: .append)
+            }
         )
     }
 
-    private func perform(_ pending: PendingSync) {
+    private func perform(_ pending: PendingSync, mode: ManuscriptStore.SyncMode) {
         if assistActive {
             // AI INTENT  journal.fastForward
             Task { await store.assistFastForward(journalID: pending.journal.id,
                                                  forward: pending.forward,
-                                                 appStore: appStore) }
+                                                 appStore: appStore,
+                                                 mode: mode) }
         } else if pending.forward {
-            if let synced = store.syncJournal(pending.journal.id) {
+            if let synced = store.syncJournal(pending.journal.id, mode: mode) {
                 let ordinal = store.versions(forJournal: pending.journal.id).count
                 showSuccess("Fast-forwarded \(pending.journal.name) from \(syncedFromLabel(of: synced)) — now at v\(ordinal) / latest.")
             }
         } else {
             let upstream = store.syncSource(forJournal: pending.journal.id)?.upstreamName ?? "upstream"
-            if store.pushToUpstream(pending.journal.id) {
+            if store.pushToUpstream(pending.journal.id, mode: mode) {
                 showSuccess("Fast-backward: \(upstream) now carries \(pending.journal.name)'s latest content.")
             }
         }

@@ -12,7 +12,7 @@
 // withheld, and the prompt and response verbatim.
 //
 // It is a transcript, not a control panel: nothing here edits or deletes an
-// entry.  See MasterContext/11-ai-integration.md §6.
+// entry.  See MasterContext/features/ai-assist.md §6.
 
 import SwiftUI
 

@@ -16,7 +16,7 @@
 // decision belongs to `AIRequestService`, which enforces the context
 // checkboxes and writes the prompt log.
 //
-// See MasterContext/11-ai-integration.md §7.
+// See MasterContext/features/ai-assist.md §7.
 
 import Foundation
 

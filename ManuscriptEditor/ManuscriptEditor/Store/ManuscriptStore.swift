@@ -1051,17 +1051,14 @@ final class ManuscriptStore {
         else { return }
         let existing = Set(m.sections.map { $0.title.lowercased() })
         for section in wanted where !existing.contains(section.title.lowercased()) {
+            // The SHAPE only.  Adding a journal must not put words in a
+            // manuscript: a section arrives empty (a question series arrives
+            // with its questions, which are the journal's, not the author's),
+            // and the template's content lands on a FAST-FORWARD, where
+            // overwriting is what the user asked for and can be undone.
             guard let id = addSection(type: .custom, title: section.title, kind: section.kind)
             else { continue }
-            applyTemplateSample(section, toSectionID: id)
-        }
-        // Sections the manuscript already has still take the template's
-        // content in front of their own — that is the "append" half.
-        for section in wanted {
-            guard let existing = m.sections.first(where: {
-                $0.title.lowercased() == section.title.lowercased()
-            }) else { continue }
-            applyTemplateSample(section, toSectionID: existing.id)
+            applyTemplateQuestions(section, toSectionID: id)
         }
         applyTemplateFormatting(journalID: journalID)
     }
@@ -1113,24 +1110,17 @@ final class ManuscriptStore {
 
     /// Fills a freshly created section with what the template carries for it.
     ///
-    /// The template's content goes FIRST and whatever is already there
-    /// follows it: forking to a venue whose title page has a required layout
-    /// should give you that layout with your own text under it, not one or the
-    /// other.  Nothing is ever replaced.
-    private func applyTemplateSample(_ entry: StructureSection, toSectionID id: UUID) {
+    /// The questions a journal asks, which arrive with the section.
+    ///
+    /// Questions are the journal's, not the author's — an empty question
+    /// series is useless, and a venue's questions are part of its shape rather
+    /// than content someone wrote.  Answers are not carried here.
+    private func applyTemplateQuestions(_ entry: StructureSection, toSectionID id: UUID) {
         touch(undoable: false) { m in
             guard let idx = m.sections.firstIndex(where: { $0.id == id }) else { return }
             switch entry.kind {
             case .text:
-                guard let sample = entry.sample, !sample.isEmpty else { return }
-                let existing = m.sections[idx].content.plain
-                if existing.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    m.sections[idx].content = RichText(plain: sample)
-                } else if !existing.contains(sample) {
-                    // Appended, not merged: the two are different material and
-                    // pretending otherwise would lose the seam.
-                    m.sections[idx].content = RichText(plain: sample + "\n\n" + existing)
-                }
+                return
             case .questions:
                 guard let questions = entry.questions, !questions.isEmpty else { return }
                 m.sections[idx].kind = .questions
@@ -1145,9 +1135,6 @@ final class ManuscriptStore {
                     made.wordLimit = q.wordLimit
                     made.limitUnit = q.limitUnit
                     made.order = index
-                    if let sample = q.sample, !sample.isEmpty {
-                        made.response = RichText(plain: sample)
-                    }
                     return made
                 } + existing.enumerated().map { index, q in
                     var kept = q
@@ -1464,6 +1451,35 @@ final class ManuscriptStore {
         }
         writeProfile(journalID: journalID)
         showBanner(.success, "\(part.label) saved to the “\(target.displayName)” template.")
+        return true
+    }
+
+    /// Loads ONE part from this journal's template, leaving the rest alone.
+    ///
+    /// The mirror of `saveTemplatePart`: each part is its own decision in both
+    /// directions, so taking the venue's content back doesn't also throw away
+    /// a test you were in the middle of writing.
+    @discardableResult
+    func loadTemplatePart(_ part: ProfilePart, journalID: UUID) -> Bool {
+        guard let journal = manuscript?.journals.first(where: { $0.id == journalID }),
+              let template = journal.profileID
+                .flatMap({ JournalProfileLibrary.shared.profile(id: $0) })
+        else {
+            showBanner(.error, "\(manuscript?.journals.first { $0.id == journalID }?.name ?? "This journal") has no template to load from.")
+            return false
+        }
+        touch(undoAction: "Load \(part.label)") { m in
+            guard let idx = m.journals.firstIndex(where: { $0.id == journalID }) else { return }
+            switch part {
+            case .requirements: m.journals[idx].sourceRequirements = template.requirements
+            case .checks:       m.journals[idx].checkRules = template.checks
+            case .structure:    m.journals[idx].structure = template.structure
+            case .export:       if let export = template.export { m.journals[idx].exportConfig = export }
+            }
+        }
+        if part == .structure { applyTemplateFormatting(journalID: journalID) }
+        writeProfile(journalID: journalID)
+        showBanner(.success, "\(part.label) loaded from the “\(template.displayName)” template.")
         return true
     }
 
@@ -2175,6 +2191,17 @@ final class ManuscriptStore {
         (sourceStamps.firstIndex { $0.id == stamp.id } ?? 0) + 1
     }
 
+    /// How incoming content meets what is already there.
+    enum SyncMode: String, Sendable {
+        /// The incoming version replaces the target's content (the original
+        /// behaviour, and still the default).
+        case overwrite
+        /// The target keeps what it has and the incoming content is added
+        /// after it — for a cut you have already worked on and don't want
+        /// replaced wholesale.
+        case append
+    }
+
     /// Fast-forwards one journal from its upstream: **stamps the upstream
     /// first when it has unstamped changes** (keeping lineage anchored to
     /// frozen versions), then snapshots that stamp as a new version of this
@@ -2182,7 +2209,8 @@ final class ManuscriptStore {
     @discardableResult
     func syncJournal(_ journalID: UUID,
                      adaptation: FastForwardIntent.Adaptation? = nil,
-                     assistedBy model: String? = nil) -> ManuscriptVersion? {
+                     assistedBy model: String? = nil,
+                     mode: SyncMode = .overwrite) -> ManuscriptVersion? {
         guard let head = latestVersion(forJournal: journalID),
               let source = syncSource(forJournal: journalID) else { return nil }
 
@@ -2193,6 +2221,13 @@ final class ManuscriptStore {
 
         var baseContent = base?.content ?? m
         if let adaptation { applyAdaptation(adaptation, to: &baseContent) }
+        // The journal's own template says what a submission here contains;
+        // a fast-forward is where that lands, because it is the moment the
+        // user asked for this journal's content to be (re)made.
+        applyTemplateContent(&baseContent, journalID: journalID)
+        if mode == .append, let head = latestVersion(forJournal: journalID)?.content {
+            appendIncoming(into: &baseContent, keeping: head)
+        }
         let fromLabel: String
         if let base {
             fromLabel = base.sourceStamp == true
@@ -2234,13 +2269,21 @@ final class ManuscriptStore {
     @discardableResult
     func pushToUpstream(_ journalID: UUID,
                         adaptation: FastForwardIntent.Adaptation? = nil,
-                        assistedBy model: String? = nil) -> Bool {
+                        assistedBy model: String? = nil,
+                        mode: SyncMode = .overwrite) -> Bool {
         guard let source = syncSource(forJournal: journalID) else { return false }
         // Freeze this journal so lineage hangs from a stamp.
         let base = syncBase(forUpstream: journalID)
         guard var content = base?.content ?? latestVersion(forJournal: journalID)?.content
         else { return false }
         if let adaptation { applyAdaptation(adaptation, to: &content) }
+        if mode == .append,
+           let upstreamID = source.upstreamJournalID,
+           let head = latestVersion(forJournal: upstreamID)?.content {
+            appendIncoming(into: &content, keeping: head)
+        } else if mode == .append, source.upstreamJournalID == nil, let live = manuscript {
+            appendIncoming(into: &content, keeping: live)
+        }
 
         if let upstreamID = source.upstreamJournalID {
             guard let upstreamHead = latestVersion(forJournal: upstreamID) else { return false }
@@ -2276,6 +2319,84 @@ final class ManuscriptStore {
         }
         log(.info, "Fast-backward: \(source.upstreamName) overridden with \(journalName(journalID) ?? "journal")'s latest")
         return true
+    }
+
+    /// Keeps what the target already had and puts the incoming content after
+    /// it, section by section.
+    ///
+    /// The third option in every sync: a cut you have worked on shouldn't have
+    /// to be replaced wholesale to take an upstream revision.  Identical text
+    /// is not appended to itself.
+    private func appendIncoming(into incoming: inout Manuscript, keeping existing: Manuscript) {
+        let byTitle = Dictionary(existing.sections.map { ($0.title.lowercased(), $0) },
+                                 uniquingKeysWith: { first, _ in first })
+        for i in incoming.sections.indices {
+            guard let mine = byTitle[incoming.sections[i].title.lowercased()] else { continue }
+            switch incoming.sections[i].sectionKind {
+            case .text:
+                let kept = mine.content.plain
+                let arriving = incoming.sections[i].content.plain
+                guard !kept.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                      !kept.contains(arriving), !arriving.contains(kept) else { continue }
+                incoming.sections[i].content = RichText(plain: kept + "\n\n" + arriving)
+            case .questions:
+                // Answers are per question: keep the one already written when
+                // the arriving copy has nothing to say.
+                guard let mineQ = mine.questions else { continue }
+                let byPrompt = Dictionary(mineQ.map { ($0.prompt.lowercased(), $0) },
+                                          uniquingKeysWith: { first, _ in first })
+                for q in (incoming.sections[i].questions ?? []).indices {
+                    let prompt = incoming.sections[i].questions![q].prompt.lowercased()
+                    guard let kept = byPrompt[prompt], !kept.response.isEmpty else { continue }
+                    let arriving = incoming.sections[i].questions![q].response.plain
+                    if arriving.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        incoming.sections[i].questions![q].response = kept.response
+                    } else if !kept.response.plain.contains(arriving) {
+                        incoming.sections[i].questions![q].response =
+                            RichText(plain: kept.response.plain + "\n\n" + arriving)
+                    }
+                }
+            }
+        }
+    }
+
+    /// Puts the journal's template content into the sections it maps to.
+    ///
+    /// This is the one place template content lands, and it OVERWRITES: a
+    /// fast-forward is the user asking for this journal's content to be
+    /// remade, and a venue's required title-page layout is not something to
+    /// merge into whatever was there. Adding a journal deliberately does not
+    /// do this, and the whole thing is one undoable step.
+    private func applyTemplateContent(_ content: inout Manuscript, journalID: UUID) {
+        guard let journal = manuscript?.journals.first(where: { $0.id == journalID }),
+              let sections = journal.structure?.sections, !sections.isEmpty else { return }
+        let byTitle = Dictionary(sections.map { ($0.title.lowercased(), $0) },
+                                 uniquingKeysWith: { first, _ in first })
+        for i in content.sections.indices {
+            guard let entry = byTitle[content.sections[i].title.lowercased()] else { continue }
+            switch entry.kind {
+            case .text:
+                guard let sample = entry.sample, !sample.isEmpty else { continue }
+                content.sections[i].content = RichText(plain: sample)
+            case .questions:
+                guard let questions = entry.questions, !questions.isEmpty else { continue }
+                let existing = Dictionary(
+                    (content.sections[i].questions ?? []).map { ($0.prompt.lowercased(), $0) },
+                    uniquingKeysWith: { first, _ in first })
+                content.sections[i].kind = .questions
+                content.sections[i].questions = questions.enumerated().map { index, q in
+                    var made = existing[q.prompt.lowercased()] ?? QuestionEntry()
+                    made.prompt = q.prompt
+                    made.wordLimit = q.wordLimit
+                    made.limitUnit = q.limitUnit
+                    made.order = index
+                    if made.response.isEmpty, let sample = q.sample, !sample.isEmpty {
+                        made.response = RichText(plain: sample)
+                    }
+                    return made
+                }
+            }
+        }
     }
 
     /// Writes an adaptation into a manuscript snapshot.
@@ -2409,7 +2530,8 @@ final class ManuscriptStore {
     /// `pushToUpstream` apply through the same path a plain copy uses — so
     /// the overridden side is stamped into version history first, exactly as
     /// it would have been.  A failed or unreadable reply changes nothing.
-    func assistFastForward(journalID: UUID, forward: Bool, appStore: AppStore) async {
+    func assistFastForward(journalID: UUID, forward: Bool, appStore: AppStore,
+                           mode: SyncMode = .overwrite) async {
         guard let m = manuscript, let source = syncSource(forJournal: journalID) else { return }
         guard let destination = aiDestination(appStore: appStore) else {
             showBanner(.error, "Assist needs a model — pick one in Overview → Settings → AI.")
@@ -2488,8 +2610,10 @@ final class ManuscriptStore {
             // which is what guarantees the previous content is stamped into
             // version history first and the change can be rolled back.
             let applied = forward
-                ? syncJournal(journalID, adaptation: adaptation, assistedBy: result.model) != nil
-                : pushToUpstream(journalID, adaptation: adaptation, assistedBy: result.model)
+                ? syncJournal(journalID, adaptation: adaptation,
+                              assistedBy: result.model, mode: mode) != nil
+                : pushToUpstream(journalID, adaptation: adaptation,
+                                 assistedBy: result.model, mode: mode)
 
             record(AIPromptLogEntry(
                 id: entryID,

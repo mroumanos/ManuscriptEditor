@@ -179,7 +179,7 @@ private struct LibraryProfileDetail: View {
                 VStack(spacing: 0) {
                     row("doc.text", "Summary", summaryDetail)
                     Divider()
-                    row("list.bullet.indent", "Structure",
+                    row("list.bullet.indent", "Content",
                         profile.structure.sections.isEmpty
                             ? "No structure recorded"
                             : "\(profile.structure.sections.count) sections · \(profile.structure.requiredTitles.count) required")

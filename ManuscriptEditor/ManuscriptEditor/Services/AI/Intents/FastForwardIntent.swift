@@ -34,7 +34,7 @@
 //    is sent with its questions and their word limits and must come back
 //    answered from the manuscript's own content.
 //
-// See MasterContext/11-ai-integration.md §7.2.
+// See MasterContext/features/ai-assist.md §7.2.
 
 import Foundation
 
@@ -201,11 +201,26 @@ struct FastForwardIntent: AIIntent {
         }
 
         if let structure = journal.structure, !structure.isEmpty {
-            lines.append("\nExpected structure:")
+            lines.append("\nWhat a submission here contains:")
             for section in structure.sections {
-                var line = "- \(section.title)\(section.required ? " (required)" : " (optional)")"
-                if let note = section.note, !note.isEmpty { line += " — \(note)" }
-                lines.append(line)
+                lines.append("- \(section.title)\(section.required ? " (required)" : " (optional)")")
+                // The venue's own guidance, in the order it is written down:
+                // how the section must be written, then why it is asked for.
+                if let format = section.formatNote, !format.isEmpty {
+                    lines.append("    Format: \(format)")
+                }
+                if let note = section.note, !note.isEmpty {
+                    lines.append("    Notes: \(note)")
+                }
+                if let sample = section.sample, !sample.isEmpty {
+                    lines.append("    This journal's required layout for it:")
+                    lines.append(sample.split(separator: "\n")
+                        .map { "      \($0)" }.joined(separator: "\n"))
+                }
+                for q in section.questions ?? [] {
+                    let limit = q.wordLimit.map { " (\($0) \((q.limitUnit ?? .words).label))" } ?? ""
+                    lines.append("    Asks: \(q.prompt)\(limit)")
+                }
             }
         }
 

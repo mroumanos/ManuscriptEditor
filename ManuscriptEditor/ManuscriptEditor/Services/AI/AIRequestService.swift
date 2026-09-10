@@ -8,7 +8,7 @@
 // one place: the context checkboxes are honoured, the prompt is assembled, and
 // the outcome is written to the prompt log.
 //
-// See MasterContext/11-ai-integration.md §6–7.
+// See MasterContext/features/ai-assist.md §6–7.
 
 import Foundation
 

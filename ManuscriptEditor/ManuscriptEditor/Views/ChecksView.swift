@@ -42,6 +42,9 @@ struct ChecksView: View {
     /// The part whose Save is awaiting confirmation.  Every save overwrites
     /// something in the library, so none of them happen on one click.
     @State private var savingPart: ProfilePart?
+    /// The part whose Load is awaiting confirmation — it replaces what is here.
+    @State private var loadingPart: ProfilePart?
+    @State private var showingTemplate = false
     @State private var linkingTemplate = false
     @State private var editingType = false
     @State private var typeDraft = ""
@@ -85,6 +88,39 @@ struct ChecksView: View {
             Button("Cancel", role: .cancel) { }
         } message: {
             Text("The summary, structure, tests and export outline are replaced. Nothing you have written is touched, and ⌘Z undoes it.")
+        }
+        .confirmationDialog("Replace this journal's \(loadingPart?.label.lowercased() ?? "part") with the template's?",
+                            isPresented: Binding(get: { loadingPart != nil },
+                                                 set: { if !$0 { loadingPart = nil } }),
+                            titleVisibility: .visible) {
+            Button("Load", role: .destructive) {
+                if let part = loadingPart, let journal = paneJournal {
+                    store.loadTemplatePart(part, journalID: journal.id)
+                }
+                loadingPart = nil
+            }
+            Button("Cancel", role: .cancel) { loadingPart = nil }
+        } message: {
+            Text("Takes “\(linkedTemplate?.displayName ?? "the template")”'s copy of this part. Nothing you have written in the manuscript changes, and ⌘Z undoes it.")
+        }
+        .sheet(isPresented: $showingTemplate) {
+            if let template = linkedTemplate {
+                VStack(alignment: .leading, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(template.displayName).font(.headline)
+                        Text("The template this journal is linked to — read-only here; edit it by saving parts from this journal.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                    JournalProfileReview(profile: template).frame(height: 380)
+                    HStack {
+                        Spacer()
+                        Button("Done") { showingTemplate = false }
+                            .keyboardShortcut(.defaultAction)
+                    }
+                }
+                .padding(18)
+                .frame(width: 560)
+            }
         }
         .confirmationDialog(savePrompt.title,
                             isPresented: Binding(get: { savingPart != nil },
@@ -156,34 +192,27 @@ struct ChecksView: View {
                 .padding(14)
             }
             Spacer()
-            if status.canSave {
-                // Both directions, side by side: push this manuscript's
-                // configuration into the library, or take the library's.
-                // Only having the first one meant a profile corrected in the
-                // library could never reach the manuscript that needed it.
-                // An orphan — its template is gone, or was never on this
-                // machine — can only be re-linked by saying which one.
-                if case .absent = status {
-                    Button {
-                        linkingTemplate = true
-                    } label: {
-                        Label("Link Template…", systemImage: "link")
-                    }
-                    .help("This journal's template isn't in your library. Point it at one, or save it as a new template.")
-                } else if status.isModified {
-                    Button {
-                        adoptingLibrary = true
-                    } label: {
-                        Label("Update From Template", systemImage: "arrow.down.circle")
-                    }
-                    .help("Replace this journal's summary, structure, tests and export outline with its template's. Your manuscript's content is untouched.")
+            // What this journal is linked to, and a way into it — the same
+            // shape Settings uses, so "which template is this?" is answered
+            // in the one place you are already looking.
+            if let template = linkedTemplate {
+                Button {
+                    showingTemplate = true
+                } label: {
+                    Label("Linked to \(template.displayName)", systemImage: "link")
+                        .font(.caption)
                 }
+                .buttonStyle(.link)
+                .help("Open this template's details")
             } else {
-                // The status line stays: "nothing here differs" is worth
-                // saying, and it is the only place that says it.
-                Label("Matches your library", systemImage: "checkmark.seal")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Button {
+                    linkingTemplate = true
+                } label: {
+                    Label("Not linked to a template", systemImage: "link.badge.plus")
+                        .font(.caption)
+                }
+                .buttonStyle(.link)
+                .help("This journal's configuration exists only here. Link it to a template to compare and update.")
             }
             // Permanent, not conditional: adding this journal to the library
             // as a template of its own is a thing you may want at any moment —
@@ -205,6 +234,13 @@ struct ChecksView: View {
     /// saving it captures the text currently in this cut's sections as the
     /// template's sample content, which is how someone's own manuscript could
     /// quietly become everyone's starting point.
+    /// The template this journal is linked to, if the library still has it.
+    private var linkedTemplate: JournalTemplate? {
+        paneJournal?.profileID.flatMap { JournalProfileLibrary.shared.profile(id: $0) }
+    }
+
+    private var hasTemplate: Bool { linkedTemplate != nil }
+
     private var savePrompt: (title: String, verb: String, message: String) {
         let name = store.libraryAncestor(for: paneJournal ?? Journal.empty())?.displayName
             ?? paneJournal?.templateName
@@ -218,7 +254,7 @@ struct ChecksView: View {
             return ("Overwrite the tests in “\(name)”?", "Overwrite Tests",
                     "This journal's tests replace the template's — including any you removed.")
         case .structure:
-            return ("Overwrite the structure in “\(name)”?", "Overwrite Structure",
+            return ("Overwrite the content in “\(name)”?", "Overwrite Content",
                     "The template takes this cut's ACTIVE sections and, as its sample content, THE TEXT CURRENTLY IN THEM — the title page layout, the submission questions and their answers. Anything written here becomes the starting point for every journal cut from this template. Hidden sections are left out.")
         case .export:
             return ("Overwrite the export outline in “\(name)”?", "Overwrite Export",
@@ -303,7 +339,7 @@ struct ChecksView: View {
 
     /// What this journal expects, in three openable rows.
     ///
-    /// Summary and Structure are the profile's own files; **Export** is here
+    /// Summary and Content are the profile's own files; **Export** is here
     /// because a journal's formatting rules are part of its configuration even
     /// though they are edited in the Export pane — so the row states them and
     /// sends you there rather than growing a second editor for the same thing.
@@ -327,9 +363,7 @@ struct ChecksView: View {
 
             configRow(
                 .structure,
-                detail: structure.sections.isEmpty
-                    ? "No structure yet"
-                    : "\(structure.sections.count) section\(structure.sections.count == 1 ? "" : "s") · \(structure.requiredTitles.count) required",
+                detail: contentDetail(structure),
                 edited: isEdited(.structure, journal: journal),
                 open: { editingStructure = true })
 
@@ -346,6 +380,26 @@ struct ChecksView: View {
         }
         .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
         .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.separator))
+    }
+
+    /// "7 sections · 5 required · 4 with content · 2 questions · export set" —
+    /// what this venue's content actually holds, not just how many headings.
+    private func contentDetail(_ structure: JournalStructure) -> String {
+        guard !structure.sections.isEmpty else { return "No content yet" }
+        var parts = ["\(structure.sections.count) section\(structure.sections.count == 1 ? "" : "s")",
+                     "\(structure.requiredTitles.count) required"]
+        let withSample = structure.sections.filter { $0.sample?.isEmpty == false }.count
+        if withSample > 0 { parts.append("\(withSample) with content") }
+        let questions = structure.sections.reduce(0) { $0 + ($1.questions?.count ?? 0) }
+        if questions > 0 { parts.append("\(questions) question\(questions == 1 ? "" : "s")") }
+        let formats = structure.sections.filter { $0.format != nil }.count
+            + (structure.coreFormats?.count ?? 0)
+        if formats > 0 { parts.append("\(formats) export format\(formats == 1 ? "" : "s")") }
+        let guidance = structure.sections.filter {
+            $0.formatNote?.isEmpty == false || $0.note?.isEmpty == false
+        }.count
+        if guidance > 0 { parts.append("\(guidance) with guidance") }
+        return parts.joined(separator: " · ")
     }
 
     /// "38 requirements · 7 limits, 9 components" — the summary's own shape,
@@ -396,12 +450,19 @@ struct ChecksView: View {
                 Text(detail).font(.caption).foregroundStyle(.secondary)
             }
             Spacer()
+            // Open, Load, Save — the same three on every row, in the same
+            // order.  Managing one component used to mean loading the whole
+            // template, which made every small decision a large one.
             Button("Open…") { open?() }
                 .controlSize(.small)
                 .disabled(open == nil)
                 .help(openNote ?? "")
-            // Save sits to the right of Open on every row, and lights up only
-            // when this part actually differs from the template.
+            Button("Load") { loadingPart = part }
+                .controlSize(.small)
+                .disabled(!hasTemplate)
+                .help(hasTemplate
+                      ? "Replace this part with the template's copy"
+                      : "This journal isn't linked to a template")
             Button("Save") { savingPart = part }
                 .controlSize(.small)
                 .disabled(!edited)
@@ -464,7 +525,7 @@ struct ChecksView: View {
     /// The heading the pane is really about.
     ///
     /// "Tests", not "Checks": each one is a test of a requirement stated in the
-    /// Summary or the Structure above, and the whole list is how a cut proves
+    /// Summary or the Content above, and the whole list is how a cut proves
     /// it can be submitted.  The editor is the same popup as before.
     @ViewBuilder
     private func testsHeader(_ journal: Journal, results: [ChecklistResult]) -> some View {
@@ -718,8 +779,8 @@ struct StructureEditorSheet: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("\(journal.displayName) — Structure").font(.headline)
-                    Text("The sections a submission starts with. Required ones are verified by checks.")
+                    Text("\(journal.displayName) — Content").font(.headline)
+                    Text("What a submission at this venue contains: its sections, how each is written and set, and the questions it asks.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -777,6 +838,7 @@ struct StructureEditorSheet: View {
 
     @ViewBuilder
     private func sectionRow(_ section: Binding<StructureSection>) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
         HStack(spacing: 8) {
             Image(systemName: "text.alignleft")
                 .foregroundStyle(.tertiary)
@@ -806,6 +868,55 @@ struct StructureEditorSheet: View {
                 sections.removeAll { $0.id == section.wrappedValue.id }
             } label: { Image(systemName: "trash") }
                 .buttonStyle(.borderless)
+        }
+
+        // Format first, then Notes: how it has to be written, then why.
+        // Both are sent when adapting a cut to this journal, which is the
+        // point of writing them down here rather than in someone's head.
+        HStack(alignment: .top, spacing: 8) {
+            Text("Format").font(.caption2.weight(.semibold))
+                .foregroundStyle(.tertiary).frame(width: 46, alignment: .leading)
+            TextField("How this section must be written here — layout, headings, order",
+                      text: Binding(get: { section.wrappedValue.formatNote ?? "" },
+                                    set: { section.wrappedValue.formatNote = $0.isEmpty ? nil : $0 }),
+                      axis: .vertical)
+                .textFieldStyle(.roundedBorder)
+                .lineLimit(1...3)
+        }
+        HStack(alignment: .top, spacing: 8) {
+            Text("Notes").font(.caption2.weight(.semibold))
+                .foregroundStyle(.tertiary).frame(width: 46, alignment: .leading)
+            TextField("Why the journal asks for it, and anything else worth knowing",
+                      text: Binding(get: { section.wrappedValue.note ?? "" },
+                                    set: { section.wrappedValue.note = $0.isEmpty ? nil : $0 }),
+                      axis: .vertical)
+                .textFieldStyle(.roundedBorder)
+                .lineLimit(1...3)
+        }
+        if let sample = section.wrappedValue.sample, !sample.isEmpty {
+            HStack(alignment: .top, spacing: 8) {
+                Text("Content").font(.caption2.weight(.semibold))
+                    .foregroundStyle(.tertiary).frame(width: 46, alignment: .leading)
+                Text(sample.replacingOccurrences(of: "\n", with: " ↵ "))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                    .help(sample)
+            }
+        }
+        if let questions = section.wrappedValue.questions, !questions.isEmpty {
+            HStack(alignment: .top, spacing: 8) {
+                Text("Asks").font(.caption2.weight(.semibold))
+                    .foregroundStyle(.tertiary).frame(width: 46, alignment: .leading)
+                Text(questions.map { q in
+                    q.wordLimit.map { "\(q.prompt) (\($0) \((q.limitUnit ?? .words).shortLabel))" }
+                        ?? q.prompt
+                }.joined(separator: " · "))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+        }
         }
         .controlSize(.small)
         .padding(8)
