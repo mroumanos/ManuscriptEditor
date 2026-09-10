@@ -82,37 +82,126 @@ and per-item format. Carried in the template since Sep 2026 — before that it
 lived in a second, parallel library, which is why a template saved from a
 manuscript never appeared when adding a journal.
 
-## 3. Migration: what moves, and when
+## 3. A template is an editable object (Sep 2026 — DESIGN, not yet built)
 
-This is the part that took three tries to get right.
+The first version of templates treated a template as something you *captured*
+from a cut: write a title page in a manuscript, press Save, and the text
+becomes the template's sample. That works exactly once. It makes editing a
+template mean editing some manuscript that happens to be linked to it, it makes
+"which manuscript is the good one" a question, and it turns every template edit
+into a decision about somebody's paper.
+
+**A template is edited directly, in its own tab.** It is a journal cut in
+shape — sections, content, export outline — that behaves differently in four
+ways.
+
+### 3.1 What is editable
+
+A journal's requirements are only ever about the venue. So a template opens
+with the **journal-specific** sections live and everything else out of the way:
+
+| | In a template | Why |
+|---|---|---|
+| Title page, Letter to the Editor, submission questions, and any section the venue names | **editable** | These *are* the venue's requirements — the layout it wants, the questions it asks, the letter it expects |
+| Title, authors, abstract, keywords, figures, tables, bibliography | **blank and inactive** | Journal-agnostic. A venue has an opinion about how they are *set*, never about what they say |
+
+The core parts stay **referenceable**: `[[title]]`, `[[authors.names]]`,
+`[[authors.institutes]]` in a template's title page are how the venue's layout
+is expressed, and they resolve against whatever manuscript adopts it.
+
+**Letter to the Editor moves to journal-specific.** It is addressed to a named
+editor at a named journal and follows that journal's conventions — it was only
+ever "core" because every manuscript has one.
+
+### 3.2 Its own workspace
+
+Editing a template opens a **tab of its own, visibly not a manuscript** — its
+own colour, so a window that can change a venue's rules never looks like a
+window that changes your paper.
+
+Its sidebar is the four parts plus an overview, and nothing else:
+
+```
+Overview      title · type · description; Save (overwrite) · Clone · Delete
+Summary       the venue's instructions, distilled
+Structure     which sections a submission here has
+Tests         one per requirement, with the pass rate
+Export        the outline and its formatting
+              ── the journal-specific sections, editable ──
+Title Page
+Letter to the Editor
+Submission Questions
+```
+
+No lineage, no versions, no backend settings: a template is not a manuscript
+and should not pretend to be one. **Overview** is the template's identity —
+title, type, free-text description — and the three things you can do to it.
+
+### 3.3 The same four parts, in the manuscript too
+
+Summary · Structure · Tests · Export become **sidebar sections for a journal
+cut as well**, not a card inside Checks. Each is editable, each says which
+template it is linked to, and each offers **Load · Save · Save as new template**
+(which creates the template and links to it).
+
+That symmetry is the point: the same four things, in the same order, whether
+you are looking at a venue's template or at your cut of it.
+
+### 3.4 Structure, reverted
+
+Calling it "Content" was a mistake to fix rather than defend: the *content*
+lives in the sections you can now edit directly, so the part goes back to being
+**Structure** — which sections a submission at this venue has.
+
+- Editing it **adds and removes** the template's journal-specific sections, and
+  stays in sync with them: add "Public Health Implications" here and the
+  section appears; delete it here and the section goes.
+- **`required` disappears.** Every section in a template's structure is there
+  because the venue wants it; a section you don't want is one you delete.
+- A scratchpad section — something you want in your own cut and not in the
+  template — is added the ordinary way, from the sidebar. It simply isn't part
+  of the template.
+
+### 3.5 What migrates, and when
 
 | Moment | What moves |
 |---|---|
-| **Adding a journal** | The SHAPE only. Sections are created empty; a question series arrives with its questions (those are the journal's, not the author's); export formatting is adopted. **No content.** Adding a journal must never put words in a manuscript. |
-| **Fast-forward / backward** | Content. The template's content overwrites the sections it maps to, then the upstream's material arrives — adapted, if Assist is on. This is the moment the user asked for this journal's content to be (re)made. |
-| **Save to template** | The other direction: this cut's active sections, their text, their formatting and its questions become the template's. Hidden sections are excluded — switching one off is how you say it isn't part of this submission. |
+| **Adding a journal** | The shape: sections created (empty), questions asked, export formatting adopted. No content. |
+| **Fast-forward / backward** | Content. The template's sections overwrite the ones they map to, then the upstream's material arrives — adapted, if Assist is on. Cancel · Append · Overwrite. |
+| **Save from a cut** | Per part, confirmed, naming what it overwrites. Structure and Export still capture from the cut; Summary and Tests are copied as they stand. |
 
-**Every sync offers three outcomes**: Cancel, **Append** (keep what is there,
-add the incoming content after it) and **Overwrite**. A cut you have already
-worked on shouldn't have to be replaced wholesale to take an upstream revision.
+### 3.6 Sharing a template
 
-**The rule: nothing changes irreversibly without asking.**
+A template is a folder of four JSON files with a GUID and a checksum, which is
+already most of what sharing needs. To make it a contribution:
 
-⌘Z reverses every manuscript-side action — adding a journal, loading a part,
-linking a template, renaming a journal, any sync including an assisted
-fast-forward (one keystroke, and the previous content is also a stamped
-version). Bookkeeping that only records what already happened (seeding a
-profile on open, storing the template checksum after a save) is deliberately
-not undoable, because there is nothing there to undo.
+- **Export** writes a single `<slug>.journaltemplate.json` — the four parts,
+  the GUID, the checksum, and who exported it.
+- **Import** reads one, and resolves by GUID: an unknown GUID is a new
+  template; a known one shows what differs, part by part, before overwriting.
+- **Contributing upstream** is a pull request against
+  `ManuscriptEditor/JournalProfiles/`. The GUID makes the merge deterministic,
+  the checksum makes "did this actually change" answerable in review, and
+  someone else's corrected BMJ arrives as a diff rather than as a second BMJ.
 
-Writes to the **library** are files outside the manuscript, so ⌘Z cannot reach
-them. Every one of them is therefore **confirmed first, naming what it
-overwrites**: saving a part, saving or branching the whole template, cloning,
-deleting, and renaming. Renaming used to commit when a text field lost focus —
-silent and irreversible, the one combination this rule exists to prevent — and
-now needs Rename… pressed, with Revert beside it. `rename` also writes before
-it cleans up, and only removes a folder it has confirmed still holds the same
-template.
+### 3.7 What this costs
+
+Being straight about the size, because it is the largest change since versions:
+
+1. **A template needs content storage.** `structure.json`'s per-section
+   `sample` becomes the section's real content — same file, promoted from
+   "example text" to "the text".
+2. **A second editing mode.** The editor, sidebar and tab bar currently assume
+   a manuscript. A template needs the same views over a different object, with
+   core parts suppressed.
+3. **Migration.** Existing templates map straight across (`sample` → content);
+   existing journals keep their links and checksums.
+4. **The Checks card unwinds** into four sidebar sections, for cuts as well as
+   templates.
+
+Order I would build it in: content storage first (invisible, testable), then
+the template tab with Overview and the editable sections, then the four
+sidebar parts for cuts, then export/import and the contribution path.
 
 ## 4. The corpus, and where to fix it
 

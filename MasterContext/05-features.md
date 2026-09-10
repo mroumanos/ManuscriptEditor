@@ -819,6 +819,20 @@ legible.
   distinguishes "no questions in this series" from "none selected" — the list
   used to show two questions beside "No Questions Yet".
 
+### Template editing (Sep 2026 — designed, not built)
+
+A template becomes an editable object in its own tab rather than something
+captured from a manuscript. Its journal-specific sections (title page, letter
+to the editor, submission questions, anything the venue names) are edited
+directly; the journal-agnostic ones stay blank and inactive but remain
+referenceable as `[[title]]`, `[[authors.names]]` …. Summary · Structure ·
+Tests · Export become sidebar sections for cuts as well, "Content" reverts to
+"Structure", `required` disappears, and a template can be exported as one file
+and contributed upstream by pull request.
+
+**The design is in [features/journal-templates.md §3](features/journal-templates.md);
+none of it is implemented yet.**
+
 ### Journal templates carry content (Sep 2026 — implemented)
 
 - AC: A template's structure carries **sample content** per section
