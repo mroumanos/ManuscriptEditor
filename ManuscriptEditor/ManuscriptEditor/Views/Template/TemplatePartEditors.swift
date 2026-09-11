@@ -13,108 +13,78 @@ import SwiftUI
 
 // MARK: - Summary
 
-/// The venue's instructions, distilled — one requirement per line, in the
-/// standard vocabulary (`description:` / `limits:` / `components:` /
-/// `format:` / `extra:`).  The link at the top is always the authority; this
-/// is a distillation and says so.
+/// The venue's instructions, distilled — **in a text box**, like everything
+/// else you write in this app.
+///
+/// It was a bespoke editor: a bullet field, a preview toggle, its own rules
+/// about blank lines.  None of that was worth learning. It is prose with a
+/// convention: one requirement per line, each starting with a category
+/// (`description:` / `limits:` / `components:` / `format:` / `extra:`) so
+/// every journal's summary reads the same way and the limits can be found
+/// without reading everything.  The convention is a habit the text has, not a
+/// schema the editor enforces — grouped on display wherever it is shown.
+///
+/// The link to the journal's own page sits above it, because that page is
+/// always the authority and this is a distillation.
 struct TemplateSummaryView: View {
     @Environment(TemplateWorkspace.self) private var templates
 
     let templateID: UUID
-    @State private var previewing = false
+
+    /// The prose being edited, mirrored out of the template's bullets.
+    @State private var content = RichText()
 
     private var template: JournalTemplate? { templates.template(templateID) }
 
     var body: some View {
         VStack(spacing: 0) {
-            TemplatePaneHeader(
-                templateID: templateID, title: "Summary",
-                subtitle: "The journal's own instructions, distilled. The Tests are what the app can enforce of them.")
-
             if let template {
-                ScrollView {
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack(spacing: 8) {
-                        TextField("Link to the journal's author instructions", text: Binding(
-                            get: { template.requirements.url },
-                            set: { value in
-                                templates.edit(templateID) { $0.requirements.url = value }
-                            }))
-                            .textFieldStyle(.roundedBorder)
-                            .font(.caption)
-                        if let url = URL(string: template.requirements.url),
-                           !template.requirements.url.isEmpty {
-                            Link(destination: url) {
-                                Image(systemName: "arrow.up.right.square")
-                            }
-                            .help(template.requirements.url)
-                        }
-                        Picker("", selection: $previewing) {
-                            Text("Edit").tag(false)
-                            Text("Preview").tag(true)
-                        }
-                        .pickerStyle(.segmented)
-                        .frame(width: 140)
-                        .labelsHidden()
-                    }
+                TemplatePaneHeader(
+                    templateID: templateID, title: "Summary",
+                    subtitle: "The journal's own instructions, distilled. The Tests are what the app can enforce of them.",
+                    leadingInset: EditorLayout.leftInset)
 
-                    if previewing {
-                        ScrollView {
-                            VStack(alignment: .leading, spacing: 10) {
-                                ForEach(Array(SourceRequirements.grouped(template.requirements.bullets)
-                                    .enumerated()), id: \.offset) { _, group in
-                                    VStack(alignment: .leading, spacing: 5) {
-                                        Text((group.category ?? "other").uppercased())
-                                            .font(.caption2.weight(.semibold))
-                                            .foregroundStyle(.tertiary)
-                                        ForEach(Array(group.items.enumerated()), id: \.offset) { _, item in
-                                            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                                                Text("•").foregroundStyle(.tertiary)
-                                                Text(item)
-                                                    .textSelection(.enabled)
-                                                    .fixedSize(horizontal: false, vertical: true)
-                                            }
-                                        }
-                                    }
-                                }
-                                if template.requirements.bullets.isEmpty {
-                                    Text("No summary yet — switch to Edit and paste this journal's instructions, one per line.")
-                                        .font(.callout).foregroundStyle(.tertiary)
-                                }
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(12)
+                HStack(spacing: 8) {
+                    TextField("Link to the journal's author instructions", text: Binding(
+                        get: { template.requirements.url },
+                        set: { value in
+                            templates.edit(templateID) { $0.requirements.url = value }
+                        }))
+                        .textFieldStyle(.roundedBorder)
+                        .font(.caption)
+                    if !template.requirements.url.isEmpty,
+                       let url = URL(string: template.requirements.url) {
+                        Link(destination: url) {
+                            Image(systemName: "arrow.up.right.square")
                         }
-                        .frame(height: 360)
-                        .background(Color(NSColor.textBackgroundColor),
-                                    in: RoundedRectangle(cornerRadius: 8))
-                        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(.separator))
-                    } else {
-                        // A real height: an NSScrollView with no height of its
-                        // own reports an unbounded ideal, and an unbounded
-                        // ideal in a split view's detail is how the sidebar
-                        // gets squeezed off the window.
-                        PlainTextEditor(text: Binding(
-                            get: { template.requirements.text },
-                            set: { value in
-                                templates.edit(templateID) { $0.requirements.text = value }
-                            }))
-                            .frame(height: 360)
-                            .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(.separator))
+                        .help("Open the journal's author instructions — always the authority")
                     }
+                }
+                .controlSize(.small)
+                .padding(.leading, EditorLayout.leftInset)
+                .padding(.trailing, 16)
+                .padding(.vertical, 7)
 
-                    Text("One requirement per line. Start each with a category — description: / limits: / components: / format: / extra: — so every journal's summary reads the same way and the limits can be found without reading the prose. Leading bullet characters are stripped, so pasting from the journal's page works.")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                .padding(20)
-                .frame(maxWidth: TemplateLayout.contentWidth, alignment: .topLeading)
-                .frame(maxWidth: .infinity, alignment: .topLeading)
-                }
+                Divider()
+
+                RichEditor(value: $content,
+                           placeholder: "One requirement per line — description: / limits: / components: / format: / extra:",
+                           templateMode: true)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .onAppear { load() }
+        .onChange(of: templateID) { _, _ in load() }
+        .onChange(of: content) { _, new in
+            // The model keeps bullets; the editor keeps the text.  Only this
+            // direction is written, so normalising a line can never yank the
+            // cursor out from under someone mid-sentence.
+            templates.edit(templateID) { $0.requirements.text = new.plain }
+        }
+    }
+
+    private func load() {
+        content = RichText(plain: template?.requirements.text ?? "")
     }
 }
 
@@ -348,6 +318,12 @@ struct TemplateExportView: View {
 
     private var template: JournalTemplate? { templates.template(templateID) }
 
+    /// The venue's body sections — the cover letter is an outline item of its
+    /// own (`.coverLetter`), not one of these.
+    private var bodySections: [StructureSection] {
+        (template?.structure.sections ?? []).filter { $0.role == nil }
+    }
+
     /// The template's sections as a manuscript, so the outline can name them.
     ///
     /// Ids are the sections' own (`StructureSection.uid`), which is what makes
@@ -356,19 +332,58 @@ struct TemplateExportView: View {
         guard let template else { return nil }
         var made = Manuscript.new()
         made.title = template.displayName
-        made.sections = template.structure.sections.enumerated().map { index, section in
-            ManuscriptSection(id: section.uid, type: .custom, title: section.displayTitle,
+        made.sections = bodySections.enumerated().map { index, section in
+            ManuscriptSection(id: section.uid, type: .custom, title: section.title,
                               content: RichText(plain: section.boilerplate ?? ""), order: index)
         }
         return made
     }
 
     /// The outline as it stands, or the standard one derived from the
-    /// template's own sections when it has never been configured.
+    /// template's own sections when it has never been configured — repaired
+    /// either way.
     private var config: ExportConfig {
-        if let export = template?.export, !export.documents.isEmpty { return export }
-        guard let content = asManuscript else { return ExportConfig(documents: []) }
-        return ExportConfig.standard(content: content, journal: nil)
+        let base: ExportConfig
+        if let export = template?.export, !export.documents.isEmpty {
+            base = export
+        } else if let content = asManuscript {
+            base = ExportConfig.standard(content: content, journal: nil)
+        } else {
+            return ExportConfig(documents: [])
+        }
+        return repaired(base)
+    }
+
+    /// Points the outline at THIS template's sections.
+    ///
+    /// An outline saved from a manuscript names that manuscript's sections by
+    /// id, and those ids mean nothing here — every one of them rendered as
+    /// "(missing section)", and the formats they carried reached nothing.  So
+    /// unknown section items are dropped and the template's own sections take
+    /// their place, in the order the Structure pane lists them.  The venue's
+    /// sections are what a venue's outline is made of.
+    private func repaired(_ config: ExportConfig) -> ExportConfig {
+        guard template != nil else { return config }
+        let known = Set(bodySections.map(\.uid))
+        var out = config
+        var seen: Set<UUID> = []
+        for d in out.documents.indices {
+            out.documents[d].items.removeAll { item in
+                guard item.kind == .section else { return false }
+                guard let id = item.sectionID, known.contains(id) else { return true }
+                return !seen.insert(id).inserted        // and no duplicates
+            }
+        }
+        let missing = bodySections.filter { !seen.contains($0.uid) }
+        guard !missing.isEmpty,
+              let main = out.documents.firstIndex(where: { !$0.isAttachment })
+        else { return out }
+        let items = out.documents[main].items
+        let insertAt = items.lastIndex { $0.kind == .section }.map { $0 + 1 } ?? items.count
+        out.documents[main].items.insert(
+            contentsOf: missing.map { ExportItem(kind: .section, sectionID: $0.uid) },
+            at: insertAt)
+        return out
     }
 
     var body: some View {
@@ -428,84 +443,5 @@ struct TemplateExportView: View {
         var edited = config
         edited.documents.removeAll { $0.id == id }
         templates.setExport(edited, for: templateID)
-    }
-}
-
-// MARK: - ExportFormatForm
-
-/// The typography controls, over a plain binding.
-///
-/// Deliberately not `ComponentSettingsButton`: that one edits a manuscript's
-/// export config through the store, and a template has no manuscript behind
-/// it.  Same vocabulary, no owner.
-struct ExportFormatForm: View {
-    @Binding var format: ExportDocumentFormat
-    /// Page geometry belongs to a document, not to a component inside one.
-    var showsPage: Bool = false
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 8) {
-                Picker("", selection: $format.fontFamily) {
-                    ForEach(ExportFontFamily.allCases) { family in
-                        Text(family.shortLabel).tag(family)
-                    }
-                }
-                .labelsHidden().controlSize(.small).fixedSize()
-
-                HStack(spacing: 1) {
-                    TextField("", value: Binding(
-                        get: { Int(format.fontSize.rounded()) },
-                        set: { format.fontSize = Double(min(max($0, 6), 99)) }
-                    ), format: .number)
-                    .textFieldStyle(.roundedBorder).controlSize(.mini)
-                    .multilineTextAlignment(.trailing).frame(width: 30)
-                    Stepper("", value: Binding(
-                        get: { Int(format.fontSize.rounded()) },
-                        set: { format.fontSize = Double(min(max($0, 6), 99)) }
-                    ), in: 6...99)
-                    .labelsHidden().controlSize(.mini)
-                }
-                .help("Font size (pt)")
-
-                Picker("", selection: $format.lineSpacing) {
-                    Text("1×").tag(1.0)
-                    Text("1.15").tag(1.15)
-                    Text("1.5").tag(1.5)
-                    Text("2×").tag(2.0)
-                }
-                .labelsHidden().controlSize(.small).fixedSize()
-                .help("Line spacing")
-
-                if showsPage {
-                    Text("margins").font(.caption2).foregroundStyle(.secondary)
-                    TextField("", value: $format.marginInches, format: .number.precision(.fractionLength(0...2)))
-                        .textFieldStyle(.roundedBorder).controlSize(.mini)
-                        .multilineTextAlignment(.trailing).frame(width: 38)
-                        .help("Page margins, in inches")
-                }
-                Spacer()
-            }
-            HStack(spacing: 12) {
-                Toggle("Line numbers", isOn: $format.lineNumbers)
-                Toggle("Page numbers", isOn: $format.pageNumbers)
-                if showsPage {
-                    Toggle("Two columns", isOn: $format.twoColumn)
-                }
-                Spacer()
-            }
-            .toggleStyle(.checkbox)
-            .controlSize(.small)
-        }
-    }
-}
-
-// MARK: - Safe indexing
-
-extension Array {
-    /// Index that returns nil rather than trapping — a binding into an array
-    /// that another edit may have shortened.
-    subscript(safe index: Int) -> Element? {
-        indices.contains(index) ? self[index] : nil
     }
 }

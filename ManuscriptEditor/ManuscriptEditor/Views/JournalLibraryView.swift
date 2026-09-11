@@ -13,17 +13,12 @@
 
 import SwiftUI
 import AppKit
-import UniformTypeIdentifiers
 
 struct JournalLibraryView: View {
     @Environment(AppStore.self) private var appStore
 
     @State private var query = ""
     @State private var selectedID: UUID?
-    /// A template read from a file, waiting for the user to say what it does
-    /// to the library.
-    @State private var incoming: JournalTemplate?
-    @State private var importError: String?
 
     /// The library is the **profile** library — the same one a manuscript
     /// saves to, adds from, and diffs against.  It used to list a second,
@@ -94,16 +89,8 @@ struct JournalLibraryView: View {
                         Label("Add Template", systemImage: "plus")
                     }
                     .buttonStyle(.borderless)
-                    .padding(.leading, 10).padding(.vertical, 10)
+                    .padding(10)
                     .help("An empty template, opened for editing")
-                    Button {
-                        importTemplate()
-                    } label: {
-                        Label("Import…", systemImage: "square.and.arrow.down")
-                    }
-                    .buttonStyle(.borderless)
-                    .padding(.vertical, 10)
-                    .help("A .journaltemplate.json someone sent you")
                     Spacer()
                     Text("\(profiles.count) template\(profiles.count == 1 ? "" : "s")")
                         .font(.caption)
@@ -114,73 +101,6 @@ struct JournalLibraryView: View {
             .frame(minWidth: 260, idealWidth: 300, maxWidth: 360)
 
             detail
-        }
-        .alert("Couldn't Import Template", isPresented: Binding(
-            get: { importError != nil }, set: { if !$0 { importError = nil } }
-        )) {
-            Button("OK", role: .cancel) { }
-        } message: {
-            Text(importError ?? "")
-        }
-        .confirmationDialog(importTitle, isPresented: Binding(
-            get: { incoming != nil }, set: { if !$0 { incoming = nil } }
-        ), titleVisibility: .visible) {
-            Button(importVerb) {
-                if let incoming, JournalProfileLibrary.shared.save(incoming) {
-                    selectedID = incoming.id
-                }
-                incoming = nil
-            }
-            Button("Cancel", role: .cancel) { incoming = nil }
-        } message: {
-            Text(importMessage)
-        }
-    }
-
-    // MARK: - Import wording
-
-    private var resolution: TemplateFile.Resolution? {
-        incoming.map { TemplateFile.resolve($0, in: JournalProfileLibrary.shared) }
-    }
-
-    private var importTitle: String {
-        guard let incoming else { return "" }
-        switch resolution {
-        case .replaces(let name, let parts, _, _):
-            return parts.isEmpty ? "“\(name)” is already in your library"
-                                 : "Replace “\(name)” with this file?"
-        case .branchOf(let name, _):
-            return "Add this modified copy of “\(name)”?"
-        default:
-            return "Add “\(incoming.displayName)” to your library?"
-        }
-    }
-
-    private var importVerb: String {
-        if case .replaces(_, let parts, _, _) = resolution, !parts.isEmpty { return "Replace" }
-        return "Add"
-    }
-
-    private var importMessage: String {
-        guard let incoming else { return "" }
-        let from = incoming.requirements.bullets.count
-        switch resolution {
-        case .replaces(_, let parts, let mine, let theirs):
-            guard !parts.isEmpty else {
-                return "Identical to the copy you already hold, part for part. Importing changes nothing."
-            }
-            let names = ProfilePart.displayOrder.filter(parts.contains).map(\.label)
-            return "Same template, different contents: \(names.joined(separator: ", ")). "
-                + "You hold version \(mine); this file is version \(theirs). "
-                + "Manuscripts already using it keep their own copy until they Load this one."
-        case .branchOf(let name, let parts):
-            let names = ProfilePart.displayOrder.filter(parts.contains).map(\.label)
-            return "A separate template with its own identity, branched from “\(name)”"
-                + (names.isEmpty ? "" : " and differing in \(names.joined(separator: ", "))")
-                + ". Your copy of “\(name)” is untouched."
-        default:
-            return "Nothing in your library relates to it, so this is a new template — "
-                + "\(from) requirement\(from == 1 ? "" : "s"), \(incoming.checks.count) tests."
         }
     }
 
@@ -209,24 +129,6 @@ struct JournalLibraryView: View {
         // stays open behind it.
         NSApp.windows.first { $0.isVisible && $0.contentViewController != nil
             && $0.title != "Settings" }?.makeKeyAndOrderFront(nil)
-    }
-
-    /// Imports a `.journaltemplate.json`, resolving by GUID — a known one
-    /// says what differs before it replaces anything.
-    private func importTemplate() {
-        let panel = NSOpenPanel()
-        panel.title = "Import Journal Template"
-        panel.message = "Choose a .journaltemplate.json file."
-        panel.canChooseDirectories = false
-        panel.allowsMultipleSelection = false
-        panel.allowedContentTypes = [.json]
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        switch TemplateFile.read(url) {
-        case .failure(let error):
-            importError = error.message
-        case .success(let template):
-            incoming = template
-        }
     }
 
     fileprivate func delete(_ profile: JournalProfile) {

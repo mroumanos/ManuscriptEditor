@@ -34,6 +34,7 @@
 // See MasterContext/features/journal-templates.md §3.1.
 
 import SwiftUI
+import AppKit
 
 struct TemplateSectionView: View {
     @Environment(TemplateWorkspace.self) private var templates
@@ -56,7 +57,8 @@ struct TemplateSectionView: View {
             if let section {
                 TemplatePaneHeader(templateID: templateID,
                                    title: section.displayTitle,
-                                   subtitle: subtitle(section))
+                                   subtitle: subtitle(section),
+                                   leadingInset: EditorLayout.leftInset)
                 identity(section)
                 Divider()
                 switch section.kind {
@@ -81,8 +83,21 @@ struct TemplateSectionView: View {
             : "Created in every manuscript that adds this journal."
     }
 
+    /// Opens the section's boilerplate, putting its tokens back.
+    ///
+    /// The file stores plain text — that is what a manuscript receives and
+    /// what a model is given — so `[[title]]` arrives as characters.
+    /// `PartEngine.tokenized` makes them live again, which is the difference
+    /// between a template you can click through and one that reads as "pure
+    /// text" the second time you open it.
     private func load() {
-        content = RichText(plain: section?.boilerplate ?? "")
+        let plain = section?.boilerplate ?? ""
+        let attributed = PartEngine.tokenized(
+            plain, attributes: [.font: EditorTypography.current.nsFont,
+                                .foregroundColor: NSColor.labelColor])
+        let rtf = attributed.rtf(from: NSRange(location: 0, length: attributed.length),
+                                 documentAttributes: [:])
+        content = RichText(plain: plain, rtf: rtf)
     }
 
     // MARK: - Identity
@@ -115,7 +130,8 @@ struct TemplateSectionView: View {
 
         }
         .controlSize(.small)
-        .padding(.horizontal, 16)
+        .padding(.leading, EditorLayout.leftInset)
+        .padding(.trailing, 16)
         .padding(.vertical, 7)
     }
 

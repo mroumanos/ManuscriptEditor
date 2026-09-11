@@ -132,18 +132,17 @@ Its sidebar is the four parts plus an overview, and nothing else:
 ```
 Template   Overview      title · type · description
                          Save · Save as New… · Discard Changes · Delete
-                         Export Template File… · Export for Pull Request…
 Journal    Summary       the venue's instructions, distilled
            Structure     which sections a submission here has
            Tests         one per requirement
            Export        the outline, and how every part is set
 Content    Title · Authors · Abstract · Keywords · Figures · Tables ·
            Bibliography              ← listed, greyed, inactive
-           Letter to Editor          ← the venue's, and editable
            ───────────────────────── the soft rule a manuscript has
            Title Page
            Public Health Implications
            Submission Questions
+           Letter to Editor          ← the venue's, and editable
            Add Section
 ```
 
@@ -170,10 +169,21 @@ already know. In a template it offers the **part tokens only** (`/title`,
 those resolve wherever the template lands, while a citation or a figure
 reference would point at one paper's bibliography and be wrong in every other.
 
-**Export is the manuscript's Export pane.** Not a second, smaller editor: the
-same `ExportDocumentCard`, given the template's sections instead of a paper's.
-One place to arrange the outline and set every part's typography, already
-learned. What a journal ADOPTS when it is added still comes from the structure
+**Export is the manuscript's Export pane, and it is where ALL formatting
+lives.** Not a second, smaller editor: the same `ExportDocumentCard`, given
+the template's sections instead of a paper's. Each row's formatting summary
+opens `ComponentSettingsForm` — typography, the printed heading and its style,
+the byline's delimiter, markers, + corr / + cred, the reference list's citation
+style, the keyword delimiter. Those controls used to hang off a gear in each
+component's own pane, which put the outline in one place and what it prints in
+another, and left a template — which has no panes — unable to set any of it.
+The gear is gone from the panes.
+
+An outline saved from a manuscript names that manuscript's sections by id, so
+a template repairs what it is given: unknown section items are dropped and the
+template's own sections take their place, in Structure order.
+
+What a journal ADOPTS when it is added still comes from the structure
 (`coreFormats`, `documentFormat`, each section's `format`) — derived from the
 outline on every change (`TemplateWorkspace.setExport`), so there is one place
 to edit and no second copy to fall behind.
@@ -267,26 +277,25 @@ every template change also a decision about somebody's paper, and left "which
 manuscript is the good one" a real question. The pane says where editing
 happens and links to it.
 
-### 3.7 Sharing a template
+### 3.7 Sharing: a template travels with the manuscript
 
-A template is a folder of four JSON files with a GUID and a checksum, which is
-already most of what sharing needs. To make it a contribution:
+**There is no export file and no contribution path.** Both were built — one
+file per template, resolved by GUID on import; a folder export for a pull
+request against `ManuscriptEditor/JournalProfiles/` — and then taken back out,
+because a feature nobody can explain is worse than one that isn't there.
 
-- **Export Template File…** (Overview) writes a single
-  `<slug>.journaltemplate.json` — the four parts, the GUID, the version, the
-  checksum, and who exported it.
-- **Import…** (Settings → Journals) reads one and resolves **by GUID**:
-  - unknown GUID → a new template;
-  - known GUID → the same template, later: the parts that differ are named,
-    with both version numbers, before anything is overwritten;
-  - descends from one you hold → a separate template, branched, and your copy
-    of its ancestor is untouched.
-- **Export for Pull Request…** writes the repository layout —
-  `<slug>/{requirements,checks,structure,export}.json` — so **contributing
-  upstream** is a pull request against `ManuscriptEditor/JournalProfiles/`. The
-  GUID makes the merge deterministic, the checksum makes "did this actually
-  change" answerable in review, and someone else's corrected BMJ arrives as a
-  diff rather than as a second BMJ.
+What remains is the thing that was always true and is worth stating plainly,
+in the template's own Overview:
+
+> This template travels with every manuscript that uses it. Each journal
+> writes its rules into the manuscript on every save — modified or not — so
+> anyone you publish or share the manuscript with opens it with the rules you
+> used.
+
+That covers collaboration and publication. A public repository of templates is
+still the natural home for sharing between people who don't share a
+manuscript; when it exists, a single-file export is the unit it would trade
+in, and this is the section to rewrite.
 
 ### 3.8 What it cost, and where it lives
 
@@ -316,8 +325,8 @@ Built in the order it was planned, and the plan held:
 | `Views/Template/TemplatePartEditors.swift` | Summary · Structure · Tests · Export |
 | `Views/Template/TemplateSectionView.swift` | one of the venue's sections |
 | `Views/JournalPartViews.swift` | the same parts, as a cut holds them |
-| `Services/TemplateFile.swift` | one-file export/import, and the PR folder |
-| `Theme/TemplateStyle.swift` | the colour that says "not your paper" |
+| `Theme/TemplateStyle.swift` | the colour that says "not your paper", and the pane width |
+| `Views/ComponentFormatViews.swift` | one component's export settings, over a binding |
 
 ## 4. The corpus, and where to fix it
 

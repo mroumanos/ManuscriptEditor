@@ -1,127 +1,99 @@
 // ComponentFormatViews.swift
 //
-// Component-side export formatting (the Aug 2026 export-page cleanup):
-// formatting is edited WHERE the component lives, and the Export page only
-// reviews it read-only.
+// **Export settings for one component of an outline**, in one form.
 //
-//   ComponentSettingsButton — gear popover with the component's export
-//     settings: typography (font/size/spacing) plus kind-specific options
-//     (author delimiters/markers/+corr/+cred, bibliography citation style,
-//     the title's heading look).  Sits in list components' bottom bars
-//     (Authors, Bibliography, Keywords) and in the pane header for
-//     components without one (Title, Figures, Tables).
-//   Every component's heading (print on/off, text, style) configures in
-//   the gear too — one place, one look, for text and list components
-//   alike.
+// These used to live on the component itself — a gear in each pane's header,
+// editing the journal's outline from the other end.  That put a section's
+// heading and typography in one place and the outline that prints it in
+// another, and left a template with nowhere at all to edit them, since a
+// template has no panes.  They live in the Export page now: click a row's
+// formatting summary and this is what opens.
+//
+//   ComponentSettingsForm — typography (font/size/spacing) plus the
+//     kind-specific options: the byline's delimiter, affiliation markers,
+//     + corr / + cred; the reference list's citation style; the keyword
+//     line's delimiter; and every component's printed heading (on/off, text,
+//     style, level).
+//
+// Store-free on purpose: it edits an `ExportItem` through a binding, so the
+// Export page uses it for a manuscript and a template uses it for its own
+// outline, with no second implementation to keep in step.
 
 import SwiftUI
 
-/// The export entry a pane maps to in the journal's outline (nil = the
-/// component isn't part of any export document).
-@MainActor
-func componentExportEntry(_ store: ManuscriptStore,
-                          item: SidebarItem, ref: VersionRef) -> ExportItem? {
-    guard let key = ManuscriptStore.exportItemKey(for: item) else { return nil }
-    let items = store.exportConfig(forJournal: store.journalID(for: ref))
-        .documents.flatMap(\.items)
-    if let hit = items.first(where: { $0.kind == key.kind && $0.sectionID == key.sectionID }) {
-        return hit
-    }
-    // Pre-split configs carry the byline on the Title item (no .authors
-    // item anywhere) — the Authors pane maps there.
-    if key.kind == .authors { return items.first { $0.kind == .titlePage } }
-    return nil
-}
+// MARK: - ComponentSettingsForm
 
-// MARK: - ComponentSettingsButton
+struct ComponentSettingsForm: View {
 
-struct ComponentSettingsButton: View {
-    @Environment(ManuscriptStore.self) private var store
-
-    let item: SidebarItem
-    let versionRef: VersionRef
-
-    @State private var showing = false
-
-    var body: some View {
-        if ManuscriptStore.exportItemKey(for: item) != nil {
-            Button {
-                showing = true
-            } label: {
-                Image(systemName: "gearshape")
-            }
-            .buttonStyle(.borderless)
-            .help("Export settings for this component")
-            .popover(isPresented: $showing, arrowEdge: .bottom) { popover }
-        }
-    }
-
-    private var entry: ExportItem? {
-        componentExportEntry(store, item: item, ref: versionRef)
-    }
+    /// The outline item being configured.
+    @Binding var item: ExportItem
+    /// The document's format — what a missing override inherits, and the seed
+    /// for the first one.
+    let inherited: ExportDocumentFormat
+    /// The content whose names the heading placeholder shows (nil for a
+    /// template, whose items name its own sections).
+    var content: Manuscript? = nil
 
     private func mutateItem(_ change: @escaping (inout ExportItem) -> Void) {
-        store.updateExportEntry(for: item, ref: versionRef, mutateItem: change)
+        var edited = item
+        change(&edited)
+        item = edited
     }
 
-    /// Typography writes create/extend the item's format override, seeded
-    /// from the currently effective values.
+    /// Typography writes create or extend the item's override, seeded from
+    /// whatever is currently in effect.
     private func mutateFormat(_ change: @escaping (inout ExportDocumentFormat) -> Void) {
-        let seed = store.effectiveExportFormat(for: item, ref: versionRef)
-        store.updateExportEntry(for: item, ref: versionRef, mutateItem: { entry in
-            var format = entry.format ?? seed
-            change(&format)
-            entry.format = format
-        })
+        var format = item.format ?? inherited
+        change(&format)
+        mutateItem { $0.format = format }
     }
 
-    @ViewBuilder
-    private var popover: some View {
+    var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            if let entry {
-                // Every component's heading configures HERE (one place, one
-                // look).  Text components carry nothing else — their
-                // typography lives in the editor toolbar; other components
-                // add their own settings (typography, style, delimiters).
-                switch item {
-                case .abstract, .section, .letterToEditor:
-                    typographySection
-                    Divider()
-                    headingSection(entry)
-                case .authors:
-                    typographySection
-                    authorsSection(entry)
-                case .title:
-                    typographySection
-                    titleHeadingSection(entry)
-                case .keywords:
-                    typographySection
-                    keywordsSection(entry)
-                    headingSection(entry)
-                case .bibliography:
-                    typographySection
-                    referencesSection(entry)
-                    headingSection(entry)
-                default:
-                    typographySection
-                    headingSection(entry)
-                }
-                Text("Applies to this journal's EXPORT. The editor always shows your own font and spacing, from Settings → Editor.")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-            } else {
-                Text("Not in this journal's export outline — add it in Export first.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+            // Every component's heading configures HERE (one place, one
+            // look); each kind adds its own settings on top.
+            switch item.kind {
+            case .abstract, .section, .coverLetter:
+                typographySection
+                Divider()
+                headingSection()
+            case .authors:
+                typographySection
+                authorsSection()
+            case .titlePage:
+                typographySection
+                titleHeadingSection()
+            case .keywords:
+                typographySection
+                keywordsSection()
+                headingSection()
+            case .references:
+                typographySection
+                referencesSection()
+                headingSection()
+            default:
+                typographySection
+                headingSection()
             }
+            HStack {
+                Spacer()
+                if item.format != nil {
+                    Button("Follow Document") { mutateItem { $0.format = nil } }
+                        .controlSize(.small)
+                        .help("Drop this component's own typography and inherit the document's")
+                }
+            }
+            Text("Applies to the EXPORT. The editor always shows your own font and spacing, from Settings → Editor.")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
         }
         .padding(14)
-        .frame(width: 340)
+        .frame(width: 360)
     }
 
     @ViewBuilder
     private var typographySection: some View {
-        let format = store.effectiveExportFormat(for: item, ref: versionRef)
+        let format = item.format ?? inherited
         Text("Export typography")
             .font(.caption.weight(.semibold))
             .foregroundStyle(.secondary)
@@ -164,7 +136,7 @@ struct ComponentSettingsButton: View {
     }
 
     @ViewBuilder
-    private func authorsSection(_ entry: ExportItem) -> some View {
+    private func authorsSection() -> some View {
         Divider()
         Text("Byline")
             .font(.caption.weight(.semibold))
@@ -172,7 +144,7 @@ struct ComponentSettingsButton: View {
         HStack(spacing: 8) {
             Text("prints:").font(.caption).foregroundStyle(.secondary)
             Picker("", selection: Binding(
-                get: { entry.authorPartsMode },
+                get: { item.authorPartsMode },
                 set: { value in mutateItem { $0.authorPartsMode = value } }
             )) {
                 Text("Names + institutions").tag("both")
@@ -182,11 +154,11 @@ struct ComponentSettingsButton: View {
             .labelsHidden().controlSize(.small).fixedSize()
             .help("Split the byline across the page or the document — the affiliation numbering stays in step either way")
         }
-        if entry.printsAffiliations {
+        if item.printsAffiliations {
             HStack(spacing: 8) {
                 Text("institutions:").font(.caption).foregroundStyle(.secondary)
                 Picker("", selection: Binding(
-                    get: { entry.affiliationDelimiterCode },
+                    get: { item.affiliationDelimiterCode },
                     set: { value in
                         mutateItem {
                             $0.affiliationDelimiter = value
@@ -208,7 +180,7 @@ struct ComponentSettingsButton: View {
         }
         HStack(spacing: 8) {
             Picker("", selection: Binding(
-                get: { entry.authorDelimiter ?? "semicolon" },
+                get: { item.authorDelimiter ?? "semicolon" },
                 set: { value in mutateItem { $0.authorDelimiter = value == "semicolon" ? nil : value } }
             )) {
                 Text("a; b").tag("semicolon")
@@ -223,7 +195,7 @@ struct ComponentSettingsButton: View {
             .help("How the authors are separated — a numbered list puts one per line")
             Picker("", selection: Binding(
                 get: {
-                    let v = entry.affiliationMarker ?? "superscript"
+                    let v = item.affiliationMarker ?? "superscript"
                     return v == "doublecross" ? "cross" : v   // legacy value
                 },
                 set: { value in mutateItem { $0.affiliationMarker = value == "superscript" ? nil : value } }
@@ -239,7 +211,7 @@ struct ComponentSettingsButton: View {
             } label: {
                 Text("+ corr")
                     .font(.caption)
-                    .foregroundStyle(entry.correspondingShown
+                    .foregroundStyle(item.correspondingShown
                         ? Color.accentColor : Color(nsColor: .tertiaryLabelColor))
             }
             .buttonStyle(.plain)
@@ -249,7 +221,7 @@ struct ComponentSettingsButton: View {
             } label: {
                 Text("+ cred")
                     .font(.caption)
-                    .foregroundStyle(entry.authorTitlesShown
+                    .foregroundStyle(item.authorTitlesShown
                         ? Color.accentColor : Color(nsColor: .tertiaryLabelColor))
             }
             .buttonStyle(.plain)
@@ -258,13 +230,13 @@ struct ComponentSettingsButton: View {
     }
 
     @ViewBuilder
-    private func referencesSection(_ entry: ExportItem) -> some View {
+    private func referencesSection() -> some View {
         Divider()
         Text("Citation style")
             .font(.caption.weight(.semibold))
             .foregroundStyle(.secondary)
         Picker("", selection: Binding(
-            get: { entry.citationStyle },
+            get: { item.citationStyle },
             set: { style in mutateItem { $0.citationStyle = style } }
         )) {
             Text("Journal style").tag(String?.none)
@@ -280,13 +252,13 @@ struct ComponentSettingsButton: View {
     }
 
     @ViewBuilder
-    private func keywordsSection(_ entry: ExportItem) -> some View {
+    private func keywordsSection() -> some View {
         Divider()
         Text("Keyword line")
             .font(.caption.weight(.semibold))
             .foregroundStyle(.secondary)
         Picker("", selection: Binding(
-            get: { entry.authorDelimiter ?? "comma" },
+            get: { item.authorDelimiter ?? "comma" },
             set: { value in mutateItem { $0.authorDelimiter = value == "comma" ? nil : value } }
         )) {
             Text("a, b").tag("comma")
@@ -303,27 +275,27 @@ struct ComponentSettingsButton: View {
     /// The component's heading configuration: print on/off, the printed
     /// text, and its style (bold/italic/underline, alignment, level).
     @ViewBuilder
-    private func headingSection(_ entry: ExportItem) -> some View {
+    private func headingSection() -> some View {
         Text("Heading")
             .font(.caption.weight(.semibold))
             .foregroundStyle(.secondary)
         Toggle("Print heading", isOn: Binding(
-            get: { entry.titleShown },
+            get: { item.titleShown },
             set: { on in mutateItem { $0.titleShown = on } }
         ))
         .toggleStyle(.switch)
         .controlSize(.small)
         .help("Include this component's heading in the export (content always exports)")
-        if entry.titleShown {
+        if item.titleShown {
             HStack(spacing: 8) {
                 TextField("", text: Binding(
-                    get: { entry.customTitle ?? "" },
+                    get: { item.customTitle ?? "" },
                     set: { text in mutateItem { $0.customTitle = text.isEmpty ? nil : text } }
-                ), prompt: Text(entry.title(in: store.manuscript(for: versionRef))))
+                ), prompt: Text(item.title(in: content)))
                 .textFieldStyle(.roundedBorder)
                 .controlSize(.small)
                 .help("The heading printed for this component — empty uses its own name")
-                HeadingStyleControls(style: entry.effectiveHeadingStyle, showLevel: true) { change in
+                HeadingStyleControls(style: item.effectiveHeadingStyle, showLevel: true) { change in
                     mutateItem { itm in
                         var hs = itm.effectiveHeadingStyle
                         change(&hs)
@@ -337,12 +309,12 @@ struct ComponentSettingsButton: View {
     /// The title page has no heading row (the title IS the heading), so its
     /// look — level and emphasis — lives here.
     @ViewBuilder
-    private func titleHeadingSection(_ entry: ExportItem) -> some View {
+    private func titleHeadingSection() -> some View {
         Divider()
         Text("Title heading")
             .font(.caption.weight(.semibold))
             .foregroundStyle(.secondary)
-        HeadingStyleControls(style: entry.effectiveHeadingStyle, showLevel: true) { change in
+        HeadingStyleControls(style: item.effectiveHeadingStyle, showLevel: true) { change in
             mutateItem { itm in
                 var hs = itm.effectiveHeadingStyle
                 change(&hs)

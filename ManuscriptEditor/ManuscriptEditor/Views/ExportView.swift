@@ -532,6 +532,8 @@ struct ExportDocumentCard: View {
 
     /// Item currently being dragged by its handle (drag-to-reorder).
     @State private var draggingItemID: UUID?
+    /// The item whose settings popover is open.
+    @State private var settingsItemID: UUID?
 
     /// Resolves an uploaded document's stored copy (nil = not an upload, or
     /// the file has gone missing).
@@ -776,19 +778,48 @@ struct ExportDocumentCard: View {
                 .help("Page numbers in the bottom margin after this break (the count runs across the whole document)")
                 line
             } else {
-                // Read-only review row: the component's printed heading and
-                // its formatting.  Editing happens on the component itself
-                // (its toolbar, heading row, or settings button).
                 Text(item.effectiveTitle(in: content))
                     .font(.callout)
                     .foregroundStyle(item.titleShown ? Color.secondary : Color(nsColor: .tertiaryLabelColor))
                     .help(item.titleShown ? "" : "Heading hidden in the export (content still exports)")
                 Spacer(minLength: 8)
-                Text(formatSummary(item))
-                    .font(.caption)
-                    .foregroundStyle(Color(nsColor: .secondaryLabelColor))
-                    .lineLimit(1)
-                    .help("Formatting review (read-only) — edit on the component: its toolbar, heading controls, or settings gear")
+                // The formatting summary IS the way in.  It used to be a
+                // read-only review that sent you to a gear on the component's
+                // own pane — which meant a template, having no panes, could
+                // not set any of it, and a manuscript had the outline in one
+                // place and what it prints in another.
+                Button {
+                    settingsItemID = item.id
+                } label: {
+                    HStack(spacing: 4) {
+                        Text(formatSummary(item))
+                            .font(.caption)
+                            .foregroundStyle(Color(nsColor: .secondaryLabelColor))
+                            .lineLimit(1)
+                        Image(systemName: "gearshape")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+                .buttonStyle(.plain)
+                .help("Typography, heading and this component's own options")
+                .popover(isPresented: Binding(
+                    get: { settingsItemID == item.id },
+                    set: { if !$0 { settingsItemID = nil } }
+                ), arrowEdge: .bottom) {
+                    ComponentSettingsForm(
+                        item: Binding(
+                            get: { document.items.first { $0.id == item.id } ?? item },
+                            set: { edited in
+                                var doc = document
+                                guard let i = doc.items.firstIndex(where: { $0.id == item.id })
+                                else { return }
+                                doc.items[i] = edited
+                                onChange(doc)
+                            }),
+                        inherited: document.format,
+                        content: content)
+                }
             }
 
             if !(index == 0 && item.kind == .pageBreak) {

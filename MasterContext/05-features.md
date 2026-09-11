@@ -839,16 +839,29 @@ from a manuscript. Design and rationale:
   `[[authors.names]]`, `[[authors.institutes]]` resolve against whatever
   manuscript adopts the template. The window's own chrome is untouched — the
   title above the sidebar stays the manuscript's.
-- AC: A template's section is edited in **the ordinary editor** (`RichEditor`),
-  so "/" opens the same reference picker. In a template it offers the part
-  tokens and nothing else: a citation or a figure reference would point at one
-  paper's bibliography and be wrong in every other.
+- AC: A template's section — and its **Summary** — is edited in **the ordinary
+  editor** (`RichEditor`), so "/" opens the same reference picker. In a
+  template it offers the part tokens and nothing else, Zotero included: a
+  citation or a figure reference would point at one paper's bibliography and
+  be wrong in every other.
+- AC: `[[title]]`-style tokens are **stored plain and reopen live**
+  (`PartEngine.tokenized`). Boilerplate is plain text on disk — that is what a
+  manuscript receives and what a model is given — so without this a template
+  read as inert text the second time it was opened.
 - AC: A template's **Export pane is the manuscript's Export pane** — the same
-  `ExportDocumentCard` over the template's sections — so the outline and every
-  part's typography are arranged in the one place people already know. The
-  structure's `coreFormats`, `documentFormat` and per-section `format` (what a
-  journal adopts when it is added) are derived from that outline on every
-  change.
+  `ExportDocumentCard` over the template's sections — and **all** export
+  formatting lives there for both: each row's summary opens
+  `ComponentSettingsForm` (typography, printed heading and style, byline
+  delimiter/markers/+corr/+cred, citation style, keyword delimiter). The gear
+  that used to carry these on each component's own pane is gone: the outline
+  and what it prints were in two places, and a template has no panes to put
+  them on. The structure's `coreFormats`, `documentFormat` and per-section
+  `format` (what a journal adopts when it is added) are derived from that
+  outline on every change.
+- AC: An outline a template is given names sections by id; a template
+  **repairs** it — unknown section items are dropped and the template's own
+  sections take their place, in Structure order — because an outline saved
+  from a manuscript points at that manuscript's sections.
 - AC: In a **manuscript**, nothing permanently edits a template: a cut edits
   its own copy — summary, tests, export outline and formatting, which sections
   it has — and Load takes the template's copy back.
@@ -892,13 +905,12 @@ from a manuscript. Design and rationale:
   offers **Load**. None offers Save: a cut cannot write back into a template
   (see *Where a template is edited*). Adding a whole journal to the library is
   still one deliberate button.
-- AC: A template **exports as one file** (`<slug>.journaltemplate.json` — four
-  parts, GUID, version, checksum, who exported it) and **imports by GUID**: an
-  unknown one is new; a known one names the parts that differ and both version
-  numbers before overwriting; one that descends from a template you hold is a
-  branch, leaving your copy of its ancestor untouched. **Export for Pull
-  Request…** writes the repository layout, so contributing upstream is a PR
-  against `ManuscriptEditor/JournalProfiles/`.
+- AC: **Sharing is that a template travels with the manuscript.** The
+  single-file export and the pull-request path were built and then removed —
+  a feature nobody can explain is worse than one that isn't there. The
+  Overview says the thing that is true: every journal writes its rules into
+  the manuscript on every save, so anyone you publish or share it with opens
+  it with the rules you used.
 - AC: A template's **typography survives being saved.** `structure.json`
   carries `coreFormats` and `documentFormat`; it did not before, so a
   template's core formatting vanished the moment it reached the library or

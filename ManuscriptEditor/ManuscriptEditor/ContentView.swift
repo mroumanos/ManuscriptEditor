@@ -547,12 +547,10 @@ struct ContentView: View {
                     }
                 }
                 sectionActivationControl(item: item, ref: ref)
-                // Every component's export settings (heading config at
-                // minimum) live in the gear beside the preview.  A section
-                // deactivated in this journal exports nothing — no gear.
-                if !sectionDeactivated(item: item, ref: ref) {
-                    ComponentSettingsButton(item: item, versionRef: ref)
-                }
+                // No settings gear here any more: a component's export
+                // settings — its typography and its printed heading — are
+                // edited in the Export pane, on the row that prints it.  One
+                // place, and the one place a template can reach too.
                 SectionPreviewButton(item: item, versionRef: ref)
                 NotesButton(versionKey: ref.id, itemKey: item.notesKey)
             }

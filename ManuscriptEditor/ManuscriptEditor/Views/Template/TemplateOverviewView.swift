@@ -35,7 +35,6 @@ struct TemplateOverviewView: View {
     @State private var confirmingSave = false
     @State private var confirmingDelete = false
     @State private var confirmingRevert = false
-    @State private var shareError: String?
 
     private var template: JournalTemplate? { templates.template(templateID) }
     private var isDirty: Bool { templates.isDirty(templateID) }
@@ -58,7 +57,6 @@ struct TemplateOverviewView: View {
                         identity(template)
                         parts(template)
                         actions(template)
-                        sharing(template)
                         travelling
                     }
                     .padding(20)
@@ -68,13 +66,6 @@ struct TemplateOverviewView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .alert("Couldn't Share Template", isPresented: Binding(
-            get: { shareError != nil }, set: { if !$0 { shareError = nil } }
-        )) {
-            Button("OK", role: .cancel) { }
-        } message: {
-            Text(shareError ?? "")
-        }
         .alert("Save as a New Template", isPresented: $savingAsNew) {
             TextField("Name", text: $newName)
             Button("Save as New") {
@@ -112,35 +103,35 @@ struct TemplateOverviewView: View {
     private func identity(_ template: JournalTemplate) -> some View {
         // Typed straight into the draft: nothing here reaches the library
         // until Save, so there is no reason to make you press Enter twice.
-        Form {
-            Section("Template") {
-                TextField("Name", text: Binding(
-                    get: { template.name },
-                    set: { value in templates.edit(templateID) { $0.name = value } }))
-                TextField("Type (Research Article, Research Brief…)", text: Binding(
-                    get: { template.articleType ?? "" },
-                    set: { value in
-                        let trimmed = value.trimmingCharacters(in: .whitespaces)
-                        templates.edit(templateID) { $0.articleType = trimmed.isEmpty ? nil : trimmed }
-                    }))
-                VStack(alignment: .leading, spacing: 4) {
-                    TextField("What this format is for", text: Binding(
-                        get: { template.summaryDescription },
-                        set: { value in templates.edit(templateID) { $0.summaryDescription = value } }),
-                              axis: .vertical)
-                        .lineLimit(2...5)
-                    Text("Stored as the summary's `description:` bullets — one place to say what this format is, rather than two that disagree.")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                }
-            }
+        //
+        // A plain stack rather than a Form: a grouped Form right-aligns its
+        // values, which reads as a settings sheet and sets a three-line
+        // description ragged against the wrong edge.
+        VStack(alignment: .leading, spacing: 10) {
+            field("Name", "The journal's name", Binding(
+                get: { template.name },
+                set: { value in templates.edit(templateID) { $0.name = value } }))
+            field("Type", "Research Article, Research Brief…", Binding(
+                get: { template.articleType ?? "" },
+                set: { value in
+                    let trimmed = value.trimmingCharacters(in: .whitespaces)
+                    templates.edit(templateID) { $0.articleType = trimmed.isEmpty ? nil : trimmed }
+                }))
+            field("Description", "What this format is for", Binding(
+                get: { template.summaryDescription },
+                set: { value in templates.edit(templateID) { $0.summaryDescription = value } }),
+                  lines: 2...6)
+            Text("The description is the summary's `description:` bullets — one place to say what this format is, rather than two that disagree.")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .formStyle(.grouped)
-        .frame(height: 210)
-        .scrollDisabled(true)
+        .padding(.horizontal, 4)
 
-        HStack(spacing: 14) {
-            fact("Version", "\(template.version)")
+        // One fact per line: four labels across a row read as a toolbar and
+        // wrapped badly the moment one of them was a name.
+        VStack(alignment: .leading, spacing: 4) {
+            fact("Version", "v\(template.version)")
             fact("Last saved", template.updatedAt?
                 .formatted(date: .abbreviated, time: .shortened) ?? "never")
             fact("Identity", String(template.id.uuidString.prefix(8)).lowercased())
@@ -149,17 +140,37 @@ struct TemplateOverviewView: View {
                      JournalProfileLibrary.shared.profile(id: template.lineage[0])?.displayName
                         ?? String(template.lineage[0].uuidString.prefix(8)).lowercased())
             }
-            Spacer()
         }
         .padding(.horizontal, 4)
     }
 
-    private func fact(_ label: String, _ value: String) -> some View {
-        VStack(alignment: .leading, spacing: 1) {
+    /// One labelled field, label above, field below, left-aligned.
+    private func field(_ label: String, _ prompt: String,
+                       _ text: Binding<String>,
+                       lines: ClosedRange<Int> = 1...1) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
             Text(label.uppercased())
                 .font(.caption2.weight(.semibold))
                 .foregroundStyle(.tertiary)
+            if lines.upperBound > 1 {
+                TextField(prompt, text: text, axis: .vertical)
+                    .textFieldStyle(.roundedBorder)
+                    .lineLimit(lines)
+            } else {
+                TextField(prompt, text: text)
+                    .textFieldStyle(.roundedBorder)
+            }
+        }
+    }
+
+    private func fact(_ label: String, _ value: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(label.uppercased())
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.tertiary)
+                .frame(width: 110, alignment: .leading)
             Text(value).font(.callout.monospacedDigit())
+            Spacer()
         }
     }
 
@@ -249,53 +260,18 @@ struct TemplateOverviewView: View {
         return "\(changed). The template keeps its identity and becomes version \((template?.version ?? 1) + (isDirty ? 1 : 0)), with a fresh checksum for every part. Manuscripts follow it by identity, so they stay linked — and keep their own copy until they Load this one."
     }
 
-    private var deleteMessage: String {
-        var text = "Manuscripts already using it keep their own copy — they'll show as edited, with nothing to compare against."
-        if !usedBy.isEmpty {
-            text = "\(usedBy.map(\.name).joined(separator: ", ")) in this manuscript " +
-                   "\(usedBy.count == 1 ? "uses" : "use") it. " + text
-        }
-        return text
-    }
-
-    // MARK: - Sharing
-
-    @ViewBuilder
-    private func sharing(_ template: JournalTemplate) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("SHARING")
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(.tertiary)
-            HStack(spacing: 10) {
-                Button {
-                    exportSingleFile(template)
-                } label: {
-                    Label("Export Template File…", systemImage: "square.and.arrow.up")
-                }
-                .help("One file — \(TemplateFile.fileName(for: template)) — carrying all four parts, the identity and the checksum")
-
-                Button {
-                    exportFolder(template)
-                } label: {
-                    Label("Export for Pull Request…", systemImage: "folder.badge.plus")
-                }
-                .help("The repository layout: a folder of four JSON files, ready to add under ManuscriptEditor/JournalProfiles/")
-                Spacer()
-            }
-            Text("Sending someone the file is enough: identity is a GUID, so importing it says whether it is one they already have and which parts differ. Contributing it to the app is a pull request adding the folder — same identity, reviewable as a diff.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-    }
+    // MARK: - Where it goes
 
     /// Every template ships with the manuscript — stated here because it is
-    /// the question people ask when they edit one: does my collaborator get
-    /// this?
+    /// the question people ask when they edit one: does anyone else get this?
+    ///
+    /// This is the whole of sharing. An export file and a contribution path
+    /// were built and then taken back out: a feature nobody can explain is
+    /// worse than one that isn't there.
     private var travelling: some View {
         HStack(alignment: .top, spacing: 6) {
-            Image(systemName: "info.circle").font(.caption2).foregroundStyle(.tertiary)
-            Text("Every manuscript carries the rules it was written to. Each journal writes its template into journals/<template>/ on every save, modified or not, so a collaborator opens it with the rules you used.")
+            Image(systemName: "shippingbox").font(.caption2).foregroundStyle(.tertiary)
+            Text("This template travels with every manuscript that uses it. Each journal writes its rules into the manuscript on every save — modified or not — so anyone you publish or share the manuscript with opens it with the rules you used.")
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -303,31 +279,12 @@ struct TemplateOverviewView: View {
         }
     }
 
-    private func exportSingleFile(_ template: JournalTemplate) {
-        let panel = NSSavePanel()
-        panel.title = "Export Journal Template"
-        panel.nameFieldStringValue = TemplateFile.fileName(for: template)
-        panel.message = "One file carrying all four parts, the identity and the checksum."
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        if let error = TemplateFile.write(template, to: url) {
-            shareError = error
-        } else {
-            NSWorkspace.shared.activateFileViewerSelecting([url])
+    private var deleteMessage: String {
+        var text = "Manuscripts already using it keep their own copy — they'll show as edited, with nothing to compare against."
+        if !usedBy.isEmpty {
+            text = "\(usedBy.map(\.name).joined(separator: ", ")) in this manuscript " +
+                   "\(usedBy.count == 1 ? "uses" : "use") it. " + text
         }
-    }
-
-    private func exportFolder(_ template: JournalTemplate) {
-        let panel = NSOpenPanel()
-        panel.title = "Export Template Folder"
-        panel.message = "Choose where to write <slug>/{requirements,checks,structure,export}.json — the layout ManuscriptEditor/JournalProfiles/ uses."
-        panel.canChooseFiles = false
-        panel.canChooseDirectories = true
-        panel.canCreateDirectories = true
-        panel.prompt = "Export"
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        switch TemplateFile.writeFolder(template, into: url) {
-        case .success(let folder): NSWorkspace.shared.activateFileViewerSelecting([folder])
-        case .failure(let error):  shareError = error.message
-        }
+        return text
     }
 }

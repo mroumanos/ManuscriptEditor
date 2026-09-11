@@ -254,6 +254,31 @@ enum PartEngine {
 
     /// Expands `[[path]]` markers in plain prose with default options —
     /// the LaTeX path, where token URLs (and their settings) are gone.
+    /// Turns every `[[path]]` marker in plain text back into a **live token**.
+    ///
+    /// A token is nothing but its marker text plus a `part://` link, so plain
+    /// text is a perfectly good way to store one — as long as something puts
+    /// the link back when the text is opened.  Without this, a template's
+    /// boilerplate (stored plain, because that is what a manuscript receives)
+    /// came back as literal `[[title]]` that clicked like prose.
+    ///
+    /// Only paths in the catalog become tokens; anything else in double
+    /// brackets is left exactly as it was typed.
+    static func tokenized(_ text: String,
+                          attributes: [NSAttributedString.Key: Any]) -> NSAttributedString {
+        let out = NSMutableAttributedString(string: text, attributes: attributes)
+        let ns = text as NSString
+        guard let regex = try? NSRegularExpression(pattern: "\\[\\[([A-Za-z0-9_.]+)\\]\\]")
+        else { return out }
+        let known = Set(catalog.map(\.path))
+        for match in regex.matches(in: text, range: NSRange(location: 0, length: ns.length)).reversed() {
+            let path = ns.substring(with: match.range(at: 1))
+            guard known.contains(path), let url = Part(path: path).url else { continue }
+            out.addAttributes([.link: url, .toolTip: "Resolved on export"], range: match.range)
+        }
+        return out
+    }
+
     static func expandPlainMarkers(_ text: String, content m: Manuscript) -> String {
         var out = text
         for (path, _) in catalog {

@@ -87,13 +87,15 @@ struct TemplateSidebarView: View {
                 }
                 .selectionDisabled()
 
-                letterRow
-
                 sectionsDelimiter
 
+                // Past the rule, everything is the venue's — including the
+                // letter, which is addressed to a named editor at a named
+                // journal and follows that journal's conventions.
                 ForEach(bodySections) { section in
                     sectionRow(section)
                 }
+                letterRow
                 addSectionRow
             }
         }
@@ -144,9 +146,8 @@ struct TemplateSidebarView: View {
         ("Bibliography", "books.vertical",             "a citation"),
     ]
 
-    /// Letter to Editor sits where it sits in a manuscript — after the
-    /// bibliography — but here it is the venue's, and editable.  A template
-    /// that doesn't carry one says so rather than hiding the row.
+    /// The letter, with the venue's other sections.  A template that doesn't
+    /// carry one says so rather than hiding the row.
     @ViewBuilder
     private var letterRow: some View {
         if let letter = letterSection {
@@ -362,6 +363,11 @@ struct TemplatePaneHeader: View {
     let templateID: UUID
     let title: String
     let subtitle: String
+    /// Left inset.  A pane that sits over an editor passes the editor's
+    /// gutter width, so the header starts where the text does and the
+    /// gutter's rule doesn't run through it — the same alignment a
+    /// manuscript's pane header uses.
+    var leadingInset: CGFloat = 20
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -391,7 +397,8 @@ struct TemplatePaneHeader: View {
                     .help("Held in memory. Save it from Overview to change the template itself.")
             }
         }
-        .padding(.horizontal, 20)
+        .padding(.leading, leadingInset)
+        .padding(.trailing, 20)
         .padding(.vertical, 10)
         .frame(maxWidth: .infinity, alignment: .leading)
         .templateSurface()

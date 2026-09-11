@@ -134,7 +134,8 @@ struct RichEditor: View {
                     zoteroKeys: existingZoteroKeys,
                     addZoteroEntry: addZoteroEntry,
                     refContext: store.refContext(for: versionRef) ?? RefEngine.Context(),
-                    comparisonText: comparisonText
+                    comparisonText: comparisonText,
+                    partsOnly: templateMode
                 )
                 if value.isEmpty {
                     Text(placeholder)
@@ -621,6 +622,11 @@ private struct RichTextRepresentable: NSViewRepresentable {
     /// The neighbouring pane's prose, for compare-mode highlighting.  nil in
     /// single-pane mode.
     var comparisonText: String? = nil
+    /// Template context: "/" offers `candidates` and nothing else — no Zotero
+    /// section, and no fetch.  A template is written before any manuscript
+    /// adopts it, so a reference row here would point at a library this text
+    /// will never belong to.
+    var partsOnly: Bool = false
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
@@ -772,6 +778,7 @@ private struct RichTextRepresentable: NSViewRepresentable {
         /// fetch that refreshes the open list when results land.
         func combinedCandidates(_ query: String, for tv: CitationTextView) -> [RefCandidate] {
             var out = parent.candidates(query)
+            guard !parent.partsOnly else { return out }
             let key = query.lowercased().trimmingCharacters(in: .whitespaces)
             if let items = zoteroCache[key] {
                 let existing = parent.zoteroKeys()
