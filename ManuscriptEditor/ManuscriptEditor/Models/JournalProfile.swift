@@ -247,15 +247,27 @@ struct StructureSection: Codable, Sendable, Equatable, Identifiable {
     /// sent when adapting, after the format.
     var note: String? = nil
 
-    /// The section's SAMPLE CONTENT, carried by the template.
+    /// The section's **boilerplate**: the default content a journal gets when
+    /// it is added.
     ///
-    /// A structure that only names sections says a journal wants a title page
-    /// without saying what one looks like there.  The sample is the layout —
-    /// the title block a venue expects, the boilerplate paragraph, the phrasing
-    /// of a statement — so a journal cut from this template starts from
-    /// something, not from an empty box.  Plain text: a template should carry
-    /// wording, not one manuscript's typography.
-    var sample: String? = nil
+    /// The venue's own layout — a title block, a required statement, the
+    /// phrasing of a declaration — and it may reference the manuscript's
+    /// fields (`[[title]]`, `[[authors.names]]`, `[[authors.institutes]]`),
+    /// which resolve against whatever manuscript adopts it.
+    ///
+    /// **Editable only while editing a template.**  It used to be captured
+    /// from whatever a cut happened to contain, which put one author's draft
+    /// into everyone's starting point and made the text in front of you
+    /// ambiguous: boilerplate to be replaced, or writing to be kept?  It is
+    /// authored in the template, and a manuscript only ever receives it.
+    var boilerplate: String? = nil
+
+    /// Reading name for `boilerplate` — profiles written before the rename
+    /// stored it as `sample`.
+    var sample: String? {
+        get { boilerplate }
+        set { boilerplate = newValue }
+    }
 
     /// How this section is FORMATTED on export at this venue — font, size,
     /// spacing, line and page numbers.
@@ -283,14 +295,15 @@ struct StructureSection: Codable, Sendable, Equatable, Identifiable {
 
     private enum CodingKeys: String, CodingKey {
         case title, required, note, kind, core, sample, questions, format, formatNote
+        case boilerplate
     }
 
     init(title: String, required: Bool = true, kind: SectionKind = .text,
-         note: String? = nil, sample: String? = nil,
+         note: String? = nil, boilerplate: String? = nil,
          questions: [TemplateQuestion]? = nil,
          format: ExportDocumentFormat? = nil, formatNote: String? = nil) {
         self.title = title; self.required = required; self.kind = kind; self.note = note
-        self.sample = sample; self.questions = questions; self.format = format
+        self.boilerplate = boilerplate; self.questions = questions; self.format = format
         self.formatNote = formatNote
     }
 
@@ -299,7 +312,8 @@ struct StructureSection: Codable, Sendable, Equatable, Identifiable {
         title = try c.decode(String.self, forKey: .title)
         required = try c.decodeIfPresent(Bool.self, forKey: .required) ?? true
         note = try c.decodeIfPresent(String.self, forKey: .note)
-        sample = try c.decodeIfPresent(String.self, forKey: .sample)
+        boilerplate = try c.decodeIfPresent(String.self, forKey: .boilerplate)
+            ?? c.decodeIfPresent(String.self, forKey: .sample)
         questions = try c.decodeIfPresent([TemplateQuestion].self, forKey: .questions)
         format = try c.decodeIfPresent(ExportDocumentFormat.self, forKey: .format)
         formatNote = try c.decodeIfPresent(String.self, forKey: .formatNote)
@@ -319,7 +333,7 @@ struct StructureSection: Codable, Sendable, Equatable, Identifiable {
         try c.encode(required, forKey: .required)
         if kind != .text { try c.encode(kind.rawValue, forKey: .kind) }
         try c.encodeIfPresent(note, forKey: .note)
-        try c.encodeIfPresent(sample, forKey: .sample)
+        try c.encodeIfPresent(boilerplate, forKey: .boilerplate)
         try c.encodeIfPresent(questions, forKey: .questions)
         try c.encodeIfPresent(format, forKey: .format)
         try c.encodeIfPresent(formatNote, forKey: .formatNote)
@@ -390,16 +404,23 @@ struct RequirementsDoc: Codable, Sendable, Equatable {
     var url: String = ""
     var bullets: [String] = []
     var updatedAt: Date? = nil
+    /// Bumped on every overwrite; a new template starts at 1.
+    var version: Int = 1
+    /// Each part's checksum as last saved, keyed by `ProfilePart`.
+    var partChecksums: [String: String]? = nil
 
     private enum CodingKeys: String, CodingKey {
         case id, journal, articleType, lineage, derivedFrom, url, bullets, updatedAt
+        case version, partChecksums
     }
 
     init(id: UUID, journal: String, articleType: String? = nil, lineage: [UUID] = [],
-         url: String = "", bullets: [String] = [], updatedAt: Date? = nil) {
+         url: String = "", bullets: [String] = [], updatedAt: Date? = nil,
+         version: Int = 1, partChecksums: [String: String]? = nil) {
         self.id = id; self.journal = journal; self.articleType = articleType
         self.lineage = lineage; self.url = url; self.bullets = bullets
         self.updatedAt = updatedAt
+        self.version = version; self.partChecksums = partChecksums
     }
 
     /// Tolerates the single-parent `derivedFrom` written by the first cut of
@@ -420,6 +441,8 @@ struct RequirementsDoc: Codable, Sendable, Equatable {
         url = try c.decodeIfPresent(String.self, forKey: .url) ?? ""
         bullets = try c.decodeIfPresent([String].self, forKey: .bullets) ?? []
         updatedAt = try c.decodeIfPresent(Date.self, forKey: .updatedAt)
+        version = try c.decodeIfPresent(Int.self, forKey: .version) ?? 1
+        partChecksums = try c.decodeIfPresent([String: String].self, forKey: .partChecksums)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -431,6 +454,12 @@ struct RequirementsDoc: Codable, Sendable, Equatable {
         try c.encode(url, forKey: .url)
         try c.encode(bullets, forKey: .bullets)
         try c.encodeIfPresent(updatedAt, forKey: .updatedAt)
+        // Hand-written encoder: a new field is invisible until it is added
+        // here (engineering standards, gotcha 12). Version 1 with no
+        // checksums is what an old file looks like, so neither is written
+        // when that is all there is to say.
+        if version > 1 { try c.encode(version, forKey: .version) }
+        try c.encodeIfPresent(partChecksums, forKey: .partChecksums)
     }
 }
 
@@ -498,6 +527,21 @@ struct JournalProfile: Codable, Identifiable, Sendable, Equatable {
     var originURL: String? = nil
     var updatedAt: Date? = nil
 
+    /// How many times this template has been overwritten.
+    ///
+    /// An overwrite keeps the GUID and takes a new version; saving as a NEW
+    /// template takes a new GUID and starts again at 1.  So "same template,
+    /// later" and "a different template" are different questions with
+    /// different answers, which is what makes sharing tractable.
+    var version: Int = 1
+
+    /// The checksum of each part as it was last saved, keyed by `ProfilePart`.
+    ///
+    /// Stored rather than recomputed so a manuscript can say *which part*
+    /// drifted without holding the template it drifted from — the copy it
+    /// carries is enough.
+    var partChecksums: [String: String]? = nil
+
     var displayName: String { articleType.map { "\(name) — \($0)" } ?? name }
 
     /// Folder name — human-readable, so the files stay browsable on GitHub
@@ -509,12 +553,14 @@ struct JournalProfile: Codable, Identifiable, Sendable, Equatable {
          requirements: SourceRequirements = SourceRequirements(),
          checks: [CheckRule] = [], structure: JournalStructure = JournalStructure(),
          export: ExportConfig? = nil,
-         origin: Origin = .bundled, originURL: String? = nil, updatedAt: Date? = nil) {
+         origin: Origin = .bundled, originURL: String? = nil, updatedAt: Date? = nil,
+         version: Int = 1, partChecksums: [String: String]? = nil) {
         self.id = id; self.name = name; self.articleType = articleType
         self.lineage = lineage
         self.requirements = requirements; self.checks = checks; self.structure = structure
         self.export = export
         self.origin = origin; self.originURL = originURL; self.updatedAt = updatedAt
+        self.version = version; self.partChecksums = partChecksums
     }
 
     // MARK: Slug and GUID
@@ -545,11 +591,28 @@ struct JournalProfile: Codable, Identifiable, Sendable, Equatable {
 
     // MARK: Documents
 
+    /// The identity file's CONTENT — no version, no checksums.
+    ///
+    /// Deliberately free of both: the requirements fingerprint is taken over
+    /// this document, and a document that contained the checksums would be
+    /// computing a fingerprint of its own fingerprint.  (It did, once, and the
+    /// recursion took the stack with it.)
     var requirementsDoc: RequirementsDoc {
         RequirementsDoc(id: id, journal: name, articleType: articleType,
                         lineage: lineage,
                         url: requirements.url, bullets: requirements.bullets,
                         updatedAt: updatedAt)
+    }
+
+    /// The identity file as it is WRITTEN: the content, plus the version and
+    /// the per-part checksums, so a manuscript carrying this copy can say
+    /// which part drifted without holding the one it drifted from.
+    var requirementsDocForWriting: RequirementsDoc {
+        var doc = requirementsDoc
+        doc.version = version
+        doc.partChecksums = Dictionary(uniqueKeysWithValues:
+            ProfilePart.allCases.map { ($0.rawValue, fingerprint($0)) })
+        return doc
     }
     var checksDoc: ChecksDoc {
         ChecksDoc(id: id, journal: name, checks: checks, updatedAt: updatedAt)
@@ -603,7 +666,8 @@ struct JournalProfile: Codable, Identifiable, Sendable, Equatable {
             checks: load(.checks, as: ChecksDoc.self)?.checks ?? [],
             structure: JournalStructure(sections: load(.structure, as: StructureDoc.self)?.sections ?? []),
             export: load(.export, as: ExportConfig.self),
-            origin: origin, originURL: originURL, updatedAt: req.updatedAt
+            origin: origin, originURL: originURL, updatedAt: req.updatedAt,
+            version: req.version, partChecksums: req.partChecksums
         )
     }
 
@@ -620,7 +684,7 @@ struct JournalProfile: Codable, Identifiable, Sendable, Equatable {
         encoder.dateEncodingStrategy = .iso8601
         do {
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-            try encoder.encode(requirementsDoc)
+            try encoder.encode(requirementsDocForWriting)
                 .write(to: folder.appendingPathComponent(ProfilePart.requirements.fileName), options: .atomic)
             try encoder.encode(checksDoc)
                 .write(to: folder.appendingPathComponent(ProfilePart.checks.fileName), options: .atomic)

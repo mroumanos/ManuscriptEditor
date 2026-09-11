@@ -1154,41 +1154,25 @@ final class ManuscriptStore {
         }
     }
 
-    /// Writes the profile of every journal whose configuration is **not** one
-    /// of the app's defaults, and removes the copies that are.
+    /// Writes **every** journal's template into the manuscript.
     ///
-    /// A template modified here, or invented here, is part of this manuscript:
-    /// the person who opens it next must be checked against the rules it was
-    /// written against, not against whatever their library happens to hold.
-    /// One that still matches a bundled default doesn't need carrying — the
-    /// app already has it, byte for byte, and a redundant copy in the folder
-    /// only invites drift.
+    /// Every one, not only the modified ones.  Carrying just the edited ones
+    /// left the rest depending on the app that opens the manuscript being the
+    /// app that made it — and an app update that corrects a bundled template
+    /// would then silently re-grade a finished paper, or lose the template
+    /// altogether if it were withdrawn.  A manuscript states the rules it was
+    /// written to; the library is only where new ones come from.
     func writeTravelingProfiles() {
         guard let m = manuscript else { return }
-        let bundled = JournalProfile.bundled()
         for journal in m.journals {
-            let mine = journal.profile
-            let matchesDefault = bundled[mine.id].map { $0.checksum == mine.checksum } ?? false
-            if matchesDefault {
-                removeTravelingProfile(slug: journal.profileSlug)
-            } else {
-                _ = writeProfile(journalID: journal.id)
-            }
+            _ = writeProfile(journalID: journal.id)
         }
     }
 
-    /// Drops a manuscript-local copy that is no longer needed.
-    private func removeTravelingProfile(slug: String) {
-        guard let id = manuscript?.id else { return }
-        let folder = persistence.manuscriptDirectory(for: id)
-            .appendingPathComponent("journals", isDirectory: true)
-            .appendingPathComponent(slug, isDirectory: true)
-        try? FileManager.default.removeItem(at: folder)
-    }
-
-    /// Whether this journal's rules travel with the manuscript — true unless
-    /// they are exactly one of the app's defaults.
-    func travelsWithManuscript(_ journal: Journal) -> Bool {
+    /// Whether this journal's rules differ from the app's default for it —
+    /// what the pane shows as "edited", not whether the rules travel.  They
+    /// always travel.
+    func differsFromDefault(_ journal: Journal) -> Bool {
         let mine = journal.profile
         return JournalProfile.bundled()[mine.id].map { $0.checksum != mine.checksum } ?? true
     }
@@ -1242,6 +1226,8 @@ final class ManuscriptStore {
             .appendingPathComponent(journal.profileSlug, isDirectory: true)
         var profile = journal.profile
         profile.updatedAt = Date()
+        profile.partChecksums = Dictionary(uniqueKeysWithValues:
+            ProfilePart.allCases.map { ($0.rawValue, profile.fingerprint($0)) })
         guard profile.write(to: folder) else { return nil }
         // A previous version wrote `journals/<slug>.json`; leaving it beside
         // the folder would look authoritative in the manuscript and in its
@@ -1686,23 +1672,29 @@ final class ManuscriptStore {
             entry.title = section.title
             entry.kind = section.sectionKind
             entry.format = formatsBySectionID[section.id]
-            // The section's CONTENT becomes the template's sample: what a
-            // title page looks like at this venue, the questions it asks and
-            // their limits.  This is the half that makes a template a starting
-            // point rather than a list of headings — and the reason saving the
-            // structure needs a warning, because it takes what is written now.
+            // **Boilerplate is not captured.**  It is the venue's default
+            // content, authored while editing the template — taking whatever a
+            // cut happens to contain is how one author's draft became
+            // everyone's starting point, and it made the text on screen
+            // ambiguous: boilerplate to be replaced, or writing to be kept?
+            // The existing entry's boilerplate is carried through untouched.
             switch section.sectionKind {
             case .text:
-                let text = section.content.plain.trimmingCharacters(in: .whitespacesAndNewlines)
-                entry.sample = text.isEmpty ? nil : section.content.plain
                 entry.questions = nil
             case .questions:
-                entry.sample = nil
+                // The QUESTIONS are the venue's and do belong to the template;
+                // the answers to them do not.
                 let asked = section.orderedQuestions.filter { !$0.prompt.isEmpty }
-                entry.questions = asked.isEmpty ? nil : asked.map {
-                    TemplateQuestion(prompt: $0.prompt, wordLimit: $0.wordLimit,
-                                     limitUnit: $0.limitUnit,
-                                     sample: $0.response.plain.isEmpty ? nil : $0.response.plain)
+                if !asked.isEmpty {
+                    let previous = Dictionary(
+                        (byTitle[section.title.lowercased()]?.questions ?? [])
+                            .map { ($0.prompt.lowercased(), $0) },
+                        uniquingKeysWith: { first, _ in first })
+                    entry.questions = asked.map { q in
+                        TemplateQuestion(prompt: q.prompt, wordLimit: q.wordLimit,
+                                         limitUnit: q.limitUnit,
+                                         sample: previous[q.prompt.lowercased()]?.sample)
+                    }
                 }
             }
             captured.append(entry)

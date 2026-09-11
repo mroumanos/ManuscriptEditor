@@ -103,11 +103,30 @@ final class JournalProfileLibrary {
     // MARK: - Saving
 
     /// Writes a profile into the library, replacing whatever shared its GUID.
+    ///
+    /// An **overwrite** keeps the GUID and takes the next version; the file
+    /// records that version, when it was saved, and each part's checksum.
+    /// Saving as a NEW template takes a new GUID (see `clone`) and starts at
+    /// version 1 — so "the same template, later" and "a different template"
+    /// stay different questions.
     @discardableResult
     func save(_ profile: JournalProfile) -> Bool {
         var stored = profile
         stored.origin = .library
         stored.updatedAt = Date()
+        if let existing = profiles[stored.id] {
+            // Only a real change earns a version: re-saving an untouched
+            // template shouldn't make everyone else's copy look stale.
+            stored.version = existing.checksum == stored.checksum
+                ? existing.version
+                : max(existing.version, stored.version) + 1
+        } else {
+            stored.version = 1
+        }
+        // The stored copy carries the same checksums the file does, so a
+        // comparison never depends on which of the two you happen to hold.
+        stored.partChecksums = Dictionary(uniqueKeysWithValues:
+            ProfilePart.allCases.map { ($0.rawValue, stored.fingerprint($0)) })
         let destination = folder(for: stored)
         guard stored.write(to: destination) else { return false }
         stored.originURL = destination.path
@@ -127,6 +146,7 @@ final class JournalProfileLibrary {
         copy.name = name
         copy.lineage = [profile.id] + profile.lineage
         copy.origin = .library
+        copy.version = 1
         return save(copy) ? copy : nil
     }
 

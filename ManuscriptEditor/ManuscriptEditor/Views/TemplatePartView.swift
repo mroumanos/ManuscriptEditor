@@ -104,8 +104,8 @@ struct TemplatePartView: View {
                     if let value = section.note, !value.isEmpty {
                         labelled("Notes", value)
                     }
-                    if let sample = section.sample, !sample.isEmpty {
-                        labelled("Content", sample)
+                    if let boilerplate = section.boilerplate, !boilerplate.isEmpty {
+                        labelled("Boilerplate", boilerplate)
                     }
                     ForEach(Array((section.questions ?? []).enumerated()), id: \.offset) { _, q in
                         labelled("Asks", q.wordLimit.map {

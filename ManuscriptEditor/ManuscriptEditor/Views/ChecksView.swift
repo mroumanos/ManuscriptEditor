@@ -299,7 +299,26 @@ struct ChecksView: View {
     /// the question anyone is asking.  The question is: **have I changed this
     /// since it came from the template?**  So the comparison is against the
     /// template's checksum, and the answer is an orange pencil or nothing.
+    /// Whether this part differs from the template it came from.
+    ///
+    /// Prefers the checksums the template recorded when it was saved — the
+    /// manuscript carries its own copy of the template, so the comparison
+    /// works without the library having it at all.
+    private func differsFromTemplate(_ part: ProfilePart, journal: Journal) -> Bool? {
+        guard let stored = journal.profileID
+                .flatMap({ JournalProfileLibrary.shared.profile(id: $0) })?.partChecksums
+                ?? journal.profile.partChecksums,
+              let saved = stored[part.rawValue]
+        else { return nil }
+        var mine = journal.profile
+        if part == .structure, let prospective = store.structureCapture(journalID: journal.id) {
+            mine.structure = prospective
+        }
+        return mine.fingerprint(part) != saved
+    }
+
     private func isEdited(_ part: ProfilePart, journal: Journal) -> Bool {
+        if let byChecksum = differsFromTemplate(part, journal: journal) { return byChecksum }
         // The structure is computed from this cut's sections, their text and
         // their export formatting — none of which is in the stored structure
         // until a save happens.  So it is compared against what a save WOULD
@@ -331,7 +350,7 @@ struct ChecksView: View {
             Image(systemName: "pencil.circle.fill")
                 .foregroundStyle(.orange)
                 .font(.caption)
-                .help("Edited here — differs from this journal's template in your library")
+                .help("Differs from the template it came from — its checksum for this part doesn't match")
         }
     }
 
@@ -380,6 +399,16 @@ struct ChecksView: View {
         }
         .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
         .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.separator))
+
+        HStack(spacing: 6) {
+            Image(systemName: "info.circle").font(.caption2).foregroundStyle(.tertiary)
+            Text("These are this manuscript's copy. The template itself is edited in Settings → Journals — changes there don't touch a manuscript until you Load them.")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer()
+        }
+        .padding(.top, 4)
     }
 
     /// "7 sections · 5 required · 4 with content · 2 questions · export set" —
@@ -455,18 +484,16 @@ struct ChecksView: View {
                 .controlSize(.small)
                 .disabled(open == nil)
                 .help(openNote ?? "")
+            // No Save here.  A template is edited in its own place — editing
+            // it from inside a manuscript meant every template change was also
+            // a decision about somebody's paper, and left "which manuscript is
+            // the good one" a real question.
             Button("Load") { loadingPart = part }
                 .controlSize(.small)
                 .disabled(!hasTemplate)
                 .help(hasTemplate
                       ? "Replace this part with the template's copy"
                       : "This journal isn't linked to a template")
-            Button("Save") { savingPart = part }
-                .controlSize(.small)
-                .disabled(!edited)
-                .help(edited
-                      ? "Overwrite this part of the template in your library"
-                      : "Matches the template")
         }
         .padding(.vertical, 10)
         .padding(.horizontal, 14)
@@ -871,21 +898,21 @@ struct StructureEditorSheet: View {
         // No separate Format/Notes fields: they are boilerplate the venue
         // wants IN the section, so they live in its content and are read,
         // edited and sent as part of it.
-        if let sample = section.wrappedValue.sample, !sample.isEmpty {
+        if let boilerplate = section.wrappedValue.boilerplate, !boilerplate.isEmpty {
             HStack(alignment: .top, spacing: 8) {
-                Text("Content").font(.caption2.weight(.semibold))
-                    .foregroundStyle(.tertiary).frame(width: 46, alignment: .leading)
-                Text(sample.replacingOccurrences(of: "\n", with: " ↵ "))
+                Text("Boilerplate").font(.caption2.weight(.semibold))
+                    .foregroundStyle(.tertiary).frame(width: 66, alignment: .leading)
+                Text(boilerplate.replacingOccurrences(of: "\n", with: " ↵ "))
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
-                    .help(sample)
+                    .help("\(boilerplate)\n\nThe venue's default content for this section — edited while editing the template, not here.")
             }
         }
         if let questions = section.wrappedValue.questions, !questions.isEmpty {
             HStack(alignment: .top, spacing: 8) {
                 Text("Asks").font(.caption2.weight(.semibold))
-                    .foregroundStyle(.tertiary).frame(width: 46, alignment: .leading)
+                    .foregroundStyle(.tertiary).frame(width: 66, alignment: .leading)
                 Text(questions.map { q in
                     q.wordLimit.map { "\(q.prompt) (\($0) \((q.limitUnit ?? .words).shortLabel))" }
                         ?? q.prompt

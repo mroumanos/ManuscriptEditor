@@ -66,7 +66,10 @@ More than a list of headings. Per section:
 
 - **name** — name of the section
 - **presence** — required or optional
-- **the content itself** (`sample`) — a boilerplate to include content like format and notes. Free-form for text sections. Questions and their responses for question series.
+- **boilerplate** (`boilerplate`) — the default content a journal gets when it
+  is added: free-form for text sections, the questions for a question series.
+  It may reference `[[title]]`, `[[authors.names]]`, `[[authors.institutes]]`.
+  **Editable only while editing a template** — never captured from a cut.
 - **export formatting** (`format`) — the typography of the sections export
 
 Plus, for the whole document: `coreFormats` (the typography of the fixed parts —
@@ -166,26 +169,46 @@ lives in the sections you can now edit directly, so the part goes back to being
 | **Fast-forward / backward** | Content. The template's sections overwrite the ones they map to, then the upstream's material arrives — adapted, if Assist is on. Cancel · Append · Overwrite. |
 | **Save from a cut** | Per part, confirmed, naming what it overwrites. Structure and Export still capture from the cut; Summary and Tests are copied as they stand. |
 
-### 3.6 A modified template ships with the manuscript
+### 3.6 Every template ships with the manuscript
 
-**Rule: if a journal's rules are not exactly one of the app's defaults, they
-travel with the manuscript.** Modified from a default, or invented here — either
-way, whoever opens this manuscript next must be checked against the rules it was
-written against, not against whatever their own library happens to hold.
+**Rule: a manuscript carries the rules it was written to — all of them, every
+time.** Not only the modified ones: carrying just those leaves the rest
+depending on the app that opens the manuscript being the app that made it, so
+an app update that corrects a bundled template would silently re-grade a
+finished paper, and a withdrawn one would leave a journal with no rules at all.
 
 - On every save, `writeTravelingProfiles()` writes
   `journals/<template-slug>/{requirements,checks,structure,export}.json` for
-  each journal whose checksum differs from the bundled default, and **removes**
-  the copy for any journal that still matches one — the app already has that,
-  byte for byte, and a redundant copy only invites drift.
+  every journal in the manuscript.
 - The folder is named for the **template**, not the cut: "BMJ test 1" and "BMJ
   test 2" both carry `journals/bmj/`, because what travels is the venue's rules.
 - `gatherRemoteFiles` includes those folders, so they reach the remote with
   everything else. They did not before — a modified template stayed on the
   machine that modified it, which is the gap this rule closes.
-- On open, the manuscript's copy wins for evaluation (see §4). The profile pane
-  shows it as *not linked* or *edited* against the local library, and Link
-  Template… / Save resolve it.
+- On open, the manuscript's copy wins for evaluation (see §4).
+- **Longer term**, a public repository of templates is the natural home for
+  sharing — §3.7's single-file export is the unit it would trade in.
+
+### Modifying, saving, overwriting
+
+| Action | What happens |
+|---|---|
+| **Edit a template, don't save** | Held in memory. Nothing on disk changes, and nothing a manuscript uses changes. |
+| **Overwrite** | Same GUID, **next version**, new `updatedAt`, and a fresh **checksum for every part** — all three written into `requirements.json`. Re-saving an untouched template does *not* take a version; nobody else's copy should look stale because you pressed Save. |
+| **Save as a new template** | New GUID, version 1, lineage pointing back at what it came from. |
+
+Because each part's checksum is recorded, a manuscript can say **which part**
+drifted — Summary, Structure, Tests or Export — using only the copy it carries.
+The pane marks exactly those parts, and says nothing about the ones that match.
+
+### Where a template is edited
+
+**In the template, not in a manuscript.** A cut's Summary · Structure · Tests ·
+Export are *its own copy*; they can be read there and **Load**ed from the
+template, but not saved back. Editing a template from inside a manuscript made
+every template change also a decision about somebody's paper, and left "which
+manuscript is the good one" a real question. The pane says where editing
+happens and links to it.
 
 ### 3.7 Sharing a template
 
