@@ -974,18 +974,29 @@ from a manuscript. Design and rationale:
   a template starts from the title-page layout that venue expects and with its
   submission questions already asked — a structure that only named sections
   said a journal wants a title page without saying what one looks like there.
-  Applied on creation and only into an empty section, so adding a journal is
-  never destructive.
+  It lands in the **cut** on creation — never in Source's copy of the section,
+  and never over a section the cut already has.
 - AC: The part is called **Structure** (it was "Content" for two weeks in Sep
   2026), and it is what a submission at this venue contains — sections, the text in them, per-section **Format** (how it must be
   written) and **Notes** (why it is asked for), export settings, and a question
   series' questions with their limits. All of it is summarised in the row and
   visible in the editor; Format and Notes are sent when adapting with Assist.
-- AC: **Adding a journal carries the shape, never the content.** Sections
-  arrive empty; a question series arrives with its questions, which are the
-  journal's rather than the author's. The template's content lands on a
-  **fast-forward**, overwriting the sections it maps to — the moment the user
-  asked for this journal's content to be remade.
+- AC: **Adding a journal carries the shape and the venue's boilerplate —
+  none of the upstream's text.** The new cut's sections hold what the
+  template says for them (boilerplate as rich text, so `[[title]]` and the
+  other tokens are live; a question series with its questions, which are the
+  journal's rather than the author's) and are otherwise empty; title, authors,
+  abstract, figures, tables and bibliography come along, since the tokens
+  need them and they are the manuscript's rather than a cut's prose. Text
+  arrives on the first **fast-forward** (Sep 2026: it used to be snapshotted
+  in, and the boilerplate went into Source's copy).
+- AC: A **fast-forward migrates content where the upstream has some.** A
+  section the upstream leaves empty — the venue's title page, its questions,
+  a letter — keeps what the cut has: its boilerplate, or what was written
+  there. The template's content is **not** re-applied on a fast-forward; with
+  Assist on, the model adapts the same merged base and its rewrite is the
+  last word (a re-apply after the adaptation once replaced every rewritten
+  section with its boilerplate while the banner reported the rewrite).
 - AC: Every sync offers **Cancel · Append · Overwrite**. Append keeps what the
   cut has and adds the incoming content after it, per section and per question.
 - AC: Each part has **Open · Load** — Save was removed when templates became
@@ -994,11 +1005,10 @@ from a manuscript. Design and rationale:
 - AC: The structure captures a venue's **whole shape**: which additional
   sections exist, the content in them, each one's export formatting, and the
   export formatting of the CORE parts (title page, byline, abstract, …) plus
-  the document's page geometry. Forking a journal then copies core content
-  one-for-one while adopting the target's typography, and **appends** — the
-  template's content first, the forked content after — for additional
-  sections, so a required title-page layout arrives with your own text under
-  it rather than instead of it.
+  the document's page geometry. Forking a journal adopts the target's
+  typography and starts each section from the template's content; the forked
+  text follows on the first fast-forward, into the sections that have a
+  counterpart upstream.
 - AC: Structure is saveable whenever any of that changes, **including the
   text**. The comparison runs against `structureCapture` — what a save would
   produce — not against the last-saved structure, which is why editing a
@@ -1078,8 +1088,9 @@ from a manuscript. Design and rationale:
 
 - AC: Each journal row in Overview's lineage card has two sync buttons:
   **fast-backward** ⏪ (push this journal's latest UP to its upstream, full
-  override) and **fast-forward** ⏩ (pull the upstream's latest DOWN, full
-  override). The overridden side is stamped into its version history first,
+  override) and **fast-forward** ⏩ (pull the upstream's latest DOWN — a full
+  override of every section the upstream has text in; one it leaves empty
+  keeps the cut's own). The overridden side is stamped into its version history first,
   so both directions are recoverable. A checksum precheck short-circuits
   "already in sync"; a dirty upstream is auto-stamped rather than refused.
 - AC: **✦ Assist** in the title bar upgrades both buttons (the card's own

@@ -1,8 +1,10 @@
 // FastForwardIntent.swift
 //
 // AI INTENT  journal.fastForward
-//   Sends:   enabled context rows · the upstream's sections, with every
-//            citation and part token marked · the target journal's profile ·
+//   Sends:   enabled context rows · the sections as the copy would bring
+//            them down (the upstream's text where it has some, the cut's own
+//            — its boilerplate — where it hasn't), with every citation and
+//            part token marked · the target journal's profile ·
 //            **the target's checks, evaluated, with their current numbers**
 //   Writes:  the downstream cut's sections and submission answers, as a new
 //            stamped version
@@ -45,7 +47,7 @@ struct FastForwardIntent: AIIntent {
         title: "Fast-forward a journal",
         summary: "Adapts the upstream's content toward the target journal's requirements, limits and checks while copying it down.",
         sends: ["Enabled context rows",
-                "The upstream's sections, with citations and part tokens marked",
+                "The sections a fast-forward would copy — the upstream's text, the cut's own where the upstream is empty — with citations and part tokens marked",
                 "The target journal's requirements, structure and checks",
                 "Each check's current measurement against the content being adapted"],
         writes: "The target journal's sections and submission answers, stamped as a new version",

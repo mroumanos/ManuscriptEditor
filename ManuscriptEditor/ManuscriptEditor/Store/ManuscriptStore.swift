@@ -1075,15 +1075,25 @@ final class ManuscriptStore {
               let wanted = journal.structure?.sections, !wanted.isEmpty
         else { return }
         let existing = Set(m.sections.map { $0.title.lowercased() })
-        for section in wanted where !existing.contains(section.title.lowercased()) {
-            // A section arrives with whatever the template carries for it —
-            // the venue's boilerplate, its questions, its stated format and
-            // notes.  That is what makes a template a starting point.  Only
-            // NEW sections are filled: an existing one is never written over
-            // by adding a journal.
+        var created: [(id: UUID, entry: StructureSection)] = []
+        for section in wanted where !existing.contains(section.key) {
             guard let id = addSection(type: .custom, title: section.title, kind: section.kind)
             else { continue }
-            applyTemplateDefaults(section, toSectionID: id)
+            created.append((id, section))
+        }
+        // A section created here arrives in THIS journal's cut with what the
+        // venue carries for it — its boilerplate, its questions.  Source's
+        // copy and every other cut's stay empty: the section is theirs in
+        // shape only.  (It used to land in Source's copy, which is the one
+        // place it wasn't wanted.)  Only sections created just now: one
+        // already there is never written over by adding a journal.
+        if !created.isEmpty, let head = latestVersion(forJournal: journalID) {
+            touch(.version(head.id), undoable: false) { content in
+                for (id, entry) in created {
+                    guard let idx = content.sections.firstIndex(where: { $0.id == id }) else { continue }
+                    content.sections[idx] = Self.templated(content.sections[idx], entry: entry)
+                }
+            }
         }
         // The outline is where a template's formatting lives; the per-section
         // formats are the older path, for templates that never had one.
@@ -1183,50 +1193,64 @@ final class ManuscriptStore {
         updateExportConfig(config, forJournal: journalID)
     }
 
-    /// Fills a freshly created section with what the template carries for it.
+    /// A section as a journal receives it: the shape it has upstream and
+    /// none of the upstream's text — the venue's boilerplate and questions in
+    /// its place.
     ///
-    /// What the template carries for a section, put into a newly created one.
-    ///
-    /// Content included: a venue's title-page layout, its boilerplate, its
-    /// questions.  Only into a section this call just created — adding a
-    /// journal must never write over something already there.
-    private func applyTemplateDefaults(_ entry: StructureSection, toSectionID id: UUID) {
-        touch(undoable: false) { m in
-            guard let idx = m.sections.firstIndex(where: { $0.id == id }),
-                  m.sections[idx].isEmptyContent else { return }
-            switch entry.kind {
-            case .text, .letter:
-                if entry.kind == .letter {
-                    m.sections[idx].kind = .letter
-                    if m.sections[idx].letter == nil { m.sections[idx].letter = LetterDetails() }
+    /// Text belongs to a fast-forward, the moment the user asks for it; what
+    /// a cut is born with is the venue's.  Boilerplate goes in as rich text
+    /// so its `[[title]]` tokens are live (`PartEngine.richText`).
+    static func templated(_ section: ManuscriptSection, entry: StructureSection?) -> ManuscriptSection {
+        var out = section
+        // First, none of the upstream's text.
+        switch section.sectionKind {
+        case .text:
+            out.content = RichText()
+        case .letter:
+            out.content = RichText()
+            out.letter = LetterDetails()
+        case .questions:
+            out.questions = section.orderedQuestions.map { var q = $0; q.response = RichText(); return q }
+        }
+        // Then what the venue carries for it.
+        guard let entry else { return out }
+        switch entry.kind {
+        case .text, .letter:
+            if entry.kind == .letter {
+                out.kind = .letter
+                if out.letter == nil { out.letter = LetterDetails() }
+            }
+            if let sample = entry.sample, !sample.isEmpty {
+                out.content = PartEngine.richText(sample)
+            }
+        case .questions:
+            guard let questions = entry.questions, !questions.isEmpty else { break }
+            out.kind = .questions
+            out.questions = questions.enumerated().map { index, q in
+                var made = QuestionEntry()
+                made.prompt = q.prompt
+                made.wordLimit = q.wordLimit
+                made.limitUnit = q.limitUnit
+                made.order = index
+                if let sample = q.sample, !sample.isEmpty {
+                    made.response = PartEngine.richText(sample)
                 }
-                guard let sample = entry.sample, !sample.isEmpty else { return }
-                m.sections[idx].content = RichText(plain: sample)
-            case .questions:
-                guard let questions = entry.questions, !questions.isEmpty else { return }
-                m.sections[idx].kind = .questions
-                // The journal's questions come first; anything already asked
-                // here follows, so a fork never drops an answered question.
-                let asked = Set(questions.map { $0.prompt.lowercased() })
-                let existing = (m.sections[idx].questions ?? [])
-                    .filter { !asked.contains($0.prompt.lowercased()) && !$0.isEmpty }
-                m.sections[idx].questions = questions.enumerated().map { index, q in
-                    var made = QuestionEntry()
-                    made.prompt = q.prompt
-                    made.wordLimit = q.wordLimit
-                    made.limitUnit = q.limitUnit
-                    made.order = index
-                    if let sample = q.sample, !sample.isEmpty {
-                        made.response = RichText(plain: sample)
-                    }
-                    return made
-                } + existing.enumerated().map { index, q in
-                    var kept = q
-                    kept.order = questions.count + index
-                    return kept
-                }
+                return made
             }
         }
+        return out
+    }
+
+    /// The upstream's content as a new journal receives it: everything but
+    /// the sections' text.  Title, authors, abstract, figures, tables and
+    /// bibliography come along — the tokens in a title page need them, and
+    /// they are the manuscript's, not a cut's prose.
+    func templatedContent(_ content: Manuscript, journal: Journal) -> Manuscript {
+        let byKey = Dictionary((journal.structure?.sections ?? []).map { ($0.key, $0) },
+                               uniquingKeysWith: { first, _ in first })
+        var out = content
+        out.sections = content.sections.map { Self.templated($0, entry: byKey[$0.title.lowercased()]) }
+        return out
     }
 
     /// Writes **every** journal's template into the manuscript.
@@ -2393,12 +2417,13 @@ final class ManuscriptStore {
         let base = syncBase(forUpstream: source.upstreamJournalID)
         guard let m = manuscript else { return nil }
 
-        var baseContent = base?.content ?? m
+        // The upstream's text where it has some, this journal's own where it
+        // hasn't — then the adaptation, which is the last word.  (The
+        // template's content was re-applied AFTER the adaptation here once,
+        // and quietly replaced every rewritten section with its boilerplate
+        // while the banner reported the rewrite.)
+        var baseContent = migrated(base?.content ?? m, into: head.content)
         if let adaptation { applyAdaptation(adaptation, to: &baseContent) }
-        // The journal's own template says what a submission here contains;
-        // a fast-forward is where that lands, because it is the moment the
-        // user asked for this journal's content to be (re)made.
-        applyTemplateContent(&baseContent, journalID: journalID)
         if mode == .append, let head = latestVersion(forJournal: journalID)?.content {
             appendIncoming(into: &baseContent, keeping: head)
         }
@@ -2533,43 +2558,29 @@ final class ManuscriptStore {
         }
     }
 
-    /// Puts the journal's template content into the sections it maps to.
+    /// The upstream's content as a fast-forward brings it down: its text
+    /// where it has some, and this journal's own where it has none.
     ///
-    /// This is the one place template content lands, and it OVERWRITES: a
-    /// fast-forward is the user asking for this journal's content to be
-    /// remade, and a venue's required title-page layout is not something to
-    /// merge into whatever was there. Adding a journal deliberately does not
-    /// do this, and the whole thing is one undoable step.
-    private func applyTemplateContent(_ content: inout Manuscript, journalID: UUID) {
-        guard let journal = manuscript?.journals.first(where: { $0.id == journalID }),
-              let sections = journal.structure?.sections, !sections.isEmpty else { return }
-        let byTitle = Dictionary(sections.map { ($0.title.lowercased(), $0) },
+    /// A section the upstream leaves empty — the venue's title page, its
+    /// submission questions, a letter — has nothing to migrate, so the cut
+    /// keeps what it has there: the boilerplate it was created with, or what
+    /// was written here.  Emptiness is not content.  Everything else is the
+    /// full override it always was.
+    private func migrated(_ upstream: Manuscript, into head: Manuscript) -> Manuscript {
+        var out = upstream
+        let byID = Dictionary(head.sections.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let byTitle = Dictionary(head.sections.map { ($0.title.lowercased(), $0) },
                                  uniquingKeysWith: { first, _ in first })
-        for i in content.sections.indices {
-            guard let entry = byTitle[content.sections[i].title.lowercased()] else { continue }
-            switch entry.kind {
-            case .text, .letter:
-                guard let sample = entry.sample, !sample.isEmpty else { continue }
-                content.sections[i].content = RichText(plain: sample)
-            case .questions:
-                guard let questions = entry.questions, !questions.isEmpty else { continue }
-                let existing = Dictionary(
-                    (content.sections[i].questions ?? []).map { ($0.prompt.lowercased(), $0) },
-                    uniquingKeysWith: { first, _ in first })
-                content.sections[i].kind = .questions
-                content.sections[i].questions = questions.enumerated().map { index, q in
-                    var made = existing[q.prompt.lowercased()] ?? QuestionEntry()
-                    made.prompt = q.prompt
-                    made.wordLimit = q.wordLimit
-                    made.limitUnit = q.limitUnit
-                    made.order = index
-                    if made.response.isEmpty, let sample = q.sample, !sample.isEmpty {
-                        made.response = RichText(plain: sample)
-                    }
-                    return made
-                }
-            }
+        for i in out.sections.indices where out.sections[i].isEmptyContent {
+            let theirs = out.sections[i]
+            guard let mine = byID[theirs.id] ?? byTitle[theirs.title.lowercased()] else { continue }
+            var kept = mine
+            kept.id = theirs.id
+            kept.title = theirs.title
+            kept.order = theirs.order
+            out.sections[i] = kept
         }
+        return out
     }
 
     /// Writes an adaptation into a manuscript snapshot.
@@ -2723,7 +2734,12 @@ final class ManuscriptStore {
         let baseContent: Manuscript
         let target: Journal?
         if forward {
-            baseContent = syncBase(forUpstream: source.upstreamJournalID)?.content ?? m
+            // The same merge the plain copy makes, so the model adapts a
+            // title page that reads as the venue's boilerplate — tokens and
+            // all — rather than an empty section it has to invent.
+            let upstream = syncBase(forUpstream: source.upstreamJournalID)?.content ?? m
+            baseContent = latestVersion(forJournal: journalID)
+                .map { migrated(upstream, into: $0.content) } ?? upstream
             target = journal
         } else {
             baseContent = latestVersion(forJournal: journalID)?.content ?? m
@@ -2907,10 +2923,20 @@ final class ManuscriptStore {
         journal.viewConfigID = viewConfigID
         journal.submissionURL = template.submissionURL
         touch { $0.journals.append(journal) }
+        // The profile first, so the cut below is shaped by it: the sections
+        // its structure names exist (empty, everywhere) before anything is
+        // snapshotted, and its Checks pane is populated the moment its tab
+        // opens.
+        seedProfileIfNeeded(journalID: journal.id)
+        addMissingStructureSections(journalID: journal.id)
 
         let base = syncBase(forUpstream: fromJournalID)
-        guard let m = manuscript else { return journal }
-        let content = base?.content ?? m
+        guard let m = manuscript,
+              let shaped = m.journals.first(where: { $0.id == journal.id }) else { return journal }
+        // The shape and the venue's boilerplate — none of the upstream's
+        // text.  That arrives on the first fast-forward, section by matching
+        // section, which is the moment the user asks for it.
+        let content = templatedContent(base?.content ?? m, journal: shaped)
         let v = signed(ManuscriptVersion.cut(
             label: "Created",
             from: content,
@@ -2921,10 +2947,6 @@ final class ManuscriptStore {
             author: SigningService.userName
         ))
         touch { $0.versions.append(v) }
-        // A journal arrives with its profile already in force, so its Checks
-        // pane is populated the moment its tab opens.
-        seedProfileIfNeeded(journalID: journal.id)
-        addMissingStructureSections(journalID: journal.id)
         return manuscript?.journals.first { $0.id == journal.id } ?? journal
     }
 

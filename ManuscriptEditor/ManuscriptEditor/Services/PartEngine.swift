@@ -279,6 +279,23 @@ enum PartEngine {
         return out
     }
 
+    /// Plain prose with `[[path]]` markers as **rich text**, every marker a
+    /// live token — what a section receives when a template's boilerplate
+    /// lands in it.
+    ///
+    /// `RichText(plain:)` is not the same thing: it stores the marker as
+    /// prose, and the editor reads a token only from the `part://` link in
+    /// the RTF.  Boilerplate written that way arrived as literal `[[title]]`
+    /// that clicked like text and never resolved on export.  Any place
+    /// template text becomes manuscript text goes through here.
+    static func richText(_ plain: String) -> RichText {
+        let attributed = tokenized(plain, attributes: [:])
+        let full = NSRange(location: 0, length: attributed.length)
+        return RichText(plain: attributed.string,
+                        rtf: attributed.rtf(from: full, documentAttributes: [:]),
+                        refs: [])
+    }
+
     static func expandPlainMarkers(_ text: String, content m: Manuscript) -> String {
         var out = text
         for (path, _) in catalog {

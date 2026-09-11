@@ -405,10 +405,13 @@ the editor's text, undoably.
 
 ### 7.2 `journal.fastForward`
 
-Enabled context + the **upstream** journal's full content + the **target**'s
-profile (requirements bullets, structure, checks with their limits) → per-section
-adapted content → writes the downstream cut and stamps a version. Never touches
-the upstream; never applies without the diff being visible.
+Enabled context + the content a plain fast-forward would bring down (the
+**upstream**'s text where it has some, the cut's own — its boilerplate, tokens
+and all — where it hasn't) + the **target**'s profile (requirements bullets,
+structure, checks with their limits) → per-section adapted content → writes
+the downstream cut and stamps a version. Never touches the upstream; never
+applies without the diff being visible. The adaptation is the **last write**:
+nothing (the template's content included) is applied over it afterwards.
 
 **Seeing what the tool is doing.** Claude Code writes a transcript of every run
 under `~/.claude/projects/<encoded working directory>/<session>.jsonl`. The app
