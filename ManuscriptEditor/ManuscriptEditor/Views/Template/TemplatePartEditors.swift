@@ -164,8 +164,7 @@ struct TemplateStructureView: View {
                 .foregroundStyle(.tertiary)
                 .font(.caption)
                 .help("Drag to reorder")
-            Image(systemName: section.role?.systemImage
-                  ?? (section.kind == .questions ? "list.bullet.rectangle" : "text.alignleft"))
+            Image(systemName: section.kind.systemImage)
                 .foregroundStyle(.tertiary)
                 .font(.caption)
                 .frame(width: 18)
@@ -175,22 +174,13 @@ struct TemplateStructureView: View {
                 set: { value in edit(section) { $0.title = value } }))
                 .textFieldStyle(.roundedBorder)
 
-            if section.role == nil {
-                Picker("", selection: Binding(
-                    get: { section.kind },
-                    set: { value in edit(section) { $0.kind = value } })) {
-                    ForEach(SectionKind.allCases, id: \.self) { Text($0.label).tag($0) }
-                }
-                .labelsHidden().fixedSize()
-                .help("A question series arrives as the venue's submission questions when a journal is added")
-            } else if let role = section.role {
-                Text(role.label)
-                    .font(.caption2)
-                    .padding(.horizontal, 6).padding(.vertical, 2)
-                    .background(Color.secondary.opacity(0.12), in: Capsule())
-                    .foregroundStyle(.secondary)
-                    .help("Lands in the manuscript's Letter to Editor, not in a body section")
+            Picker("", selection: Binding(
+                get: { section.kind },
+                set: { value in edit(section) { $0.kind = value } })) {
+                ForEach(SectionKind.allCases, id: \.self) { Text($0.label).tag($0) }
             }
+            .labelsHidden().fixedSize()
+            .help("A question series arrives as the venue's submission questions when a journal is added; a letter arrives with a letterhead and a signature")
 
             // What this section carries, said here so the list is worth
             // reading on its own.
@@ -290,7 +280,7 @@ struct TemplateTestsView: View {
     /// The venue's own sections — what a condition can be scoped to here.
     /// A template has no manuscript behind it, so its structure is the list.
     private var sectionTitles: [String] {
-        (template?.structure.sections ?? []).filter { $0.role == nil }.map(\.title)
+        (template?.structure.sections ?? []).map(\.title)
     }
 }
 
@@ -325,11 +315,7 @@ struct TemplateExportView: View {
 
     private var template: JournalTemplate? { templates.template(templateID) }
 
-    /// The venue's body sections — the cover letter is an outline item of its
-    /// own kind (`.coverLetter`), not one of these.
-    private var bodySections: [StructureSection] {
-        (template?.structure.sections ?? []).filter { $0.role == nil }
-    }
+    private var bodySections: [StructureSection] { template?.structure.sections ?? [] }
 
     /// The template's sections as a manuscript, so the outline can name them.
     ///
@@ -339,13 +325,10 @@ struct TemplateExportView: View {
         guard let template else { return nil }
         var made = Manuscript.new()
         made.title = template.displayName
-        // No letter section, no cover letter in the standard outline.
-        if !template.structure.sections.contains(where: { $0.role == .letter }) {
-            made.hiddenPanes = ["letter"]
-        }
         made.sections = bodySections.enumerated().map { index, section in
             ManuscriptSection(id: section.uid, type: .custom, title: section.title,
-                              content: RichText(plain: section.boilerplate ?? ""), order: index)
+                              content: RichText(plain: section.boilerplate ?? ""), order: index,
+                              kind: section.kind == .text ? nil : section.kind)
         }
         return made
     }

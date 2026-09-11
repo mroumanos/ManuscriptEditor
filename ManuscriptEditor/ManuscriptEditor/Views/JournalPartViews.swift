@@ -272,8 +272,7 @@ struct JournalStructureView: View {
             Image(systemName: "line.3.horizontal")
                 .foregroundStyle(.tertiary).font(.caption)
                 .help("Drag to reorder")
-            Image(systemName: section.role?.systemImage
-                  ?? (section.kind == .questions ? "list.bullet.rectangle" : "text.alignleft"))
+            Image(systemName: section.kind.systemImage)
                 .foregroundStyle(.tertiary).font(.caption).frame(width: 18)
             Text(section.displayTitle)
             if let boilerplate = section.boilerplate, !boilerplate.isEmpty {

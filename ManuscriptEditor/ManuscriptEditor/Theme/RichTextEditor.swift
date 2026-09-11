@@ -61,9 +61,11 @@ struct RichEditor: View {
     /// Which version's bibliography/figures/tables feed the "/" reference
     /// autocomplete and token numbering.
     var versionRef: VersionRef = .source
-    /// Letter-to-editor context: "/" additionally offers Date and Signature
-    /// snippets (inserted as plain text).
+    /// Letter context: "/" additionally offers Date and Signature tokens.
     var letterMode: Bool = false
+    /// Whether a signature has been drawn for this letter — the Signature
+    /// row says so, since placing one that isn't there prints nothing.
+    var letterSignatureDrawn: Bool = false
     /// Journal-template context: "/" offers the part tokens and **nothing
     /// else**.
     ///
@@ -196,9 +198,8 @@ struct RichEditor: View {
                                         iconName: "calendar"))
             }
             if matches(["signature", "sign"]) {
-                let hasDrawn = m.letterToEditor.signatureImageData != nil
                 out.append(RefCandidate(kind: .bib, id: Self.signatureSnippetID,
-                                        display: hasDrawn
+                                        display: letterSignatureDrawn
                                             ? "Signature — the drawn signature"
                                             : "Signature — draw one in the Signature section first",
                                         snippetText: LetterToken.signature.marker,

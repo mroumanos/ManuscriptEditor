@@ -73,7 +73,10 @@ struct ExportConfig: Codable, Sendable, Equatable {
             ExportItem(kind: .keywords),
             ExportItem(kind: .pageBreak),
         ]
-        for section in content.sections.sorted(by: { $0.order < $1.order }) where section.active {
+        // Letter sections get documents of their own below — a cover letter
+        // is sent beside the manuscript, not bound into it.
+        for section in content.sections.sorted(by: { $0.order < $1.order })
+        where section.active && section.sectionKind != .letter {
             items.append(ExportItem(kind: .section, sectionID: section.id))
         }
         items.append(ExportItem(kind: .pageBreak))
@@ -98,13 +101,12 @@ struct ExportConfig: Codable, Sendable, Equatable {
                 items: [ExportItem(kind: .figures), ExportItem(kind: .pageBreak), ExportItem(kind: .tables)]
             ))
         }
-        // A manuscript that removed its letter (Sidebar → Remove) has none to
-        // print; the standard outline says so by leaving the document out.
-        if !(content.hiddenPanes ?? []).contains("letter") {
-            documents.append(ExportDocument(
-                name: "Cover Letter", fileType: fileType,
-                items: [ExportItem(kind: .coverLetter)]
-            ))
+        for section in content.sections.sorted(by: { $0.order < $1.order })
+        where section.active && section.sectionKind == .letter {
+            var letter = ExportItem(kind: .section, sectionID: section.id)
+            letter.showTitle = false        // a real letter carries no label
+            documents.append(ExportDocument(name: section.title, fileType: fileType,
+                                            items: [letter]))
         }
         return ExportConfig(documents: documents)
     }
@@ -307,7 +309,13 @@ enum ExportFileType: String, Codable, CaseIterable, Identifiable, Sendable {
 struct ExportItem: Codable, Identifiable, Sendable, Equatable {
     enum Kind: String, Codable, CaseIterable, Sendable {
         case titlePage, abstract, keywords, section, figures, tables,
-             references, coverLetter, pageBreak
+             references, pageBreak
+        /// **Legacy.**  The cover letter was its own kind of item while it was
+        /// a fixed part of the manuscript; it is a letter SECTION now, printed
+        /// by a `.section` item.  Decoded so old outlines open, then pointed
+        /// at the manuscript's first letter section by
+        /// `ManuscriptStore.exportConfig(forJournal:)`, or dropped.
+        case coverLetter
         /// The byline block (authors + affiliations), separate from the
         /// title since Aug 2026 so removing it makes a blind-review copy.
         /// Configs saved before then have no `.authors` item — `.titlePage`
@@ -327,15 +335,27 @@ struct ExportItem: Codable, Identifiable, Sendable, Equatable {
 
     /// Whether this item's heading is printed in the exported document
     /// (toggle in the Export card).  Stored optional for backward-compatible
-    /// decoding; nil = the kind's default — every kind prints its heading
-    /// except the cover letter: a real letter to an editor doesn't carry a
-    /// "Cover Letter" label (Jul 2026 beta feedback).
+    /// decoding; nil = shown.  A letter section's item is created with it
+    /// off — a real letter to an editor doesn't carry a "Cover Letter" label
+    /// (Jul 2026 beta feedback) — and the renderers treat nil as off for a
+    /// letter section, so an older outline reads the same way.
     var showTitle: Bool? = nil
 
     /// Resolved show/hide for the printed heading.
     var titleShown: Bool {
         get { showTitle ?? (kind != .coverLetter) }
         set { showTitle = newValue }
+    }
+
+    /// The heading decision with the section in view: a letter section's
+    /// heading is off unless switched on.
+    func headingShown(in content: Manuscript?) -> Bool {
+        if let showTitle { return showTitle }
+        if kind == .section, let id = sectionID,
+           content?.sections.first(where: { $0.id == id })?.sectionKind == .letter {
+            return false
+        }
+        return titleShown
     }
 
     /// Formatting for the printed heading (bold/underline/centered/size),

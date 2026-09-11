@@ -429,7 +429,6 @@ struct SectionPreviewButton: View {
         case .figures:         return ExportItem(kind: .figures)
         case .tables:          return ExportItem(kind: .tables)
         case .bibliography:    return ExportItem(kind: .references)
-        case .letterToEditor:  return ExportItem(kind: .coverLetter)
         default:               return nil
         }
     }
@@ -917,7 +916,7 @@ struct ExportDocumentCard: View {
         case .authors:
             break
         default:
-            parts.append(item.titleShown
+            parts.append(item.headingShown(in: content)
                          ? "+header \(item.effectiveHeadingStyle.levelLabel)"
                          : "no header")
         }
@@ -1005,7 +1004,7 @@ struct ExportDocumentCard: View {
 
     private var missingSimpleKinds: [ExportItem.Kind] {
         let present = Set(document.items.map(\.kind))
-        return [.titlePage, .authors, .abstract, .keywords, .figures, .tables, .references, .coverLetter]
+        return [.titlePage, .authors, .abstract, .keywords, .figures, .tables, .references]
             .filter { !present.contains($0) }
     }
 

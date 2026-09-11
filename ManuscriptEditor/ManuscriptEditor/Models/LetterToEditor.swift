@@ -1,23 +1,21 @@
 // LetterToEditor.swift
 //
-// The cover letter submitted alongside the manuscript.
+// What a letter carries beyond its text: a letterhead and a signature.
 //
-// STRUCTURE
-// ─────────────────────────────────────────────────────────────────────────────
-// Most journals require a cover letter with three logical parts:
+// The cover letter is a SECTION now — `SectionKind.letter`, a text box that
+// also carries these details — so it is added, removed, renamed and
+// reordered like any other section, and a manuscript can have one, none, or
+// several.  It used to be a fixed part of every manuscript (`Manuscript.
+// letterToEditor`), which meant a special pane, a special export item, a
+// special check scope, and a special case in every place sections are
+// handled.  All of that is gone; the type below is what survived.
 //
-//   HEADER  — Letterhead identifying the sender.  Three slots — left, center,
-//             right — each holding an optional image (institution logo,
-//             letterhead art) and freeform text (lab name, address, date).
-//             Mirrors how real letterheads are laid out.
+//   HEADER    — three letterhead slots, left / center / right, each an image
+//               (institution logo, letterhead art) OR free text.
+//   SIGNATURE — the closing block, and an optional drawn signature.
 //
-//   BODY    — The actual letter: why this journal, novelty summary, author
-//             contributions, conflict of interest statement, etc.
-//
-//   SIGNATURE — Corresponding author's name, title, contact, institution.
-//
-// Stored on the `Manuscript` struct so it persists with the manuscript JSON.
-// Each journal cut (Phase 2) will have its own letter adapted from this source.
+// `LetterToEditor` remains only to READ manuscripts written before the
+// change; the store turns it into a section on load and never writes it.
 
 import Foundation
 
@@ -65,7 +63,27 @@ struct LetterHeaderSlot: Codable, Sendable, Equatable {
     }
 }
 
-/// The cover letter for a manuscript submission.
+/// The letterhead and signature a letter section carries.
+struct LetterDetails: Codable, Sendable, Equatable {
+    var headerLeft: LetterHeaderSlot = .init()
+    var headerCenter: LetterHeaderSlot = .init()
+    var headerRight: LetterHeaderSlot = .init()
+    /// The closing signature block.
+    /// Convention:  "Sincerely,\n\nDr. Jane Smith\nProfessor of …\njane@example.edu"
+    var signature: String = ""
+    /// A hand-drawn signature (PNG), placed by ⟦Signature⟧ or after the body.
+    var signatureImageData: Data? = nil
+
+    var hasHeader: Bool {
+        !(headerLeft.isEmpty && headerCenter.isEmpty && headerRight.isEmpty)
+    }
+
+    var isEmpty: Bool { !hasHeader && signature.isEmpty && signatureImageData == nil }
+}
+
+/// **Legacy.**  The cover letter as manuscripts stored it before it became a
+/// section.  Decoded so old files open; migrated by the store; never
+/// written again.
 struct LetterToEditor: Codable, Sendable, Equatable {
 
     // MARK: - Header (three letterhead slots)
@@ -76,6 +94,17 @@ struct LetterToEditor: Codable, Sendable, Equatable {
 
     var hasHeader: Bool {
         !(headerLeft.isEmpty && headerCenter.isEmpty && headerRight.isEmpty)
+    }
+
+    /// Whether there is anything here worth carrying forward.
+    var isEmpty: Bool {
+        !hasHeader && body.isEmpty && signature.isEmpty && signatureImageData == nil
+    }
+
+    /// The part of this that a letter section keeps beside its text.
+    var details: LetterDetails {
+        LetterDetails(headerLeft: headerLeft, headerCenter: headerCenter, headerRight: headerRight,
+                      signature: signature, signatureImageData: signatureImageData)
     }
 
     // MARK: - Body

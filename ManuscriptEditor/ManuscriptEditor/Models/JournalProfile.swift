@@ -235,33 +235,6 @@ struct TemplateQuestion: Codable, Sendable, Equatable {
 /// — title, authors, abstract, keywords, figures, tables, bibliography, cover
 /// letter — come with every manuscript regardless of journal, so a structure
 /// file has nothing to say about them.
-/// What a template section stands for in a manuscript.
-///
-/// Almost every entry is an ordinary body section, created by title.  The
-/// **cover letter** is the exception: it is journal-specific — addressed to a
-/// named editor at a named venue, following that venue's conventions — but a
-/// manuscript keeps exactly one, in its own pane, not as a body section.  So
-/// the template carries it as a section with a role, and it lands in the
-/// letter rather than becoming a section called "Letter to Editor".
-enum StructureRole: String, Codable, Sendable {
-    case letter
-
-    /// What the kind is called where sections are added: not "the letter",
-    /// which sounds like a fixed part, but what it is — a text box that
-    /// carries a letterhead and a signature.
-    var label: String {
-        switch self {
-        case .letter: return "Text Box with Header / Signature"
-        }
-    }
-
-    var systemImage: String {
-        switch self {
-        case .letter: return "envelope"
-        }
-    }
-}
-
 struct StructureSection: Codable, Sendable, Equatable, Identifiable {
 
     /// Stable identity, so renaming a section is a rename and not a
@@ -280,8 +253,6 @@ struct StructureSection: Codable, Sendable, Equatable, Identifiable {
 
     var title: String
 
-    /// What this entry targets — nil for an ordinary body section.
-    var role: StructureRole? = nil
     /// Required sections fail a structure check when missing; optional ones
     /// are part of the journal's shape but never fail.
     var required: Bool = true
@@ -354,13 +325,12 @@ struct StructureSection: Codable, Sendable, Equatable, Identifiable {
     var key: String { title.lowercased() }
 
     /// What this section is called in the template editor's sidebar.
-    var displayTitle: String {
-        role == .letter && title.isEmpty ? "Letter to the Editor" : title
-    }
+    var displayTitle: String { title }
 
     private enum CodingKeys: String, CodingKey {
         case id, title, required, note, kind, core, sample, questions, format, formatNote
-        case boilerplate, role
+        case boilerplate
+        case role       // legacy: "letter" marked the cover letter before it was a kind
     }
 
     /// The id a section with no stored one gets: derived from its title, so
@@ -379,11 +349,11 @@ struct StructureSection: Codable, Sendable, Equatable, Identifiable {
          note: String? = nil, boilerplate: String? = nil,
          questions: [TemplateQuestion]? = nil,
          format: ExportDocumentFormat? = nil, formatNote: String? = nil,
-         role: StructureRole? = nil, uid: UUID? = nil) {
+         uid: UUID? = nil) {
         self.uid = uid ?? StructureSection.derivedID(title: title)
         self.title = title; self.required = required; self.kind = kind; self.note = note
         self.boilerplate = boilerplate; self.questions = questions; self.format = format
-        self.formatNote = formatNote; self.role = role
+        self.formatNote = formatNote
     }
 
     init(from decoder: Decoder) throws {
@@ -398,13 +368,15 @@ struct StructureSection: Codable, Sendable, Equatable, Identifiable {
         questions = try c.decodeIfPresent([TemplateQuestion].self, forKey: .questions)
         format = try c.decodeIfPresent(ExportDocumentFormat.self, forKey: .format)
         formatNote = try c.decodeIfPresent(String.self, forKey: .formatNote)
-        role = try c.decodeIfPresent(StructureRole.self, forKey: .role)
         // `kind` briefly meant "core"/"text" when structure files also listed
         // the app's fixed parts; anything but a section kind marks the entry
         // for dropping, and only "questions" changes what gets created.
         let rawKind = (try? c.decodeIfPresent(String.self, forKey: .kind)) ?? nil
         isFixedPart = rawKind == "core" || (try? c.decodeIfPresent(String.self, forKey: .core)) != nil
         kind = rawKind.flatMap(SectionKind.init(rawValue:)) ?? .text
+        // A file from the fortnight the cover letter was a "role" rather than
+        // a kind: it is a letter section now.
+        if (try? c.decodeIfPresent(String.self, forKey: .role)) == "letter" { kind = .letter }
     }
 
     /// `isFixedPart` is deliberately absent: it is a read-time concern, and
@@ -420,9 +392,6 @@ struct StructureSection: Codable, Sendable, Equatable, Identifiable {
         try c.encodeIfPresent(questions, forKey: .questions)
         try c.encodeIfPresent(format, forKey: .format)
         try c.encodeIfPresent(formatNote, forKey: .formatNote)
-        // Absent for an ordinary section, so adding roles left every existing
-        // template's fingerprint exactly where it was.
-        try c.encodeIfPresent(role?.rawValue, forKey: .role)
     }
 }
 

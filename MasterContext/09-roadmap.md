@@ -64,7 +64,7 @@ Implemented so far (Phase I):
   within a version, via a note-count button in each pane header.
 - **Export — submission package** (File → Export Submission Package…, ⌘E):
   `ExportService` writes DOCX/RTF/HTML/plain via `NSAttributedString`, assembling
-  title→authors→abstract→keywords→sections→figures/tables→references→cover letter,
+  title→authors→abstract→keywords→sections→figures/tables→references→letter sections,
   splits a separate figures document when the journal requires it, and copies
   figure images into the package. Dependency-free.
 - **Custom sections (shared) with per-journal activation**: add via the inline

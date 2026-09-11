@@ -76,10 +76,12 @@ shows its word count badge). **Drag to reorder**, **deactivate per journal**
 (dimmed with an orange `eye.slash`; the text is preserved, and Tests/Export
 filter on the flag, never on emptiness), rename, delete. These are exactly what
 a journal's `structure.json` describes.
-- **Letter to Editor** closes the sections, because that is what it is:
-  journal-specific writing — a text box with a letterhead and a signature,
-  addressed to a named editor at a named journal. It used to sit above the
-  rule with the fixed parts, which said a venue has no opinion about it.
+- A **letter** is one of the sections: a section kind — *Text Box with
+  Header / Signature* — added from Add Section, deleted, renamed and
+  reordered like any other, so a manuscript can have one, none, or several.
+  It used to be a fixed part with a pane of its own above the rule; that
+  said a venue had no opinion about it, and gave it a special case in every
+  place sections are handled.
 - "Add Section" closes the list.
 
 Every content pane carries a slim header (word count, activation, preview,

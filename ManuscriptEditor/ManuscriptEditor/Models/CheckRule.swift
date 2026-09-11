@@ -121,7 +121,7 @@ struct CheckScope: Codable, Hashable, Sendable {
             case .figures:     return "Figures"
             case .tables:      return "Tables"
             case .references:  return "References"
-            case .coverLetter: return "Cover letter"
+            case .coverLetter: return "Cover letter (every letter section)"
             case .export:      return "Export format"
             }
         }

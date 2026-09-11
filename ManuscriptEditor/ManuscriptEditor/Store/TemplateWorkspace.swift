@@ -93,15 +93,16 @@ final class TemplateWorkspace {
     /// An outline saved from a manuscript names that manuscript's sections by
     /// id, and those ids mean nothing here — every one of them rendered as
     /// "(missing section)".  Unknown section items are dropped and the
-    /// template's own body sections take their place, in Structure order.
-    /// The cover letter is an item of its own kind, never a section.
+    /// template's own sections take their place, in Structure order.  A
+    /// legacy cover-letter item goes too: the letter is a section now.
     static func repaired(_ config: ExportConfig, for template: JournalTemplate) -> ExportConfig {
-        let body = template.structure.sections.filter { $0.role == nil }
+        let body = template.structure.sections
         let known = Set(body.map(\.uid))
         var out = config
         var seen: Set<UUID> = []
         for d in out.documents.indices {
             out.documents[d].items.removeAll { item in
+                if item.kind == .coverLetter { return true }
                 guard item.kind == .section else { return false }
                 guard let id = item.sectionID, known.contains(id) else { return true }
                 return !seen.insert(id).inserted        // and no duplicates
@@ -116,20 +117,8 @@ final class TemplateWorkspace {
                 contentsOf: missing.map { ExportItem(kind: .section, sectionID: $0.uid) },
                 at: insertAt)
         }
-        // The cover letter is in the outline exactly when the template has
-        // one.  It appeared in Export with no letter in the sidebar to match,
-        // which read as a section that had gone missing.
-        let hasLetter = template.structure.sections.contains { $0.role == .letter }
-        let hasLetterItem = out.documents.contains { $0.items.contains { $0.kind == .coverLetter } }
-        if !hasLetter, hasLetterItem {
-            for d in out.documents.indices {
-                out.documents[d].items.removeAll { $0.kind == .coverLetter }
-            }
-            out.documents.removeAll { !$0.isAttachment && $0.items.allSatisfy { $0.kind == .pageBreak } }
-        } else if hasLetter, !hasLetterItem {
-            out.documents.append(ExportDocument(name: "Cover Letter",
-                                                items: [ExportItem(kind: .coverLetter)]))
-        }
+        out.documents.removeAll { !$0.isAttachment && !$0.items.isEmpty
+            && $0.items.allSatisfy { $0.kind == .pageBreak } }
         return out
     }
 

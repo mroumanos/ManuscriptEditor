@@ -20,7 +20,9 @@ Intent: a manuscript is a folder the user owns.
 
 Intent: most time is spent here; it must be excellent and AI-optional.
 - Components: Authors, Abstract, Keywords, body Sections (add/reorder/rename/
-  delete; custom types allowed), Figures, Tables, Bibliography, Letter to Editor.
+  delete; custom types allowed; a section is a text box, a question series,
+  or a letter — a text box with a letterhead and a signature), Figures,
+  Tables, Bibliography.
 - AC: **Authors + institution registry.** "Add Institution" sits next to
   "Add Author" (same pane); institutions are named inline and authors
   affiliate by checking registry references in the editor — **required**:
@@ -110,7 +112,7 @@ Intent: most time is spent here; it must be excellent and AI-optional.
   half-empty split).
 - AC: Each added item has a clear inline delete affordance.
 - AC: Prose editors are rich text (see §G). Word counts update live.
-- AC: Letter to Editor has a three-slot letterhead (left / center / right —
+- AC: A **letter section** (`SectionKind.letter`) has a three-slot letterhead (left / center / right —
   each an optional uploaded image plus freeform text, laid out like a real
   letterhead in editor and exports), body, and a **drawn-only
   signature** (drawable pad with Reset — no typed signature box); preview
@@ -833,9 +835,9 @@ from a manuscript. Design and rationale:
   disables Active | Compare, and renders one pane.
 - AC: Its sidebar is **Overview**, then Summary · Structure · Tests · Export,
   then **Content laid out exactly as a manuscript's is** — the fixed parts in
-  their usual order (listed, greyed, inactive), Letter to Editor in its usual
-  place but editable and the venue's, the soft rule, then the venue's own
-  sections and Add Section. The fixed parts stay referenceable: `[[title]]`,
+  their usual order (listed, greyed, inactive), the soft rule, then the
+  venue's own sections (a letter among them, when the venue has one) and Add
+  Section. The fixed parts stay referenceable: `[[title]]`,
   `[[authors.names]]`, `[[authors.institutes]]` resolve against whatever
   manuscript adopts the template. The window's own chrome is untouched — the
   title above the sidebar stays the manuscript's.
@@ -894,14 +896,13 @@ from a manuscript. Design and rationale:
   (`authorIndexStyle`, `institutionIndexStyle`). The old "numbered" delimiter
   reads as newline — plus a numeric institution index where it meant "1.
   Institution" — so nothing saved prints differently.
-- AC: The outline carries a **Cover Letter exactly when there is a letter**:
-  a template's outline gains or loses the document as its letter section
-  comes and goes (`TemplateWorkspace.repaired`), and a manuscript's outline
-  follows its letter being removed or added back (`exportConfig(forJournal:)`).
-- AC: The **letter is a section kind** — "Text Box with Header / Signature" —
-  added from Add Section and removable, in a template (it is only listed when
-  present) and in a manuscript (Remove hides it, keeps the text, and drops the
-  cover-letter document from the standard outline until it is added back).
+- AC: A letter section's pane is `LetterSectionView`: letterhead slots and
+  the signature above, the body in the ordinary editor below, with ⟦Date⟧ and
+  ⟦Signature⟧ on "/".
+- AC: A letter is added from **Add Section** like any kind, in a template and
+  in a manuscript, and deleted like any section. The standard outline gives
+  each letter section a document of its own, heading off; the Add Item menu
+  lists it under Body Sections, never under Components.
 - AC: Structure rows and a question series' questions **drag to reorder**.
 - AC: Settings → Journals is read-only through and through: no Open buttons on
   the four parts (Manage Template opens the whole thing) and nothing to set —
@@ -928,12 +929,16 @@ from a manuscript. Design and rationale:
   and which of the four parts have been edited.
 - AC: **No pass rate in a template's Tests.** There is no content to measure;
   the rate belongs to a cut, where the sidebar carries it — *Tests (86%)*.
-- AC: **The cover letter is journal-specific.** A structure entry with
-  `role: .letter` is edited in the template like any section and lands in a
-  manuscript's **Letter to Editor** — never as a body section named after it.
-  Adding a journal seeds an empty letter and never overwrites one already
-  written; a fast-forward replaces it like any mapped section; the `STRUCTURE`
-  test checks the letter rather than looking for a section that cannot exist.
+- AC: **The letter is a section kind** (`SectionKind.letter`, "Text Box with
+  Header / Signature") carrying `LetterDetails` — letterhead slots and a
+  signature — beside its text. A template's letter entry becomes a letter
+  section in the manuscript, boilerplate and all; adding a journal never
+  overwrites one already written; the `STRUCTURE` test checks it by name like
+  any section. There is no fixed cover letter: `Manuscript.letterToEditor` is
+  decoded from old files and migrated into a section on load, `ExportItem
+  .Kind.coverLetter` is decoded from old outlines and pointed at the first
+  letter section (or dropped), and the `coverLetter` check scope means every
+  letter section.
 - AC: **Structure, reverted.** The part is "Structure" again — the content
   lives in the sections, edited directly — and editing it adds and removes
   those sections. `required` is gone from both editors: every section a

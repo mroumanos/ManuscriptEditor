@@ -66,7 +66,7 @@ UI, and docs. (Updated for the Journal/Version/Lineage model — see
 - **SQL binding** — a figure/table's reference to a data asset (`dataAssetID`) plus
   a SQL query (and chart type for figures). The only thing a cut "converts."
 - **Content item** — a version-comparable component: Authors, Abstract, Keywords,
-  a body Section, Figures, Tables, Bibliography, Letter to Editor.
+  a body Section (a text box, a question series, or a letter), Figures, Tables, Bibliography.
 - **Section (ManuscriptSection)** — one body section (Introduction, Methods, …),
   with a `SectionType`, title, and `RichText` content.
 - **RichText** — prose storage: `plain` (mirror for word count/search) + `rtf`

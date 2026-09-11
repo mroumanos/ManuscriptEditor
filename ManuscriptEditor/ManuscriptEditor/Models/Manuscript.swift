@@ -136,7 +136,7 @@ struct Manuscript: Codable, Identifiable, Sendable {
     var institutions: [Institution] = []
 
     /// Custom sidebar names for the fixed content panes, keyed by pane key
-    /// ("figures", "tables", "bibliography", "letter").  Missing = default.
+    /// ("figures", "tables", "bibliography").  Missing = default.
     var paneTitles: [String: String]? = nil
 
     /// Fixed content panes removed from the sidebar (same keys) —

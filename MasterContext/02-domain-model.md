@@ -55,7 +55,7 @@ ManuscriptContent (the component set — one per working head and per saved vers
 ├─ title, runningTitle, keywords[], authors[]
 ├─ abstract(RichText), sections[ManuscriptSection]
 ├─ figures[Figure], tables[ManuscriptTable]
-├─ bibliography[BibEntry], letterToEditor
+├─ bibliography[BibEntry]
 
 AppStore (global, cross-manuscript)
 ├─ backends[BackendAccount]     ← WHERE the project is stored in the cloud

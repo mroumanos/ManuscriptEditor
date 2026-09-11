@@ -240,7 +240,6 @@ struct SidebarView: View {
         case .figures:        return CheckScope(kind: .figures).key
         case .tables:         return CheckScope(kind: .tables).key
         case .bibliography:   return CheckScope(kind: .references).key
-        case .letterToEditor: return CheckScope(kind: .coverLetter).key
         case .section(let id):
             guard let title = store.manuscript?.sections.first(where: { $0.id == id })?.title
             else { return nil }
@@ -276,20 +275,13 @@ struct SidebarView: View {
 
     /// The fixed content panes: key (persistence), default name, icon, item.
     ///
-    /// The **letter is not one of them.**  It is addressed to a named editor
-    /// at a named journal and follows that journal's conventions — journal
-    /// -specific writing, like the sections below the rule, not a part every
-    /// manuscript has the same way it has a title.  It sits with them.
+    /// The letter is not one of them.  It is a SECTION — a text box with a
+    /// letterhead and a signature — added, removed and reordered below the
+    /// rule like any other, so a manuscript can have one, none, or several.
     private var fixedPanes: [(key: String, name: String, icon: String, item: SidebarItem)] {
         [("figures",      "Figures (\(active?.figures.count ?? 0))",           "photo.on.rectangle.angled", .figures),
          ("tables",       "Tables (\(active?.tables.count ?? 0))",             "tablecells",                .tables),
          ("bibliography", "Bibliography (\(active?.bibliography.count ?? 0))", "books.vertical",            .bibliography)]
-    }
-
-    /// The letter, as one of the journal-specific pieces: a text box with a
-    /// letterhead and a signature.
-    private var letterPane: (key: String, name: String, icon: String, item: SidebarItem) {
-        ("letter", "Letter to Editor", "envelope", .letterToEditor)
     }
 
     /// Default (count-free) name of a fixed pane, for rename prompts.
@@ -297,8 +289,7 @@ struct SidebarView: View {
         switch key {
         case "figures": return "Figures"
         case "tables": return "Tables"
-        case "bibliography": return "Bibliography"
-        default: return "Letter to Editor"
+        default: return "Bibliography"
         }
     }
 
@@ -321,12 +312,6 @@ struct SidebarView: View {
             sectionsDelimiter
 
             bodySection
-
-            // Past the rule with the sections, because that is what it is —
-            // and, like them, something this manuscript can do without.
-            if !store.isPaneHidden(letterPane.key) {
-                fixedPaneRow(letterPane)
-            }
 
             // Inline "add section" row at the very bottom of the Content list.
             addSectionRow
@@ -362,14 +347,6 @@ struct SidebarView: View {
                 Button("Rename…") {
                     renameDraft = custom ?? defaultPaneName(pane.key)
                     renamingPaneKey = pane.key
-                }
-                if pane.key == letterPane.key {
-                    // Removing hides it: the letter's text is kept, and Add
-                    // Section brings it back with everything still there.
-                    Button("Remove from Manuscript", role: .destructive) {
-                        if selection == pane.item { selection = .overview }
-                        store.setPaneHidden(pane.key, hidden: true)
-                    }
                 }
             }
             .alert("Rename Pane", isPresented: Binding(
@@ -407,15 +384,6 @@ struct SidebarView: View {
                     Label(kind.label, systemImage: kind.systemImage)
                 }
             }
-            // The letter is a kind of section too — one a manuscript has once.
-            if store.isPaneHidden(letterPane.key) {
-                Button {
-                    store.setPaneHidden(letterPane.key, hidden: false)
-                    selection = .letterToEditor
-                } label: {
-                    Label(StructureRole.letter.label, systemImage: StructureRole.letter.systemImage)
-                }
-            }
         } label: {
             Label("Add Section", systemImage: "plus")
                 .foregroundStyle(.secondary)
@@ -432,9 +400,9 @@ struct SidebarView: View {
         // rather than from Source's.
         let isActive = active?.sections.first { $0.id == section.id }?.active ?? section.active
         return HStack {
-            Label(section.title, systemImage: section.sectionKind == .questions
-                                              ? SectionKind.questions.systemImage
-                                              : section.type.systemImage)
+            Label(section.title, systemImage: section.sectionKind == .text
+                                              ? section.type.systemImage
+                                              : section.sectionKind.systemImage)
                 .foregroundStyle(isActive ? .primary : .tertiary)
             Spacer()
             if !isActive {

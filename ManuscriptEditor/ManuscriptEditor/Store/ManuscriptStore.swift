@@ -230,6 +230,8 @@ final class ManuscriptStore {
     /// bibliography into citation order.
     private func normalized(_ m: Manuscript) -> Manuscript {
         var m = m
+        migrateLetter(&m)
+        for i in m.versions.indices { migrateLetter(&m.versions[i].content) }
         m.sections = normalizedSections(m.sections)
         for i in m.versions.indices {
             m.versions[i].content.sections = normalizedSections(m.versions[i].content.sections)
@@ -243,6 +245,24 @@ final class ManuscriptStore {
         return m
     }
 
+    /// Turns a manuscript's fixed cover letter into a letter SECTION.
+    ///
+    /// Files written before the letter was a section kind carry it in
+    /// `letterToEditor`.  A non-empty one becomes the last section, titled
+    /// "Letter to the Editor", with its letterhead and signature beside its
+    /// text; the legacy field is emptied so this runs once.  A file that
+    /// already has a letter section is left alone.
+    private func migrateLetter(_ m: inout Manuscript) {
+        let legacy = m.letterToEditor
+        guard !legacy.isEmpty else { return }
+        m.letterToEditor = .empty()
+        guard !m.sections.contains(where: { $0.sectionKind == .letter }) else { return }
+        m.sections.append(ManuscriptSection(
+            id: UUID(), type: .custom, title: "Letter to the Editor",
+            content: legacy.body, order: m.sections.count, active: true,
+            kind: .letter, letter: legacy.details))
+    }
+
     /// Fills `RichText.refs` where it is still nil (files written before token
     /// tracking) by decoding the RTF once.  Editors keep the lists current
     /// from then on, so this never runs on an editing hot path.
@@ -252,7 +272,6 @@ final class ManuscriptStore {
         }
         fill(&m.abstract)
         for i in m.sections.indices { fill(&m.sections[i].content) }
-        fill(&m.letterToEditor.body)
     }
 
     func listSaved() -> [ManuscriptSummary] {
@@ -480,8 +499,12 @@ final class ManuscriptStore {
     func addSection(type: SectionType = .custom, title: String? = nil,
                     kind: SectionKind = .text) -> UUID? {
         guard manuscript != nil else { return nil }
-        let fallback = kind == .questions ? "Submission Questions"
-                                          : (type == .custom ? "New Section" : type.rawValue)
+        let fallback: String
+        switch kind {
+        case .questions: fallback = "Submission Questions"
+        case .letter:    fallback = "Letter to the Editor"
+        case .text:      fallback = type == .custom ? "New Section" : type.rawValue
+        }
         let uniqueTitle = uniqueSectionTitle(title ?? fallback)
         let id = UUID()
         // A question series starts with ONE empty question, so the pane opens
@@ -490,7 +513,8 @@ final class ManuscriptStore {
             ManuscriptSection(id: id, type: type, title: uniqueTitle, content: RichText(),
                               order: order, active: true,
                               kind: kind == .text ? nil : kind,
-                              questions: kind == .questions ? [QuestionEntry(order: 0)] : nil)
+                              questions: kind == .questions ? [QuestionEntry(order: 0)] : nil,
+                              letter: kind == .letter ? LetterDetails() : nil)
         }
         touch(undoAction: "Add Section") { m in
             m.sections.append(fresh(m.sections.count))
@@ -876,9 +900,6 @@ final class ManuscriptStore {
 
     // MARK: - Letter to editor
 
-    func updateLetterToEditor(_ letter: LetterToEditor, ref: VersionRef = .source) {
-        touch(ref, undoable: false) { $0.letterToEditor = letter }
-    }
 
     // MARK: - Notes
     //
@@ -1053,15 +1074,8 @@ final class ManuscriptStore {
               let journal = m.journals.first(where: { $0.id == journalID }),
               let wanted = journal.structure?.sections, !wanted.isEmpty
         else { return }
-        // The cover letter is journal-specific but is not a body section: a
-        // manuscript keeps one, in its own pane.  So a letter-role entry seeds
-        // that pane instead of creating a section named after it.
-        for entry in wanted where entry.role == .letter {
-            seedLetter(from: entry, journalID: journalID)
-        }
         let existing = Set(m.sections.map { $0.title.lowercased() })
-        for section in wanted where section.role == nil
-            && !existing.contains(section.title.lowercased()) {
+        for section in wanted where !existing.contains(section.title.lowercased()) {
             // A section arrives with whatever the template carries for it —
             // the venue's boilerplate, its questions, its stated format and
             // notes.  That is what makes a template a starting point.  Only
@@ -1112,6 +1126,7 @@ final class ManuscriptStore {
         var out = repaired
         for d in out.documents.indices {
             out.documents[d].items = out.documents[d].items.compactMap { item in
+                if item.kind == .coverLetter { return nil }      // legacy kind
                 guard item.kind == .section else { return item }
                 guard let uid = item.sectionID, let key = keyByUID[uid], let id = idByKey[key]
                 else { return nil }
@@ -1180,7 +1195,11 @@ final class ManuscriptStore {
             guard let idx = m.sections.firstIndex(where: { $0.id == id }),
                   m.sections[idx].isEmptyContent else { return }
             switch entry.kind {
-            case .text:
+            case .text, .letter:
+                if entry.kind == .letter {
+                    m.sections[idx].kind = .letter
+                    if m.sections[idx].letter == nil { m.sections[idx].letter = LetterDetails() }
+                }
                 guard let sample = entry.sample, !sample.isEmpty else { return }
                 m.sections[idx].content = RichText(plain: sample)
             case .questions:
@@ -1207,23 +1226,6 @@ final class ManuscriptStore {
                     return kept
                 }
             }
-        }
-    }
-
-    /// Puts a template's cover-letter boilerplate into the letter — only
-    /// when there is nothing there yet.
-    ///
-    /// Adding a journal never writes over something already written; this is
-    /// the same rule `applyTemplateDefaults` follows for sections, and the
-    /// letter is where it matters most, since there is only one of them.
-    private func seedLetter(from entry: StructureSection, journalID: UUID) {
-        guard let boilerplate = entry.boilerplate, !boilerplate.isEmpty else { return }
-        let ref: VersionRef = latestVersion(forJournal: journalID)
-            .map { .version($0.id) } ?? .source
-        guard manuscript(for: ref)?.letterToEditor.body.plain
-                .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == true else { return }
-        touch(ref, undoable: false) { m in
-            m.letterToEditor.body = RichText(plain: boilerplate)
         }
     }
 
@@ -1334,7 +1336,6 @@ final class ManuscriptStore {
         guard let m = manuscript(for: ref) else { return nil }
         switch item {
         case .abstract:       return m.abstract.plain
-        case .letterToEditor: return m.letterToEditor.body.plain
         case .section(let id):
             // Versions keep the source ids at cut time; fall back to the same
             // section TYPE so a replaced section still compares.
@@ -1785,7 +1786,7 @@ final class ManuscriptStore {
             // ambiguous: boilerplate to be replaced, or writing to be kept?
             // The existing entry's boilerplate is carried through untouched.
             switch section.sectionKind {
-            case .text:
+            case .text, .letter:
                 entry.questions = nil
             case .questions:
                 // The QUESTIONS are the venue's and do belong to the template;
@@ -1907,21 +1908,25 @@ final class ManuscriptStore {
                 && config.documents[i].items.first?.kind != .pageBreak {
             config.documents[i].items.insert(ExportItem(kind: .pageBreak), at: 0)
         }
-        // The cover letter is in the outline exactly when the manuscript has
-        // one: Remove (in the sidebar) takes it out of the outline too, and
-        // adding it back brings the document with it.
-        let letterHidden = (m.hiddenPanes ?? []).contains("letter")
-        let hasLetterItem = config.documents.contains { $0.items.contains { $0.kind == .coverLetter } }
-        if letterHidden, hasLetterItem {
-            for i in config.documents.indices {
-                config.documents[i].items.removeAll { $0.kind == .coverLetter }
+        // An outline from when the cover letter was its own kind of item:
+        // that item now means "the manuscript's letter section" — the first
+        // one — or nothing at all if there isn't one.
+        let content = journalID.flatMap { latestVersion(forJournal: $0)?.content } ?? m
+        let letterID = content.sections.sorted { $0.order < $1.order }
+            .first { $0.sectionKind == .letter }?.id
+        for d in config.documents.indices {
+            config.documents[d].items = config.documents[d].items.compactMap { item in
+                guard item.kind == .coverLetter else { return item }
+                guard let letterID else { return nil }
+                var section = item
+                section.kind = .section
+                section.sectionID = letterID
+                section.showTitle = item.showTitle ?? false
+                return section
             }
-            config.documents.removeAll { !$0.isAttachment && $0.items.allSatisfy { $0.kind == .pageBreak } }
-        } else if !letterHidden, !hasLetterItem, !config.documents.isEmpty {
-            config.documents.append(ExportDocument(name: "Cover Letter",
-                                                   items: [ExportItem(kind: .pageBreak),
-                                                           ExportItem(kind: .coverLetter)]))
         }
+        config.documents.removeAll { !$0.isAttachment && !$0.items.isEmpty
+            && $0.items.allSatisfy { $0.kind == .pageBreak } }
         return config
     }
 
@@ -1938,7 +1943,6 @@ final class ManuscriptStore {
         case .figures:         return (.figures, nil)
         case .tables:          return (.tables, nil)
         case .bibliography:    return (.references, nil)
-        case .letterToEditor:  return (.coverLetter, nil)
         default:               return nil
         }
     }
@@ -2270,7 +2274,6 @@ final class ManuscriptStore {
                 m.figures = content.figures
                 m.tables = content.tables
                 m.bibliography = content.bibliography
-                m.letterToEditor = content.letterToEditor
                 m.versions.removeAll { v in dropped.contains { $0.id == v.id } }
             }
             log(.info, "Rolled Source back to v\(sourceOrdinal(of: version))")
@@ -2475,7 +2478,6 @@ final class ManuscriptStore {
                 m.figures = content.figures
                 m.tables = content.tables
                 m.bibliography = content.bibliography
-                m.letterToEditor = content.letterToEditor
             }
         }
         log(.info, "Fast-backward: \(source.upstreamName) overridden with \(journalName(journalID) ?? "journal")'s latest")
@@ -2494,7 +2496,7 @@ final class ManuscriptStore {
         for i in incoming.sections.indices {
             guard let mine = byTitle[incoming.sections[i].title.lowercased()] else { continue }
             switch incoming.sections[i].sectionKind {
-            case .text:
+            case .text, .letter:
                 let kept = mine.content.plain
                 let arriving = incoming.sections[i].content.plain
                 guard !kept.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
@@ -2531,20 +2533,12 @@ final class ManuscriptStore {
     private func applyTemplateContent(_ content: inout Manuscript, journalID: UUID) {
         guard let journal = manuscript?.journals.first(where: { $0.id == journalID }),
               let sections = journal.structure?.sections, !sections.isEmpty else { return }
-        // The cover letter maps to the venue's letter entry, and is replaced
-        // the same way a section is — it is addressed to this journal's
-        // editor, so arriving at a new venue with the old venue's letter is
-        // the thing to avoid.
-        if let letter = sections.first(where: { $0.role == .letter }),
-           let boilerplate = letter.boilerplate, !boilerplate.isEmpty {
-            content.letterToEditor.body = RichText(plain: boilerplate)
-        }
-        let byTitle = Dictionary(sections.filter { $0.role == nil }.map { ($0.title.lowercased(), $0) },
+        let byTitle = Dictionary(sections.map { ($0.title.lowercased(), $0) },
                                  uniquingKeysWith: { first, _ in first })
         for i in content.sections.indices {
             guard let entry = byTitle[content.sections[i].title.lowercased()] else { continue }
             switch entry.kind {
-            case .text:
+            case .text, .letter:
                 guard let sample = entry.sample, !sample.isEmpty else { continue }
                 content.sections[i].content = RichText(plain: sample)
             case .questions:
@@ -3211,7 +3205,6 @@ final class ManuscriptStore {
         if base.title != current.title { add("Project Title", "Modified") }
         addText("Abstract", base.abstract.plain, current.abstract.plain)
         if base.keywords != current.keywords { add("Keywords", "Modified") }
-        addText("Letter to Editor", base.letterToEditor.body.plain, current.letterToEditor.body.plain)
         let baseSecs = Dictionary(uniqueKeysWithValues: base.sections.map { ($0.id, $0) })
         for s in current.sections {
             guard let b = baseSecs[s.id] else { add(s.title, "Added"); continue }

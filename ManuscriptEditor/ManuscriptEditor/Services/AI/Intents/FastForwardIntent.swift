@@ -86,7 +86,7 @@ struct FastForwardIntent: AIIntent {
     static func payloads(_ sections: [ManuscriptSection]) -> [Payload] {
         sections.filter(\.active).sorted { $0.order < $1.order }.map { section in
             switch section.sectionKind {
-            case .text:
+            case .text, .letter:
                 return Payload(section: section,
                                prepared: AIRefMarkers.prepare(section.content),
                                questions: [])
@@ -115,7 +115,7 @@ struct FastForwardIntent: AIIntent {
                 "title": payload.section.title,
             ]
             switch payload.section.sectionKind {
-            case .text:
+            case .text, .letter:
                 entry["kind"] = "prose"
                 entry["words"] = payload.section.wordCount
                 entry["text"] = payload.prepared?.text ?? ""

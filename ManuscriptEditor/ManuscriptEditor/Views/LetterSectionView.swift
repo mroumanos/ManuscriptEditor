@@ -1,72 +1,85 @@
-// LetterToEditorView.swift
+// LetterSectionView.swift
 //
-// Editor for the manuscript's cover letter (letter to the editor).
+// Editor for a LETTER section — a text box that also carries a letterhead
+// and a signature.
+//
+// The cover letter used to be a fixed part of every manuscript with a pane
+// of its own; it is a section now (`SectionKind.letter`), so this is what a
+// section pane shows when the section is a letter — the same way a question
+// series gets `QuestionSeriesView`.  Added, removed, renamed and reordered
+// like any other section.
 //
 // LAYOUT
 // ─────────────────────────────────────────────────────────────────────────────
-// The view uses a VSplitView so the header/signature form and the body editor
-// are independently resizable — useful because the body is usually much longer.
+// A VSplitView so the letterhead/signature form and the body editor are
+// independently resizable — the body is usually much longer.
 //
-// TOP HALF — Letterhead + signature:
-//   • Three header slots (left / center / right), each an optional image
-//     (logo, letterhead art) above freeform text — like a real letterhead
-//   • Signature block (plain text, monospaced font)
+//   TOP    — three letterhead slots (left / center / right), each an image
+//            or free text, laid out like a real letterhead; the drawn
+//            signature.
+//   BOTTOM — the body, in the ordinary editor.  "/" offers ⟦Date⟧ and
+//            ⟦Signature⟧ as well as the usual references.
 //
-// BOTTOM HALF — Body TextEditor:
-//   • Main letter text: why this journal, study novelty, conflict of interest, etc.
-//
-// PREVIEW PANEL
-// ─────────────────────────────────────────────────────────────────────────────
-// A "Preview" toggle shows a read-only approximation of the finished letter,
-// assembled from header + body + signature.  This lets authors check the
-// overall look before submitting.
-//
-// AUTO-SAVE
-// ─────────────────────────────────────────────────────────────────────────────
-// Any draft change calls `store.updateLetterToEditor(_:)` via `onChange`,
-// which routes through the `touch(_:)` helper in `ManuscriptStore` to bump
-// `updatedAt` and persist to disk.
+// Every change goes through `store.updateSection`, like any section's.
 
 import SwiftUI
 import AppKit
 import UniformTypeIdentifiers
 
-// MARK: - LetterToEditorView
+// MARK: - LetterSectionView
 
-/// Full editor for the manuscript's cover letter.
-struct LetterToEditorView: View {
+struct LetterSectionView: View {
     @Environment(ManuscriptStore.self) private var store
 
-    /// Which version this editor edits (Source by default).
+    let sectionID: UUID
     var versionRef: VersionRef = .source
 
-    /// Mutable working copy to avoid writing to the store on every render.
-    @State private var draft: LetterToEditor = .empty()
+    /// Working copies, so a keystroke doesn't round-trip through the store
+    /// on every render.
+    @State private var details = LetterDetails()
+    @State private var body_ = RichText()
     @State private var showSignaturePad = false
 
+    private var section: ManuscriptSection? {
+        store.section(sectionID, ref: versionRef)
+    }
+
     var body: some View {
-        // Preview lives in the pane header's export-preview button (the
-        // real pipeline), not a bespoke approximation panel here.
-        editorPanel
-        .onAppear { syncDraft() }
-        // Sync from external changes (e.g. undo, cut switch).
-        .onChange(of: store.manuscript(for: versionRef)?.letterToEditor) { _, _ in syncDraft() }
-        // Auto-save — guarded so external syncs don't echo back into the store.
-        .onChange(of: draft) { _, new in
-            guard new != store.manuscript(for: versionRef)?.letterToEditor else { return }
-            store.updateLetterToEditor(new, ref: versionRef)
+        if let section, section.active {
+            VSplitView {
+                metadataForm
+                    .frame(minHeight: 260, idealHeight: 320)
+                bodyEditor(section)
+                    .frame(minHeight: 200)
+            }
+            .onAppear { load(section) }
+            .onChange(of: sectionID) { _, _ in if let s = self.section { load(s) } }
+            // Sync from external changes (undo, a cut switch).
+            .onChange(of: section.letter) { _, new in
+                if let new, new != details { details = new }
+            }
+            .onChange(of: section.content) { _, new in
+                if new != body_ { body_ = new }
+            }
+            .onChange(of: details) { _, new in
+                guard var edited = self.section, edited.letter != new else { return }
+                edited.letter = new
+                store.updateSection(edited, ref: versionRef)
+            }
+            .onChange(of: body_) { _, new in
+                guard var edited = self.section, edited.content != new else { return }
+                edited.content = new
+                store.updateSection(edited, ref: versionRef)
+            }
+        } else {
+            ContentUnavailableView("Deactivated in this journal", systemImage: "moon.zzz",
+                                   description: Text("Its text is kept. Activate it from the pane header."))
         }
     }
 
-    // MARK: - Editor panel
-
-    private var editorPanel: some View {
-        VSplitView {
-            metadataForm
-                .frame(minHeight: 260, idealHeight: 320)
-            bodyEditor
-                .frame(minHeight: 200)
-        }
+    private func load(_ section: ManuscriptSection) {
+        details = section.letter ?? LetterDetails()
+        body_ = section.content
     }
 
     // MARK: – Top: letterhead + signature form
@@ -76,19 +89,19 @@ struct LetterToEditorView: View {
             Form {
                 Section("Header") {
                     HStack(alignment: .top, spacing: 0) {
-                        HeaderSlotEditor(title: "Left", alignment: .leading, slot: $draft.headerLeft)
+                        HeaderSlotEditor(title: "Left", alignment: .leading, slot: $details.headerLeft)
                         Divider().padding(.horizontal, 10)
-                        HeaderSlotEditor(title: "Center", alignment: .center, slot: $draft.headerCenter)
+                        HeaderSlotEditor(title: "Center", alignment: .center, slot: $details.headerCenter)
                         Divider().padding(.horizontal, 10)
-                        HeaderSlotEditor(title: "Right", alignment: .trailing, slot: $draft.headerRight)
+                        HeaderSlotEditor(title: "Right", alignment: .trailing, slot: $details.headerRight)
                     }
-                    Text("Each slot holds an optional image and free text — laid out left, centered, and right across the top of the letter, like a letterhead.")
+                    Text("Each slot holds an image or free text — laid out left, centered, and right across the top of the letter, like a letterhead.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
 
                 Section("Signature") {
-                    if let data = draft.signatureImageData, let image = NSImage(data: data) {
+                    if let data = details.signatureImageData, let image = NSImage(data: data) {
                         HStack(spacing: 12) {
                             Image(nsImage: image)
                                 .resizable()
@@ -99,7 +112,7 @@ struct LetterToEditorView: View {
                             Spacer()
                             Button("Redraw…") { showSignaturePad = true }
                             Button {
-                                draft.signatureImageData = nil
+                                details.signatureImageData = nil
                             } label: {
                                 Text("Remove").foregroundStyle(.red)
                             }
@@ -121,53 +134,28 @@ struct LetterToEditorView: View {
         }
         .sheet(isPresented: $showSignaturePad) {
             SignaturePadSheet(isPresented: $showSignaturePad) { image in
-                draft.signatureImageData = image.pngData(maxDimension: 800)
+                details.signatureImageData = image.pngData(maxDimension: 800)
             }
         }
     }
 
     // MARK: – Bottom: letter body
 
-    private var bodyEditor: some View {
+    private func bodyEditor(_ section: ManuscriptSection) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
                 Spacer()
-                Text("\(WordCountService.count(draft.body.plain)) words")
+                Text("\(WordCountService.count(body_.plain)) words")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
             .padding([.horizontal, .top], 16)
             .padding(.bottom, 8)
             Divider()
-            RichEditor(value: $draft.body, placeholder: "Dear Editor,…",
+            RichEditor(value: $body_, placeholder: "Dear Editor,…",
                        versionRef: versionRef, letterMode: true,
-                       formatItem: .letterToEditor)
-        }
-    }
-
-    // MARK: - Helpers
-
-    @ViewBuilder
-    private var signaturePreviewImage: some View {
-        if let data = draft.signatureImageData, let image = NSImage(data: data)?.trimmedTransparentMargins() {
-            Image(nsImage: image)
-                .resizable()
-                .scaledToFit()
-                .frame(maxHeight: 56)
-                .padding(4)
-                .background(Color.white, in: RoundedRectangle(cornerRadius: 4))
-                .frame(maxWidth: .infinity, alignment: .leading)
-        } else {
-            Text("(no signature drawn)")
-                .font(.caption)
-                .foregroundStyle(.tertiary)
-                .italic()
-        }
-    }
-
-    private func syncDraft() {
-        if let letter = store.manuscript(for: versionRef)?.letterToEditor, letter != draft {
-            draft = letter
+                       letterSignatureDrawn: details.signatureImageData != nil,
+                       formatItem: .section(section.id))
         }
     }
 }

@@ -60,13 +60,12 @@ enum SidebarItem: Hashable {
     case figures
     case tables
     case bibliography
-    case letterToEditor
 
     /// Content items are editable prose/component views.
     var isContent: Bool {
         switch self {
         case .title, .authors, .abstract, .keywords, .section,
-             .figures, .tables, .bibliography, .letterToEditor:
+             .figures, .tables, .bibliography:
             return true
         case .overview, .log, .checks, .export, .data, .versions,
              .summary, .structure, .templateOverview, .templateSection:
@@ -108,7 +107,6 @@ enum SidebarItem: Hashable {
         case .figures:            return "figures"
         case .tables:             return "tables"
         case .bibliography:       return "bibliography"
-        case .letterToEditor:     return "letter"
         case .summary:            return "summary"
         case .structure:          return "structure"
         case .templateOverview:   return "template"
@@ -588,7 +586,6 @@ struct ContentView: View {
         case .figures:        return CheckScope(kind: .figures).key
         case .tables:         return CheckScope(kind: .tables).key
         case .bibliography:   return CheckScope(kind: .references).key
-        case .letterToEditor: return CheckScope(kind: .coverLetter).key
         case .section(let id):
             guard let title = store.manuscript?.sections.first(where: { $0.id == id })?.title
             else { return nil }
@@ -668,16 +665,16 @@ struct ContentView: View {
         case .abstract:          AbstractView(versionRef: ref)
         case .keywords:          KeywordsView(versionRef: ref)
         case .section(let id):
-            // A section is prose or a question series; the pane follows.
-            if resolvedSection(id, ref)?.sectionKind == .questions {
-                QuestionSeriesView(sectionID: id, versionRef: ref)
-            } else {
-                SectionEditorView(sectionID: id, versionRef: ref)
+            // A section is prose, a question series, or a letter; the pane
+            // follows its kind.
+            switch resolvedSection(id, ref)?.sectionKind ?? .text {
+            case .questions: QuestionSeriesView(sectionID: id, versionRef: ref)
+            case .letter:    LetterSectionView(sectionID: id, versionRef: ref)
+            case .text:      SectionEditorView(sectionID: id, versionRef: ref)
             }
         case .figures:           FiguresView(versionRef: ref)
         case .tables:            TablesView(versionRef: ref)
         case .bibliography:      BibliographyView(versionRef: ref)
-        case .letterToEditor:    LetterToEditorView(versionRef: ref)
         case .checks:            ChecksView(versionRef: ref)
         case .summary:           JournalSummaryView(versionRef: ref)
         case .structure:         JournalStructureView(versionRef: ref)
@@ -860,7 +857,6 @@ struct DetailRouter: View {
         case .figures:              FiguresView()
         case .tables:               TablesView()
         case .bibliography:         BibliographyView()
-        case .letterToEditor:       LetterToEditorView()
         }
     }
 }

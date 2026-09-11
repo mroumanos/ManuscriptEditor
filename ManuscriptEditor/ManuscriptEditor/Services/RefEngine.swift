@@ -425,7 +425,6 @@ enum RefEngine {
         for s in m.sections.sorted(by: { $0.order < $1.order }) where s.active {
             out += (s.content.refs ?? []).map { ($0, s.title) }
         }
-        out += (m.letterToEditor.body.refs ?? []).map { ($0, "Letter to Editor") }
         return out
     }
 

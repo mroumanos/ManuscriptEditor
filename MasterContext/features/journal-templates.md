@@ -58,7 +58,7 @@ the summary is a distillation, and says so.
 Every requirement that can be checked, evaluated against the cut. Every
 required Content section also gets its own `EXISTS` test, so a missing section
 names itself instead of hiding inside one "matches the structure" verdict. The
-app's fixed parts (title, authors, abstract, references, cover letter)
+app's fixed parts (title, authors, abstract, references)
 deliberately get none — the app supplies those, and a test would look for a body
 section that cannot exist.
 
@@ -69,9 +69,9 @@ More than a list of headings. Per section:
 - **id** — stable, so renaming a section is a rename and not a delete-and-add.
   Written as `id` (which the fingerprint strips) and derived from the title for
   a file that has none, so every install agrees about which section is which.
-- **role** — nil for a body section; `letter` for the venue's cover letter,
-  which lands in the manuscript's Letter to Editor rather than becoming a
-  section named after it
+- **kind** — `text`, `questions`, or `letter` (a text box that also carries a
+  letterhead and a signature).  A section is a section whatever its kind; a
+  letter entry becomes a letter section in the manuscript, boilerplate and all
 - **boilerplate** (`boilerplate`) — the default content a journal gets when it
   is added: free-form for text sections, the questions for a question series.
   It may reference `[[title]]`, `[[authors.names]]`, `[[authors.institutes]]`.
@@ -117,15 +117,20 @@ The core parts stay **referenceable**: `[[title]]`, `[[authors.names]]`,
 `[[authors.institutes]]` in a template's title page are how the venue's layout
 is expressed, and they resolve against whatever manuscript adopts it.
 
-**The letter is a kind of section: "Text Box with Header / Signature".** In
-a template *and* in a manuscript it sits with the sections below the soft
-rule, it is added from Add Section like any other kind, and it can be removed
-(a manuscript hides it and keeps the text; the standard outline drops the
-cover-letter document while it is hidden). A template that doesn't carry one
-simply doesn't list it — a greyed placeholder read as "inactive", which is not
-what an absent section is. It is addressed to a named editor at a named
-journal and follows that journal's conventions; it was only ever "core"
-because every manuscript has one.
+**The letter IS a section: kind `letter`, "Text Box with Header /
+Signature".** Not a fixed part with a role, not a pane of its own, not an
+export item of its own kind — all three existed and each needed a special
+case wherever sections are handled, and the seams showed: adding one in a
+template produced a "Cover Letter" in Export with nothing in the sidebar to
+match. Now it is a `ManuscriptSection` whose `kind` is `.letter` and which
+carries `LetterDetails` (letterhead slots, signature) beside its text. Added
+from Add Section, deleted, renamed, reordered; a manuscript can have one,
+none, or several. The standard outline gives each letter section a document
+of its own with the heading off. Manuscripts written before the change carry
+`letterToEditor`; the store turns it into a section on load
+(`migrateLetter`) and never writes it. Old outlines' `.coverLetter` items are
+pointed at the first letter section, or dropped; the `coverLetter` check
+scope means "every letter section".
 
 ### 3.2 Its own workspace
 
@@ -154,7 +159,7 @@ Content    Title · Authors · Abstract · Keywords · Figures · Tables ·
            Title Page
            Public Health Implications
            Submission Questions
-           Letter to Editor          ← the venue's, and editable
+           Letter to the Editor      ← a section like the others (kind: letter)
            Add Section
 ```
 
@@ -211,8 +216,8 @@ captures formats either.
 What a journal ADOPTS when it is added is therefore the **outline itself**,
 pointed at the manuscript (`ManuscriptStore.adoptTemplateExport`): each
 section item is matched by title through the template — uid → title → this
-manuscript's section — the fixed parts and the cover letter pass straight
-through, and anything that matches nothing is dropped. Copying the outline
+manuscript's section — the fixed parts pass straight through, and anything
+that matches nothing is dropped. Copying the outline
 raw, which is what happened before, left every section row reading "(missing
 section)". The per-section `format` fields are still read for templates that
 never had an outline, and are otherwise legacy.

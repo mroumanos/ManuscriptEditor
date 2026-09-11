@@ -82,6 +82,10 @@ struct ManuscriptSection: Codable, Identifiable, Sendable {
     /// nil rather than empty, so the two are told apart on disk too.
     var questions: [QuestionEntry]? = nil
 
+    /// The letterhead and signature, when this is a letter.  The body is
+    /// `content`, like any prose section's.
+    var letter: LetterDetails? = nil
+
     /// The prompts in asked order.
     var orderedQuestions: [QuestionEntry] {
         (questions ?? []).sorted { $0.order < $1.order }
@@ -92,7 +96,7 @@ struct ManuscriptSection: Codable, Identifiable, Sendable {
     /// highlighting all read this rather than `content` directly.
     var plainText: String {
         switch sectionKind {
-        case .text: return content.plain
+        case .text, .letter: return content.plain
         case .questions:
             return orderedQuestions
                 .map { [$0.prompt, $0.response.plain].filter { !$0.isEmpty }.joined(separator: "\n") }
@@ -103,8 +107,8 @@ struct ManuscriptSection: Codable, Identifiable, Sendable {
     /// True when there is nothing in this section at all.
     var isEmptyContent: Bool {
         switch sectionKind {
-        case .text:      return content.isEmpty
-        case .questions: return orderedQuestions.allSatisfy { $0.isEmpty }
+        case .text, .letter: return content.isEmpty
+        case .questions:     return orderedQuestions.allSatisfy { $0.isEmpty }
         }
     }
 
@@ -114,7 +118,8 @@ struct ManuscriptSection: Codable, Identifiable, Sendable {
     // MARK: - Init
 
     init(id: UUID, type: SectionType, title: String, content: RichText, order: Int,
-         active: Bool = true, kind: SectionKind? = nil, questions: [QuestionEntry]? = nil) {
+         active: Bool = true, kind: SectionKind? = nil, questions: [QuestionEntry]? = nil,
+         letter: LetterDetails? = nil) {
         self.id = id
         self.type = type
         self.title = title
@@ -123,12 +128,13 @@ struct ManuscriptSection: Codable, Identifiable, Sendable {
         self.active = active
         self.kind = kind
         self.questions = questions
+        self.letter = letter
     }
 
     // MARK: - Backward-compatible Codable
 
     private enum CodingKeys: String, CodingKey {
-        case id, type, title, content, order, active, kind, questions
+        case id, type, title, content, order, active, kind, questions, letter
     }
 
     init(from decoder: Decoder) throws {
@@ -141,6 +147,7 @@ struct ManuscriptSection: Codable, Identifiable, Sendable {
         active  = try c.decodeIfPresent(Bool.self, forKey: .active) ?? true
         kind    = try c.decodeIfPresent(SectionKind.self, forKey: .kind)
         questions = try c.decodeIfPresent([QuestionEntry].self, forKey: .questions)
+        letter    = try c.decodeIfPresent(LetterDetails.self, forKey: .letter)
     }
 }
 
@@ -149,11 +156,16 @@ struct ManuscriptSection: Codable, Identifiable, Sendable {
 /// Whether a section is prose or a list of submission questions.
 enum SectionKind: String, Codable, CaseIterable, Sendable {
     case text, questions
+    /// A text box that also carries a letterhead and a signature — the
+    /// cover letter, which used to be a fixed part of every manuscript and
+    /// is now a section like any other: added, removed, renamed, reordered.
+    case letter
 
     var label: String {
         switch self {
         case .text:      return "Text Box"
         case .questions: return "Question Series"
+        case .letter:    return "Text Box with Header / Signature"
         }
     }
 
@@ -161,8 +173,12 @@ enum SectionKind: String, Codable, CaseIterable, Sendable {
         switch self {
         case .text:      return "text.alignleft"
         case .questions: return "list.bullet.rectangle"
+        case .letter:    return "envelope"
         }
     }
+
+    /// Prose kinds keep their text in `content`.
+    var isProse: Bool { self != .questions }
 }
 
 // MARK: - QuestionEntry

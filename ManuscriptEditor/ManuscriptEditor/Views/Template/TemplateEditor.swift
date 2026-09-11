@@ -52,10 +52,6 @@ struct TemplateSidebarView: View {
     private var sections: [StructureSection] { template?.structure.sections ?? [] }
     private var editedParts: Set<ProfilePart> { templates.editedParts(templateID) }
 
-    /// The venue's own body sections — everything but the cover letter, which
-    /// has a place of its own below.
-    private var bodySections: [StructureSection] { sections.filter { $0.role == nil } }
-    private var letterSection: StructureSection? { sections.first { $0.role == .letter } }
 
     var body: some View {
         List(selection: $selection) {
@@ -92,10 +88,9 @@ struct TemplateSidebarView: View {
                 // Past the rule, everything is the venue's — including the
                 // letter, which is addressed to a named editor at a named
                 // journal and follows that journal's conventions.
-                ForEach(bodySections) { section in
+                ForEach(sections) { section in
                     sectionRow(section)
                 }
-                letterRow
                 addSectionRow
             }
         }
@@ -145,32 +140,6 @@ struct TemplateSidebarView: View {
         ("Tables",       "tablecells",                 "a table reference"),
         ("Bibliography", "books.vertical",             "a citation"),
     ]
-
-    /// The letter, with the venue's other sections — only when the template
-    /// carries one.  A greyed placeholder read as "inactive", which is not
-    /// what an absent section is; Add Section offers it.
-    @ViewBuilder
-    private var letterRow: some View {
-        if let letter = letterSection {
-            Label(letter.displayTitle, systemImage: StructureRole.letter.systemImage)
-                .tag(SidebarItem.templateSection(letter.id.uuidString))
-                .contextMenu {
-                    Button("Rename…") {
-                        renameDraft = letter.title
-                        renamingKey = letter.id.uuidString
-                    }
-                    Button("Delete Section", role: .destructive) { delete(letter) }
-                }
-                .alert("Rename Section", isPresented: Binding(
-                    get: { renamingKey == letter.id.uuidString },
-                    set: { if !$0 { renamingKey = nil } }
-                )) {
-                    TextField("Section title", text: $renameDraft)
-                    Button("Rename") { rename(letter) }
-                    Button("Cancel", role: .cancel) { renamingKey = nil }
-                }
-        }
-    }
 
     /// The same hairline a manuscript's sidebar uses between the parts every
     /// manuscript has and the sections an author shapes.
@@ -234,31 +203,24 @@ struct TemplateSidebarView: View {
             }
     }
 
-    private func icon(for section: StructureSection) -> String {
-        if section.role == .letter { return "envelope" }
-        return section.kind == .questions ? "list.bullet.rectangle" : "text.alignleft"
-    }
+    private func icon(for section: StructureSection) -> String { section.kind.systemImage }
 
     /// Adding a section here adds it to the template's structure — the two are
     /// the same list, which is what §3.4 means by staying in sync.
     private var addSectionRow: some View {
         Menu {
-            Button {
-                add(StructureSection(title: uniqueTitle("New Section")))
-            } label: {
-                Label("Text Box", systemImage: "text.alignleft")
-            }
-            Button {
-                add(StructureSection(title: uniqueTitle("Submission Questions"), kind: .questions,
-                                     questions: []))
-            } label: {
-                Label("Question Series", systemImage: "list.bullet.rectangle")
-            }
-            if letterSection == nil {
+            // The same three kinds a manuscript offers, in the same words.
+            ForEach(SectionKind.allCases, id: \.self) { kind in
                 Button {
-                    add(StructureSection(title: "Letter to the Editor", role: .letter))
+                    switch kind {
+                    case .text:      add(StructureSection(title: uniqueTitle("New Section")))
+                    case .questions: add(StructureSection(title: uniqueTitle("Submission Questions"),
+                                                          kind: .questions, questions: []))
+                    case .letter:    add(StructureSection(title: uniqueTitle("Letter to the Editor"),
+                                                          kind: .letter))
+                    }
                 } label: {
-                    Label(StructureRole.letter.label, systemImage: StructureRole.letter.systemImage)
+                    Label(kind.label, systemImage: kind.systemImage)
                 }
             }
         } label: {

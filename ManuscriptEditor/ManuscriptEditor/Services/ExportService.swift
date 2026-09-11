@@ -33,7 +33,7 @@ import CoreText
 /// "left  center  right" cells on shared tab stops (0 / mid / right edge),
 /// slot images as attachments capped at 40 pt tall, text lines beneath.
 /// Returns nil when all three slots are empty.
-private func letterheadBlock(_ letter: LetterToEditor, font: NSFont, width: CGFloat) -> NSAttributedString? {
+private func letterheadBlock(_ letter: LetterDetails, font: NSFont, width: CGFloat) -> NSAttributedString? {
     guard letter.hasHeader else { return nil }
 
     func cells(_ slot: LetterHeaderSlot) -> [NSAttributedString] {
@@ -102,7 +102,7 @@ private func signatureImageBlock(_ data: Data?, font: NSFont) -> NSAttributedStr
 /// Resolves the letter body's live tokens in place: ⟦Date⟧ → today's date,
 /// ⟦Signature⟧ → the drawn signature (removed when none is drawn).  Runs on
 /// the already-typeset body, so replacements inherit the marker's attributes.
-private func resolveLetterTokens(in body: NSMutableAttributedString, letter: LetterToEditor) {
+private func resolveLetterTokens(in body: NSMutableAttributedString, letter: LetterDetails) {
     func replace(_ marker: String, with replacement: ([NSAttributedString.Key: Any]) -> NSAttributedString) {
         while true {
             let range = (body.string as NSString).range(of: marker)
@@ -507,10 +507,31 @@ struct ExportService {
                 if let id = item.sectionID,
                    let section = m.sections.first(where: { $0.id == id }),
                    section.active, !section.isEmptyContent {
-                    if item.titleShown {
+                    if section.sectionKind == .letter, let letter = section.letter, letter.hasHeader {
+                        // Letterhead text slots as three top-aligned minipages
+                        // (slot images are attributed-writer only — LaTeX
+                        // output is plain source with no bundled image files).
+                        func slotTex(_ slot: LetterHeaderSlot, _ align: String) -> String {
+                            "\\begin{minipage}[t]{0.32\\textwidth}\(align) \(tex(slot.text).replacingOccurrences(of: "\n", with: "\\\\ "))\\end{minipage}"
+                        }
+                        out += "\\noindent\n"
+                        out += slotTex(letter.headerLeft, "\\raggedright") + "\\hfill\n"
+                        out += slotTex(letter.headerCenter, "\\centering") + "\\hfill\n"
+                        out += slotTex(letter.headerRight, "\\raggedleft") + "\n\\par\\vspace{1em}\n"
+                    }
+                    if item.headingShown(in: m) {
                         out += "\\section{\(tex(latexHeading(item.customTitle ?? section.title)))}\n"
                     }
-                    out += "\(tex(PartEngine.expandPlainMarkers(section.plainText, content: m)))\n\n"
+                    var text = PartEngine.expandPlainMarkers(section.plainText, content: m)
+                    if section.sectionKind == .letter {
+                        // Letter tokens: the date resolves to text; the drawn
+                        // signature is image-only and can't ride in bare LaTeX.
+                        text = text
+                            .replacingOccurrences(of: LetterToken.date.marker,
+                                                  with: Date().formatted(date: .long, time: .omitted))
+                            .replacingOccurrences(of: LetterToken.signature.marker, with: "")
+                    }
+                    out += "\(tex(text))\n\n"
                 }
             case .figures:
                 for fig in m.figures.sorted(by: { $0.number < $1.number }) {
@@ -533,32 +554,7 @@ struct ExportService {
                     out += "\\end{thebibliography}\n"
                 }
             case .coverLetter:
-                if !m.letterToEditor.body.isEmpty {
-                    // Letterhead text slots as three top-aligned minipages
-                    // (slot images are attributed-writer only — LaTeX output
-                    // is plain source with no bundled image files).
-                    let letter = m.letterToEditor
-                    if letter.hasHeader {
-                        func slotTex(_ slot: LetterHeaderSlot, _ align: String) -> String {
-                            "\\begin{minipage}[t]{0.32\\textwidth}\(align) \(tex(slot.text).replacingOccurrences(of: "\n", with: "\\\\ "))\\end{minipage}"
-                        }
-                        out += "\\noindent\n"
-                        out += slotTex(letter.headerLeft, "\\raggedright") + "\\hfill\n"
-                        out += slotTex(letter.headerCenter, "\\centering") + "\\hfill\n"
-                        out += slotTex(letter.headerRight, "\\raggedleft") + "\n\\par\\vspace{1em}\n"
-                    }
-                    // Letter tokens: date resolves to text; the drawn
-                    // signature is image-only, so it can't ride in bare
-                    // LaTeX source — drop the marker.
-                    let bodyText = m.letterToEditor.body.plain
-                        .replacingOccurrences(of: LetterToken.date.marker,
-                                              with: Date().formatted(date: .long, time: .omitted))
-                        .replacingOccurrences(of: LetterToken.signature.marker, with: "")
-                    if item.titleShown {
-                        out += "\\section*{\(tex(latexHeading(item.customTitle ?? "Cover Letter")))}\n"
-                    }
-                    out += "\(tex(bodyText))\n\n"
-                }
+                break   // legacy kind — pointed at a letter section by the store, or dropped
             case .pageBreak:
                 out += "\\newpage\n"
             }
@@ -629,6 +625,24 @@ struct ExportService {
         // Deactivated sections are excluded from the submission package.
         for section in m.sections.sorted(by: { $0.order < $1.order })
         where section.active && !section.isEmptyContent {
+            if section.sectionKind == .letter {
+                // A letter: letterhead, body with its tokens resolved, and
+                // the drawn signature — and no printed label.
+                let letter = section.letter ?? LetterDetails()
+                // 468 pt = US Letter inside the writer's default 1" margins.
+                if let head = letterheadBlock(letter, font: bodyFont, width: 468) {
+                    doc.append(head)
+                }
+                let body = NSMutableAttributedString(attributedString: rich(section.content, refContext))
+                resolveLetterTokens(in: body, letter: letter)
+                doc.append(body)
+                if !section.content.plain.contains(LetterToken.signature.marker),
+                   let drawn = signatureImageBlock(letter.signatureImageData, font: bodyFont) {
+                    doc.append(drawn)
+                }
+                doc.append(spacer())
+                continue
+            }
             doc.append(heading(section.title))
             doc.append(rich(section.content, refContext))
             doc.append(spacer())
@@ -646,21 +660,6 @@ struct ExportService {
                 doc.append(line("\(i + 1). \(RefEngine.fullReference(entry))", font: bodyFont, spacingAfter: 4))
             }
             doc.append(spacer())
-        }
-
-        if !m.letterToEditor.body.isEmpty {
-            // 468 pt = US Letter inside the writer's default 1" margins.
-            if let head = letterheadBlock(m.letterToEditor, font: bodyFont, width: 468) {
-                doc.append(head)
-            }
-            // No printed "Cover Letter" label — a real letter doesn't carry one.
-            let body = NSMutableAttributedString(attributedString: rich(m.letterToEditor.body, refContext))
-            resolveLetterTokens(in: body, letter: m.letterToEditor)
-            doc.append(body)
-            if !m.letterToEditor.body.plain.contains(LetterToken.signature.marker),
-               let drawn = signatureImageBlock(m.letterToEditor.signatureImageData, font: bodyFont) {
-                doc.append(drawn)
-            }
         }
 
         return doc
@@ -1137,10 +1136,27 @@ private struct OutlineBuilder {
                   let section = m.sections.first(where: { $0.id == id }),
                   section.active, !section.isEmptyContent else { return nil }
             let doc = NSMutableAttributedString()
-            if item.titleShown { doc.append(headingBlock(item.customTitle ?? section.title, style: item.effectiveHeadingStyle)) }
+            if section.sectionKind == .letter,
+               let head = letterheadBlock(section.letter ?? LetterDetails(), font: base,
+                                          width: 612 - format.marginInches * 144) {
+                doc.append(head)         // the letterhead sits above everything, like on paper
+            }
+            if item.headingShown(in: m) {
+                doc.append(headingBlock(item.customTitle ?? section.title, style: item.effectiveHeadingStyle))
+            }
             switch section.sectionKind {
             case .text:
                 doc.append(rich(section.content, in: m))
+            case .letter:
+                let letter = section.letter ?? LetterDetails()
+                let body = NSMutableAttributedString(attributedString: rich(section.content, in: m))
+                resolveLetterTokens(in: body, letter: letter)
+                doc.append(body)
+                // No ⟦Signature⟧ placed: the drawing still closes the letter.
+                if !section.content.plain.contains(LetterToken.signature.marker),
+                   let drawn = signatureImageBlock(letter.signatureImageData, font: base) {
+                    doc.append(drawn)
+                }
             case .questions:
                 // Each question prints as its own small heading over its
                 // answer, so a submission form reads as a form.
@@ -1209,23 +1225,7 @@ private struct OutlineBuilder {
             }
             return doc
         case .coverLetter:
-            guard !m.letterToEditor.body.isEmpty else { return nil }
-            let doc = NSMutableAttributedString()
-            // Letterhead sits above everything, like on paper.
-            if let head = letterheadBlock(m.letterToEditor, font: base,
-                                          width: 612 - format.marginInches * 144) {
-                doc.append(head)
-            }
-            if item.titleShown { doc.append(headingBlock(item.customTitle ?? "Cover Letter", style: item.effectiveHeadingStyle)) }
-            let body = NSMutableAttributedString(attributedString: rich(m.letterToEditor.body, in: m))
-            resolveLetterTokens(in: body, letter: m.letterToEditor)
-            doc.append(body)
-            // No ⟦Signature⟧ placed: the drawing still closes the letter.
-            if !m.letterToEditor.body.plain.contains(LetterToken.signature.marker),
-               let drawn = signatureImageBlock(m.letterToEditor.signatureImageData, font: base) {
-                doc.append(drawn)
-            }
-            return doc
+            return nil   // legacy kind — the store points it at a letter section, or drops it
         case .pageBreak:
             return nil   // handled by the segmenter
         }

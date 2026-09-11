@@ -61,8 +61,8 @@ struct TemplateSectionView: View {
                 identity(section)
                 Divider()
                 switch section.kind {
-                case .text:      editor(section)
-                case .questions: questions(section)
+                case .text, .letter: editor(section)
+                case .questions:     questions(section)
                 }
             } else {
                 ContentUnavailableView("Section Removed", systemImage: "text.alignleft",
@@ -77,8 +77,8 @@ struct TemplateSectionView: View {
     }
 
     private func subtitle(_ section: StructureSection) -> String {
-        section.role == .letter
-            ? "Lands in a manuscript's Letter to Editor when this journal is added."
+        section.kind == .letter
+            ? "Created in every manuscript that adds this journal — with a letterhead and a signature of its own."
             : "Created in every manuscript that adds this journal."
     }
 
@@ -112,14 +112,12 @@ struct TemplateSectionView: View {
                 .textFieldStyle(.roundedBorder)
                 .frame(maxWidth: 240)
 
-            if section.role == nil {
-                Picker("", selection: Binding(
-                    get: { section.kind },
-                    set: { value in edit { $0.kind = value } })) {
-                    ForEach(SectionKind.allCases, id: \.self) { Text($0.label).tag($0) }
-                }
-                .labelsHidden().fixedSize()
+            Picker("", selection: Binding(
+                get: { section.kind },
+                set: { value in edit { $0.kind = value } })) {
+                ForEach(SectionKind.allCases, id: \.self) { Text($0.label).tag($0) }
             }
+            .labelsHidden().fixedSize()
 
             TextField("Why this venue asks for it (optional — sent when adapting)", text: Binding(
                 get: { section.note ?? "" },
@@ -141,7 +139,7 @@ struct TemplateSectionView: View {
     @ViewBuilder
     private func editor(_ section: StructureSection) -> some View {
         RichEditor(value: $content,
-                   placeholder: section.role == .letter
+                   placeholder: section.kind == .letter
                        ? "The letter this venue expects — “/” inserts [[title]], [[authors.names]]…"
                        : "What this section contains at this venue — “/” inserts [[title]], [[authors.names]]…",
                    templateMode: true)
