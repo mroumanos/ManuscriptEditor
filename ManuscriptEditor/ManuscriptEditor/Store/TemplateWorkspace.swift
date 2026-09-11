@@ -161,14 +161,23 @@ final class TemplateWorkspace {
         // letter entry (the author's, never the venue's).
         let body = template.structure.sections.filter { $0.key != "abstract" && $0.kind != .letter }
         let known = Set(body.map(\.uid))
+        let letterUIDs = Set(template.structure.sections.filter { $0.kind == .letter }.map(\.uid))
         var out = config
         var seen: Set<UUID> = []
         for d in out.documents.indices {
-            out.documents[d].items.removeAll { item in
-                if item.kind == .coverLetter { return true }
-                guard item.kind == .section else { return false }
-                guard let id = item.sectionID, known.contains(id) else { return true }
-                return !seen.insert(id).inserted        // and no duplicates
+            out.documents[d].items = out.documents[d].items.compactMap { item in
+                guard item.kind == .section else { return item }   // the letter item stays
+                guard let id = item.sectionID else { return nil }
+                // A section item at a letter entry (the section-kind week)
+                // meant the author's letter: the fixed item says so.
+                if letterUIDs.contains(id) {
+                    var letter = item
+                    letter.kind = .coverLetter
+                    letter.sectionID = nil
+                    return letter
+                }
+                guard known.contains(id), seen.insert(id).inserted else { return nil }   // no duplicates
+                return item
             }
         }
         let missing = body.filter { !seen.contains($0.uid) }

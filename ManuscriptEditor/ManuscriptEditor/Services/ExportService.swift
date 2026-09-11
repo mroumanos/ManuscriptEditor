@@ -33,6 +33,20 @@ import CoreText
 /// "left  center  right" cells on shared tab stops (0 / mid / right edge),
 /// slot images as attachments capped at 40 pt tall, text lines beneath.
 /// Returns nil when all three slots are empty.
+/// The section an item prints: by id for a `.section` item; the manuscript's
+/// letter for the `.coverLetter` item — the author's fixed part, which an
+/// outline names without a section id (a template's outline has none).
+private func exportSection(for item: ExportItem, in m: Manuscript) -> ManuscriptSection? {
+    switch item.kind {
+    case .section:
+        return item.sectionID.flatMap { id in m.sections.first { $0.id == id } }
+    case .coverLetter:
+        return m.sections.sorted { $0.order < $1.order }.first { $0.sectionKind == .letter }
+    default:
+        return nil
+    }
+}
+
 private func letterheadBlock(_ letter: LetterDetails, font: NSFont, width: CGFloat) -> NSAttributedString? {
     guard letter.hasHeader else { return nil }
 
@@ -503,9 +517,8 @@ struct ExportService {
                     let delim = OutlineBuilder.delimiterText(item.authorDelimiter, fallback: ", ")
                     out += "\\noindent\(label)\(tex(m.keywords.joined(separator: delim)))\n\n"
                 }
-            case .section:
-                if let id = item.sectionID,
-                   let section = m.sections.first(where: { $0.id == id }),
+            case .section, .coverLetter:
+                if let section = exportSection(for: item, in: m),
                    section.active, !section.isEmptyContent {
                     if section.sectionKind == .letter, let letter = section.letter, letter.hasHeader {
                         // Letterhead text slots as three top-aligned minipages
@@ -553,8 +566,6 @@ struct ExportService {
                     }
                     out += "\\end{thebibliography}\n"
                 }
-            case .coverLetter:
-                break   // legacy kind — pointed at a letter section by the store, or dropped
             case .pageBreak:
                 out += "\\newpage\n"
             }
@@ -1131,9 +1142,8 @@ private struct OutlineBuilder {
                 separator: Self.delimiterText(item.authorDelimiter, fallback: ", "))
             let text = item.titleShown ? "\(headingText(item.customTitle ?? "Keywords")): " + list : list
             return line(text, font: meta, color: .darkGray, after: 10)
-        case .section:
-            guard let id = item.sectionID,
-                  let section = m.sections.first(where: { $0.id == id }),
+        case .section, .coverLetter:
+            guard let section = exportSection(for: item, in: m),
                   section.active, !section.isEmptyContent else { return nil }
             let doc = NSMutableAttributedString()
             if section.sectionKind == .letter,
@@ -1224,8 +1234,6 @@ private struct OutlineBuilder {
                 doc.append(referenceLine(number: i + 1, entry: entry, style: style))
             }
             return doc
-        case .coverLetter:
-            return nil   // legacy kind — the store points it at a letter section, or drops it
         case .pageBreak:
             return nil   // handled by the segmenter
         }

@@ -63,7 +63,7 @@ struct ComponentSettingsForm: View {
             // Every component's heading configures HERE (one place, one
             // look); each kind adds its own settings on top.
             switch item.kind {
-            case .abstract, .section:
+            case .abstract, .section, .coverLetter:
                 typographySection
                 Divider()
                 headingSection()

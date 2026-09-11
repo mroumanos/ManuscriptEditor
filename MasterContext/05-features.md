@@ -942,8 +942,14 @@ from a manuscript. Design and rationale:
   captured into a template, and a template's letter entry (some carry one) is
   ignored everywhere: adding a journal, the fast-forward prompt, the
   `STRUCTURE` test, the outline. `Manuscript.letterToEditor` from older files
-  still migrates into the section on load; the `coverLetter` check scope and
-  the legacy `ExportItem.Kind.coverLetter` still resolve to it.
+  still migrates into the section on load, and the `coverLetter` check scope
+  resolves to it. In the **outline** it is a fixed item again —
+  *Letter to the Editor*, `ExportItem.Kind.coverLetter`, heading off by
+  default — printed from the manuscript's letter, so a template's outline can
+  name it without knowing any section id; a `.section` item pointing at the
+  letter section (the section-kind week) is read as that item, in a cut's
+  outline and a template's alike. The outline card's Add Item lists it with
+  the fixed parts, and lists the **Abstract** with the body sections.
 - AC: **Structure, reverted.** The part is "Structure" again — the content
   lives in the sections, edited directly — and editing it adds and removes
   those sections. `required` is gone from both editors: every section a

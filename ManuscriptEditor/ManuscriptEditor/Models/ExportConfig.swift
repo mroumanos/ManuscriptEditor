@@ -101,12 +101,12 @@ struct ExportConfig: Codable, Sendable, Equatable {
                 items: [ExportItem(kind: .figures), ExportItem(kind: .pageBreak), ExportItem(kind: .tables)]
             ))
         }
-        for section in content.sections.sorted(by: { $0.order < $1.order })
-        where section.active && section.sectionKind == .letter {
-            var letter = ExportItem(kind: .section, sectionID: section.id)
-            letter.showTitle = false        // a real letter carries no label
-            documents.append(ExportDocument(name: section.title, fileType: fileType,
-                                            items: [letter]))
+        // The letter, when the manuscript has one, as a document of its own
+        // — sent beside the manuscript, not bound into it — through the
+        // fixed item, whose heading is off: a real letter carries no label.
+        if content.sections.contains(where: { $0.active && $0.sectionKind == .letter }) {
+            documents.append(ExportDocument(name: "Letter to the Editor", fileType: fileType,
+                                            items: [ExportItem(kind: .coverLetter)]))
         }
         return ExportConfig(documents: documents)
     }
@@ -310,11 +310,12 @@ struct ExportItem: Codable, Identifiable, Sendable, Equatable {
     enum Kind: String, Codable, CaseIterable, Sendable {
         case titlePage, abstract, keywords, section, figures, tables,
              references, pageBreak
-        /// **Legacy.**  The cover letter was its own kind of item while it was
-        /// a fixed part of the manuscript; it is a letter SECTION now, printed
-        /// by a `.section` item.  Decoded so old outlines open, then pointed
-        /// at the manuscript's first letter section by
-        /// `ManuscriptStore.exportConfig(forJournal:)`, or dropped.
+        /// The manuscript's letter to the editor — the author's fixed part.
+        /// An outline names it without knowing any section id (a template's
+        /// outline has none to know), and the renderers print the
+        /// manuscript's one letter section for it.  A `.section` item that
+        /// points at the letter section (outlines from the week the letter
+        /// was a section kind) is read as this item.
         case coverLetter
         /// The byline block (authors + affiliations), separate from the
         /// title since Aug 2026 so removing it makes a blind-review copy.
@@ -542,7 +543,7 @@ struct ExportItem: Codable, Identifiable, Sendable, Equatable {
         case .figures:     return "Figures"
         case .tables:      return "Tables"
         case .references:  return "References"
-        case .coverLetter: return "Cover Letter"
+        case .coverLetter: return "Letter to the Editor"
         case .pageBreak:   return "Section"
         }
     }

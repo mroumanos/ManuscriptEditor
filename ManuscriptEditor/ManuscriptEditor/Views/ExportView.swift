@@ -438,6 +438,7 @@ struct SectionPreviewButton: View {
         case .abstract:        return ExportItem(kind: .abstract)
         case .keywords:        return ExportItem(kind: .keywords)
         case .section(let id): return ExportItem(kind: .section, sectionID: id)
+        case .letterToEditor:  return ExportItem(kind: .coverLetter)
         case .figures:         return ExportItem(kind: .figures)
         case .tables:          return ExportItem(kind: .tables)
         case .bibliography:    return ExportItem(kind: .references)
@@ -989,8 +990,15 @@ struct ExportDocumentCard: View {
                     }
                 }
             }
-            if !missingSections.isEmpty {
+            if missingAbstract || !missingSections.isEmpty {
                 Section("Body Sections") {
+                    if missingAbstract {
+                        Button {
+                            append(ExportItem(kind: .abstract))
+                        } label: {
+                            Label("Abstract", systemImage: "text.quote")
+                        }
+                    }
                     ForEach(missingSections) { section in
                         Button {
                             append(ExportItem(kind: .section, sectionID: section.id))
@@ -1014,17 +1022,22 @@ struct ExportDocumentCard: View {
         .fixedSize()
     }
 
+    /// The fixed parts, the letter among them — it is the author's.  The
+    /// abstract is not: it is a cut's prose, listed with the body sections.
     private var missingSimpleKinds: [ExportItem.Kind] {
         let present = Set(document.items.map(\.kind))
-        return [.titlePage, .authors, .abstract, .keywords, .figures, .tables, .references]
+        return [.titlePage, .authors, .keywords, .figures, .tables, .references, .coverLetter]
             .filter { !present.contains($0) }
     }
 
+    private var missingAbstract: Bool { !document.items.contains { $0.kind == .abstract } }
+
+    /// The letter is never listed here: it is the fixed item above.
     private var missingSections: [ManuscriptSection] {
         let present = Set(document.items.compactMap(\.sectionID))
         return (content?.sections ?? [])
             .sorted { $0.order < $1.order }
-            .filter { !present.contains($0.id) }
+            .filter { !present.contains($0.id) && $0.sectionKind != .letter }
     }
 
     private func append(_ item: ExportItem) {

@@ -1153,8 +1153,7 @@ final class ManuscriptStore {
         var out = repaired
         for d in out.documents.indices {
             out.documents[d].items = out.documents[d].items.compactMap { item in
-                if item.kind == .coverLetter { return nil }      // legacy kind
-                guard item.kind == .section else { return item }
+                guard item.kind == .section else { return item }   // the letter item passes through
                 guard let uid = item.sectionID, let key = keyByUID[uid], let id = idByKey[key]
                 else { return nil }
                 var mapped = item
@@ -1989,20 +1988,17 @@ final class ManuscriptStore {
                 && config.documents[i].items.first?.kind != .pageBreak {
             config.documents[i].items.insert(ExportItem(kind: .pageBreak), at: 0)
         }
-        // An outline from when the cover letter was its own kind of item:
-        // that item now means "the manuscript's letter section" — the first
-        // one — or nothing at all if there isn't one.
-        let letterID = content.sections.sorted { $0.order < $1.order }
-            .first { $0.sectionKind == .letter }?.id
+        // An outline from the week the letter was a section kind names it
+        // by section id; the letter is the fixed item again.
+        let letterIDs = Set(content.sections.filter { $0.sectionKind == .letter }.map(\.id))
         for d in config.documents.indices {
-            config.documents[d].items = config.documents[d].items.compactMap { item in
-                guard item.kind == .coverLetter else { return item }
-                guard let letterID else { return nil }
-                var section = item
-                section.kind = .section
-                section.sectionID = letterID
-                section.showTitle = item.showTitle ?? false
-                return section
+            config.documents[d].items = config.documents[d].items.map { item in
+                guard item.kind == .section, let id = item.sectionID, letterIDs.contains(id)
+                else { return item }
+                var letter = item
+                letter.kind = .coverLetter
+                letter.sectionID = nil
+                return letter
             }
         }
         config.documents.removeAll { !$0.isAttachment && !$0.items.isEmpty

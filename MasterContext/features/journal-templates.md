@@ -127,8 +127,10 @@ what the section-kind week left it (one `ManuscriptSection` of kind `.letter`
 with `LetterDetails`), so nothing written in between needs converting; the
 kind is simply not offered from Add Section, not listed with the sections,
 not captured into a template, and a template's letter entry is ignored
-wherever sections are read. The standard outline still gives the letter a
-document of its own with the heading off. Manuscripts written before the
+wherever sections are read. In the outline it is the fixed *Letter to the
+Editor* item (`coverLetter`) — the standard outline gives it a document of its
+own with the heading off, and a template's outline can add it from Add Item,
+since a venue may want the letter in the package. Manuscripts written before the
 section-kind week carry `letterToEditor`; the store turns it into the section
 on load
 (`migrateLetter`) and never writes it. Old outlines' `.coverLetter` items are
