@@ -90,7 +90,9 @@ struct ComponentSettingsForm: View {
                 .foregroundStyle(.tertiary)
         }
         .padding(14)
-        .frame(width: 360)
+        // Wide enough for a byline row — checkbox, delimiter, index — on one
+        // line; at 360 "delimiter" hyphenated itself across three lines.
+        .frame(width: 440)
     }
 
     @ViewBuilder
@@ -163,7 +165,7 @@ struct ComponentSettingsForm: View {
             .frame(width: 100, alignment: .leading)
             .disabled(item.printsAuthorNames && !item.printsAffiliations)
             .help("Print the authors' names")
-            Text("delimiter").font(.caption).foregroundStyle(.secondary)
+            Text("delimiter").font(.caption).foregroundStyle(.secondary).fixedSize()
             Picker("", selection: Binding(
                 get: { item.authorDelimiter ?? "semicolon" },
                 set: { value in mutateItem { $0.authorDelimiter = value == "semicolon" ? nil : value } }
@@ -179,7 +181,7 @@ struct ComponentSettingsForm: View {
             .labelsHidden().controlSize(.small).fixedSize()
             .disabled(!item.printsAuthorNames)
             .help("How the names are separated — a numbered list puts one per line")
-            Text("index").font(.caption).foregroundStyle(.secondary)
+            Text("index").font(.caption).foregroundStyle(.secondary).fixedSize()
             indexPicker(namesRow: true)
                 .disabled(!item.printsAuthorNames)
         }
@@ -194,7 +196,7 @@ struct ComponentSettingsForm: View {
             .frame(width: 100, alignment: .leading)
             .disabled(item.printsAffiliations && !item.printsAuthorNames)
             .help("Print the affiliation list")
-            Text("delimiter").font(.caption).foregroundStyle(.secondary)
+            Text("delimiter").font(.caption).foregroundStyle(.secondary).fixedSize()
             Picker("", selection: Binding(
                 get: { item.affiliationDelimiterCode },
                 set: { value in
@@ -215,7 +217,7 @@ struct ComponentSettingsForm: View {
             .labelsHidden().controlSize(.small).fixedSize()
             .disabled(!item.printsAffiliations)
             .help("How the institutions are separated — a numbered list labels each 1., 2., …")
-            Text("index").font(.caption).foregroundStyle(.secondary)
+            Text("index").font(.caption).foregroundStyle(.secondary).fixedSize()
             indexPicker(namesRow: false)
                 .disabled(!item.printsAffiliations)
         }
