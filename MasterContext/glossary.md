@@ -23,6 +23,15 @@ UI, and docs. (Updated for the Journal/Version/Lineage model — see
   always base on stamps ("Stamp & Sync" stamps a drifted upstream first).
 - **Source stamp** — a Source version (`sourceStamp == true`); Source
   maintains its own chain like any journal.
+- **Core content** — the manuscript's own: title, authors, keywords, figures,
+  tables, bibliography and the letter to the editor. Carried whole into every
+  cut; never templated, adapted or described by a template; a fixed sidebar row
+  above the rule (`CorePart`). See [`02-domain-model.md`](02-domain-model.md)
+  "Core content and journal content".
+- **Journal content** — a cut's prose, which a venue shapes: the abstract and
+  every body section. Templated on add, migrated on fast-forward where the
+  upstream has text, adapted with Assist, described by a template's structure;
+  below the sidebar's rule. Classified once, in `Models/ContentClass.swift`.
 - **Journal library** — the global, reusable journal profiles (name, country,
   requirements, export outline) in Preferences → Journals; the "to" choices
   when adding a journal.

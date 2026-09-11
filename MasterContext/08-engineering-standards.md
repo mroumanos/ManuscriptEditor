@@ -13,6 +13,19 @@
 - **Views** (`Views/`, `Theme/`): SwiftUI; read stores via `@Environment`. Keep
   AppKit interop isolated in dedicated files (`Theme/RichTextEditor.swift`).
 
+### Core vs journal content is one question, answered in one place
+
+`Models/ContentClass.swift` says which side every piece of content is on
+(see [`02-domain-model.md`](02-domain-model.md), "Core content and journal
+content"). A feature that treats the two differently — and most do: adding a
+journal, sync, Assist, templates, checks, the outline, both sidebars — asks
+`isCore` / `isJournalContent`, `StructureSection.subject`,
+`JournalStructure.journalEntries` / `sectionEntries` / `abstractEntry`,
+`ExportItem.Kind.coreKinds`, `SidebarItem.contentClass`. It does **not** test
+`sectionKind == .letter` or `key == "abstract"` to decide ownership: every
+site that did got the next exception wrong. Testing `.letter` to render a
+letterhead is fine — that is about what a letter is, not whose it is.
+
 ## Documentation (match the existing density)
 
 - Every file opens with a header comment: what it is and the key design intent.

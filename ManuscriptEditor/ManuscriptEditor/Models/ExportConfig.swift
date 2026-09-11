@@ -76,7 +76,7 @@ struct ExportConfig: Codable, Sendable, Equatable {
         // Letter sections get documents of their own below — a cover letter
         // is sent beside the manuscript, not bound into it.
         for section in content.sections.sorted(by: { $0.order < $1.order })
-        where section.active && section.sectionKind != .letter {
+        where section.active && section.isJournalContent {
             items.append(ExportItem(kind: .section, sectionID: section.id))
         }
         items.append(ExportItem(kind: .pageBreak))
@@ -104,7 +104,7 @@ struct ExportConfig: Codable, Sendable, Equatable {
         // The letter, when the manuscript has one, as a document of its own
         // — sent beside the manuscript, not bound into it — through the
         // fixed item, whose heading is off: a real letter carries no label.
-        if content.sections.contains(where: { $0.active && $0.sectionKind == .letter }) {
+        if let letter = content.letterSection, letter.active {
             documents.append(ExportDocument(name: "Letter to the Editor", fileType: fileType,
                                             items: [ExportItem(kind: .coverLetter)]))
         }

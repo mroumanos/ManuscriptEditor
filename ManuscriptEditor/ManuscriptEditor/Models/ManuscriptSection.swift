@@ -165,10 +165,6 @@ enum SectionKind: String, Codable, CaseIterable, Sendable {
     /// carried whole when a journal is added.
     case letter
 
-    /// The kinds Add Section offers — a manuscript's letter is not one of
-    /// them; it has a pane of its own.
-    static let addable: [SectionKind] = [.text, .questions]
-
     var label: String {
         switch self {
         case .text:      return "Text Box"

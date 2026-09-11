@@ -256,7 +256,7 @@ final class ManuscriptStore {
         let legacy = m.letterToEditor
         guard !legacy.isEmpty else { return }
         m.letterToEditor = .empty()
-        guard !m.sections.contains(where: { $0.sectionKind == .letter }) else { return }
+        guard m.letterSection == nil else { return }
         m.sections.append(ManuscriptSection(
             id: UUID(), type: .custom, title: "Letter to the Editor",
             content: legacy.body, order: m.sections.count, active: true,
@@ -528,9 +528,7 @@ final class ManuscriptStore {
     }
 
     /// The manuscript's letter section, if its pane has ever been opened.
-    var letterSectionID: UUID? {
-        manuscript?.sections.first { $0.sectionKind == .letter }?.id
-    }
+    var letterSectionID: UUID? { manuscript?.letterSection?.id }
 
     /// The letter, made on first use.  Not undoable: opening a pane is not
     /// an edit, and ⌘Z taking the pane away would be a surprise.
@@ -1088,12 +1086,9 @@ final class ManuscriptStore {
         else { return }
         let existing = Set(m.sections.map { $0.title.lowercased() })
         var created: [(id: UUID, entry: StructureSection)] = []
-        // An "Abstract" entry describes the abstract FIELD — its format,
-        // notes and boilerplate — not a section to create beside it.  A
-        // letter entry (templates could carry one for a while) is ignored:
-        // the letter is the author's, with a pane of its own.
-        for section in wanted
-        where !existing.contains(section.key) && section.key != "abstract" && section.kind != .letter {
+        // Only entries that become sections: the abstract entry describes a
+        // field, and a letter entry describes what is the author's.
+        for section in wanted where section.subject == .section && !existing.contains(section.key) {
             guard let id = addSection(type: .custom, title: section.title, kind: section.kind)
             else { continue }
             created.append((id, section))
@@ -1217,9 +1212,9 @@ final class ManuscriptStore {
     /// a cut is born with is the venue's.  Boilerplate goes in as rich text
     /// so its `[[title]]` tokens are live (`PartEngine.richText`).
     static func templated(_ section: ManuscriptSection, entry: StructureSection?) -> ManuscriptSection {
-        // The letter is the author's — letterhead, signature, format and
-        // text — and comes along whole, like the title and the authors.
-        if section.sectionKind == .letter { return section }
+        // Core content — the letter — is the author's and comes along whole,
+        // like the title and the authors.
+        guard section.isJournalContent else { return section }
         var out = section
         // First, none of the upstream's text.
         switch section.sectionKind {
@@ -1265,12 +1260,12 @@ final class ManuscriptStore {
     /// starts from what the venue's structure says for "Abstract", if
     /// anything, and arrives on the first fast-forward like the rest.
     func templatedContent(_ content: Manuscript, journal: Journal) -> Manuscript {
-        let byKey = Dictionary((journal.structure?.sections ?? []).map { ($0.key, $0) },
+        let byKey = Dictionary((journal.structure?.journalEntries ?? []).map { ($0.key, $0) },
                                uniquingKeysWith: { first, _ in first })
         var out = content
         out.sections = content.sections.map { Self.templated($0, entry: byKey[$0.title.lowercased()]) }
         out.abstract = Self.templated(FastForwardIntent.abstractSection(content),
-                                      entry: byKey["abstract"]).content
+                                      entry: journal.structure?.abstractEntry).content
         return out
     }
 
@@ -1839,8 +1834,8 @@ final class ManuscriptStore {
         // change read as a STRUCTURE change.  How a submission is set is the
         // Export part's question, compared on its own checksum.
         var captured: [StructureSection] = []
-        // The letter is never captured: it is the author's, not the venue's.
-        for section in content.sections.filter({ $0.active && $0.sectionKind != .letter })
+        // Journal content only: the letter is the author's, not the venue's.
+        for section in content.journalSections.filter(\.active)
             .sorted(by: { $0.order < $1.order }) {
             var entry = byTitle[section.title.lowercased()]
                 ?? StructureSection(title: section.title)
@@ -1876,7 +1871,7 @@ final class ManuscriptStore {
         // Anything the structure required that this cut doesn't have yet —
         // except a letter entry, which no template should carry.
         let capturedTitles = Set(captured.map { $0.title.lowercased() })
-        captured += existing.filter { !capturedTitles.contains($0.title.lowercased()) && $0.kind != .letter }
+        captured += existing.filter { !capturedTitles.contains($0.title.lowercased()) && $0.describesJournalContent }
 
         return JournalStructure(sections: captured,
                                 coreFormats: journal.structure?.coreFormats,
@@ -1990,7 +1985,7 @@ final class ManuscriptStore {
         }
         // An outline from the week the letter was a section kind names it
         // by section id; the letter is the fixed item again.
-        let letterIDs = Set(content.sections.filter { $0.sectionKind == .letter }.map(\.id))
+        let letterIDs = Set(content.sections.filter(\.isCore).map(\.id))
         for d in config.documents.indices {
             config.documents[d].items = config.documents[d].items.map { item in
                 guard item.kind == .section, let id = item.sectionID, letterIDs.contains(id)

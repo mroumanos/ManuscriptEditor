@@ -640,7 +640,7 @@ struct ContentView: View {
         guard let m = store.manuscript(for: ref) else { return nil }
         switch item {
         case .abstract:        return m.abstractWordCount
-        case .letterToEditor:  return m.sections.first { $0.sectionKind == .letter }?.wordCount
+        case .letterToEditor:  return m.letterSection?.wordCount
         case .section(let id):
             let s = resolvedSection(id, ref)
             // A question series counts per question, against each question's

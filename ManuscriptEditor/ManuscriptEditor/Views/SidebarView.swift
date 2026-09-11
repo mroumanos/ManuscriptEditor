@@ -436,7 +436,7 @@ struct SidebarView: View {
 
     /// The sections past the rule — the letter has a fixed row above it.
     private var sortedSections: [ManuscriptSection] {
-        (manuscript?.sections ?? []).filter { $0.sectionKind != .letter }.sorted { $0.order < $1.order }
+        (manuscript?.journalSections ?? []).sorted { $0.order < $1.order }
     }
 
     private var saveSubtitle: String {

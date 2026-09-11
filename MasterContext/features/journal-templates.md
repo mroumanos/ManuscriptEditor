@@ -106,7 +106,9 @@ ways.
 ### 3.1 What is editable
 
 A journal's requirements are only ever about the venue. So a template opens
-with the **journal-specific** sections live and everything else out of the way:
+with the **journal content** live and the **core content** out of the way —
+the split [`02-domain-model.md`](02-domain-model.md) defines once, in
+`Models/ContentClass.swift`:
 
 | | In a template | Why |
 |---|---|---|

@@ -58,8 +58,10 @@ panes.
 **Content** (version-comparable items — these render side-by-side per open tab)
 
 Split in two by a **soft rule** — a hairline, not a header, so the division is
-felt rather than announced. Above it, the parts every manuscript has, in a
-fixed order; below it, the sections the author actually shapes.
+felt rather than announced. Above it, **core content** — the parts every
+manuscript has, in a fixed order (`CorePart`); below it, **journal content** —
+the prose a venue shapes. The two classes are defined once, in
+[`02-domain-model.md`](02-domain-model.md) "Core content and journal content".
 
 *Fixed* — cannot be reordered, deactivated, or removed (a manuscript without a
 title or a bibliography isn't a manuscript). Renaming a pane is still allowed:

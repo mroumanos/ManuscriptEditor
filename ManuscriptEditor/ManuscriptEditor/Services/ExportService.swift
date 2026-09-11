@@ -41,7 +41,7 @@ private func exportSection(for item: ExportItem, in m: Manuscript) -> Manuscript
     case .section:
         return item.sectionID.flatMap { id in m.sections.first { $0.id == id } }
     case .coverLetter:
-        return m.sections.sorted { $0.order < $1.order }.first { $0.sectionKind == .letter }
+        return m.letterSection
     default:
         return nil
     }

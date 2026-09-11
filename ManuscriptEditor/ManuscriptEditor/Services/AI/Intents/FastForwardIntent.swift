@@ -116,11 +116,11 @@ struct FastForwardIntent: AIIntent {
     /// the model writes the section to it, and every `[[…]]` token it uses is
     /// required in the answer just as one already in the text would be.
     static func payloads(_ sections: [ManuscriptSection], target: Journal? = nil) -> [Payload] {
-        let entries = Dictionary((target?.structure?.sections ?? [])
-                                    .filter { $0.kind != .letter }      // the author's, not the venue's
-                                    .map { ($0.key, $0) },
+        let entries = Dictionary((target?.structure?.journalEntries ?? []).map { ($0.key, $0) },
                                  uniquingKeysWith: { first, _ in first })
-        return sections.filter(\.active).sorted { $0.order < $1.order }.map { section in
+        // Journal content only: core content is the author's, never adapted.
+        return sections.filter { $0.active && $0.isJournalContent }
+            .sorted { $0.order < $1.order }.map { section in
             let entry = entries[section.title.lowercased()]
             let sample = entry?.sample?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             switch section.sectionKind {

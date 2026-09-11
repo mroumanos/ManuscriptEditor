@@ -929,6 +929,14 @@ from a manuscript. Design and rationale:
   and which of the four parts have been edited.
 - AC: **No pass rate in a template's Tests.** There is no content to measure;
   the rate belongs to a cut, where the sidebar carries it — *Tests (86%)*.
+- AC: **Core content and journal content are one model** (Sep 2026):
+  `Models/ContentClass.swift` classifies every section kind, manuscript
+  section, template entry (`subject`: abstract · section · core), outline item
+  kind and sidebar row, and every feature that treats the two sides
+  differently reads it — adding a journal, fast-forward, Assist, templates,
+  the STRUCTURE test, the outline card, both sidebars. The table in
+  [`02-domain-model.md`](02-domain-model.md) is the specification; the
+  harness asserts the classification.
 - AC: **The letter is the author's — a fixed pane** (Sep 2026, reversing
   the week-old "section kind"). Its letterhead, signature and format do not
   change from venue to venue, so it lives with the fixed parts: a row after

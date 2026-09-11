@@ -76,12 +76,12 @@ struct TemplateSidebarView: View {
             // says.  Listing them greyed says that; hiding them would suggest
             // a template could supply them.
             Section("Content") {
-                ForEach(TemplateSidebarView.fixedParts, id: \.title) { part in
-                    Label(part.title, systemImage: part.icon)
+                ForEach(CorePart.allCases, id: \.self) { part in
+                    Label(part.label, systemImage: part.systemImage)
                         .foregroundStyle(.tertiary)
-                        .help(part.token.isEmpty
-                              ? "The author's, not the venue's."
-                              : "The manuscript's, not the venue's. Refer to it from a section with \(part.token).")
+                        .help(part.reference.map {
+                            "The manuscript's, not the venue's. Refer to it from a section with \($0)."
+                        } ?? "The author's, not the venue's.")
                 }
                 .selectionDisabled()
 
@@ -93,7 +93,7 @@ struct TemplateSidebarView: View {
                 // edit).  The letter is not here: it is the author's, with a
                 // fixed row above the rule, and an entry for it is ignored.
                 abstractRow
-                ForEach(sections.filter { $0.key != "abstract" && $0.kind != .letter }) { section in
+                ForEach(sections.filter { $0.subject == .section }) { section in
                     sectionRow(section)
                 }
                 addSectionRow
@@ -134,18 +134,6 @@ struct TemplateSidebarView: View {
         }
     }
 
-    /// The app's fixed parts, in the order a manuscript's sidebar lists them,
-    /// and the token that reaches each one.
-    static let fixedParts: [(title: String, icon: String, token: String)] = [
-        ("Title",        "textformat",                 "[[title]]"),
-        ("Authors",      "person.2",                   "[[authors.names]]"),
-        ("Keywords",     "tag",                        "[[keywords]]"),
-        ("Figures",      "photo.on.rectangle.angled",  "a figure reference"),
-        ("Tables",       "tablecells",                 "a table reference"),
-        ("Bibliography", "books.vertical",             "a citation"),
-        ("Letter to the Editor", "envelope",           ""),
-    ]
-
     /// The same hairline a manuscript's sidebar uses between the parts every
     /// manuscript has and the sections an author shapes.
     private var sectionsDelimiter: some View {
@@ -185,7 +173,7 @@ struct TemplateSidebarView: View {
     /// stand-in with the same uid until then.
     @ViewBuilder
     private var abstractRow: some View {
-        if let existing = sections.first(where: { $0.key == "abstract" }) {
+        if let existing = template?.structure.abstractEntry {
             sectionRow(existing)
         } else {
             Label("Abstract", systemImage: "text.quote")
@@ -199,7 +187,7 @@ struct TemplateSidebarView: View {
             .tag(SidebarItem.templateSection(section.id.uuidString))
             .contextMenu {
                 // Renamed, the Abstract would become an ordinary section.
-                if section.key != "abstract" {
+                if section.subject != .abstract {
                     Button("Rename…") {
                         renameDraft = section.title
                         renamingKey = section.id.uuidString
@@ -225,7 +213,7 @@ struct TemplateSidebarView: View {
     }
 
     private func icon(for section: StructureSection) -> String {
-        section.key == "abstract" ? "text.quote" : section.kind.systemImage
+        section.subject == .abstract ? "text.quote" : section.kind.systemImage
     }
 
     /// Adding a section here adds it to the template's structure — the two are

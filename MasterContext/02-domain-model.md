@@ -200,6 +200,41 @@ Notes are a first-class way to leave feedback for oneself or collaborators,
   across the manuscript? (Lean: anchored within a journal's content, but visible
   while comparing.)
 
+## Core content and journal content (Sep 2026)
+
+> **Built.** `Models/ContentClass.swift` — `ContentClass`, `CorePart`, and the
+> classification on every model that carries content: `SectionKind`,
+> `ManuscriptSection`, `Manuscript` (`letterSection`, `journalSections`),
+> `StructureSection.subject`, `JournalStructure` (`journalEntries`,
+> `sectionEntries`, `abstractEntry`), `ExportItem.Kind` (`contentClass`,
+> `coreKinds`), `SidebarItem.contentClass`.
+
+Everything in a manuscript is one of two things, and every feature that moves
+content — adding a journal, fast-forward, Assist, templates, the checks, the
+outline, the sidebar — reads the same answer:
+
+| | **Core content** | **Journal content** |
+|---|---|---|
+| What | Title, authors, keywords, figures, tables, bibliography, **letter to the editor** | **Abstract** and every body section (text boxes, question series) |
+| Whose | The manuscript's. A venue has an opinion about how it is *set* (typography, in the outline), never about what it says | A cut's. The venue shapes it — its headings, its order, its boilerplate, its questions |
+| Adding a journal | Carried **whole** into the new cut | Starts from the template's entry for it (boilerplate as rich text, tokens live; a question series with its questions), otherwise empty |
+| Fast-forward | Comes down whole, like everything else in a full override | Comes down where the upstream **has text**; a section the upstream leaves empty keeps the cut's own |
+| Assist | Never sent, never adapted | Sent paired with the template's entry (a specification: `template`, `format`, `notes`); the reply is the last write |
+| Template | Never described. A letter entry (some templates carried one) is **ignored** everywhere entries are read | Described by a structure entry — an "Abstract" entry describes the field and never becomes a section; every other entry becomes a section |
+| Sidebar | A fixed row above the rule (`CorePart`, in order) | Below the rule: Abstract first, then the sections; Add Section offers journal kinds only |
+| Outline | The fixed items — `coreKinds`, the letter's `coverLetter` among them | `abstract` and `section` items; Add Item lists the Abstract with the body sections |
+| Storage | Fields on the manuscript — except the letter, stored as the one section of kind `letter` (`Manuscript.letterSection`), owned like a title | `abstract` (a field) and `sections` of kind `text` / `questions` |
+
+**Rule for code.** A call site that needs to know which side something is on
+asks the model — `isCore` / `isJournalContent`, `subject`, `contentClass`,
+`journalEntries`, `coreKinds` — and never tests a kind or a title itself.
+Every time the distinction was re-derived at a call site (`sectionKind ==
+.letter`, `key == "abstract"`) one site got it differently: the abstract was
+carried like a title, the letter templated like a section, and a template's
+letter entry became a section in every manuscript. The letter's own
+rendering (letterhead, signature, tokens) still tests `.letter`, because that
+is about what a letter *is*, not about whose it is.
+
 ## Content components (within `ManuscriptContent`)
 
 - `Author`: name parts (first/middle/last + optional honorific `namePrefix`,

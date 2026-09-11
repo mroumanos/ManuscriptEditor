@@ -1026,8 +1026,7 @@ struct ExportDocumentCard: View {
     /// abstract is not: it is a cut's prose, listed with the body sections.
     private var missingSimpleKinds: [ExportItem.Kind] {
         let present = Set(document.items.map(\.kind))
-        return [.titlePage, .authors, .keywords, .figures, .tables, .references, .coverLetter]
-            .filter { !present.contains($0) }
+        return ExportItem.Kind.coreKinds.filter { !present.contains($0) }
     }
 
     private var missingAbstract: Bool { !document.items.contains { $0.kind == .abstract } }
@@ -1037,7 +1036,7 @@ struct ExportDocumentCard: View {
         let present = Set(document.items.compactMap(\.sectionID))
         return (content?.sections ?? [])
             .sorted { $0.order < $1.order }
-            .filter { !present.contains($0.id) && $0.sectionKind != .letter }
+            .filter { !present.contains($0.id) && $0.isJournalContent }
     }
 
     private func append(_ item: ExportItem) {
