@@ -476,6 +476,43 @@ abbreviations the journal's instructions asked for (`HF` → heart failure,
 glomerular filtration rate), returned Methods unchanged because it already
 suited the target, and preserved every number — 412, 72 hours, 10 mg, p = 0.03.
 
+**What the second local-model run found (Sep 11, 2026) — refusals read as
+copies.** With Source's citations restored, a gemma4:26b run rewrote every
+section (Introduction 414 → 166 words, Discussion 444 → 134, the title page
+rebuilt to the template's layout) and five of the seven landed as the OLD
+text: each reply had dropped citation markers with the sentences it cut, and
+`restore` refuses a section that lost a reference. Right — and useless if it
+looks like the model copied. Three changes:
+
+1. **The template's tokens are the requirement.** The title page was refused
+   for dropping `[[authors]]` — which the template had legitimately replaced
+   with `[[authors.names]]`. With a template, `Prepared.partTokens` is the
+   template's list; the old text's part tokens are superseded. Citations stay
+   the text's and stay required.
+2. **Every section names the citations it carries** — `mustKeep` in the
+   section's JSON lists its `[[cite:N]]` / figure / table markers, and rule 1
+   says a cut sentence's citation moves to the sentence that keeps the claim.
+   A rule at the top is honoured in general and forgotten in a section being
+   halved; a list beside the text is checked against. **Not** the template's
+   tokens: the template goes out as the venue's *boilerplate* — rule 4 says
+   follow its format and fill in where it calls for the manuscript's content
+   — and its tokens are part of that format, not items to tag. (They are
+   still required on the way back; a title page without `[[title]]` is
+   broken.)
+3. **One repair round.** `adaptation()` — the reader that restores every
+   marker to its link and refuses a section that lost one — used to *throw*
+   when every section was refused, which would have skipped the repair;
+   refusals are a result now, and the run fails only if nothing lands after
+   the repair. Sections the reply lost tokens from go out again —
+   only those, each with its `dropped` list (`FastForwardIntent.repairTask`)
+   — and a section that comes back whole replaces its refusal
+   (`Adaptation.merge`). Recorded as a request of its own in the log
+   ("repair round for N sections"), so both are visible. Free on a local
+   model; one extra request on a keyed one.
+
+The banner now **leads with refusals** when there are any, and points at the
+log, where the dropped tokens are named per section.
+
 **What the first local-model run found (Sep 11, 2026).** A gemma4:26b run
 that "adapted 7 sections" came back with no citations and a title page whose
 `[[title]]` was plain text. Neither was the model's doing. The prompt log

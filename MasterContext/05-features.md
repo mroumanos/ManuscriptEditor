@@ -1037,6 +1037,14 @@ from a manuscript. Design and rationale:
   template's `[[…]]` tokens are required in the reply like any already in the
   text; a returned part token comes back **live** (its `part://` link put
   back), not as prose. The **abstract** is sent and adapted with the sections.
+  With a template, the template goes out as the venue's **boilerplate** to
+  follow — reuse its format, fill in where it calls for the manuscript's
+  content — and its tokens are the requirement on the way back (the old
+  text's are superseded); every section lists the **citations** it carries
+  (`mustKeep`), never the template's tokens; a section refused for a dropped
+  token gets **one repair round** naming what it dropped, logged as its own
+  request, and lands if it comes back whole. The banner leads with refusals
+  when there are any.
 - AC: Every sync offers **Cancel · Append · Overwrite**. Append keeps what the
   cut has and adds the incoming content after it, per section and per question
   — joined as **rich text**, so every citation and token on both sides

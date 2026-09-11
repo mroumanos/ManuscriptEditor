@@ -2827,9 +2827,80 @@ final class ManuscriptStore {
                 onProgress: { [weak self] progress in
                     Task { @MainActor in self?.assistRuns[journalID]?.progress = progress }
                 })
-            let adaptation = try FastForwardIntent.adaptation(
+            var adaptation = try FastForwardIntent.adaptation(
                 from: result.text, sent: sent,
                 context: RefEngine.context(for: baseContent))
+
+            // One repair round for the sections the reply lost tokens from:
+            // the same sections again, each with the list it dropped.  A
+            // local model cutting a paper by half drops citations with the
+            // sentences; asked again with the names, it mostly keeps them.
+            // Recorded as a request of its own, so the log shows both.
+            if !adaptation.missingByID.isEmpty {
+                let refusedPayloads = sent.filter { adaptation.missingByID[$0.section.id] != nil }
+                let retryID = UUID()
+                let retryStarted = Date()
+                var retryPrompt = ""
+                do {
+                    retryPrompt = AIRequestService.prompt(
+                        context: bundle,
+                        task: try FastForwardIntent.repairTask(
+                            payloads: refusedPayloads, missing: adaptation.missingByID, target: target))
+                    let retry = try await AIRequestService.send(
+                        prompt: retryPrompt, to: destination, sessionID: retryID,
+                        onProgress: { [weak self] progress in
+                            Task { @MainActor in self?.assistRuns[journalID]?.progress = progress }
+                        })
+                    let before = adaptation.refused.count
+                    if let repaired = try? FastForwardIntent.adaptation(
+                        from: retry.text, sent: refusedPayloads,
+                        context: RefEngine.context(for: baseContent)) {
+                        adaptation.merge(repaired, sent: refusedPayloads)
+                    }
+                    let recovered = before - adaptation.refused.count
+                    record(AIPromptLogEntry(
+                        id: retryID,
+                        intentID: FastForwardIntent.descriptor.id,
+                        summary: "\(summary) — repair round for \(refusedPayloads.count) section\(refusedPayloads.count == 1 ? "" : "s") that dropped tokens",
+                        connectorLabel: destination.label,
+                        model: retry.model,
+                        startedAt: retryStarted,
+                        duration: retry.duration,
+                        outcome: recovered > 0 ? .applied : .noChange,
+                        detail: recovered > 0
+                            ? "\(recovered) of \(refusedPayloads.count) came back with every token and landed with the main run."
+                            : "Still missing tokens — those sections keep their previous text.",
+                        contextTitles: bundle.pieces.map(\.title),
+                        excludedContextTitles: bundle.excludedTitles,
+                        promptCharacters: retryPrompt.count,
+                        responseCharacters: retry.text.count,
+                        sessionID: retry.sessionID),
+                        prompt: retryPrompt, response: retry.text)
+                } catch {
+                    record(AIPromptLogEntry(
+                        id: retryID,
+                        intentID: FastForwardIntent.descriptor.id,
+                        summary: "\(summary) — repair round",
+                        connectorLabel: destination.label,
+                        model: destination.requestedModel,
+                        startedAt: retryStarted,
+                        duration: Date().timeIntervalSince(retryStarted),
+                        outcome: .failed,
+                        detail: error.localizedDescription,
+                        contextTitles: bundle.pieces.map(\.title),
+                        excludedContextTitles: bundle.excludedTitles,
+                        promptCharacters: retryPrompt.count,
+                        sessionID: retryID.uuidString.lowercased()),
+                        prompt: retryPrompt, response: "")
+                }
+            }
+
+            // After the repair round, nothing landed at all: that is a failed
+            // run, named for what it lost, not a version stamped for nothing.
+            guard !adaptation.isEmpty else {
+                throw FastForwardIntent.FastForwardError.unreadable(
+                    "every section came back with a citation or field missing, even after a repair round (\(adaptation.refused.joined(separator: ", ")))")
+            }
 
             // Measured before the write, while the old text is still in hand.
             let changes = sent.compactMap { payload -> AIPromptLogChange? in
@@ -2877,9 +2948,14 @@ final class ManuscriptStore {
 
             if applied {
                 let failures = failingChecks(forJournal: journalID, target: target)
-                var message = "\(summary) — \(changes.count) section\(changes.count == 1 ? "" : "s") adapted by \(result.model). Stamped as a new version; the previous content is in Versions."
-                if !adaptation.refused.isEmpty {
-                    message += " \(adaptation.refused.count) section\(adaptation.refused.count == 1 ? "" : "s") kept unchanged because the reply dropped a citation or field: \(adaptation.refused.joined(separator: ", "))."
+                let refusedCount = adaptation.refused.count
+                var message: String
+                if refusedCount > 0 {
+                    // Refusals lead: a run that kept most of its sections
+                    // reads as "it copied them" unless the reason comes first.
+                    message = "\(summary) — \(refusedCount) of \(changes.count + refusedCount) section\(changes.count + refusedCount == 1 ? "" : "s") KEPT UNCHANGED because \(result.model)'s reply dropped a citation or field, even after a repair round: \(adaptation.refused.joined(separator: ", ")). \(changes.count) adapted and stamped as a new version; the previous content is in Versions. Log → AI Requests names the dropped tokens."
+                } else {
+                    message = "\(summary) — \(changes.count) section\(changes.count == 1 ? "" : "s") adapted by \(result.model). Stamped as a new version; the previous content is in Versions."
                 }
                 if !failures.isEmpty {
                     message += " \(failures.count) check\(failures.count == 1 ? "" : "s") still failing."
