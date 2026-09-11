@@ -65,18 +65,10 @@ struct ConnectorDetailView: View {
 
             if connector.kind.executableName != nil {
                 Section {
-                    // An empty TextField title on purpose: a titled field in a
-                    // grouped Form renders its title as the row's label, which
-                    // turned the placeholder into a caption and squeezed the
-                    // path into a sliver.
-                    HStack(spacing: 8) {
-                        TextField("", text: $pathDraft,
-                                  prompt: Text("Found automatically when you press Test"))
-                            .textFieldStyle(.roundedBorder)
-                            .font(.system(.body, design: .monospaced))
-                            .onSubmit(savePath)
-                        Button("Browse…") { browseForExecutable() }
-                    }
+                    pathRow(text: $pathDraft,
+                            prompt: "Found automatically when you press Test",
+                            onCommit: savePath,
+                            change: ("Browse…", browseForExecutable))
                     Text("Apps launched from Finder don't inherit your shell's PATH, so the app looks in the usual places and then asks a login shell. Set it here if it still can't find the tool.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -88,12 +80,10 @@ struct ConnectorDetailView: View {
 
             if connector.kind == .ollama {
                 Section {
-                    HStack(spacing: 8) {
-                        TextField("", text: $endpointDraft, prompt: Text("http://localhost:11434"))
-                            .textFieldStyle(.roundedBorder)
-                            .font(.system(.body, design: .monospaced))
-                            .onSubmit(saveEndpoint)
-                    }
+                    pathRow(text: $endpointDraft,
+                            prompt: "http://localhost:11434",
+                            onCommit: saveEndpoint,
+                            change: nil)
                     Text("Where Ollama is listening. The default is right for a copy running on this Mac.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -217,6 +207,42 @@ struct ConnectorDetailView: View {
         guard panel.runModal() == .OK, let url = panel.url else { return }
         pathDraft = url.path
         savePath()
+    }
+
+    /// A path or URL, laid out the way the install command above it is: the
+    /// value on the LEFT, filling the row, and what you can do to it — copy,
+    /// change — on the right.
+    ///
+    /// A grouped Form treats a row holding a text field as label + value and
+    /// puts the field in the trailing column, right-aligned, however the row
+    /// around it is framed — the field's own label is what it keys on.
+    /// Hiding that label takes the row out of the two-column treatment so it
+    /// spans the width like the caption rows do.
+    private func pathRow(text: Binding<String>, prompt: String,
+                         onCommit: @escaping () -> Void,
+                         change: (label: String, action: () -> Void)?) -> some View {
+        HStack(spacing: 8) {
+            TextField(prompt, text: text, prompt: Text(prompt))
+                .labelsHidden()
+                .multilineTextAlignment(.leading)
+                .textFieldStyle(.roundedBorder)
+                .font(.system(.body, design: .monospaced))
+                .frame(maxWidth: .infinity)
+                .onSubmit(onCommit)
+            Button {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(text.wrappedValue, forType: .string)
+            } label: {
+                Image(systemName: "doc.on.doc")
+            }
+            .buttonStyle(.borderless)
+            .disabled(text.wrappedValue.isEmpty)
+            .help("Copy")
+            if let change {
+                Button(change.label) { change.action() }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func saveEndpoint() {

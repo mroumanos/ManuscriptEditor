@@ -84,8 +84,39 @@ final class TemplateWorkspace {
     /// font show up as a change to the STRUCTURE, and coupled two parts that
     /// answer different questions ("what is a submission made of?" and "how
     /// is it set?").  Export options are in Export.
+    ///
+    /// An outline that equals the baseline — the standard one derived from
+    /// the template's own sections — is stored as **nothing**.  Add a
+    /// document and delete it again and the outline is what it was; a
+    /// materialized copy of the same thing (with its own fresh ids) read as
+    /// an edit, and marked the part as differing from the library.
     func setExport(_ config: ExportConfig, for id: UUID) {
-        edit(id) { $0.export = config }
+        edit(id) { template in
+            let baseline = TemplateWorkspace.standardOutline(for: template)
+            template.export = ProfileFingerprint.of(config) == ProfileFingerprint.of(baseline)
+                ? nil : config
+        }
+    }
+
+    /// The template's sections as a manuscript, so an outline can name them.
+    ///
+    /// Ids are the sections' own (`StructureSection.uid`), which is what makes
+    /// an outline item survive a rename here exactly as it does in a paper.
+    static func asManuscript(_ template: JournalTemplate) -> Manuscript {
+        var made = Manuscript.new()
+        made.title = template.displayName
+        made.sections = template.structure.sections.enumerated().map { index, section in
+            ManuscriptSection(id: section.uid, type: .custom, title: section.title,
+                              content: RichText(plain: section.boilerplate ?? ""), order: index,
+                              kind: section.kind == .text ? nil : section.kind)
+        }
+        return made
+    }
+
+    /// What the Export pane shows when nothing has been configured: the
+    /// standard outline over the template's own sections.
+    static func standardOutline(for template: JournalTemplate) -> ExportConfig {
+        repaired(ExportConfig.standard(content: asManuscript(template), journal: nil), for: template)
     }
 
     /// The outline pointed at THIS template's sections.

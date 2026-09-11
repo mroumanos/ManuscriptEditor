@@ -2020,14 +2020,24 @@ final class ManuscriptStore {
         updateExportConfig(config, forJournal: jid)
     }
 
+    ///
+    /// An outline that equals the standard one — what the pane shows when
+    /// nothing is stored — is stored as **nothing**, so adding a document and
+    /// deleting it again leaves the journal exactly as it was rather than
+    /// holding a materialized copy of the same outline that reads as an edit.
     func updateExportConfig(_ config: ExportConfig, forJournal journalID: UUID?) {
         touch { m in
             if let journalID {
-                if let idx = m.journals.firstIndex(where: { $0.id == journalID }) {
-                    m.journals[idx].exportConfig = config
-                }
+                guard let idx = m.journals.firstIndex(where: { $0.id == journalID }) else { return }
+                let content = m.versions.filter { $0.journalID == journalID }
+                    .max { $0.number < $1.number }?.content ?? m
+                let baseline = ExportConfig.standard(content: content, journal: m.journals[idx])
+                m.journals[idx].exportConfig =
+                    ProfileFingerprint.of(config) == ProfileFingerprint.of(baseline) ? nil : config
             } else {
-                m.sourceExportConfig = config
+                let baseline = ExportConfig.standard(content: m, journal: nil)
+                m.sourceExportConfig =
+                    ProfileFingerprint.of(config) == ProfileFingerprint.of(baseline) ? nil : config
             }
         }
     }

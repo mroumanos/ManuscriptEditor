@@ -315,37 +315,19 @@ struct TemplateExportView: View {
 
     private var template: JournalTemplate? { templates.template(templateID) }
 
-    private var bodySections: [StructureSection] { template?.structure.sections ?? [] }
-
     /// The template's sections as a manuscript, so the outline can name them.
-    ///
-    /// Ids are the sections' own (`StructureSection.uid`), which is what makes
-    /// an outline item survive a rename here exactly as it does in a paper.
     private var asManuscript: Manuscript? {
-        guard let template else { return nil }
-        var made = Manuscript.new()
-        made.title = template.displayName
-        made.sections = bodySections.enumerated().map { index, section in
-            ManuscriptSection(id: section.uid, type: .custom, title: section.title,
-                              content: RichText(plain: section.boilerplate ?? ""), order: index,
-                              kind: section.kind == .text ? nil : section.kind)
-        }
-        return made
+        template.map(TemplateWorkspace.asManuscript)
     }
 
     /// What the state is seeded from: the stored outline, or the standard one
     /// derived from the template's sections — repaired either way.
     private func seed() -> ExportConfig {
         guard let template else { return ExportConfig(documents: []) }
-        let base: ExportConfig
         if let export = template.export, !export.documents.isEmpty {
-            base = export
-        } else if let content = asManuscript {
-            base = ExportConfig.standard(content: content, journal: nil)
-        } else {
-            return ExportConfig(documents: [])
+            return TemplateWorkspace.repaired(export, for: template)
         }
-        return TemplateWorkspace.repaired(base, for: template)
+        return TemplateWorkspace.standardOutline(for: template)
     }
 
     var body: some View {

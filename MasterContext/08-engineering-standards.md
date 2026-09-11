@@ -316,3 +316,28 @@ Requires: clean tree on main, the Developer ID cert, `gh` auth.
     view). Hunting it took a red-background experiment and a pixel crop.
     Both the scroll view and the ruler set `clipsToBounds = true` now. If a
     line appears somewhere no view is, suspect an unclipped draw.
+
+26. **A grouped `Form` puts any row holding a labeled text field in its
+    trailing column.** The connector panes' path and server-URL rows were a
+    narrow, right-aligned field at the far right with nothing beside it —
+    however the row around the field was framed (`HStack`, `maxWidth:
+    .infinity`, `alignment: .leading`, none of it mattered). The Form keys
+    on the field's *label*: a `TextField` with a title, even an empty one,
+    is label + value, and the value goes right. `.labelsHidden()` on the
+    field (plus `.multilineTextAlignment(.leading)`) takes the row out of
+    that treatment, and it then spans the width like a caption row. The
+    `pathRow` in `ConnectorDetailView` is the pattern: value on the left,
+    copy + change on the right.
+
+27. **An outline (or any optional override) that equals its derived
+    baseline must be stored as `nil`.** `JournalTemplate.export` and
+    `Journal.exportConfig` are `nil` until someone changes something; the
+    pane shows the standard outline derived from the sections meanwhile.
+    Committing whatever the pane holds back into the model stored a
+    materialized copy of that same outline — with its own fresh item ids —
+    so adding a document and deleting it again read as an edit and marked
+    the part as differing from the library. `TemplateWorkspace.setExport`
+    and `ManuscriptStore.updateExportConfig` compare the committed outline
+    to the baseline by `ProfileFingerprint` (which strips `id` keys) and
+    store `nil` when they match. Apply the same rule to any future
+    "override or inherit" field.
