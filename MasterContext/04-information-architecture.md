@@ -67,6 +67,10 @@ that changes the label, not whether the part exists.
 - Figures (N)
 - Tables (N)
 - Bibliography (N)
+- Letter to the Editor — the author's: letterhead, signature and format do
+  not change from venue to venue, so it sits with the fixed parts (Sep 2026;
+  it spent a week below the rule as a section kind). Made the first time the
+  pane opens, carried whole into every cut; a template never describes it.
 
 — soft rule —
 
@@ -80,13 +84,8 @@ shows its word count badge). **Drag to reorder**, **deactivate per journal**
 (dimmed with an orange `eye.slash`; the text is preserved, and Tests/Export
 filter on the flag, never on emptiness), rename, delete. These are exactly what
 a journal's `structure.json` describes.
-- A **letter** is one of the sections: a section kind — *Text Box with
-  Header / Signature* — added from Add Section, deleted, renamed and
-  reordered like any other, so a manuscript can have one, none, or several.
-  It used to be a fixed part with a pane of its own above the rule; that
-  said a venue had no opinion about it, and gave it a special case in every
-  place sections are handled.
-- "Add Section" closes the list.
+- "Add Section" closes the list. It offers a text box or a question series —
+  never a letter; the letter is the author's fixed pane above the rule.
 
 Every content pane carries a slim header (word count, activation, preview,
 notes). No settings gear: a component's export typography and printed heading

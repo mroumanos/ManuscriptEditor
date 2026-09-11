@@ -309,6 +309,10 @@ struct SidebarView: View {
             ForEach(fixedPanes, id: \.key) { pane in
                 fixedPaneRow(pane)
             }
+            // The author's letter: letterhead, signature and format are
+            // theirs and don't change from venue to venue, so it is a fixed
+            // part — not a section a template adds or a cut throws away.
+            row(SidebarItem.letterToEditor, "Letter to the Editor", "envelope")
 
             sectionsDelimiter
 
@@ -379,7 +383,7 @@ struct SidebarView: View {
         Menu {
             // Two shapes of section: prose, or the questions a journal asks
             // at submission.
-            ForEach(SectionKind.allCases, id: \.self) { kind in
+            ForEach(SectionKind.addable, id: \.self) { kind in
                 Button {
                     if let id = store.addSection(kind: kind) { selection = .section(id) }
                 } label: {
@@ -449,8 +453,9 @@ struct SidebarView: View {
         store.deleteSection(id: section.id)
     }
 
+    /// The sections past the rule — the letter has a fixed row above it.
     private var sortedSections: [ManuscriptSection] {
-        (manuscript?.sections ?? []).sorted { $0.order < $1.order }
+        (manuscript?.sections ?? []).filter { $0.sectionKind != .letter }.sorted { $0.order < $1.order }
     }
 
     private var saveSubtitle: String {

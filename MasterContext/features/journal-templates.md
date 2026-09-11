@@ -110,24 +110,27 @@ with the **journal-specific** sections live and everything else out of the way:
 
 | | In a template | Why |
 |---|---|---|
-| Title page, Letter to the Editor, submission questions, and any section the venue names | **editable** | These *are* the venue's requirements — the layout it wants, the questions it asks, the letter it expects |
-| Title, authors, abstract, keywords, figures, tables, bibliography | **blank and inactive** | Journal-agnostic. A venue has an opinion about how they are *set*, never about what they say |
+| Title page, submission questions, and any section the venue names — the abstract's format included, as an entry titled "Abstract" | **editable** | These *are* the venue's requirements — the layout it wants, the questions it asks |
+| Title, authors, keywords, figures, tables, bibliography, the letter to the editor | **blank and inactive** | Journal-agnostic. A venue has an opinion about how they are *set*, never about what they say — and the letter's letterhead, signature and format are the author's |
 
 The core parts stay **referenceable**: `[[title]]`, `[[authors.names]]`,
 `[[authors.institutes]]` in a template's title page are how the venue's layout
 is expressed, and they resolve against whatever manuscript adopts it.
 
-**The letter IS a section: kind `letter`, "Text Box with Header /
-Signature".** Not a fixed part with a role, not a pane of its own, not an
-export item of its own kind — all three existed and each needed a special
-case wherever sections are handled, and the seams showed: adding one in a
-template produced a "Cover Letter" in Export with nothing in the sidebar to
-match. Now it is a `ManuscriptSection` whose `kind` is `.letter` and which
-carries `LetterDetails` (letterhead slots, signature) beside its text. Added
-from Add Section, deleted, renamed, reordered; a manuscript can have one,
-none, or several. The standard outline gives each letter section a document
-of its own with the heading off. Manuscripts written before the change carry
-`letterToEditor`; the store turns it into a section on load
+**The letter is the author's, not the venue's (Sep 2026).** For a week it
+was a section kind a template could carry, added and removed like any other.
+That was the wrong owner: a letter's letterhead, signature and format belong
+to the person submitting and do not change from journal to journal. So it is
+a **fixed pane** again — a row after Bibliography, above the rule, made the
+first time it is opened and carried whole into every cut. The storage stayed
+what the section-kind week left it (one `ManuscriptSection` of kind `.letter`
+with `LetterDetails`), so nothing written in between needs converting; the
+kind is simply not offered from Add Section, not listed with the sections,
+not captured into a template, and a template's letter entry is ignored
+wherever sections are read. The standard outline still gives the letter a
+document of its own with the heading off. Manuscripts written before the
+section-kind week carry `letterToEditor`; the store turns it into the section
+on load
 (`migrateLetter`) and never writes it. Old outlines' `.coverLetter` items are
 pointed at the first letter section, or dropped; the `coverLetter` check
 scope means "every letter section".
@@ -159,7 +162,6 @@ Content    Title · Authors · Abstract · Keywords · Figures · Tables ·
            Title Page
            Public Health Implications
            Submission Questions
-           Letter to the Editor      ← a section like the others (kind: letter)
            Add Section
 ```
 

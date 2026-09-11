@@ -79,15 +79,16 @@ struct TemplateSidebarView: View {
                 ForEach(TemplateSidebarView.fixedParts, id: \.title) { part in
                     Label(part.title, systemImage: part.icon)
                         .foregroundStyle(.tertiary)
-                        .help("The manuscript's, not the venue's. Refer to it from a section with \(part.token).")
+                        .help(part.token.isEmpty
+                              ? "The author's, not the venue's."
+                              : "The manuscript's, not the venue's. Refer to it from a section with \(part.token).")
                 }
                 .selectionDisabled()
 
                 sectionsDelimiter
 
-                // Past the rule, everything is the venue's — including the
-                // letter, which is addressed to a named editor at a named
-                // journal and follows that journal's conventions.
+                // Past the rule, everything is the venue's.  (The letter is
+                // not: it is the author's, with a fixed row above the rule.)
                 ForEach(sections) { section in
                     sectionRow(section)
                 }
@@ -139,6 +140,7 @@ struct TemplateSidebarView: View {
         ("Figures",      "photo.on.rectangle.angled",  "a figure reference"),
         ("Tables",       "tablecells",                 "a table reference"),
         ("Bibliography", "books.vertical",             "a citation"),
+        ("Letter to the Editor", "envelope",           ""),
     ]
 
     /// The same hairline a manuscript's sidebar uses between the parts every
@@ -210,7 +212,7 @@ struct TemplateSidebarView: View {
     private var addSectionRow: some View {
         Menu {
             // The same three kinds a manuscript offers, in the same words.
-            ForEach(SectionKind.allCases, id: \.self) { kind in
+            ForEach(SectionKind.addable, id: \.self) { kind in
                 Button {
                     switch kind {
                     case .text:      add(StructureSection(title: uniqueTitle("New Section")))

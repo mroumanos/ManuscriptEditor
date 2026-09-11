@@ -60,12 +60,15 @@ enum SidebarItem: Hashable {
     case figures
     case tables
     case bibliography
+    /// The author's letter — a fixed pane, backed by the manuscript's one
+    /// letter section (see `SectionKind.letter`).
+    case letterToEditor
 
     /// Content items are editable prose/component views.
     var isContent: Bool {
         switch self {
         case .title, .authors, .abstract, .keywords, .section,
-             .figures, .tables, .bibliography:
+             .figures, .tables, .bibliography, .letterToEditor:
             return true
         case .overview, .log, .checks, .export, .data, .versions,
              .summary, .structure, .templateOverview, .templateSection:
@@ -102,6 +105,7 @@ enum SidebarItem: Hashable {
         case .title:              return "title"
         case .authors:            return "authors"
         case .abstract:           return "abstract"
+        case .letterToEditor:     return "letter"
         case .keywords:           return "keywords"
         case .section(let id):    return "section:\(id.uuidString)"
         case .figures:            return "figures"
@@ -582,6 +586,7 @@ struct ContentView: View {
         case .title:          return CheckScope(kind: .title).key
         case .authors:        return CheckScope(kind: .authors).key
         case .abstract:       return CheckScope(kind: .abstract).key
+        case .letterToEditor: return CheckScope(kind: .coverLetter).key
         case .keywords:       return CheckScope(kind: .keywords).key
         case .figures:        return CheckScope(kind: .figures).key
         case .tables:         return CheckScope(kind: .tables).key
@@ -635,6 +640,7 @@ struct ContentView: View {
         guard let m = store.manuscript(for: ref) else { return nil }
         switch item {
         case .abstract:        return m.abstractWordCount
+        case .letterToEditor:  return m.sections.first { $0.sectionKind == .letter }?.wordCount
         case .section(let id):
             let s = resolvedSection(id, ref)
             // A question series counts per question, against each question's
@@ -663,6 +669,7 @@ struct ContentView: View {
         case .title:             TitleView(versionRef: ref)
         case .authors:           AuthorsView(versionRef: ref)
         case .abstract:          AbstractView(versionRef: ref)
+        case .letterToEditor:    LetterPane(versionRef: ref)
         case .keywords:          KeywordsView(versionRef: ref)
         case .section(let id):
             // A section is prose, a question series, or a letter; the pane
@@ -852,6 +859,7 @@ struct DetailRouter: View {
         case .title:                TitleView()
         case .authors:              AuthorsView()
         case .abstract:             AbstractView()
+        case .letterToEditor:       LetterPane()
         case .keywords:             KeywordsView()
         case .section(let id):      SectionEditorView(sectionID: id)
         case .figures:              FiguresView()
@@ -1045,5 +1053,22 @@ struct JournalTabBar: View {
             }
         }
         .help(label(for: tab))
+    }
+}
+
+/// The author's letter as a fixed pane: one per manuscript, made the first
+/// time the pane is opened, then the same letter section in every cut —
+/// carried whole when a journal is added, because letterhead, signature and
+/// format are the author's, not the venue's.
+private struct LetterPane: View {
+    @Environment(ManuscriptStore.self) private var store
+    var versionRef: VersionRef = .source
+
+    var body: some View {
+        if let id = store.letterSectionID {
+            LetterSectionView(sectionID: id, versionRef: versionRef)
+        } else {
+            Color.clear.onAppear { store.ensureLetterSection() }
+        }
     }
 }

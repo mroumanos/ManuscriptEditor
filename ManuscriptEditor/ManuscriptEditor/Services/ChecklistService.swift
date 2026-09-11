@@ -65,7 +65,9 @@ enum ChecklistService {
         // structure file — the sections it says a submission has.  Optional
         // sections never fail; only the required ones do.
         if condition.metric.isStructure {
-            let expected = (journal?.structure?.sections ?? []).filter(\.required)
+            // A letter entry is not structure: the letter is the author's.
+            let expected = (journal?.structure?.sections ?? [])
+                .filter { $0.required && $0.kind != .letter }
             guard !expected.isEmpty else { return (true, "no structure defined") }
             // The abstract is a field, not a section, but a structure may
             // require it by name: it counts as present when it is written.

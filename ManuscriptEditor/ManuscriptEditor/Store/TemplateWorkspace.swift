@@ -107,7 +107,7 @@ final class TemplateWorkspace {
         made.title = template.displayName
         // An "Abstract" entry describes the abstract field, which the outline
         // already carries as a fixed item — it is not a section of its own.
-        made.sections = template.structure.sections.filter { $0.key != "abstract" }
+        made.sections = template.structure.sections.filter { $0.key != "abstract" && $0.kind != .letter }
             .enumerated().map { index, section in
                 ManuscriptSection(id: section.uid, type: .custom, title: section.title,
                                   content: PartEngine.richText(section.boilerplate ?? ""), order: index,
@@ -130,7 +130,9 @@ final class TemplateWorkspace {
     /// template's own sections take their place, in Structure order.  A
     /// legacy cover-letter item goes too: the letter is a section now.
     static func repaired(_ config: ExportConfig, for template: JournalTemplate) -> ExportConfig {
-        let body = template.structure.sections
+        // Not the abstract (a field the outline already carries) and not a
+        // letter entry (the author's, never the venue's).
+        let body = template.structure.sections.filter { $0.key != "abstract" && $0.kind != .letter }
         let known = Set(body.map(\.uid))
         var out = config
         var seen: Set<UUID> = []

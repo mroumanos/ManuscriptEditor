@@ -497,7 +497,7 @@ final class ManuscriptStore {
     /// journal), with a unique title.  Returns the new section id.
     @discardableResult
     func addSection(type: SectionType = .custom, title: String? = nil,
-                    kind: SectionKind = .text) -> UUID? {
+                    kind: SectionKind = .text, undoable: Bool = true) -> UUID? {
         guard manuscript != nil else { return nil }
         let fallback: String
         switch kind {
@@ -516,7 +516,7 @@ final class ManuscriptStore {
                               questions: kind == .questions ? [QuestionEntry(order: 0)] : nil,
                               letter: kind == .letter ? LetterDetails() : nil)
         }
-        touch(undoAction: "Add Section") { m in
+        touch(undoAction: "Add Section", undoable: undoable) { m in
             m.sections.append(fresh(m.sections.count))
             for v in m.versions.indices {
                 var content = m.versions[v].content
@@ -525,6 +525,18 @@ final class ManuscriptStore {
             }
         }
         return id
+    }
+
+    /// The manuscript's letter section, if its pane has ever been opened.
+    var letterSectionID: UUID? {
+        manuscript?.sections.first { $0.sectionKind == .letter }?.id
+    }
+
+    /// The letter, made on first use.  Not undoable: opening a pane is not
+    /// an edit, and ⌘Z taking the pane away would be a surprise.
+    @discardableResult
+    func ensureLetterSection() -> UUID? {
+        letterSectionID ?? addSection(kind: .letter, undoable: false)
     }
 
     // MARK: - Question series
@@ -1077,8 +1089,11 @@ final class ManuscriptStore {
         let existing = Set(m.sections.map { $0.title.lowercased() })
         var created: [(id: UUID, entry: StructureSection)] = []
         // An "Abstract" entry describes the abstract FIELD — its format,
-        // notes and boilerplate — not a section to create beside it.
-        for section in wanted where !existing.contains(section.key) && section.key != "abstract" {
+        // notes and boilerplate — not a section to create beside it.  A
+        // letter entry (templates could carry one for a while) is ignored:
+        // the letter is the author's, with a pane of its own.
+        for section in wanted
+        where !existing.contains(section.key) && section.key != "abstract" && section.kind != .letter {
             guard let id = addSection(type: .custom, title: section.title, kind: section.kind)
             else { continue }
             created.append((id, section))
@@ -1203,14 +1218,14 @@ final class ManuscriptStore {
     /// a cut is born with is the venue's.  Boilerplate goes in as rich text
     /// so its `[[title]]` tokens are live (`PartEngine.richText`).
     static func templated(_ section: ManuscriptSection, entry: StructureSection?) -> ManuscriptSection {
+        // The letter is the author's — letterhead, signature, format and
+        // text — and comes along whole, like the title and the authors.
+        if section.sectionKind == .letter { return section }
         var out = section
         // First, none of the upstream's text.
         switch section.sectionKind {
-        case .text:
+        case .text, .letter:
             out.content = RichText()
-        case .letter:
-            out.content = RichText()
-            out.letter = LetterDetails()
         case .questions:
             out.questions = section.orderedQuestions.map { var q = $0; q.response = RichText(); return q }
         }
@@ -1805,7 +1820,9 @@ final class ManuscriptStore {
         // change read as a STRUCTURE change.  How a submission is set is the
         // Export part's question, compared on its own checksum.
         var captured: [StructureSection] = []
-        for section in content.sections.filter(\.active).sorted(by: { $0.order < $1.order }) {
+        // The letter is never captured: it is the author's, not the venue's.
+        for section in content.sections.filter({ $0.active && $0.sectionKind != .letter })
+            .sorted(by: { $0.order < $1.order }) {
             var entry = byTitle[section.title.lowercased()]
                 ?? StructureSection(title: section.title)
             entry.title = section.title
@@ -1837,9 +1854,10 @@ final class ManuscriptStore {
             }
             captured.append(entry)
         }
-        // Anything the structure required that this cut doesn't have yet.
+        // Anything the structure required that this cut doesn't have yet —
+        // except a letter entry, which no template should carry.
         let capturedTitles = Set(captured.map { $0.title.lowercased() })
-        captured += existing.filter { !capturedTitles.contains($0.title.lowercased()) }
+        captured += existing.filter { !capturedTitles.contains($0.title.lowercased()) && $0.kind != .letter }
 
         return JournalStructure(sections: captured,
                                 coreFormats: journal.structure?.coreFormats,

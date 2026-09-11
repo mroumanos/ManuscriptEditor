@@ -157,15 +157,23 @@ struct ManuscriptSection: Codable, Identifiable, Sendable {
 enum SectionKind: String, Codable, CaseIterable, Sendable {
     case text, questions
     /// A text box that also carries a letterhead and a signature — the
-    /// cover letter, which used to be a fixed part of every manuscript and
-    /// is now a section like any other: added, removed, renamed, reordered.
+    /// author's letter to the editor.  Stored as a section (one per
+    /// manuscript, made when its pane is first opened) but it is a FIXED
+    /// part in every other respect: its letterhead, its signature and its
+    /// format are the author's and do not change from venue to venue, so it
+    /// is not offered from Add Section, not a template's to describe, and
+    /// carried whole when a journal is added.
     case letter
+
+    /// The kinds Add Section offers — a manuscript's letter is not one of
+    /// them; it has a pane of its own.
+    static let addable: [SectionKind] = [.text, .questions]
 
     var label: String {
         switch self {
         case .text:      return "Text Box"
         case .questions: return "Question Series"
-        case .letter:    return "Text Box with Header / Signature"
+        case .letter:    return "Letter to the Editor"
         }
     }
 

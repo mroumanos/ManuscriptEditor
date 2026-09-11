@@ -177,7 +177,7 @@ struct TemplateStructureView: View {
             Picker("", selection: Binding(
                 get: { section.kind },
                 set: { value in edit(section) { $0.kind = value } })) {
-                ForEach(SectionKind.allCases, id: \.self) { Text($0.label).tag($0) }
+                ForEach(SectionKind.addable, id: \.self) { Text($0.label).tag($0) }
             }
             .labelsHidden().fixedSize()
             .help("A question series arrives as the venue's submission questions when a journal is added; a letter arrives with a letterhead and a signature")

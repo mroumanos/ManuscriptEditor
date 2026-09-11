@@ -929,16 +929,21 @@ from a manuscript. Design and rationale:
   and which of the four parts have been edited.
 - AC: **No pass rate in a template's Tests.** There is no content to measure;
   the rate belongs to a cut, where the sidebar carries it — *Tests (86%)*.
-- AC: **The letter is a section kind** (`SectionKind.letter`, "Text Box with
-  Header / Signature") carrying `LetterDetails` — letterhead slots and a
-  signature — beside its text. A template's letter entry becomes a letter
-  section in the manuscript, boilerplate and all; adding a journal never
-  overwrites one already written; the `STRUCTURE` test checks it by name like
-  any section. There is no fixed cover letter: `Manuscript.letterToEditor` is
-  decoded from old files and migrated into a section on load, `ExportItem
-  .Kind.coverLetter` is decoded from old outlines and pointed at the first
-  letter section (or dropped), and the `coverLetter` check scope means every
-  letter section.
+- AC: **The letter is the author's — a fixed pane** (Sep 2026, reversing
+  the week-old "section kind"). Its letterhead, signature and format do not
+  change from venue to venue, so it lives with the fixed parts: a row after
+  Bibliography, above the rule; made once, the first time the pane opens
+  (`ManuscriptStore.ensureLetterSection`); carried whole when a journal is
+  added, like the title and the authors; migrated on fast-forward and
+  adapted with Assist like any prose. It is *stored* as the manuscript's one
+  section of kind `letter` carrying `LetterDetails`, which is what keeps every
+  file written in between opening unchanged — but it is not offered from Add
+  Section (`SectionKind.addable`), not listed among the sections, not
+  captured into a template, and a template's letter entry (some carry one) is
+  ignored everywhere: adding a journal, the fast-forward prompt, the
+  `STRUCTURE` test, the outline. `Manuscript.letterToEditor` from older files
+  still migrates into the section on load; the `coverLetter` check scope and
+  the legacy `ExportItem.Kind.coverLetter` still resolve to it.
 - AC: **Structure, reverted.** The part is "Structure" again — the content
   lives in the sections, edited directly — and editing it adds and removes
   those sections. `required` is gone from both editors: every section a

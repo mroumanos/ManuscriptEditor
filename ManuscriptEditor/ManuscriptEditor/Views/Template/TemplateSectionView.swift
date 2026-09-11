@@ -115,7 +115,7 @@ struct TemplateSectionView: View {
             Picker("", selection: Binding(
                 get: { section.kind },
                 set: { value in edit { $0.kind = value } })) {
-                ForEach(SectionKind.allCases, id: \.self) { Text($0.label).tag($0) }
+                ForEach(SectionKind.addable, id: \.self) { Text($0.label).tag($0) }
             }
             .labelsHidden().fixedSize()
 
