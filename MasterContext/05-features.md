@@ -886,9 +886,18 @@ from a manuscript. Design and rationale:
   each Title on read, carrying the byline settings the Title held, so nothing
   already saved prints differently (`ExportConfig.init(from:)`).
 - AC: The byline's settings are **two rows — Names and Institutions** — each
-  optional (the last one stays on), each with its own delimiter, and an
-  *index* shown on both that is one setting: a¹ on the name is ¹ on the
-  institution. A numbered institution list labels itself and says so.
+  optional (the last one stays on). A **delimiter only separates** (semicolon,
+  comma, space, slash, hyphen, newline). An **index annotates**: how a name
+  is tied to its institution — superscript (a¹), crosshatch (a†), numeric
+  (a (1)) or none for names; ¹ a, † a, 1. a or none for institutions. The
+  index *value* is shared; each side styles it its own way
+  (`authorIndexStyle`, `institutionIndexStyle`). The old "numbered" delimiter
+  reads as newline — plus a numeric institution index where it meant "1.
+  Institution" — so nothing saved prints differently.
+- AC: The outline carries a **Cover Letter exactly when there is a letter**:
+  a template's outline gains or loses the document as its letter section
+  comes and goes (`TemplateWorkspace.repaired`), and a manuscript's outline
+  follows its letter being removed or added back (`exportConfig(forJournal:)`).
 - AC: The **letter is a section kind** — "Text Box with Header / Signature" —
   added from Add Section and removable, in a template (it is only listed when
   present) and in a manuscript (Remove hides it, keeps the text, and drops the

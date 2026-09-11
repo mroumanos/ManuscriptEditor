@@ -1900,12 +1900,27 @@ final class ManuscriptStore {
         } else {
             config = m.sourceExportConfig ?? .standard(content: m, journal: nil)
         }
-// Every document leads with a pinned Section — the format anchor;
+        // Every document leads with a pinned Section — the format anchor;
         // configs saved before sections existed gain one here.
         for i in config.documents.indices
             where !config.documents[i].items.isEmpty
                 && config.documents[i].items.first?.kind != .pageBreak {
             config.documents[i].items.insert(ExportItem(kind: .pageBreak), at: 0)
+        }
+        // The cover letter is in the outline exactly when the manuscript has
+        // one: Remove (in the sidebar) takes it out of the outline too, and
+        // adding it back brings the document with it.
+        let letterHidden = (m.hiddenPanes ?? []).contains("letter")
+        let hasLetterItem = config.documents.contains { $0.items.contains { $0.kind == .coverLetter } }
+        if letterHidden, hasLetterItem {
+            for i in config.documents.indices {
+                config.documents[i].items.removeAll { $0.kind == .coverLetter }
+            }
+            config.documents.removeAll { !$0.isAttachment && $0.items.allSatisfy { $0.kind == .pageBreak } }
+        } else if !letterHidden, !hasLetterItem, !config.documents.isEmpty {
+            config.documents.append(ExportDocument(name: "Cover Letter",
+                                                   items: [ExportItem(kind: .pageBreak),
+                                                           ExportItem(kind: .coverLetter)]))
         }
         return config
     }

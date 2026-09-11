@@ -167,7 +167,7 @@ struct ComponentSettingsForm: View {
             .help("Print the authors' names")
             Text("delimiter").font(.caption).foregroundStyle(.secondary).fixedSize()
             Picker("", selection: Binding(
-                get: { item.authorDelimiter ?? "semicolon" },
+                get: { item.authorDelimiterCode },
                 set: { value in mutateItem { $0.authorDelimiter = value == "semicolon" ? nil : value } }
             )) {
                 Text("a; b").tag("semicolon")
@@ -176,11 +176,10 @@ struct ComponentSettingsForm: View {
                 Text("a / b").tag("slash")
                 Text("a - b").tag("hyphen")
                 Text("a ⏎ b").tag("newline")
-                Text("1. a ⏎ 2. b").tag("numbered")
             }
             .labelsHidden().controlSize(.small).fixedSize()
             .disabled(!item.printsAuthorNames)
-            .help("How the names are separated — a numbered list puts one per line")
+            .help("What separates the names")
             Text("index").font(.caption).foregroundStyle(.secondary).fixedSize()
             indexPicker(namesRow: true)
                 .disabled(!item.printsAuthorNames)
@@ -207,7 +206,6 @@ struct ComponentSettingsForm: View {
                 }
             )) {
                 Text("a ⏎ b").tag("newline")
-                Text("1. a ⏎ 2. b").tag("numbered")
                 Text("a; b").tag("semicolon")
                 Text("a, b").tag("comma")
                 Text("a b").tag("space")
@@ -216,7 +214,7 @@ struct ComponentSettingsForm: View {
             }
             .labelsHidden().controlSize(.small).fixedSize()
             .disabled(!item.printsAffiliations)
-            .help("How the institutions are separated — a numbered list labels each 1., 2., …")
+            .help("What separates the institutions")
             Text("index").font(.caption).foregroundStyle(.secondary).fixedSize()
             indexPicker(namesRow: false)
                 .disabled(!item.printsAffiliations)
@@ -254,36 +252,34 @@ struct ComponentSettingsForm: View {
         }
     }
 
-    /// One index for both rows — a¹ on the name is ¹ on the institution.  A
-    /// numbered institution list labels itself, so that row says so instead.
+    /// The index — how a name and its institution are tied together.
+    ///
+    /// The VALUE is shared (institution 1 is 1 on every name that carries
+    /// it); each side chooses its own style for showing it: raised numerals,
+    /// crosshatches, a plain numeral, or nothing.
     @ViewBuilder
     private func indexPicker(namesRow: Bool) -> some View {
-        if !namesRow, item.affiliationListNumbered {
-            Text("1., 2., …")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .help("A numbered list labels each institution by its number")
-        } else {
-            Picker("", selection: Binding(
-                get: {
-                    let v = item.affiliationMarker ?? "superscript"
-                    return v == "doublecross" ? "cross" : v   // legacy value
-                },
-                set: { value in mutateItem { $0.affiliationMarker = value == "superscript" ? nil : value } }
-            )) {
-                if namesRow {
-                    Text("a¹").tag("superscript")
-                    Text("a†").tag("cross")
-                    Text("none").tag("none")
-                } else {
-                    Text("¹ a").tag("superscript")
-                    Text("† a").tag("cross")
-                    Text("none").tag("none")
-                }
+        Picker("", selection: namesRow
+               ? Binding(get: { item.authorIndexStyle },
+                         set: { value in mutateItem { $0.authorIndexStyle = value } })
+               : Binding(get: { item.institutionIndexStyle },
+                         set: { value in mutateItem { $0.institutionIndexStyle = value } })) {
+            if namesRow {
+                Text("a¹").tag("superscript")
+                Text("a†").tag("cross")
+                Text("a (1)").tag("numeric")
+                Text("none").tag("none")
+            } else {
+                Text("¹ a").tag("superscript")
+                Text("† a").tag("cross")
+                Text("1. a").tag("numeric")
+                Text("none").tag("none")
             }
-            .labelsHidden().controlSize(.small).fixedSize()
-            .help("Names and institutions share one index — a¹ on the name matches ¹ on the institution. Crosses escalate †, ‡, ††† with each institution.")
         }
+        .labelsHidden().controlSize(.small).fixedSize()
+        .help(namesRow
+              ? "How each name shows its institutions — the number matches the institution's, whichever style that side uses"
+              : "How each institution is labelled — the number matches the names', whichever style that side uses. Crosses escalate †, ‡, †††")
     }
 
     @ViewBuilder

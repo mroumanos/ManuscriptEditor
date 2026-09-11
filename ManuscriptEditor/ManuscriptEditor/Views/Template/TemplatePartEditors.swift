@@ -339,6 +339,10 @@ struct TemplateExportView: View {
         guard let template else { return nil }
         var made = Manuscript.new()
         made.title = template.displayName
+        // No letter section, no cover letter in the standard outline.
+        if !template.structure.sections.contains(where: { $0.role == .letter }) {
+            made.hiddenPanes = ["letter"]
+        }
         made.sections = bodySections.enumerated().map { index, section in
             ManuscriptSection(id: section.uid, type: .custom, title: section.title,
                               content: RichText(plain: section.boilerplate ?? ""), order: index)

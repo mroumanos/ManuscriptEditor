@@ -439,7 +439,7 @@ struct ExportService {
                 let authors = m.authors.sorted { $0.order < $1.order }
                 if !authors.isEmpty {
                     let delim: String
-                    switch item.authorDelimiter {
+                    switch item.authorDelimiterCode {
                     case "comma":   delim = ", "
                     case "space":   delim = " "
                     case "slash":   delim = " / "
@@ -447,7 +447,8 @@ struct ExportService {
                     case "newline": delim = " \\\\\n"
                     default:        delim = "; "
                     }
-                    let markerStyle = item.affiliationMarker ?? "superscript"
+                    let nameStyle = item.authorIndexStyle
+                    let instituteStyle = item.institutionIndexStyle
                     var affLines: [String] = []
                     var indexByLine: [String: Int] = [:]
                     for a in authors {
@@ -456,8 +457,8 @@ struct ExportService {
                             affLines.append(l)
                         }
                     }
-                    func mk(_ i: Int) -> String {
-                        switch markerStyle {
+                    func mk(_ i: Int, _ style: String) -> String {
+                        switch style {
                         case "cross":
                             if i == 1 { return "‡" }
                             return String(repeating: "†", count: i + 1)
@@ -467,17 +468,24 @@ struct ExportService {
                     }
                     let names = authors.map { a -> String in
                         var s = tex(item.authorTitlesShown ? a.exportName : a.fullName)
-                        if markerStyle != "none" {
+                        if nameStyle != "none" {
                             let ms = a.affiliationLines(in: m).compactMap { indexByLine[$0] }
-                                .sorted().map(mk).joined(separator: ",")
-                            if !ms.isEmpty { s += "\\textsuperscript{\(ms)}" }
+                                .sorted().map { mk($0, nameStyle) }.joined(separator: ",")
+                            if !ms.isEmpty {
+                                s += nameStyle == "numeric" ? " (\(ms))" : "\\textsuperscript{\(ms)}"
+                            }
                         }
                         if a.isCorresponding, item.correspondingShown { s += "\\textsuperscript{*}" }
                         return s
                     }.joined(separator: delim)
                     out += "\\begin{center}\n\(names)\\\\\n"
                     for (i, l) in affLines.enumerated() {
-                        let prefix = markerStyle == "none" ? "" : "\\textsuperscript{\(mk(i))} "
+                        let prefix: String
+                        switch instituteStyle {
+                        case "none":    prefix = ""
+                        case "numeric": prefix = "\(mk(i, instituteStyle)). "
+                        default:        prefix = "\\textsuperscript{\(mk(i, instituteStyle))} "
+                        }
                         out += "\(prefix)\\textit{\(tex(l))}\\\\\n"
                     }
                     if item.correspondingShown, authors.contains(where: \.isCorresponding) {
@@ -943,8 +951,9 @@ private struct OutlineBuilder {
         let authors = m.authors.sorted { $0.order < $1.order }
         guard !authors.isEmpty else { return doc }
 
-        let delimiter = Self.delimiterText(item.authorDelimiter, fallback: "; ")
-        let markerStyle = item.affiliationMarker ?? "superscript"
+        let delimiter = Self.delimiterText(item.authorDelimiterCode, fallback: "; ")
+        let nameStyle = item.authorIndexStyle
+        let instituteStyle = item.institutionIndexStyle
 
         // Ordered unique affiliation lines across the whole byline; each
         // gets the marker its index dictates.
@@ -956,17 +965,20 @@ private struct OutlineBuilder {
                 affLines.append(lineText)
             }
         }
-        // Crosshatches escalate with the institution index: † (single),
-        // ‡ (double), then ††† and up — one option, not several.
-        func marker(_ index: Int) -> String {
-            switch markerStyle {
+        // The index VALUE is shared — institution 1 is 1 on every name that
+        // carries it — and each side styles it its own way.  Crosshatches
+        // escalate with the index: † (single), ‡ (double), then ††† and up.
+        func marker(_ index: Int, style: String) -> String {
+            switch style {
             case "cross":
                 if index == 1 { return "‡" }
                 return String(repeating: "†", count: index + 1)
-            case "none": return ""
-            default:     return String(index + 1)
+            case "none":    return ""
+            default:        return String(index + 1)
             }
         }
+        /// Superscript and cross are raised runs; numeric is plain text.
+        func isRaised(_ style: String) -> Bool { style == "superscript" || style == "cross" }
 
         let bodyAttrs: [NSAttributedString.Key: Any] = [
             .font: base, .paragraphStyle: paragraph(after: 2, before: 0),
@@ -987,53 +999,50 @@ private struct OutlineBuilder {
         }
 
         for (i, author) in authors.enumerated() where item.printsAuthorNames {
-            if item.authorsNumbered {
-                doc.append(NSAttributedString(string: "\(i + 1). ", attributes: bodyAttrs))
-            }
             doc.append(NSAttributedString(
                 string: item.authorTitlesShown ? author.exportName : author.fullName,
                 attributes: bodyAttrs))
-            if markerStyle != "none" {
+            if nameStyle != "none" {
                 let markers = author.affiliationLines(in: m)
-                    .compactMap { indexByLine[$0] }.sorted().map(marker)
+                    .compactMap { indexByLine[$0] }.sorted()
+                    .map { marker($0, style: nameStyle) }
                     .joined(separator: ",")
                 if !markers.isEmpty {
-                    doc.append(markerRun(markers,
-                                         para: bodyAttrs[.paragraphStyle] as! NSParagraphStyle))
+                    if isRaised(nameStyle) {
+                        doc.append(markerRun(markers,
+                                             para: bodyAttrs[.paragraphStyle] as! NSParagraphStyle))
+                    } else {
+                        // Numeric: "Ada Lovelace (1,2)" — plain, in line.
+                        doc.append(NSAttributedString(string: " (\(markers))", attributes: bodyAttrs))
+                    }
                 }
             }
             if author.isCorresponding, item.correspondingShown {
                 // The * annotates like another institution marker (raised).
                 doc.append(markerRun("*", para: bodyAttrs[.paragraphStyle] as! NSParagraphStyle))
             }
-            // A numbered byline is one author per line, so the separator is
-            // the line break and the last entry gets one too.
-            let separator = item.authorsNumbered
-                ? "\n"
-                : (i < authors.count - 1 ? delimiter : "\n")
+            let separator = i < authors.count - 1 ? delimiter : "\n"
             doc.append(NSAttributedString(string: separator, attributes: bodyAttrs))
         }
 
         let affDelimiter = Self.delimiterText(item.affiliationDelimiterCode, fallback: "\n")
         for (index, lineText) in affLines.enumerated() where item.printsAffiliations {
-            if item.affiliationListNumbered {
-                // "1. Institution" — a plain numbered list, which is what a
-                // journal asks for when the list stands apart from the
-                // byline.  It counts from the SAME index the names' markers
-                // use, so the two halves stay in step wherever each prints.
-                doc.append(NSAttributedString(string: "\(index + 1). \(lineText)\n",
-                                              attributes: metaAttrs))
-            } else {
-                if markerStyle != "none" {
-                    doc.append(markerRun(marker(index),
-                                         para: metaAttrs[.paragraphStyle] as! NSParagraphStyle))
+            // The index leads each institution in the style this side chose:
+            // raised ¹ / †, or a plain "1." — counting from the SAME index the
+            // names carry, so the two halves stay in step wherever each prints.
+            if instituteStyle != "none" {
+                let text = marker(index, style: instituteStyle)
+                if isRaised(instituteStyle) {
+                    doc.append(markerRun(text, para: metaAttrs[.paragraphStyle] as! NSParagraphStyle))
                     doc.append(NSAttributedString(string: " ", attributes: metaAttrs))
+                } else {
+                    doc.append(NSAttributedString(string: "\(text). ", attributes: metaAttrs))
                 }
-                doc.append(NSAttributedString(string: lineText, attributes: metaAttrs))
-                doc.append(NSAttributedString(
-                    string: index < affLines.count - 1 ? affDelimiter : "\n",
-                    attributes: metaAttrs))
             }
+            doc.append(NSAttributedString(string: lineText, attributes: metaAttrs))
+            doc.append(NSAttributedString(
+                string: index < affLines.count - 1 ? affDelimiter : "\n",
+                attributes: metaAttrs))
         }
         // "* Corresponding author" footnote — a line like the institutions'.
         // The footnote explains a marker on the names, so it belongs

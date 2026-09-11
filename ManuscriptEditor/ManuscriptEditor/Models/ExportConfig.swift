@@ -410,13 +410,47 @@ struct ExportItem: Codable, Identifiable, Sendable, Equatable {
     /// nil = the journal's required style (baked in at export).
     var citationStyle: String? = nil
 
-    /// Authors item: what separates the authors (and affiliation lines):
-    /// "comma" (default), "semicolon", or "newline".
+    /// Authors item: what separates the names — "semicolon" (default),
+    /// "comma", "space", "slash", "hyphen", or "newline".  A delimiter only
+    /// separates; how a name is tied to its institution is the INDEX below.
+    /// ("numbered", an older value, meant a one-per-line ordinal list; it
+    /// reads as "newline" now.)
     var authorDelimiter: String? = nil
-    /// Authors item: how authors link to their institutions — "superscript"
-    /// (numbers, the default), "cross" (†, ††, …), "doublecross" (‡, ‡‡, …),
-    /// or "none" (deduplicated affiliation list, no markers).
+    /// The separator actually in force.
+    var authorDelimiterCode: String {
+        let code = authorDelimiter ?? "semicolon"
+        return code == "numbered" ? "newline" : code
+    }
+
+    /// Authors item: how each NAME shows its institutions — "superscript"
+    /// (a¹, the default), "cross" (a†, a‡, a†††…), "numeric" (a (1)), or
+    /// "none".  Kept under its historical name: it was once the one marker
+    /// style for both halves of the byline.
     var affiliationMarker: String? = nil
+    var authorIndexStyle: String {
+        get {
+            let v = affiliationMarker ?? "superscript"
+            return v == "doublecross" ? "cross" : v   // legacy value
+        }
+        set { affiliationMarker = newValue == "superscript" ? nil : newValue }
+    }
+
+    /// Authors item: how each INSTITUTION is labelled — "superscript" (¹ a),
+    /// "cross" († a), "numeric" (1. a), or "none".  The index VALUE is shared
+    /// with the names; only the style is this side's own.  nil follows the
+    /// names' style, or is "numeric" for an outline saved when a numbered
+    /// institution list was a delimiter choice.
+    var institutionMarker: String? = nil
+    var institutionIndexStyle: String {
+        get {
+            if let own = institutionMarker { return own }
+            if (affiliationDelimiter ?? "") == "numbered" || affiliationListStyle == "numbered" {
+                return "numeric"
+            }
+            return authorIndexStyle == "numeric" ? "superscript" : authorIndexStyle
+        }
+        set { institutionMarker = newValue }
+    }
 
     /// Authors item: which halves of the byline this entry prints —
     /// "both" (default), "names", or "institutions".  Splitting them lets a
@@ -432,25 +466,21 @@ struct ExportItem: Codable, Identifiable, Sendable, Equatable {
     var printsAuthorNames: Bool { authorPartsMode != "institutions" }
     var printsAffiliations: Bool { authorPartsMode != "names" }
 
-    /// Authors item: how the affiliation LIST is separated — the same
-    /// vocabulary the byline uses, including "newline" (the default: one per
-    /// line) and "numbered" ("1. Institution" per line, the form journals ask
-    /// for when the list stands apart from the byline).
+    /// Authors item: what separates the institutions — the same vocabulary
+    /// the names use; "newline" (one per line) is the default.  ("numbered",
+    /// an older value, meant "1. Institution" per line; it reads as newline
+    /// with a numeric index now.)
     var affiliationDelimiter: String? = nil
 
     /// Superseded by `affiliationDelimiter`; still read so profiles saved
     /// against it keep their numbering.
     var affiliationListStyle: String? = nil
 
-    /// The affiliation separator actually in force.
+    /// The institution separator actually in force.
     var affiliationDelimiterCode: String {
-        affiliationDelimiter ?? (affiliationListStyle == "numbered" ? "numbered" : "newline")
+        let code = affiliationDelimiter ?? "newline"
+        return code == "numbered" ? "newline" : code
     }
-    var affiliationListNumbered: Bool { affiliationDelimiterCode == "numbered" }
-
-    /// True when the byline itself is a numbered list rather than a run of
-    /// names — "1. Ada Lovelace" on its own line, and so on.
-    var authorsNumbered: Bool { authorDelimiter == "numbered" }
 
     /// Authors item: annotate the corresponding author with a raised *
     /// (like an institution marker) plus a "* Corresponding author"

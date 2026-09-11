@@ -868,24 +868,23 @@ struct ExportDocumentCard: View {
             case "slash":    return "\"/\""
             case "hyphen":   return "\"-\""
             case "newline":  return "⏎"
-            case "numbered": return "1."
             default:         return "\";\""
             }
         }
-        func markerWord(onName: Bool) -> String {
-            switch item.affiliationMarker ?? "superscript" {
-            case "none": return "no index"
-            case "superscript": return onName ? "a¹" : "¹"
-            default: return onName ? "a†" : "†"
+        func indexWord(_ style: String, onName: Bool) -> String {
+            switch style {
+            case "none":    return "no index"
+            case "cross":   return onName ? "a†" : "† a"
+            case "numeric": return onName ? "a (1)" : "1. a"
+            default:        return onName ? "a¹" : "¹ a"
             }
         }
         func bylineParts() {
             if item.printsAuthorNames {
-                parts.append("names \(delimiterWord(item.authorDelimiter ?? "semicolon")) \(markerWord(onName: true))")
+                parts.append("names \(delimiterWord(item.authorDelimiterCode)) \(indexWord(item.authorIndexStyle, onName: true))")
             }
             if item.printsAffiliations {
-                let index = item.affiliationListNumbered ? "1." : markerWord(onName: false)
-                parts.append("institutions \(delimiterWord(item.affiliationDelimiterCode)) \(index)")
+                parts.append("institutions \(delimiterWord(item.affiliationDelimiterCode)) \(indexWord(item.institutionIndexStyle, onName: false))")
             }
             parts.append(item.correspondingShown ? "+corr" : "no corr")
             parts.append(item.authorTitlesShown ? "+cred" : "no cred")

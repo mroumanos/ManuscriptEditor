@@ -108,14 +108,28 @@ final class TemplateWorkspace {
             }
         }
         let missing = body.filter { !seen.contains($0.uid) }
-        guard !missing.isEmpty,
-              let main = out.documents.firstIndex(where: { !$0.isAttachment })
-        else { return out }
-        let items = out.documents[main].items
-        let insertAt = items.lastIndex { $0.kind == .section }.map { $0 + 1 } ?? items.count
-        out.documents[main].items.insert(
-            contentsOf: missing.map { ExportItem(kind: .section, sectionID: $0.uid) },
-            at: insertAt)
+        if !missing.isEmpty,
+           let main = out.documents.firstIndex(where: { !$0.isAttachment }) {
+            let items = out.documents[main].items
+            let insertAt = items.lastIndex { $0.kind == .section }.map { $0 + 1 } ?? items.count
+            out.documents[main].items.insert(
+                contentsOf: missing.map { ExportItem(kind: .section, sectionID: $0.uid) },
+                at: insertAt)
+        }
+        // The cover letter is in the outline exactly when the template has
+        // one.  It appeared in Export with no letter in the sidebar to match,
+        // which read as a section that had gone missing.
+        let hasLetter = template.structure.sections.contains { $0.role == .letter }
+        let hasLetterItem = out.documents.contains { $0.items.contains { $0.kind == .coverLetter } }
+        if !hasLetter, hasLetterItem {
+            for d in out.documents.indices {
+                out.documents[d].items.removeAll { $0.kind == .coverLetter }
+            }
+            out.documents.removeAll { !$0.isAttachment && $0.items.allSatisfy { $0.kind == .pageBreak } }
+        } else if hasLetter, !hasLetterItem {
+            out.documents.append(ExportDocument(name: "Cover Letter",
+                                                items: [ExportItem(kind: .coverLetter)]))
+        }
         return out
     }
 
