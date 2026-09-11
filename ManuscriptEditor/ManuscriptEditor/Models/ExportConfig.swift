@@ -61,10 +61,14 @@ struct ExportConfig: Codable, Sendable, Equatable {
                 items: [ExportItem(kind: .figures), ExportItem(kind: .pageBreak), ExportItem(kind: .tables)]
             ))
         }
-        documents.append(ExportDocument(
-            name: "Cover Letter", fileType: fileType,
-            items: [ExportItem(kind: .coverLetter)]
-        ))
+        // A manuscript that removed its letter (Sidebar → Remove) has none to
+        // print; the standard outline says so by leaving the document out.
+        if !(content.hiddenPanes ?? []).contains("letter") {
+            documents.append(ExportDocument(
+                name: "Cover Letter", fileType: fileType,
+                items: [ExportItem(kind: .coverLetter)]
+            ))
+        }
         return ExportConfig(documents: documents)
     }
 }

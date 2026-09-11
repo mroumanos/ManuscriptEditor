@@ -76,38 +76,47 @@ final class TemplateWorkspace {
         drafts[id] = draft
     }
 
-    /// Replaces the template's export outline, and keeps the typography the
-    /// structure carries in step with it.
+    /// Replaces the template's export outline.  Only that: the outline is the
+    /// one place formats live, and nothing is mirrored into the structure.
     ///
-    /// The outline is where formats are edited — the same card a manuscript's
-    /// Export pane uses — but what a journal ADOPTS when it is added comes
-    /// from `structure` (`coreFormats`, `documentFormat`, each section's
-    /// `format`).  Deriving one from the other on every change means there is
-    /// one place to edit and no second copy to fall behind.
+    /// It used to be — every outline edit rewrote `coreFormats`,
+    /// `documentFormat` and each section's `format` — which made changing a
+    /// font show up as a change to the STRUCTURE, and coupled two parts that
+    /// answer different questions ("what is a submission made of?" and "how
+    /// is it set?").  Export options are in Export.
     func setExport(_ config: ExportConfig, for id: UUID) {
-        edit(id) { template in
-            template.export = config
-            guard let document = config.documents.first(where: { !$0.isAttachment })
-            else { return }
-            template.structure.documentFormat = document.format
-            var core: [String: ExportDocumentFormat] = [:]
-            var bySection: [UUID: ExportDocumentFormat] = [:]
-            for item in document.items {
-                let effective = item.format ?? document.format
-                switch item.kind {
-                case .pageBreak: continue
-                case .section:
-                    if let sectionID = item.sectionID { bySection[sectionID] = effective }
-                default:
-                    core[item.kind.rawValue] = effective
-                }
-            }
-            template.structure.coreFormats = core.isEmpty ? nil : core
-            for index in template.structure.sections.indices {
-                let uid = template.structure.sections[index].uid
-                template.structure.sections[index].format = bySection[uid]
+        edit(id) { $0.export = config }
+    }
+
+    /// The outline pointed at THIS template's sections.
+    ///
+    /// An outline saved from a manuscript names that manuscript's sections by
+    /// id, and those ids mean nothing here — every one of them rendered as
+    /// "(missing section)".  Unknown section items are dropped and the
+    /// template's own body sections take their place, in Structure order.
+    /// The cover letter is an item of its own kind, never a section.
+    static func repaired(_ config: ExportConfig, for template: JournalTemplate) -> ExportConfig {
+        let body = template.structure.sections.filter { $0.role == nil }
+        let known = Set(body.map(\.uid))
+        var out = config
+        var seen: Set<UUID> = []
+        for d in out.documents.indices {
+            out.documents[d].items.removeAll { item in
+                guard item.kind == .section else { return false }
+                guard let id = item.sectionID, known.contains(id) else { return true }
+                return !seen.insert(id).inserted        // and no duplicates
             }
         }
+        let missing = body.filter { !seen.contains($0.uid) }
+        guard !missing.isEmpty,
+              let main = out.documents.firstIndex(where: { !$0.isAttachment })
+        else { return out }
+        let items = out.documents[main].items
+        let insertAt = items.lastIndex { $0.kind == .section }.map { $0 + 1 } ?? items.count
+        out.documents[main].items.insert(
+            contentsOf: missing.map { ExportItem(kind: .section, sectionID: $0.uid) },
+            at: insertAt)
+        return out
     }
 
     /// Whether this draft has moved away from the library's copy.

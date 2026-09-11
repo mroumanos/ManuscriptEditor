@@ -41,8 +41,7 @@ struct TemplateSummaryView: View {
             if let template {
                 TemplatePaneHeader(
                     templateID: templateID, title: "Summary",
-                    subtitle: "The journal's own instructions, distilled. The Tests are what the app can enforce of them.",
-                    leadingInset: EditorLayout.leftInset)
+                    subtitle: "The journal's own instructions, distilled. The Tests are what the app can enforce of them.")
 
                 HStack(spacing: 8) {
                     TextField("Link to the journal's author instructions", text: Binding(
@@ -61,8 +60,7 @@ struct TemplateSummaryView: View {
                     }
                 }
                 .controlSize(.small)
-                .padding(.leading, EditorLayout.leftInset)
-                .padding(.trailing, 16)
+                .padding(.horizontal, 20)
                 .padding(.vertical, 7)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(Color(nsColor: .textBackgroundColor))
@@ -117,28 +115,33 @@ struct TemplateStructureView: View {
                 templateID: templateID, title: "Structure",
                 subtitle: "What a submission here is made of. Adding a section here creates it in every manuscript that adds this journal.")
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: 8) {
-                    if sections.isEmpty {
-                        Text("No sections yet. Add the ones this venue expects — its title page, the statements it requires, the questions it asks.")
-                            .font(.callout)
-                            .foregroundStyle(.tertiary)
-                            .padding(.vertical, 6)
-                    }
-                    ForEach(Array(sections.enumerated()), id: \.element.id) { index, section in
-                        row(section, at: index)
-                    }
-
-                    Text("Title, authors, abstract, keywords, figures, tables, bibliography come with every manuscript, so they aren't listed here — a venue has an opinion about how they are SET (Export), never about what they say.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(.top, 6)
+            // A List, so rows drag to reorder — the same gesture the sidebar
+            // and the Authors list use.  Chevrons were the odd one out.
+            List {
+                if sections.isEmpty {
+                    Text("No sections yet. Add the ones this venue expects — its title page, the statements it requires, the questions it asks.")
+                        .font(.callout)
+                        .foregroundStyle(.tertiary)
+                        .listRowSeparator(.hidden)
                 }
-                .padding(20)
-                .frame(maxWidth: TemplateLayout.contentWidth, alignment: .topLeading)
-                .frame(maxWidth: .infinity, alignment: .topLeading)
+                ForEach(sections) { section in
+                    row(section)
+                        .listRowSeparator(.hidden)
+                        .listRowInsets(EdgeInsets(top: 4, leading: 20, bottom: 4, trailing: 20))
+                }
+                .onMove { from, to in
+                    templates.edit(templateID) { $0.structure.sections.move(fromOffsets: from, toOffset: to) }
+                }
+
+                Text("Title, authors, abstract, keywords, figures, tables, bibliography come with every manuscript, so they aren't listed here — a venue has an opinion about how they are SET (Export), never about what they say.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .listRowSeparator(.hidden)
+                    .listRowInsets(EdgeInsets(top: 8, leading: 20, bottom: 8, trailing: 20))
             }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
 
             Divider()
             HStack(spacing: 8) {
@@ -155,10 +158,14 @@ struct TemplateStructureView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
-    private func row(_ section: StructureSection, at index: Int) -> some View {
+    private func row(_ section: StructureSection) -> some View {
         HStack(spacing: 8) {
-            Image(systemName: section.role == .letter ? "envelope"
-                  : section.kind == .questions ? "list.bullet.rectangle" : "text.alignleft")
+            Image(systemName: "line.3.horizontal")
+                .foregroundStyle(.tertiary)
+                .font(.caption)
+                .help("Drag to reorder")
+            Image(systemName: section.role?.systemImage
+                  ?? (section.kind == .questions ? "list.bullet.rectangle" : "text.alignleft"))
                 .foregroundStyle(.tertiary)
                 .font(.caption)
                 .frame(width: 18)
@@ -176,8 +183,8 @@ struct TemplateStructureView: View {
                 }
                 .labelsHidden().fixedSize()
                 .help("A question series arrives as the venue's submission questions when a journal is added")
-            } else {
-                Text("cover letter")
+            } else if let role = section.role {
+                Text(role.label)
                     .font(.caption2)
                     .padding(.horizontal, 6).padding(.vertical, 2)
                     .background(Color.secondary.opacity(0.12), in: Capsule())
@@ -196,10 +203,6 @@ struct TemplateStructureView: View {
 
             Button("Open") { selection = .templateSection(section.id.uuidString) }
                 .controlSize(.small)
-            Button { move(index, by: -1) } label: { Image(systemName: "chevron.up") }
-                .buttonStyle(.borderless).disabled(index == 0)
-            Button { move(index, by: 1) } label: { Image(systemName: "chevron.down") }
-                .buttonStyle(.borderless).disabled(index == sections.count - 1)
             Button(role: .destructive) {
                 if selection == .templateSection(section.id.uuidString) { selection = .structure }
                 templates.edit(templateID) { $0.structure.sections.removeAll { $0.id == section.id } }
@@ -232,12 +235,6 @@ struct TemplateStructureView: View {
             else { return }
             mutate(&template.structure.sections[idx])
         }
-    }
-
-    private func move(_ index: Int, by offset: Int) {
-        let target = index + offset
-        guard sections.indices.contains(target) else { return }
-        templates.edit(templateID) { $0.structure.sections.swapAt(index, target) }
     }
 
     private func add() {
@@ -318,10 +315,18 @@ struct TemplateExportView: View {
 
     let templateID: UUID
 
+    /// The outline being edited.  Held in state, not recomputed per access:
+    /// a template that never configured one gets the standard outline
+    /// DERIVED, and a derivation mints fresh item ids every time — so the
+    /// settings popover bound "by id" edited an item that no longer existed
+    /// by the next render, and the row's summary never moved.  (The
+    /// manuscript's Export pane learned the same lesson first.)
+    @State private var config = ExportConfig(documents: [])
+
     private var template: JournalTemplate? { templates.template(templateID) }
 
     /// The venue's body sections — the cover letter is an outline item of its
-    /// own (`.coverLetter`), not one of these.
+    /// own kind (`.coverLetter`), not one of these.
     private var bodySections: [StructureSection] {
         (template?.structure.sections ?? []).filter { $0.role == nil }
     }
@@ -341,51 +346,19 @@ struct TemplateExportView: View {
         return made
     }
 
-    /// The outline as it stands, or the standard one derived from the
-    /// template's own sections when it has never been configured — repaired
-    /// either way.
-    private var config: ExportConfig {
+    /// What the state is seeded from: the stored outline, or the standard one
+    /// derived from the template's sections — repaired either way.
+    private func seed() -> ExportConfig {
+        guard let template else { return ExportConfig(documents: []) }
         let base: ExportConfig
-        if let export = template?.export, !export.documents.isEmpty {
+        if let export = template.export, !export.documents.isEmpty {
             base = export
         } else if let content = asManuscript {
             base = ExportConfig.standard(content: content, journal: nil)
         } else {
             return ExportConfig(documents: [])
         }
-        return repaired(base)
-    }
-
-    /// Points the outline at THIS template's sections.
-    ///
-    /// An outline saved from a manuscript names that manuscript's sections by
-    /// id, and those ids mean nothing here — every one of them rendered as
-    /// "(missing section)", and the formats they carried reached nothing.  So
-    /// unknown section items are dropped and the template's own sections take
-    /// their place, in the order the Structure pane lists them.  The venue's
-    /// sections are what a venue's outline is made of.
-    private func repaired(_ config: ExportConfig) -> ExportConfig {
-        guard template != nil else { return config }
-        let known = Set(bodySections.map(\.uid))
-        var out = config
-        var seen: Set<UUID> = []
-        for d in out.documents.indices {
-            out.documents[d].items.removeAll { item in
-                guard item.kind == .section else { return false }
-                guard let id = item.sectionID, known.contains(id) else { return true }
-                return !seen.insert(id).inserted        // and no duplicates
-            }
-        }
-        let missing = bodySections.filter { !seen.contains($0.uid) }
-        guard !missing.isEmpty,
-              let main = out.documents.firstIndex(where: { !$0.isAttachment })
-        else { return out }
-        let items = out.documents[main].items
-        let insertAt = items.lastIndex { $0.kind == .section }.map { $0 + 1 } ?? items.count
-        out.documents[main].items.insert(
-            contentsOf: missing.map { ExportItem(kind: .section, sectionID: $0.uid) },
-            at: insertAt)
-        return out
+        return TemplateWorkspace.repaired(base, for: template)
     }
 
     var body: some View {
@@ -408,7 +381,7 @@ struct TemplateExportView: View {
                         Button {
                             var edited = config
                             edited.documents.append(ExportDocument(name: "New Document", items: []))
-                            templates.setExport(edited, for: templateID)
+                            commit(edited)
                         } label: {
                             Label("Add Document", systemImage: "plus")
                         }
@@ -432,18 +405,32 @@ struct TemplateExportView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .onAppear { config = seed() }
+        .onChange(of: templateID) { _, _ in config = seed() }
+        // Sections added or removed in Structure appear here at once; an
+        // edit made HERE round-trips through the draft unchanged.
+        .onChange(of: template?.structure.sections.map(\.uid)) { _, _ in config = seed() }
+        .onChange(of: template?.export) { _, new in
+            if let new, new != config { config = seed() }
+        }
+    }
+
+    /// Writes the outline into the draft and keeps the state in step.
+    private func commit(_ edited: ExportConfig) {
+        config = edited
+        templates.setExport(edited, for: templateID)
     }
 
     private func replace(_ document: ExportDocument) {
         var edited = config
         guard let index = edited.documents.firstIndex(where: { $0.id == document.id }) else { return }
         edited.documents[index] = document
-        templates.setExport(edited, for: templateID)
+        commit(edited)
     }
 
     private func remove(_ id: UUID) {
         var edited = config
         edited.documents.removeAll { $0.id == id }
-        templates.setExport(edited, for: templateID)
+        commit(edited)
     }
 }

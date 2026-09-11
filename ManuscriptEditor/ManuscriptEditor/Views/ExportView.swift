@@ -870,15 +870,34 @@ struct ExportDocumentCard: View {
             default:        parts.append("\";\" delimiter")
             }
         }
+        // Every choice the gear offers, in the order the gear offers it — a
+        // summary that skips a setting reads as "unset" beside a gear that
+        // shows it set.
         func bylineParts() {
+            switch item.authorPartsMode {
+            case "names":        parts.append("names only")
+            case "institutions": parts.append("institutions only")
+            default:             break
+            }
             delimiterPart(item.authorDelimiter, defaultCode: "semicolon")
+            if item.printsAffiliations {
+                switch item.affiliationDelimiterCode {
+                case "numbered": parts.append("1. institutions")
+                case "newline":  parts.append("⏎ institutions")
+                case "comma":    parts.append("\",\" institutions")
+                case "space":    parts.append("space institutions")
+                case "slash":    parts.append("\"/\" institutions")
+                case "hyphen":   parts.append("\"-\" institutions")
+                default:         parts.append("\";\" institutions")
+                }
+            }
             switch item.affiliationMarker ?? "superscript" {
             case "superscript": parts.append("a¹ markers")
             case "none":        parts.append("no markers")
             default:            parts.append("a† markers")
             }
-            if item.correspondingShown { parts.append("+corr") }
-            if item.authorTitlesShown { parts.append("+cred") }
+            parts.append(item.correspondingShown ? "+corr" : "no corr")
+            parts.append(item.authorTitlesShown ? "+cred" : "no cred")
         }
         switch item.kind {
         case .references:

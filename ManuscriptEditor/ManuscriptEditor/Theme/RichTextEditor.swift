@@ -672,6 +672,13 @@ private struct RichTextRepresentable: NSViewRepresentable {
         let ruler = LineNumberRulerView(scrollView: scrollView, textView: textView, layoutManager: layoutManager)
         scrollView.verticalRulerView = ruler
         scrollView.hasVerticalRuler = true
+        // Clip.  AppKit views no longer clip their subviews by default, and
+        // the ruler's separator hairline was painted far outside the scroll
+        // view — a vertical line from the tab bar to the bottom of the
+        // window, straight through whatever pane header sat above the
+        // editor.  The rule belongs to the editor and stops at its edge.
+        scrollView.clipsToBounds = true
+        ruler.clipsToBounds = true
         scrollView.hasHorizontalRuler = false
         scrollView.rulersVisible = true
 

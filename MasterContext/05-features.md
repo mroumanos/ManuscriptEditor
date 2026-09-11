@@ -865,6 +865,28 @@ from a manuscript. Design and rationale:
 - AC: In a **manuscript**, nothing permanently edits a template: a cut edits
   its own copy — summary, tests, export outline and formatting, which sections
   it has — and Load takes the template's copy back.
+- AC: **Export options are in Export and nowhere else.** An outline edit
+  changes only the Export part; the structure carries no formats and
+  `structureCapture` captures none. A journal adopts the template's **outline
+  itself**, remapped to its own sections by title
+  (`ManuscriptStore.adoptTemplateExport`) — a raw copy left every section row
+  reading "(missing section)". "Follow Document" is gone from the settings
+  form.
+- AC: A row's formatting summary names **every** choice its gear offers, in the
+  gear's order — the byline's parts mode, both delimiters, markers, corr and
+  cred — so a summary never reads as "unset" beside a gear that shows it set.
+- AC: The **letter is a section kind** — "Text Box with Header / Signature" —
+  added from Add Section and removable, in a template (it is only listed when
+  present) and in a manuscript (Remove hides it, keeps the text, and drops the
+  cover-letter document from the standard outline until it is added back).
+- AC: Structure rows and a question series' questions **drag to reorder**.
+- AC: Settings → Journals is read-only through and through: no Open buttons on
+  the four parts (Manage Template opens the whole thing) and nothing to set —
+  publisher and country are the template's own, edited in its Overview.
+- AC: The editor's gutter rule is clipped to the editor. AppKit views don't
+  clip subviews, and the ruler's hairline was painted from the tab bar to the
+  bottom of the window (gotcha 25); pane headers are left-justified with the
+  tabs, with nothing to dodge.
 - AC: A pane never dictates the window's size. Panes are capped to a reading
   measure and contained in a view with no intrinsic size, because a
   `NavigationSplitView` detail hands its ideal size to the split view — which

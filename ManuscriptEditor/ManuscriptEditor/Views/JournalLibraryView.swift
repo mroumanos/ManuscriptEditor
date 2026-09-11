@@ -31,8 +31,8 @@ struct JournalLibraryView: View {
         guard !q.isEmpty else { return all }
         return all.filter {
             $0.displayName.lowercased().contains(q)
-                || (registry(for: $0)?.publisher ?? "").lowercased().contains(q)
-                || (registry(for: $0)?.country ?? "").lowercased().contains(q)
+                || ($0.publisher ?? registry(for: $0)?.publisher ?? "").lowercased().contains(q)
+                || ($0.country ?? registry(for: $0)?.country ?? "").lowercased().contains(q)
         }
     }
 
@@ -56,8 +56,9 @@ struct JournalLibraryView: View {
                         HStack {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(profile.name).fontWeight(.medium)
-                                Text([profile.articleType, registry(for: profile)?.publisher,
-                                      registry(for: profile)?.country]
+                                Text([profile.articleType,
+                                      profile.publisher ?? registry(for: profile)?.publisher,
+                                      profile.country ?? registry(for: profile)?.country]
                                     .compactMap { $0?.isEmpty == false ? $0 : nil }
                                     .joined(separator: " · "))
                                     .font(.caption)
@@ -148,19 +149,15 @@ struct JournalLibraryView: View {
 /// A template as Settings shows it: what it is, what it requires, and the way
 /// into it.
 ///
-/// Read-only.  **Manage Template** opens it in its own tab, which is where a
-/// template is edited — one editor, not a small one here and a real one there.
+/// Read-only, and nothing is SET here — not even the country.  **Manage
+/// Template** opens it in its own tab, which is where a template is edited:
+/// one editor, not a small one here and a real one there.
 private struct LibraryProfileDetail: View {
     let profile: JournalTemplate
     let registry: Journal?
     let onManage: () -> Void
     let onDelete: () -> Void
 
-    @State private var countryDraft = ""
-    @State private var loadedFor: UUID?
-
-    /// Which component's read-only view is open.
-    @State private var openPart: ProfilePart?
     @State private var cloning = false
     @State private var cloneName = ""
     @State private var confirmingDelete = false
@@ -192,20 +189,6 @@ private struct LibraryProfileDetail: View {
                 .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
                 .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.separator))
 
-                // Country isn't part of a template's rules, so it stays here
-                // on the registry entry that carries publisher and country.
-                HStack(spacing: 8) {
-                    Text("Country").font(.caption).foregroundStyle(.secondary)
-                    TextField("Country", text: $countryDraft)
-                        .textFieldStyle(.roundedBorder)
-                        .frame(maxWidth: 220)
-                        .onSubmit(commitCountry)
-                    Button("Set", action: commitCountry)
-                        .controlSize(.small)
-                        .disabled(countryDraft.trimmingCharacters(in: .whitespaces) == (registry?.country ?? ""))
-                    Spacer()
-                }
-
                 HStack(spacing: 10) {
                     Button(action: onManage) {
                         Label("Manage Template", systemImage: TemplateStyle.symbol)
@@ -227,13 +210,6 @@ private struct LibraryProfileDetail: View {
             }
             .padding(20)
             .frame(maxWidth: .infinity, alignment: .topLeading)
-        }
-        .onAppear(perform: loadDrafts)
-        .onChange(of: profile.id) { _, _ in loadDrafts() }
-        .sheet(item: $openPart) { part in
-            TemplatePartSheet(template: profile, part: part,
-                              isPresented: Binding(get: { openPart != nil },
-                                                   set: { if !$0 { openPart = nil } }))
         }
         .alert("Clone Template", isPresented: $cloning) {
             TextField("Name for the copy", text: $cloneName)
@@ -281,30 +257,13 @@ private struct LibraryProfileDetail: View {
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            if let publisher = registry?.publisher, !publisher.isEmpty {
-                Text(publisher).font(.caption).foregroundStyle(.tertiary)
+            let where_ = [profile.publisher ?? registry?.publisher,
+                          profile.country ?? registry?.country]
+                .compactMap { $0?.isEmpty == false ? $0 : nil }
+            if !where_.isEmpty {
+                Text(where_.joined(separator: " · ")).font(.caption).foregroundStyle(.tertiary)
             }
         }
-    }
-
-    private func loadDrafts() {
-        guard loadedFor != profile.id else { return }
-        loadedFor = profile.id
-        countryDraft = registry?.country ?? ""
-    }
-
-    /// Country isn't part of a template's rules, so it stays on the registry
-    /// entry that carries publisher and country for display.
-    private func commitCountry() {
-        let country = countryDraft.trimmingCharacters(in: .whitespaces)
-        var entry = registry ?? {
-            var made = Journal.empty()
-            made.name = profile.name
-            made.articleType = profile.articleType
-            return made
-        }()
-        entry.country = country.isEmpty ? nil : country
-        appStore.upsertLibraryJournal(entry)
     }
 
     private var summaryDetail: String {
@@ -335,8 +294,6 @@ private struct LibraryProfileDetail: View {
                 Text(detail).font(.caption).foregroundStyle(.secondary)
             }
             Spacer()
-            Button("Open…") { openPart = part }
-                .controlSize(.small)
         }
         .padding(.vertical, 10).padding(.horizontal, 14)
     }

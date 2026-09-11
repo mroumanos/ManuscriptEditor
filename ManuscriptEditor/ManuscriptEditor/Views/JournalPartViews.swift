@@ -225,26 +225,32 @@ struct JournalStructureView: View {
                     subtitle: "What a submission at this venue contains. Add or remove sections for this cut here, and set how they print in Export — the template's own copy is edited in its tab.",
                     edited: store.partDiffersFromTemplate(.structure, journal: journal))
 
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 8) {
-                        if sections.isEmpty {
-                            Text("No sections recorded — Load the template's structure, or add the ones this journal expects below.")
-                                .font(.callout)
-                                .foregroundStyle(.tertiary)
-                        }
-                        ForEach(Array(sections.enumerated()), id: \.element.id) { index, section in
-                            row(journal, section, at: index)
-                        }
-                        Text("Title, authors, abstract, keywords, figures, tables, bibliography and the letter come with every manuscript, so they aren't listed here.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .padding(.top, 6)
+                List {
+                    if sections.isEmpty {
+                        Text("No sections recorded — Load the template's structure, or add the ones this journal expects below.")
+                            .font(.callout)
+                            .foregroundStyle(.tertiary)
+                            .listRowSeparator(.hidden)
                     }
-                    .frame(maxWidth: 760, alignment: .topLeading)
-                    .frame(maxWidth: .infinity, alignment: .topLeading)
-                    .padding(20)
+                    ForEach(sections) { section in
+                        row(journal, section)
+                            .listRowSeparator(.hidden)
+                            .listRowInsets(EdgeInsets(top: 4, leading: 20, bottom: 4, trailing: 20))
+                    }
+                    .onMove { from, to in
+                        var edited = sections
+                        edited.move(fromOffsets: from, toOffset: to)
+                        store.updateStructure(rebuilt(journal, sections: edited), journalID: journal.id)
+                    }
+                    Text("Title, authors, abstract, keywords, figures, tables and bibliography come with every manuscript, so they aren't listed here.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .listRowSeparator(.hidden)
+                        .listRowInsets(EdgeInsets(top: 8, leading: 20, bottom: 8, trailing: 20))
                 }
+                .listStyle(.plain)
+                .scrollContentBackground(.hidden)
 
                 Divider()
                 HStack(spacing: 8) {
@@ -261,10 +267,13 @@ struct JournalStructureView: View {
         }
     }
 
-    private func row(_ journal: Journal, _ section: StructureSection, at index: Int) -> some View {
+    private func row(_ journal: Journal, _ section: StructureSection) -> some View {
         HStack(spacing: 8) {
-            Image(systemName: section.role == .letter ? "envelope"
-                  : section.kind == .questions ? "list.bullet.rectangle" : "text.alignleft")
+            Image(systemName: "line.3.horizontal")
+                .foregroundStyle(.tertiary).font(.caption)
+                .help("Drag to reorder")
+            Image(systemName: section.role?.systemImage
+                  ?? (section.kind == .questions ? "list.bullet.rectangle" : "text.alignleft"))
                 .foregroundStyle(.tertiary).font(.caption).frame(width: 18)
             Text(section.displayTitle)
             if let boilerplate = section.boilerplate, !boilerplate.isEmpty {
@@ -287,10 +296,6 @@ struct JournalStructureView: View {
             } label: { Image(systemName: "trash") }
                 .buttonStyle(.borderless)
                 .help("Removes it from this journal's structure. The section itself, and anything written in it, stays.")
-            Button { move(journal, index, by: -1) } label: { Image(systemName: "chevron.up") }
-                .buttonStyle(.borderless).disabled(index == 0)
-            Button { move(journal, index, by: 1) } label: { Image(systemName: "chevron.down") }
-                .buttonStyle(.borderless).disabled(index == sections.count - 1)
         }
         .controlSize(.small)
         .padding(8)
@@ -303,14 +308,6 @@ struct JournalStructureView: View {
         JournalStructure(sections: sections,
                          coreFormats: journal.structure?.coreFormats,
                          documentFormat: journal.structure?.documentFormat)
-    }
-
-    private func move(_ journal: Journal, _ index: Int, by offset: Int) {
-        var edited = sections
-        let target = index + offset
-        guard edited.indices.contains(index), edited.indices.contains(target) else { return }
-        edited.swapAt(index, target)
-        store.updateStructure(rebuilt(journal, sections: edited), journalID: journal.id)
     }
 
     private func add(_ journal: Journal) {

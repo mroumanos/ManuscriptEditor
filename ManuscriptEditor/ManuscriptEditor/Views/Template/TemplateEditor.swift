@@ -146,21 +146,29 @@ struct TemplateSidebarView: View {
         ("Bibliography", "books.vertical",             "a citation"),
     ]
 
-    /// The letter, with the venue's other sections.  A template that doesn't
-    /// carry one says so rather than hiding the row.
+    /// The letter, with the venue's other sections — only when the template
+    /// carries one.  A greyed placeholder read as "inactive", which is not
+    /// what an absent section is; Add Section offers it.
     @ViewBuilder
     private var letterRow: some View {
         if let letter = letterSection {
-            Label("Letter to Editor", systemImage: "envelope")
+            Label(letter.displayTitle, systemImage: StructureRole.letter.systemImage)
                 .tag(SidebarItem.templateSection(letter.id.uuidString))
                 .contextMenu {
-                    Button("Remove from Template", role: .destructive) { delete(letter) }
+                    Button("Rename…") {
+                        renameDraft = letter.title
+                        renamingKey = letter.id.uuidString
+                    }
+                    Button("Delete Section", role: .destructive) { delete(letter) }
                 }
-        } else {
-            Label("Letter to Editor", systemImage: "envelope")
-                .foregroundStyle(.tertiary)
-                .help("Not part of this template — add it from Add Section, and the letter this venue expects travels with it.")
-                .selectionDisabled()
+                .alert("Rename Section", isPresented: Binding(
+                    get: { renamingKey == letter.id.uuidString },
+                    set: { if !$0 { renamingKey = nil } }
+                )) {
+                    TextField("Section title", text: $renameDraft)
+                    Button("Rename") { rename(letter) }
+                    Button("Cancel", role: .cancel) { renamingKey = nil }
+                }
         }
     }
 
@@ -247,11 +255,10 @@ struct TemplateSidebarView: View {
                 Label("Question Series", systemImage: "list.bullet.rectangle")
             }
             if letterSection == nil {
-                Divider()
                 Button {
                     add(StructureSection(title: "Letter to the Editor", role: .letter))
                 } label: {
-                    Label("Letter to the Editor", systemImage: "envelope")
+                    Label(StructureRole.letter.label, systemImage: StructureRole.letter.systemImage)
                 }
             }
         } label: {
@@ -363,11 +370,6 @@ struct TemplatePaneHeader: View {
     let templateID: UUID
     let title: String
     let subtitle: String
-    /// Left inset.  A pane that sits over an editor passes the editor's
-    /// gutter width, so the header starts where the text does and the
-    /// gutter's rule doesn't run through it — the same alignment a
-    /// manuscript's pane header uses.
-    var leadingInset: CGFloat = 20
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -397,8 +399,10 @@ struct TemplatePaneHeader: View {
                     .help("Held in memory. Save it from Overview to change the template itself.")
             }
         }
-        .padding(.leading, leadingInset)
-        .padding(.trailing, 20)
+        // Left-justified like the tabs above it.  It used to be inset past
+        // the editor's gutter so the gutter's rule wouldn't run through it;
+        // the rule is clipped to the editor now, so nothing needs dodging.
+        .padding(.horizontal, 20)
         .padding(.vertical, 10)
         .frame(maxWidth: .infinity, alignment: .leading)
         .templateSurface()

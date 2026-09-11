@@ -117,9 +117,13 @@ The core parts stay **referenceable**: `[[title]]`, `[[authors.names]]`,
 `[[authors.institutes]]` in a template's title page are how the venue's layout
 is expressed, and they resolve against whatever manuscript adopts it.
 
-**Letter to the Editor moves to journal-specific** — in a template *and* in a
-manuscript, where it now sits with the sections below the soft rule rather than
-above it with the fixed parts. It is addressed to a named editor at a named
+**The letter is a kind of section: "Text Box with Header / Signature".** In
+a template *and* in a manuscript it sits with the sections below the soft
+rule, it is added from Add Section like any other kind, and it can be removed
+(a manuscript hides it and keeps the text; the standard outline drops the
+cover-letter document while it is hidden). A template that doesn't carry one
+simply doesn't list it — a greyed placeholder read as "inactive", which is not
+what an absent section is. It is addressed to a named editor at a named
 journal and follows that journal's conventions; it was only ever "core"
 because every manuscript has one.
 
@@ -191,14 +195,37 @@ An outline saved from a manuscript names that manuscript's sections by id, so
 a template repairs what it is given: unknown section items are dropped and the
 template's own sections take their place, in Structure order.
 
-What a journal ADOPTS when it is added still comes from the structure
-(`coreFormats`, `documentFormat`, each section's `format`) — derived from the
-outline on every change (`TemplateWorkspace.setExport`), so there is one place
-to edit and no second copy to fall behind.
+**Export options are in Export, and nowhere else.** An outline edit changes
+the Export part and only the Export part. For a while every outline edit was
+mirrored into the structure (`coreFormats`, `documentFormat`, each section's
+`format`), which made changing a font show up as a change to the *Structure* —
+two parts that answer different questions ("what is a submission made of?"
+and "how is it set?") coupled by a convenience. `structureCapture` no longer
+captures formats either.
+
+What a journal ADOPTS when it is added is therefore the **outline itself**,
+pointed at the manuscript (`ManuscriptStore.adoptTemplateExport`): each
+section item is matched by title through the template — uid → title → this
+manuscript's section — the fixed parts and the cover letter pass straight
+through, and anything that matches nothing is dropped. Copying the outline
+raw, which is what happened before, left every section row reading "(missing
+section)". The per-section `format` fields are still read for templates that
+never had an outline, and are otherwise legacy.
 
 The four parts are marked with an orange pencil where the draft has moved away
 from the library's copy, and the tab carries a dot while anything is unsaved —
 `TemplateWorkspace` holds every edit in memory until Overview saves it.
+
+**Order is dragged, not stepped.** Structure rows and a question series'
+questions reorder by drag, the way the sidebar and the Authors list do; the
+up/down chevrons were the odd ones out.
+
+**Publisher and country belong to the template.** They lived on a separate
+registry entry, which meant a template could be managed in one place and its
+country set in another — in Settings, where nothing else was editable. They
+are identity now (`RequirementsDoc.publisher` / `.country`, ignored by the
+fingerprint like the name), edited in the template's Overview; Settings →
+Journals only reads.
 
 ### 3.3 The same four parts, in the manuscript too
 

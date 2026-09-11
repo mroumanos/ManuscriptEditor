@@ -305,3 +305,14 @@ Requires: clean tree on main, the Developer ID cert, `gh` auth.
     `TemplateEditor.swift`). The regression test is mechanical: host the pane
     in a split view and assert the split view's frame equals the window's
     (`fitcheck` harness).
+
+25. **AppKit views don't clip their subviews; a ruler paints wherever it
+    likes.** `NSView.clipsToBounds` has defaulted to `false` since macOS 14,
+    and the editor's line-number `NSRulerView` drew its separator hairline
+    far outside its scroll view — a vertical line from the window's tab bar
+    to its bottom edge, straight through any pane header above the editor,
+    at exactly the gutter's x. It survived an opaque header (it was drawn on
+    top) and showed up in no view-hierarchy dump (it is a stroke, not a
+    view). Hunting it took a red-background experiment and a pixel crop.
+    Both the scroll view and the ruler set `clipsToBounds = true` now. If a
+    line appears somewhere no view is, suspect an unclipped draw.

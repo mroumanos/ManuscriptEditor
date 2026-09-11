@@ -322,8 +322,11 @@ struct SidebarView: View {
 
             bodySection
 
-            // Past the rule with the sections, because that is what it is.
-            fixedPaneRow(letterPane)
+            // Past the rule with the sections, because that is what it is —
+            // and, like them, something this manuscript can do without.
+            if !store.isPaneHidden(letterPane.key) {
+                fixedPaneRow(letterPane)
+            }
 
             // Inline "add section" row at the very bottom of the Content list.
             addSectionRow
@@ -360,6 +363,14 @@ struct SidebarView: View {
                     renameDraft = custom ?? defaultPaneName(pane.key)
                     renamingPaneKey = pane.key
                 }
+                if pane.key == letterPane.key {
+                    // Removing hides it: the letter's text is kept, and Add
+                    // Section brings it back with everything still there.
+                    Button("Remove from Manuscript", role: .destructive) {
+                        if selection == pane.item { selection = .overview }
+                        store.setPaneHidden(pane.key, hidden: true)
+                    }
+                }
             }
             .alert("Rename Pane", isPresented: Binding(
                 get: { renamingPaneKey == pane.key },
@@ -394,6 +405,15 @@ struct SidebarView: View {
                     if let id = store.addSection(kind: kind) { selection = .section(id) }
                 } label: {
                     Label(kind.label, systemImage: kind.systemImage)
+                }
+            }
+            // The letter is a kind of section too — one a manuscript has once.
+            if store.isPaneHidden(letterPane.key) {
+                Button {
+                    store.setPaneHidden(letterPane.key, hidden: false)
+                    selection = .letterToEditor
+                } label: {
+                    Label(StructureRole.letter.label, systemImage: StructureRole.letter.systemImage)
                 }
             }
         } label: {

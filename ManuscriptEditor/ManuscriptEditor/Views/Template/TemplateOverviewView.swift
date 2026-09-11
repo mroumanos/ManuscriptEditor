@@ -117,6 +117,20 @@ struct TemplateOverviewView: View {
                     let trimmed = value.trimmingCharacters(in: .whitespaces)
                     templates.edit(templateID) { $0.articleType = trimmed.isEmpty ? nil : trimmed }
                 }))
+            HStack(spacing: 10) {
+                field("Publisher", "Who publishes it", Binding(
+                    get: { template.publisher ?? "" },
+                    set: { value in
+                        let trimmed = value.trimmingCharacters(in: .whitespaces)
+                        templates.edit(templateID) { $0.publisher = trimmed.isEmpty ? nil : trimmed }
+                    }))
+                field("Country", "Where", Binding(
+                    get: { template.country ?? "" },
+                    set: { value in
+                        let trimmed = value.trimmingCharacters(in: .whitespaces)
+                        templates.edit(templateID) { $0.country = trimmed.isEmpty ? nil : trimmed }
+                    }))
+            }
             field("Description", "What this format is for", Binding(
                 get: { template.summaryDescription },
                 set: { value in templates.edit(templateID) { $0.summaryDescription = value } }),

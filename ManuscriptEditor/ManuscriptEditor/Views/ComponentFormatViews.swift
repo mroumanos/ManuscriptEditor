@@ -75,14 +75,6 @@ struct ComponentSettingsForm: View {
                 typographySection
                 headingSection()
             }
-            HStack {
-                Spacer()
-                if item.format != nil {
-                    Button("Follow Document") { mutateItem { $0.format = nil } }
-                        .controlSize(.small)
-                        .help("Drop this component's own typography and inherit the document's")
-                }
-            }
             Text("Applies to the EXPORT. The editor always shows your own font and spacing, from Settings → Editor.")
                 .font(.caption2)
                 .foregroundStyle(.tertiary)

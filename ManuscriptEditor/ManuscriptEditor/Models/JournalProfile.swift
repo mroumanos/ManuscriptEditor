@@ -245,6 +245,21 @@ struct TemplateQuestion: Codable, Sendable, Equatable {
 /// letter rather than becoming a section called "Letter to Editor".
 enum StructureRole: String, Codable, Sendable {
     case letter
+
+    /// What the kind is called where sections are added: not "the letter",
+    /// which sounds like a fixed part, but what it is — a text box that
+    /// carries a letterhead and a signature.
+    var label: String {
+        switch self {
+        case .letter: return "Text Box with Header / Signature"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .letter: return "envelope"
+        }
+    }
 }
 
 struct StructureSection: Codable, Sendable, Equatable, Identifiable {
@@ -466,6 +481,12 @@ struct RequirementsDoc: Codable, Sendable, Equatable {
     var id: UUID
     var journal: String
     var articleType: String? = nil
+    /// Who publishes it and where — identity, like the name, and edited where
+    /// the template is edited.  They lived on a separate registry entry
+    /// before, which meant a template could be managed in one place and its
+    /// country set in another.
+    var publisher: String? = nil
+    var country: String? = nil
     /// The profiles this one was branched from, nearest ancestor first.
     /// Lineage rather than identity: it survives sharing, so a collaborator
     /// whose library holds ANY ancestor — not just the immediate one — is
@@ -482,16 +503,18 @@ struct RequirementsDoc: Codable, Sendable, Equatable {
 
     private enum CodingKeys: String, CodingKey {
         case id, journal, articleType, lineage, derivedFrom, url, bullets, updatedAt
-        case version, partChecksums
+        case version, partChecksums, publisher, country
     }
 
     init(id: UUID, journal: String, articleType: String? = nil, lineage: [UUID] = [],
          url: String = "", bullets: [String] = [], updatedAt: Date? = nil,
-         version: Int = 1, partChecksums: [String: String]? = nil) {
+         version: Int = 1, partChecksums: [String: String]? = nil,
+         publisher: String? = nil, country: String? = nil) {
         self.id = id; self.journal = journal; self.articleType = articleType
         self.lineage = lineage; self.url = url; self.bullets = bullets
         self.updatedAt = updatedAt
         self.version = version; self.partChecksums = partChecksums
+        self.publisher = publisher; self.country = country
     }
 
     /// Tolerates the single-parent `derivedFrom` written by the first cut of
@@ -514,6 +537,8 @@ struct RequirementsDoc: Codable, Sendable, Equatable {
         updatedAt = try c.decodeIfPresent(Date.self, forKey: .updatedAt)
         version = try c.decodeIfPresent(Int.self, forKey: .version) ?? 1
         partChecksums = try c.decodeIfPresent([String: String].self, forKey: .partChecksums)
+        publisher = try c.decodeIfPresent(String.self, forKey: .publisher)
+        country = try c.decodeIfPresent(String.self, forKey: .country)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -531,6 +556,8 @@ struct RequirementsDoc: Codable, Sendable, Equatable {
         // when that is all there is to say.
         if version > 1 { try c.encode(version, forKey: .version) }
         try c.encodeIfPresent(partChecksums, forKey: .partChecksums)
+        try c.encodeIfPresent(publisher, forKey: .publisher)
+        try c.encodeIfPresent(country, forKey: .country)
     }
 }
 
@@ -590,6 +617,9 @@ struct JournalProfile: Codable, Identifiable, Sendable, Equatable {
     var id: UUID
     var name: String
     var articleType: String?
+    /// Identity, like the name — see `RequirementsDoc`.
+    var publisher: String? = nil
+    var country: String? = nil
 
     /// The profiles this one was branched from — see `RequirementsDoc`.
     var lineage: [UUID] = []
@@ -714,7 +744,8 @@ struct JournalProfile: Codable, Identifiable, Sendable, Equatable {
         RequirementsDoc(id: id, journal: name, articleType: articleType,
                         lineage: lineage,
                         url: requirements.url, bullets: requirements.bullets,
-                        updatedAt: updatedAt)
+                        updatedAt: updatedAt,
+                        publisher: publisher, country: country)
     }
 
     /// The identity file as it is WRITTEN: the content, plus the version and
@@ -774,7 +805,7 @@ struct JournalProfile: Codable, Identifiable, Sendable, Equatable {
         // Requirements carries the identity, so it is the one file a profile
         // cannot do without.
         guard let req = load(.requirements, as: RequirementsDoc.self) else { return nil }
-        return JournalProfile(
+        var profile = JournalProfile(
             id: req.id, name: req.journal, articleType: req.articleType,
             lineage: req.lineage,
             requirements: SourceRequirements(url: req.url, bullets: req.bullets,
@@ -790,6 +821,9 @@ struct JournalProfile: Codable, Identifiable, Sendable, Equatable {
             origin: origin, originURL: originURL, updatedAt: req.updatedAt,
             version: req.version, partChecksums: req.partChecksums
         )
+        profile.publisher = req.publisher
+        profile.country = req.country
+        return profile
     }
 
     /// Writes the profile's files, creating the folder.  Returns false if any
@@ -874,6 +908,7 @@ enum ProfileFingerprint {
 
     private static let ignored: Set<String> = [
         "id", "derivedFrom", "lineage", "journal", "articleType", "updatedAt", "editedAt",
+        "publisher", "country",
     ]
 
     static func of(_ value: some Encodable) -> String {

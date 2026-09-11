@@ -1071,7 +1071,56 @@ final class ManuscriptStore {
             else { continue }
             applyTemplateDefaults(section, toSectionID: id)
         }
-        applyTemplateFormatting(journalID: journalID)
+        // The outline is where a template's formatting lives; the per-section
+        // formats are the older path, for templates that never had one.
+        if !adoptTemplateExport(journalID: journalID) {
+            applyTemplateFormatting(journalID: journalID)
+        }
+    }
+
+    /// Gives a journal its template's export outline, pointed at this
+    /// manuscript's sections.
+    ///
+    /// A template's outline names the template's own sections; a manuscript's
+    /// sections have their own ids.  Copying the outline raw — which is what
+    /// happened before — left every section row reading "(missing section)".
+    /// So each section item is matched **by title** through the template
+    /// (uid → title → this manuscript's section), the cover letter and fixed
+    /// parts pass straight through, and anything that matches nothing is
+    /// dropped.  Templates with no outline fall back to
+    /// `applyTemplateFormatting`, which reads the older per-section formats.
+    @discardableResult
+    func adoptTemplateExport(journalID: UUID) -> Bool {
+        guard let journal = manuscript?.journals.first(where: { $0.id == journalID }),
+              let template = journal.profileID
+                .flatMap({ JournalProfileLibrary.shared.profile(id: $0) }),
+              let export = template.export, !export.documents.isEmpty,
+              let content = latestVersion(forJournal: journalID)?.content ?? manuscript
+        else { return false }
+        updateExportConfig(remappedExport(export, template: template, content: content),
+                           forJournal: journalID)
+        return true
+    }
+
+    private func remappedExport(_ config: ExportConfig, template: JournalTemplate,
+                                content: Manuscript) -> ExportConfig {
+        let repaired = TemplateWorkspace.repaired(config, for: template)
+        let keyByUID = Dictionary(template.structure.sections.map { ($0.uid, $0.key) },
+                                  uniquingKeysWith: { first, _ in first })
+        let idByKey = Dictionary(content.sections.map { ($0.title.lowercased(), $0.id) },
+                                 uniquingKeysWith: { first, _ in first })
+        var out = repaired
+        for d in out.documents.indices {
+            out.documents[d].items = out.documents[d].items.compactMap { item in
+                guard item.kind == .section else { return item }
+                guard let uid = item.sectionID, let key = keyByUID[uid], let id = idByKey[key]
+                else { return nil }
+                var mapped = item
+                mapped.sectionID = id
+                return mapped
+            }
+        }
+        return out
     }
 
     /// Applies a template's export formatting to a journal's outline.
@@ -1577,10 +1626,11 @@ final class ManuscriptStore {
             case .requirements: m.journals[idx].sourceRequirements = template.requirements
             case .checks:       m.journals[idx].checkRules = template.checks
             case .structure:    m.journals[idx].structure = template.structure
-            case .export:       if let export = template.export { m.journals[idx].exportConfig = export }
+            case .export:       break   // remapped below, once the touch is done
             }
         }
         if part == .structure { applyTemplateFormatting(journalID: journalID) }
+        if part == .export { adoptTemplateExport(journalID: journalID) }
         writeProfile(journalID: journalID)
         showBanner(.success, "\(part.label) loaded from the “\(template.displayName)” template.")
         return true
@@ -1634,7 +1684,6 @@ final class ManuscriptStore {
             m.journals[idx].sourceRequirements = profile.requirements
             m.journals[idx].checkRules = profile.checks
             m.journals[idx].structure = profile.structure
-            if let export = profile.export { m.journals[idx].exportConfig = export }
             m.journals[idx].profileID = profile.id
             // The template's own name and checksum, so "edited since" is a
             // comparison rather than a guess — and so renaming either side
@@ -1648,6 +1697,7 @@ final class ManuscriptStore {
                 m.journals[idx].submissionURL = profile.requirements.url
             }
         }
+        adoptTemplateExport(journalID: journalID)
         writeProfile(journalID: journalID)
         showBanner(.success, "\(journal.displayName) updated from your journal library — \(profile.requirements.bullets.count) requirements, \(profile.checks.count) tests\(profile.export == nil ? "" : ", and its export outline").")
         return true
@@ -1718,29 +1768,16 @@ final class ManuscriptStore {
         let byTitle = Dictionary(existing.map { ($0.title.lowercased(), $0) },
                                  uniquingKeysWith: { first, _ in first })
 
-        // The export outline says how each part is set at this venue.
-        let config = journal.exportConfig ?? ExportConfig.standard(content: content, journal: journal)
-        let document = config.documents.first
-        let documentFormat = document?.format
-        var formatsBySectionID: [UUID: ExportDocumentFormat] = [:]
-        var coreFormats: [String: ExportDocumentFormat] = [:]
-        for item in document?.items ?? [] {
-            let effective = item.format ?? documentFormat
-            guard let effective else { continue }
-            if item.kind == .section, let id = item.sectionID {
-                formatsBySectionID[id] = effective
-            } else if item.kind != .pageBreak {
-                coreFormats[item.kind.rawValue] = effective
-            }
-        }
-
+        // No formats.  They were captured here once — the outline's typography
+        // copied into each section and into `coreFormats` — which made a font
+        // change read as a STRUCTURE change.  How a submission is set is the
+        // Export part's question, compared on its own checksum.
         var captured: [StructureSection] = []
         for section in content.sections.filter(\.active).sorted(by: { $0.order < $1.order }) {
             var entry = byTitle[section.title.lowercased()]
                 ?? StructureSection(title: section.title)
             entry.title = section.title
             entry.kind = section.sectionKind
-            entry.format = formatsBySectionID[section.id]
             // **Boilerplate is not captured.**  It is the venue's default
             // content, authored while editing the template — taking whatever a
             // cut happens to contain is how one author's draft became
@@ -1773,8 +1810,8 @@ final class ManuscriptStore {
         captured += existing.filter { !capturedTitles.contains($0.title.lowercased()) }
 
         return JournalStructure(sections: captured,
-                                coreFormats: coreFormats.isEmpty ? nil : coreFormats,
-                                documentFormat: documentFormat)
+                                coreFormats: journal.structure?.coreFormats,
+                                documentFormat: journal.structure?.documentFormat)
     }
 
     /// Branches this journal's configuration into a NEW library profile

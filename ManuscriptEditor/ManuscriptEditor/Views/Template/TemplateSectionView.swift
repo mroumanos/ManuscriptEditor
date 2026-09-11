@@ -57,8 +57,7 @@ struct TemplateSectionView: View {
             if let section {
                 TemplatePaneHeader(templateID: templateID,
                                    title: section.displayTitle,
-                                   subtitle: subtitle(section),
-                                   leadingInset: EditorLayout.leftInset)
+                                   subtitle: subtitle(section))
                 identity(section)
                 Divider()
                 switch section.kind {
@@ -130,8 +129,7 @@ struct TemplateSectionView: View {
 
         }
         .controlSize(.small)
-        .padding(.leading, EditorLayout.leftInset)
-        .padding(.trailing, 16)
+        .padding(.horizontal, 20)
         .padding(.vertical, 7)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(nsColor: .textBackgroundColor))
@@ -155,38 +153,52 @@ struct TemplateSectionView: View {
     @ViewBuilder
     private func questions(_ section: StructureSection) -> some View {
         let asked = section.questions ?? []
-        ScrollView {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Text("QUESTIONS")
-                        .font(.caption2.weight(.semibold)).foregroundStyle(.tertiary)
-                    Spacer()
-                    Button {
-                        edit { $0.questions = ($0.questions ?? []) + [TemplateQuestion(prompt: "")] }
-                    } label: {
-                        Label("Add Question", systemImage: "plus")
-                    }
-                    .controlSize(.small)
+        // A List, so questions drag to reorder like everything else does.
+        List {
+            HStack {
+                Text("QUESTIONS")
+                    .font(.caption2.weight(.semibold)).foregroundStyle(.tertiary)
+                Spacer()
+                Button {
+                    edit { $0.questions = ($0.questions ?? []) + [TemplateQuestion(prompt: "")] }
+                } label: {
+                    Label("Add Question", systemImage: "plus")
                 }
-                if asked.isEmpty {
-                    Text("The questions this venue asks at submission. A manuscript adding this journal gets the series already asked, each with its limit.")
-                        .font(.callout).foregroundStyle(.tertiary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                ForEach(Array(asked.enumerated()), id: \.offset) { index, question in
-                    questionRow(index, question, count: asked.count)
+                .controlSize(.small)
+            }
+            .listRowSeparator(.hidden)
+            .listRowInsets(EdgeInsets(top: 8, leading: 20, bottom: 4, trailing: 20))
+            if asked.isEmpty {
+                Text("The questions this venue asks at submission. A manuscript adding this journal gets the series already asked, each with its limit.")
+                    .font(.callout).foregroundStyle(.tertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .listRowSeparator(.hidden)
+                    .listRowInsets(EdgeInsets(top: 4, leading: 20, bottom: 4, trailing: 20))
+            }
+            ForEach(Array(asked.enumerated()), id: \.offset) { index, question in
+                questionRow(index, question)
+                    .listRowSeparator(.hidden)
+                    .listRowInsets(EdgeInsets(top: 4, leading: 20, bottom: 4, trailing: 20))
+            }
+            .onMove { from, to in
+                edit { section in
+                    var questions = section.questions ?? []
+                    questions.move(fromOffsets: from, toOffset: to)
+                    section.questions = questions
                 }
             }
-            .padding(16)
-            .frame(maxWidth: TemplateLayout.contentWidth, alignment: .topLeading)
-            .frame(maxWidth: .infinity, alignment: .topLeading)
         }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
     }
 
     @ViewBuilder
-    private func questionRow(_ index: Int, _ question: TemplateQuestion, count: Int) -> some View {
+    private func questionRow(_ index: Int, _ question: TemplateQuestion) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
+                Image(systemName: "line.3.horizontal")
+                    .foregroundStyle(.tertiary).font(.caption)
+                    .help("Drag to reorder")
                 Text("\(index + 1).")
                     .font(.caption.monospacedDigit()).foregroundStyle(.tertiary)
                 TextField("What the venue asks", text: Binding(
@@ -209,10 +221,6 @@ struct TemplateSectionView: View {
                     }
                 }
                 .labelsHidden().fixedSize()
-                Button { moveQuestion(index, by: -1) } label: { Image(systemName: "chevron.up") }
-                    .buttonStyle(.borderless).disabled(index == 0)
-                Button { moveQuestion(index, by: 1) } label: { Image(systemName: "chevron.down") }
-                    .buttonStyle(.borderless).disabled(index == count - 1)
                 Button(role: .destructive) {
                     edit { $0.questions?.remove(at: index) }
                 } label: { Image(systemName: "trash") }
@@ -249,13 +257,4 @@ struct TemplateSectionView: View {
         }
     }
 
-    private func moveQuestion(_ index: Int, by offset: Int) {
-        edit { section in
-            guard var questions = section.questions,
-                  questions.indices.contains(index),
-                  questions.indices.contains(index + offset) else { return }
-            questions.swapAt(index, index + offset)
-            section.questions = questions
-        }
-    }
 }
