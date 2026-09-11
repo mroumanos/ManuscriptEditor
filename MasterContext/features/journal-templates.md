@@ -117,15 +117,23 @@ The core parts stay **referenceable**: `[[title]]`, `[[authors.names]]`,
 `[[authors.institutes]]` in a template's title page are how the venue's layout
 is expressed, and they resolve against whatever manuscript adopts it.
 
-**Letter to the Editor moves to journal-specific.** It is addressed to a named
-editor at a named journal and follows that journal's conventions — it was only
-ever "core" because every manuscript has one.
+**Letter to the Editor moves to journal-specific** — in a template *and* in a
+manuscript, where it now sits with the sections below the soft rule rather than
+above it with the fixed parts. It is addressed to a named editor at a named
+journal and follows that journal's conventions; it was only ever "core"
+because every manuscript has one.
 
 ### 3.2 Its own workspace
 
 Editing a template opens a **tab of its own, visibly not a manuscript** — its
 own colour, so a window that can change a venue's rules never looks like a
 window that changes your paper.
+
+The colour is a wash, not a slab, and it sits on an **opaque** base: a
+translucent band over an editor lets the editor's own chrome — the gutter rule
+— show straight through it, so the rule appeared to run from the tab bar to
+the bottom of the window. The rule belongs to the editor and starts where the
+editor starts.
 
 Its sidebar is the four parts plus an overview, and nothing else:
 

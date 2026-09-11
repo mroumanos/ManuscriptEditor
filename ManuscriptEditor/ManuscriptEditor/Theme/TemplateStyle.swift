@@ -60,6 +60,13 @@ private struct TemplateSurface: ViewModifier {
     func body(content: Content) -> some View {
         content
             .background(TemplateStyle.wash(scheme))
+            // An OPAQUE base under the wash.  The wash is deliberately
+            // translucent — a solid teal band would shout — and a translucent
+            // band let the editor's gutter rule show straight through the
+            // header, so the rule appeared to run from the tab bar to the
+            // bottom of the window.  The rule belongs to the editor; it starts
+            // where the editor starts.
+            .background(Color(nsColor: .textBackgroundColor))
             .overlay(alignment: .bottom) {
                 Rectangle()
                     .fill(TemplateStyle.accent(scheme).opacity(0.45))

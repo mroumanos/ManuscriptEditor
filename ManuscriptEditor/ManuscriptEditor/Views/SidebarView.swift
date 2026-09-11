@@ -8,8 +8,10 @@
 //   JOURNAL    — Summary, Structure, Tests, Export, Versions: the four parts
 //                of the active journal's configuration, in the same order a
 //                template's own sidebar lists them, plus its version chain.
-//   CONTENT    — Authors, Abstract, Keywords, the body sections, an inline
-//                "Add Section" row, then Figures, Tables, Bibliography, Letter.
+//   CONTENT    — Title, Authors, Abstract, Keywords, Figures, Tables,
+//                Bibliography; then, past a soft rule, the sections this
+//                manuscript shapes, the Letter to Editor (journal-specific
+//                writing, not a fixed part), and an inline "Add Section" row.
 //                Only visible when at least one comparison tab is open.
 //   BOTTOM BAR — the app Preferences gear (⌘,) and the appearance toggle.
 //
@@ -273,11 +275,21 @@ struct SidebarView: View {
     // MARK: - Content section
 
     /// The fixed content panes: key (persistence), default name, icon, item.
+    ///
+    /// The **letter is not one of them.**  It is addressed to a named editor
+    /// at a named journal and follows that journal's conventions — journal
+    /// -specific writing, like the sections below the rule, not a part every
+    /// manuscript has the same way it has a title.  It sits with them.
     private var fixedPanes: [(key: String, name: String, icon: String, item: SidebarItem)] {
         [("figures",      "Figures (\(active?.figures.count ?? 0))",           "photo.on.rectangle.angled", .figures),
          ("tables",       "Tables (\(active?.tables.count ?? 0))",             "tablecells",                .tables),
-         ("bibliography", "Bibliography (\(active?.bibliography.count ?? 0))", "books.vertical",            .bibliography),
-         ("letter",       "Letter to Editor",                                  "envelope",                  .letterToEditor)]
+         ("bibliography", "Bibliography (\(active?.bibliography.count ?? 0))", "books.vertical",            .bibliography)]
+    }
+
+    /// The letter, as one of the journal-specific pieces: a text box with a
+    /// letterhead and a signature.
+    private var letterPane: (key: String, name: String, icon: String, item: SidebarItem) {
+        ("letter", "Letter to Editor", "envelope", .letterToEditor)
     }
 
     /// Default (count-free) name of a fixed pane, for rename prompts.
@@ -309,6 +321,9 @@ struct SidebarView: View {
             sectionsDelimiter
 
             bodySection
+
+            // Past the rule with the sections, because that is what it is.
+            fixedPaneRow(letterPane)
 
             // Inline "add section" row at the very bottom of the Content list.
             addSectionRow

@@ -68,7 +68,6 @@ that changes the label, not whether the part exists.
 - Figures (N)
 - Tables (N)
 - Bibliography (N)
-- Letter to Editor
 
 — soft rule —
 
@@ -77,10 +76,15 @@ shows its word count badge). **Drag to reorder**, **deactivate per journal**
 (dimmed with an orange `eye.slash`; the text is preserved, and Tests/Export
 filter on the flag, never on emptiness), rename, delete. These are exactly what
 a journal's `structure.json` describes.
+- **Letter to Editor** closes the sections, because that is what it is:
+  journal-specific writing — a text box with a letterhead and a signature,
+  addressed to a named editor at a named journal. It used to sit above the
+  rule with the fixed parts, which said a venue has no opinion about it.
 - "Add Section" closes the list.
 
-Every content pane carries a slim header (word count, activation, gear,
-preview, notes). When a check covering that pane is failing, a red **button**
+Every content pane carries a slim header (word count, activation, preview,
+notes). No settings gear: a component's export typography and printed heading
+are edited in the **Export** pane, on the row that prints it. When a check covering that pane is failing, a red **button**
 joins that cluster beside the gear, naming the first failing check; a circled
 count follows when there are more, and clicking opens the measurements and any
 Fix. It is derived, so it disappears when the content passes. Sidebar rows

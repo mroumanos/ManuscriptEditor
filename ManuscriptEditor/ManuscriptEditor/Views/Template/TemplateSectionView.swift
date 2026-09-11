@@ -133,6 +133,8 @@ struct TemplateSectionView: View {
         .padding(.leading, EditorLayout.leftInset)
         .padding(.trailing, 16)
         .padding(.vertical, 7)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(nsColor: .textBackgroundColor))
     }
 
     // MARK: - Content
