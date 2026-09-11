@@ -34,17 +34,27 @@ struct ComponentSettingsForm: View {
     /// template, whose items name its own sections).
     var content: Manuscript? = nil
 
+    /// Writes only when something changed.  Controls settle their bindings
+    /// as they appear — a formatted field round-trips its value, a picker
+    /// confirms its selection — and a write that changes nothing must not
+    /// register as an edit: opening the gear was enough to mark the outline
+    /// as differing from the template.
     private func mutateItem(_ change: @escaping (inout ExportItem) -> Void) {
         var edited = item
         change(&edited)
+        guard edited != item else { return }
         item = edited
     }
 
     /// Typography writes create or extend the item's override, seeded from
-    /// whatever is currently in effect.
+    /// whatever is currently in effect — but a write that leaves the effective
+    /// typography exactly as inherited creates no override.  An override equal
+    /// to the document's format prints identically and still reads as a
+    /// change.
     private func mutateFormat(_ change: @escaping (inout ExportDocumentFormat) -> Void) {
         var format = item.format ?? inherited
         change(&format)
+        if item.format == nil, format == inherited { return }
         mutateItem { $0.format = format }
     }
 
@@ -127,50 +137,33 @@ struct ComponentSettingsForm: View {
         }
     }
 
+    /// The byline, as the two things it is made of.
+    ///
+    /// **Names** and **institutions** are each optional — a journal puts the
+    /// names on the title page and the affiliations at its foot, or on another
+    /// page, or prints only one of them on a blind copy — and each has a
+    /// delimiter of its own.  The *index* is what ties them together (a¹ on
+    /// the name, ¹ on the institution), so it is one setting shown on both
+    /// rows: change it on either and the other follows, because they cannot
+    /// disagree.
     @ViewBuilder
     private func authorsSection() -> some View {
         Divider()
         Text("Byline")
             .font(.caption.weight(.semibold))
             .foregroundStyle(.secondary)
+
+        // ── Names ──
         HStack(spacing: 8) {
-            Text("prints:").font(.caption).foregroundStyle(.secondary)
-            Picker("", selection: Binding(
-                get: { item.authorPartsMode },
-                set: { value in mutateItem { $0.authorPartsMode = value } }
-            )) {
-                Text("Names + institutions").tag("both")
-                Text("Names only").tag("names")
-                Text("Institutions only").tag("institutions")
-            }
-            .labelsHidden().controlSize(.small).fixedSize()
-            .help("Split the byline across the page or the document — the affiliation numbering stays in step either way")
-        }
-        if item.printsAffiliations {
-            HStack(spacing: 8) {
-                Text("institutions:").font(.caption).foregroundStyle(.secondary)
-                Picker("", selection: Binding(
-                    get: { item.affiliationDelimiterCode },
-                    set: { value in
-                        mutateItem {
-                            $0.affiliationDelimiter = value
-                            $0.affiliationListStyle = nil     // superseded
-                        }
-                    }
-                )) {
-                    Text("a ⏎ b").tag("newline")
-                    Text("1. a ⏎ 2. b").tag("numbered")
-                    Text("a; b").tag("semicolon")
-                    Text("a, b").tag("comma")
-                    Text("a b").tag("space")
-                    Text("a / b").tag("slash")
-                    Text("a - b").tag("hyphen")
-                }
-                .labelsHidden().controlSize(.small).fixedSize()
-                .help("How the institutions are separated — the same choices the byline has")
-            }
-        }
-        HStack(spacing: 8) {
+            Toggle("Names", isOn: Binding(
+                get: { item.printsAuthorNames },
+                set: { on in setParts(names: on, institutions: item.printsAffiliations) }
+            ))
+            .toggleStyle(.checkbox)
+            .frame(width: 100, alignment: .leading)
+            .disabled(item.printsAuthorNames && !item.printsAffiliations)
+            .help("Print the authors' names")
+            Text("delimiter").font(.caption).foregroundStyle(.secondary)
             Picker("", selection: Binding(
                 get: { item.authorDelimiter ?? "semicolon" },
                 set: { value in mutateItem { $0.authorDelimiter = value == "semicolon" ? nil : value } }
@@ -184,20 +177,50 @@ struct ComponentSettingsForm: View {
                 Text("1. a ⏎ 2. b").tag("numbered")
             }
             .labelsHidden().controlSize(.small).fixedSize()
-            .help("How the authors are separated — a numbered list puts one per line")
+            .disabled(!item.printsAuthorNames)
+            .help("How the names are separated — a numbered list puts one per line")
+            Text("index").font(.caption).foregroundStyle(.secondary)
+            indexPicker(namesRow: true)
+                .disabled(!item.printsAuthorNames)
+        }
+
+        // ── Institutions ──
+        HStack(spacing: 8) {
+            Toggle("Institutions", isOn: Binding(
+                get: { item.printsAffiliations },
+                set: { on in setParts(names: item.printsAuthorNames, institutions: on) }
+            ))
+            .toggleStyle(.checkbox)
+            .frame(width: 100, alignment: .leading)
+            .disabled(item.printsAffiliations && !item.printsAuthorNames)
+            .help("Print the affiliation list")
+            Text("delimiter").font(.caption).foregroundStyle(.secondary)
             Picker("", selection: Binding(
-                get: {
-                    let v = item.affiliationMarker ?? "superscript"
-                    return v == "doublecross" ? "cross" : v   // legacy value
-                },
-                set: { value in mutateItem { $0.affiliationMarker = value == "superscript" ? nil : value } }
+                get: { item.affiliationDelimiterCode },
+                set: { value in
+                    mutateItem {
+                        $0.affiliationDelimiter = value
+                        $0.affiliationListStyle = nil     // superseded
+                    }
+                }
             )) {
-                Text("a¹").tag("superscript")
-                Text("a†").tag("cross")
-                Text("none").tag("none")
+                Text("a ⏎ b").tag("newline")
+                Text("1. a ⏎ 2. b").tag("numbered")
+                Text("a; b").tag("semicolon")
+                Text("a, b").tag("comma")
+                Text("a b").tag("space")
+                Text("a / b").tag("slash")
+                Text("a - b").tag("hyphen")
             }
             .labelsHidden().controlSize(.small).fixedSize()
-            .help("How authors link to their institutions — crosshatches escalate †, ‡, ††† with each institution")
+            .disabled(!item.printsAffiliations)
+            .help("How the institutions are separated — a numbered list labels each 1., 2., …")
+            Text("index").font(.caption).foregroundStyle(.secondary)
+            indexPicker(namesRow: false)
+                .disabled(!item.printsAffiliations)
+        }
+
+        HStack(spacing: 8) {
             Button {
                 mutateItem { $0.correspondingShown.toggle() }
             } label: {
@@ -217,7 +240,47 @@ struct ComponentSettingsForm: View {
                         ? Color.accentColor : Color(nsColor: .tertiaryLabelColor))
             }
             .buttonStyle(.plain)
-            .help("Append author credentials (MD, PhD…) to the byline")
+            .help("Append author credentials (MD, PhD…) to the names")
+        }
+    }
+
+    /// Both halves off is not a byline; the last one stays on.
+    private func setParts(names: Bool, institutions: Bool) {
+        guard names || institutions else { return }
+        mutateItem {
+            $0.authorPartsMode = names && institutions ? "both" : names ? "names" : "institutions"
+        }
+    }
+
+    /// One index for both rows — a¹ on the name is ¹ on the institution.  A
+    /// numbered institution list labels itself, so that row says so instead.
+    @ViewBuilder
+    private func indexPicker(namesRow: Bool) -> some View {
+        if !namesRow, item.affiliationListNumbered {
+            Text("1., 2., …")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .help("A numbered list labels each institution by its number")
+        } else {
+            Picker("", selection: Binding(
+                get: {
+                    let v = item.affiliationMarker ?? "superscript"
+                    return v == "doublecross" ? "cross" : v   // legacy value
+                },
+                set: { value in mutateItem { $0.affiliationMarker = value == "superscript" ? nil : value } }
+            )) {
+                if namesRow {
+                    Text("a¹").tag("superscript")
+                    Text("a†").tag("cross")
+                    Text("none").tag("none")
+                } else {
+                    Text("¹ a").tag("superscript")
+                    Text("† a").tag("cross")
+                    Text("none").tag("none")
+                }
+            }
+            .labelsHidden().controlSize(.small).fixedSize()
+            .help("Names and institutions share one index — a¹ on the name matches ¹ on the institution. Crosses escalate †, ‡, ††† with each institution.")
         }
     }
 

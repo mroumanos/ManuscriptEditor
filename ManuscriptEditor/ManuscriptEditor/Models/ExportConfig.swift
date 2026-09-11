@@ -19,6 +19,43 @@ import Foundation
 struct ExportConfig: Codable, Sendable, Equatable {
     var documents: [ExportDocument]
 
+    init(documents: [ExportDocument]) {
+        self.documents = documents
+    }
+
+    private enum CodingKeys: String, CodingKey { case documents }
+
+    /// Reads an outline and gives a pre-split one its Authors items.
+    ///
+    /// Before Aug 2026 an outline had no `.authors` item: the Title printed
+    /// the byline itself.  That left "Title" meaning two things, and a
+    /// title-only document — a blind copy — printing the authors anyway.
+    /// The byline renders from an Authors item and nothing else now, so a
+    /// config with no Authors item anywhere gets one after each Title,
+    /// carrying the byline settings the Title item held.  A config that HAS
+    /// one somewhere is left alone: a Title without one is a Title without
+    /// a byline, on purpose.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        documents = try c.decodeIfPresent([ExportDocument].self, forKey: .documents) ?? []
+        guard !documents.flatMap(\.items).contains(where: { $0.kind == .authors }) else { return }
+        for d in documents.indices {
+            var items = documents[d].items
+            for i in items.indices.reversed() where items[i].kind == .titlePage {
+                var byline = ExportItem(kind: .authors)
+                byline.authorDelimiter = items[i].authorDelimiter
+                byline.affiliationMarker = items[i].affiliationMarker
+                byline.affiliationDelimiter = items[i].affiliationDelimiter
+                byline.affiliationListStyle = items[i].affiliationListStyle
+                byline.showCorresponding = items[i].showCorresponding
+                byline.showAuthorTitles = items[i].showAuthorTitles
+                byline.format = items[i].format
+                items.insert(byline, at: i + 1)
+            }
+            documents[d].items = items
+        }
+    }
+
     /// The pre-configured outline for a journal (or the Source when nil):
     /// a main manuscript document, a separate figures document when the
     /// journal requires it, and a cover-letter document.

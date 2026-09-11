@@ -306,8 +306,7 @@ struct ExportService {
                     citationStyleDefault: String = "apa",
                     figureURL: @escaping (Figure) -> URL?,
                     chartImage: ((Figure) -> NSImage?)? = nil,
-                    tableData: ((ManuscriptTable) -> QueryResult?)? = nil,
-                    separateAuthorsOverride: Bool? = nil) -> Data {
+                    tableData: ((ManuscriptTable) -> QueryResult?)? = nil) -> Data {
         // The preview rasterizes through CoreText, which ignores
         // NSTextTable — a DOCX/RTF document's tables would collapse to
         // newline-delimited text.  Preview as PDF construction throughout.
@@ -317,8 +316,7 @@ struct ExportService {
         let sections = pageSegments(for: document, content: content, refContext: refContext,
                                     figureURL: figureURL, chartImage: chartImage,
                                     tableData: tableData,
-                                    citationStyleDefault: citationStyleDefault,
-                                    separateAuthorsOverride: separateAuthorsOverride)
+                                    citationStyleDefault: citationStyleDefault)
         return PDFPaginator(format: document.format).render(sections: sections)
     }
 
@@ -341,13 +339,10 @@ struct ExportService {
                               figureURL: ((Figure) -> URL?)? = nil,
                               chartImage: ((Figure) -> NSImage?)? = nil,
                               tableData: ((ManuscriptTable) -> QueryResult?)? = nil,
-                              citationStyleDefault: String = "apa",
-                              separateAuthorsOverride: Bool? = nil) -> [PageSection] {
+                              citationStyleDefault: String = "apa") -> [PageSection] {
         var builder = OutlineBuilder(format: document.format, refContext: refContext,
                                      fileType: document.fileType,
                                      figureURL: figureURL, chartImage: chartImage, tableData: tableData,
-                                     separateAuthors: separateAuthorsOverride
-                                        ?? document.items.contains { $0.kind == .authors },
                                      citationStyleDefault: citationStyleDefault)
         var sections: [PageSection] = []
         var current = NSMutableAttributedString()
@@ -430,21 +425,16 @@ struct ExportService {
                     numbering = wanted
                 }
             }
-            let separateAuthors = document.items.contains { $0.kind == .authors }
             switch item.kind {
             case .titlePage:
                 let subtitleTex = (m.subtitle?.isEmpty == false)
                     ? " \\\\ \\large \(tex(m.subtitle ?? ""))" : ""
                 out += "\\title{\(tex(displayTitle(m)))\(subtitleTex)}\n"
-                if separateAuthors {
-                    // The byline renders from its own item — a removed
-                    // authors item makes a blind copy, so keep \author empty.
-                    out += "\\author{}\n\\date{}\n\\maketitle\n"
-                } else {
-                    let authors = m.authors.sorted { $0.order < $1.order }
-                        .map { tex(item.authorTitlesShown ? $0.exportName : $0.fullName) }
-                    out += "\\author{\(authors.joined(separator: " \\and "))}\n\\date{}\n\\maketitle\n"
-                }
+                // The byline renders from its own item, never from the
+                // title — a document without an Authors item is a blind
+                // copy, on purpose.  (Outlines that predate the split gain
+                // their Authors item on read; see `ExportConfig.init(from:)`.)
+                out += "\\author{}\n\\date{}\n\\maketitle\n"
             case .authors:
                 let authors = m.authors.sorted { $0.order < $1.order }
                 if !authors.isEmpty {
@@ -877,10 +867,6 @@ private struct OutlineBuilder {
     var chartImage: ((Figure) -> NSImage?)? = nil
     /// Runs a data-linked table's SQL and returns the rows to lay out.
     var tableData: ((ManuscriptTable) -> QueryResult?)? = nil
-    /// True when the document carries its own `.authors` item, so
-    /// `.titlePage` must NOT render the byline too (pre-split configs have
-    /// no authors item and keep the combined rendering).
-    var separateAuthors: Bool = false
     /// True when the title item carries an explicit Size override — the
     /// title then renders at EXACTLY that size (bold) instead of the
     /// default document-font + 8 pt bump.
@@ -900,7 +886,6 @@ private struct OutlineBuilder {
         effective.lineNumbers = sectionLineNumbers ?? format.lineNumbers
         let builder = OutlineBuilder(format: effective, refContext: refContext, fileType: fileType,
                                      figureURL: figureURL, chartImage: chartImage, tableData: tableData,
-                                     separateAuthors: separateAuthors,
                                      titleExactSize: item.format?.fontSize != nil,
                                      citationStyleDefault: citationStyleDefault)
         guard let rendered = builder.renderBlock(item, content: m) else { return nil }

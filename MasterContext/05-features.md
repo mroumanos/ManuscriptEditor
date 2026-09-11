@@ -873,8 +873,22 @@ from a manuscript. Design and rationale:
   reading "(missing section)". "Follow Document" is gone from the settings
   form.
 - AC: A row's formatting summary names **every** choice its gear offers, in the
-  gear's order — the byline's parts mode, both delimiters, markers, corr and
-  cred — so a summary never reads as "unset" beside a gear that shows it set.
+  gear's order, so a summary never reads as "unset" beside a gear that shows
+  it set.
+- AC: **Opening a gear is not an edit.** Controls settle their bindings as
+  they appear; a write that changes nothing is dropped (`ComponentSettingsForm`
+  and the card's binding both compare first), and a typography write that
+  leaves the effective format exactly as inherited creates no override.
+- AC: **The Title is the title.** The byline renders from an Authors item and
+  nothing else — in PDF, DOCX and LaTeX alike — so a document with a lone
+  Title is a blind copy, and its summary says nothing about authors. An
+  outline that predates the split (no Authors item anywhere) gains one after
+  each Title on read, carrying the byline settings the Title held, so nothing
+  already saved prints differently (`ExportConfig.init(from:)`).
+- AC: The byline's settings are **two rows — Names and Institutions** — each
+  optional (the last one stays on), each with its own delimiter, and an
+  *index* shown on both that is one setting: a¹ on the name is ¹ on the
+  institution. A numbered institution list labels itself and says so.
 - AC: The **letter is a section kind** — "Text Box with Header / Signature" —
   added from Add Section and removable, in a template (it is only listed when
   present) and in a manuscript (Remove hides it, keeps the text, and drops the

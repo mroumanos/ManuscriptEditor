@@ -195,6 +195,11 @@ An outline saved from a manuscript names that manuscript's sections by id, so
 a template repairs what it is given: unknown section items are dropped and the
 template's own sections take their place, in Structure order.
 
+**Opening a gear is not an edit.** SwiftUI controls settle their bindings
+as they appear, and every one of those writes used to land in the outline —
+so looking at a row's settings marked the Export part as differing from the
+template. A write that changes nothing is dropped at both ends now.
+
 **Export options are in Export, and nowhere else.** An outline edit changes
 the Export part and only the Export part. For a while every outline edit was
 mirrored into the structure (`coreFormats`, `documentFormat`, each section's

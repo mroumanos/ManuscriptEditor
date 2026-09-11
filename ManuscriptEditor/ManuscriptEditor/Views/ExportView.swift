@@ -504,10 +504,7 @@ struct SectionPreviewButton: View {
                         citationStyleDefault: style,
                         figureURL: { store.figureURL(for: $0) },
                         chartImage: { ExportRendering.chartImage(for: $0, store: store) },
-                        tableData: { ExportRendering.tableData(for: $0, store: store) },
-                        // The Title pane previews the title alone — never
-                        // the byline (pre-split configs bundle it in).
-                        separateAuthorsOverride: baseItem.kind == .titlePage ? true : nil)
+                        tableData: { ExportRendering.tableData(for: $0, store: store) })
                 })
         }
     }
@@ -812,7 +809,8 @@ struct ExportDocumentCard: View {
                             get: { document.items.first { $0.id == item.id } ?? item },
                             set: { edited in
                                 var doc = document
-                                guard let i = doc.items.firstIndex(where: { $0.id == item.id })
+                                guard let i = doc.items.firstIndex(where: { $0.id == item.id }),
+                                      doc.items[i] != edited        // a no-op write is no edit
                                 else { return }
                                 doc.items[i] = edited
                                 onChange(doc)
@@ -860,41 +858,34 @@ struct ExportDocumentCard: View {
     /// Editing happens on the component itself.
     private func formatSummary(_ item: ExportItem) -> String {
         var parts: [String] = []
-        func delimiterPart(_ code: String?, defaultCode: String) {
-            switch code ?? defaultCode {
-            case "comma":   parts.append("\",\" delimiter")
-            case "space":   parts.append("space delimiter")
-            case "slash":   parts.append("\"/\" delimiter")
-            case "hyphen":  parts.append("\"-\" delimiter")
-            case "newline": parts.append("⏎ delimiter")
-            default:        parts.append("\";\" delimiter")
-            }
-        }
         // Every choice the gear offers, in the order the gear offers it — a
         // summary that skips a setting reads as "unset" beside a gear that
-        // shows it set.
-        func bylineParts() {
-            switch item.authorPartsMode {
-            case "names":        parts.append("names only")
-            case "institutions": parts.append("institutions only")
-            default:             break
+        // shows it set.  Two rows in the gear, two clauses here.
+        func delimiterWord(_ code: String) -> String {
+            switch code {
+            case "comma":    return "\",\""
+            case "space":    return "space"
+            case "slash":    return "\"/\""
+            case "hyphen":   return "\"-\""
+            case "newline":  return "⏎"
+            case "numbered": return "1."
+            default:         return "\";\""
             }
-            delimiterPart(item.authorDelimiter, defaultCode: "semicolon")
-            if item.printsAffiliations {
-                switch item.affiliationDelimiterCode {
-                case "numbered": parts.append("1. institutions")
-                case "newline":  parts.append("⏎ institutions")
-                case "comma":    parts.append("\",\" institutions")
-                case "space":    parts.append("space institutions")
-                case "slash":    parts.append("\"/\" institutions")
-                case "hyphen":   parts.append("\"-\" institutions")
-                default:         parts.append("\";\" institutions")
-                }
-            }
+        }
+        func markerWord(onName: Bool) -> String {
             switch item.affiliationMarker ?? "superscript" {
-            case "superscript": parts.append("a¹ markers")
-            case "none":        parts.append("no markers")
-            default:            parts.append("a† markers")
+            case "none": return "no index"
+            case "superscript": return onName ? "a¹" : "¹"
+            default: return onName ? "a†" : "†"
+            }
+        }
+        func bylineParts() {
+            if item.printsAuthorNames {
+                parts.append("names \(delimiterWord(item.authorDelimiter ?? "semicolon")) \(markerWord(onName: true))")
+            }
+            if item.printsAffiliations {
+                let index = item.affiliationListNumbered ? "1." : markerWord(onName: false)
+                parts.append("institutions \(delimiterWord(item.affiliationDelimiterCode)) \(index)")
             }
             parts.append(item.correspondingShown ? "+corr" : "no corr")
             parts.append(item.authorTitlesShown ? "+cred" : "no cred")
@@ -914,13 +905,11 @@ struct ExportDocumentCard: View {
         case .authors:
             bylineParts()
         case .keywords:
-            delimiterPart(item.authorDelimiter, defaultCode: "comma")
-        case .titlePage:
-            // Pre-split configs: the Title item renders the byline too.
-            if !document.items.contains(where: { $0.kind == .authors }) {
-                bylineParts()
-            }
+            parts.append("\(delimiterWord(item.authorDelimiter ?? "comma")) delimiter")
         default:
+            // The Title is the title.  It used to summarise (and print) the
+            // byline when a document had no Authors item; author details are
+            // the Authors item's, and appear when it is added.
             break
         }
         switch item.kind {
