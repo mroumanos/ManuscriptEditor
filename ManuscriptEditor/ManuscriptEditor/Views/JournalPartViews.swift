@@ -222,7 +222,7 @@ struct JournalStructureView: View {
             if let journal {
                 JournalPartHeader(
                     journal: journal, part: .structure,
-                    subtitle: "What a submission at this venue contains. The content of each section is the template's — edit it there.",
+                    subtitle: "What a submission at this venue contains. Add or remove sections for this cut here, and set how they print in Export — the template's own copy is edited in its tab.",
                     edited: store.partDiffersFromTemplate(.structure, journal: journal))
 
                 ScrollView {
@@ -278,10 +278,6 @@ struct JournalStructureView: View {
             if let questions = section.questions, !questions.isEmpty {
                 Text("\(questions.count) question\(questions.count == 1 ? "" : "s")")
                     .font(.caption2).foregroundStyle(.tertiary)
-            }
-            if let format = section.format {
-                Text("\(String(format: "%g", format.fontSize)) pt · \(String(format: "%g", format.lineSpacing))×")
-                    .font(.caption2.monospacedDigit()).foregroundStyle(.tertiary)
             }
             Spacer()
             Button(role: .destructive) {

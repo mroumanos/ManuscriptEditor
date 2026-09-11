@@ -64,6 +64,15 @@ struct RichEditor: View {
     /// Letter-to-editor context: "/" additionally offers Date and Signature
     /// snippets (inserted as plain text).
     var letterMode: Bool = false
+    /// Journal-template context: "/" offers the part tokens and **nothing
+    /// else**.
+    ///
+    /// A template is written before any manuscript adopts it, so there is no
+    /// bibliography, no figure 2, no table to point at — and a template that
+    /// cited this paper's reference 14 would be wrong in every other paper.
+    /// What a venue's layout does need is `[[title]]`, `[[authors.names]]`,
+    /// `[[authors.institutes]]`, which resolve wherever the template lands.
+    var templateMode: Bool = false
     /// The pane this editor represents.  It no longer decides how the editor
     /// LOOKS — that is the global editing typography — but it still names the
     /// export item the settings gear edits and the pane the comparison
@@ -151,7 +160,9 @@ struct RichEditor: View {
         Dictionary(uniqueKeysWithValues: PartEngine.catalog.map { ($0.path, UUID()) })
 
     private func refCandidates(_ query: String) -> [RefCandidate] {
-        guard let m = store.manuscript(for: versionRef) else { return [] }
+        // A template has no manuscript behind it and still offers the part
+        // tokens, so the manuscript lookup cannot be the gate for those.
+        let m = store.manuscript(for: versionRef)
         let q = query.lowercased().trimmingCharacters(in: .whitespaces)
         func matches(_ fields: [String]) -> Bool {
             q.isEmpty || fields.contains { $0.lowercased().contains(q) }
@@ -170,6 +181,8 @@ struct RichEditor: View {
                                     tokenURL: PartEngine.Part(path: path).url,
                                     iconName: "curlybraces"))
         }
+        // Everything below belongs to a manuscript.
+        guard !templateMode, let m else { return out }
         // Letter references first — live tokens that resolve in preview and
         // export (⟦Date⟧ → today at render time, ⟦Signature⟧ → the drawing).
         if letterMode {

@@ -35,6 +35,23 @@ enum TemplateStyle {
     static let symbol = "building.columns.circle"
 }
 
+// MARK: - Layout
+
+/// The one measurement every template pane shares.
+///
+/// It is not decoration.  A pane in a `NavigationSplitView` detail hands its
+/// IDEAL width up to the split view, and a long unwrapped line of explanatory
+/// text has an ideal width of well over a thousand points — enough to push the
+/// split past the window, which squeezes the sidebar to nothing and leaves the
+/// window looking empty.  Capping the content width caps the ideal, and a
+/// pane can then be as narrow as the window needs.  See gotcha 24.
+enum TemplateLayout {
+    static let contentWidth: CGFloat = 760
+    /// The Export pane is wider: its cards carry a row of typography controls
+    /// per component, and squeezing those into a reading measure helps nobody.
+    static let exportWidth: CGFloat = 900
+}
+
 // MARK: - The modifier
 
 private struct TemplateSurface: ViewModifier {

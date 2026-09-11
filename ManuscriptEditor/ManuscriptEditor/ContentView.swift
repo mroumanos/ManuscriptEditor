@@ -465,11 +465,6 @@ struct ContentView: View {
     }
 
     private var windowTitle: String {
-        // A template tab is not this manuscript, and the title bar is the one
-        // place that says what the window is.
-        if let id = activeTemplateID, let template = templates.template(id) {
-            return "\(template.displayName) — Template"
-        }
         let title = store.manuscript?.title.trimmingCharacters(in: .whitespaces) ?? ""
         return title.isEmpty ? "Manuscript Editor" : title
     }

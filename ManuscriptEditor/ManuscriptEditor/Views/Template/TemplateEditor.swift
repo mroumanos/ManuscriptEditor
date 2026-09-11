@@ -37,6 +37,7 @@ import SwiftUI
 
 struct TemplateSidebarView: View {
     @Environment(TemplateWorkspace.self) private var templates
+    @Environment(ManuscriptStore.self) private var store
     @Environment(\.colorScheme) private var scheme
     @Environment(\.openSettings) private var openSettings
 
@@ -51,6 +52,11 @@ struct TemplateSidebarView: View {
     private var sections: [StructureSection] { template?.structure.sections ?? [] }
     private var editedParts: Set<ProfilePart> { templates.editedParts(templateID) }
 
+    /// The venue's own body sections — everything but the cover letter, which
+    /// has a place of its own below.
+    private var bodySections: [StructureSection] { sections.filter { $0.role == nil } }
+    private var letterSection: StructureSection? { sections.first { $0.role == .letter } }
+
     var body: some View {
         List(selection: $selection) {
             Section("Template") {
@@ -60,56 +66,41 @@ struct TemplateSidebarView: View {
 
             // The same four parts, in the same order, as a journal cut's —
             // that symmetry is the point: one object, two places to meet it.
-            // Summary · Structure · Tests · Export — `ProfilePart.displayOrder`.
-            Section("Requirements") {
-                partRow(.requirements, SidebarItem.summary, "doc.text", summaryDetail)
-                partRow(.structure, SidebarItem.structure, "list.bullet.indent",
-                        "\(sections.count) section\(sections.count == 1 ? "" : "s")")
-                partRow(.checks, SidebarItem.checks, "checklist",
-                        "\(template?.checks.count ?? 0) test\(template?.checks.count == 1 ? "" : "s")")
-                partRow(.export, SidebarItem.export, "square.and.arrow.up", exportDetail)
+            Section("Journal") {
+                partRow(.requirements, SidebarItem.summary, "doc.text")
+                partRow(.structure, SidebarItem.structure, "list.bullet.indent")
+                partRow(.checks, SidebarItem.checks, "checklist")
+                partRow(.export, SidebarItem.export, "square.and.arrow.up")
             }
 
-            Section("Sections") {
-                ForEach(sections) { section in
+            // Content reads exactly as a manuscript's does — the fixed parts
+            // first, in their usual order, then the sections past the rule.
+            // The difference is that the fixed parts are DEAD here: a venue
+            // has an opinion about how a title is set, never about what it
+            // says.  Listing them greyed says that; hiding them would suggest
+            // a template could supply them.
+            Section("Content") {
+                ForEach(TemplateSidebarView.fixedParts, id: \.title) { part in
+                    Label(part.title, systemImage: part.icon)
+                        .foregroundStyle(.tertiary)
+                        .help("The manuscript's, not the venue's. Refer to it from a section with \(part.token).")
+                }
+                .selectionDisabled()
+
+                letterRow
+
+                sectionsDelimiter
+
+                ForEach(bodySections) { section in
                     sectionRow(section)
                 }
                 addSectionRow
             }
-
-            // Listed, and deliberately dead.  Hiding them would suggest a
-            // template could supply them; greying them says what they are —
-            // the manuscript's, and referenceable from anything above.
-            Section("From the manuscript") {
-                ForEach(TemplateSidebarView.fixedParts, id: \.title) { part in
-                    Label(part.title, systemImage: part.icon)
-                        .foregroundStyle(.tertiary)
-                        .help("Journal-agnostic — the manuscript supplies it. Reference it in a section with \(part.token).")
-                }
-                .selectionDisabled()
-            }
         }
-        .navigationTitle(template?.name ?? "Template")
-        .navigationSubtitle(subtitle)
-        .safeAreaInset(edge: .top, spacing: 0) {
-            // The colour bar: this window can change a venue's rules.
-            HStack(spacing: 6) {
-                Image(systemName: TemplateStyle.symbol)
-                Text("JOURNAL TEMPLATE")
-                    .font(.caption2.weight(.semibold))
-                Spacer()
-                if templates.isDirty(templateID) {
-                    Text("unsaved")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .foregroundStyle(TemplateStyle.accent(scheme))
-            .padding(.horizontal, 12)
-            .padding(.vertical, 7)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .templateSurface()
-        }
+        // Nothing here touches the window's own chrome: the title and subtitle
+        // above the sidebar stay the manuscript's, because that is what the
+        // window is.  A template says what it is in its tab and in its panes.
+        .navigationTitle(store.manuscript?.title ?? "Manuscript Editor")
         .safeAreaInset(edge: .bottom, spacing: 0) {
             VStack(spacing: 0) {
                 Divider()
@@ -124,6 +115,15 @@ struct TemplateSidebarView: View {
                     .buttonStyle(.plain)
                     .help("App Settings")
                     Spacer()
+                    if templates.isDirty(templateID) {
+                        // A dot, not a sentence: the footer is 30 points tall
+                        // and the Overview says the rest.
+                        Circle()
+                            .fill(TemplateStyle.accent(scheme))
+                            .frame(width: 6, height: 6)
+                            .help("This template has unsaved changes — save it from its Overview.")
+                            .padding(.trailing, 8)
+                    }
                 }
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
@@ -132,7 +132,8 @@ struct TemplateSidebarView: View {
         }
     }
 
-    /// The app's fixed parts and the token that reaches each one.
+    /// The app's fixed parts, in the order a manuscript's sidebar lists them,
+    /// and the token that reaches each one.
     static let fixedParts: [(title: String, icon: String, token: String)] = [
         ("Title",        "textformat",                 "[[title]]"),
         ("Authors",      "person.2",                   "[[authors.names]]"),
@@ -143,35 +144,47 @@ struct TemplateSidebarView: View {
         ("Bibliography", "books.vertical",             "a citation"),
     ]
 
-    private var subtitle: String {
-        guard let template else { return "" }
-        var parts = ["v\(template.version)"]
-        if let updated = template.updatedAt {
-            parts.append("saved \(updated.formatted(date: .abbreviated, time: .shortened))")
+    /// Letter to Editor sits where it sits in a manuscript — after the
+    /// bibliography — but here it is the venue's, and editable.  A template
+    /// that doesn't carry one says so rather than hiding the row.
+    @ViewBuilder
+    private var letterRow: some View {
+        if let letter = letterSection {
+            Label("Letter to Editor", systemImage: "envelope")
+                .tag(SidebarItem.templateSection(letter.id.uuidString))
+                .contextMenu {
+                    Button("Remove from Template", role: .destructive) { delete(letter) }
+                }
+        } else {
+            Label("Letter to Editor", systemImage: "envelope")
+                .foregroundStyle(.tertiary)
+                .help("Not part of this template — add it from Add Section, and the letter this venue expects travels with it.")
+                .selectionDisabled()
         }
-        return parts.joined(separator: " · ")
     }
 
-    private var summaryDetail: String {
-        let count = template?.requirements.bullets.count ?? 0
-        return "\(count) requirement\(count == 1 ? "" : "s")"
-    }
-
-    private var exportDetail: String {
-        guard let export = template?.export, !export.documents.isEmpty else {
-            return "standard outline"
-        }
-        return "\(export.documents.count) document\(export.documents.count == 1 ? "" : "s")"
+    /// The same hairline a manuscript's sidebar uses between the parts every
+    /// manuscript has and the sections an author shapes.
+    private var sectionsDelimiter: some View {
+        Divider()
+            .padding(.vertical, 2)
+            .opacity(0.6)
+            .listRowSeparator(.hidden)
+            .selectionDisabled()
+            .accessibilityLabel("Sections")
     }
 
     /// One of the four parts, with the orange pencil when it has moved away
     /// from the library's copy — the same badge a manuscript's pane uses, for
     /// the same reason.
+    ///
+    /// No counts beside the name: a sidebar this narrow spent them on
+    /// "Summa… 15…", and the pane itself says how many of everything there is.
     private func partRow(_ part: ProfilePart, _ item: SidebarItem,
-                         _ icon: String, _ detail: String) -> some View {
+                         _ icon: String) -> some View {
         HStack {
-            // The name wins the space: a truncated "Summa…" beside an intact
-            // "12 requirements" is the wrong way round.
+            // The name wins the space: a truncated "Struc…" beside an intact
+            // badge is the wrong way round.
             Label(part.label, systemImage: icon)
                 .layoutPriority(1)
             Spacer(minLength: 4)
@@ -181,11 +194,6 @@ struct TemplateSidebarView: View {
                     .font(.caption)
                     .help("Edited since this template was last saved")
             }
-            Text(detail)
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
-                .lineLimit(1)
-                .truncationMode(.tail)
         }
         .tag(item)
     }
@@ -237,7 +245,7 @@ struct TemplateSidebarView: View {
             } label: {
                 Label("Question Series", systemImage: "list.bullet.rectangle")
             }
-            if !sections.contains(where: { $0.role == .letter }) {
+            if letterSection == nil {
                 Divider()
                 Button {
                     add(StructureSection(title: "Letter to the Editor", role: .letter))
@@ -320,7 +328,26 @@ struct TemplateDetailRouter: View {
                 }
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // A container with NO intrinsic size of its own.
+        //
+        // A `NavigationSplitView`'s detail hands its ideal height up to the
+        // split view, and a pane is a header over a ScrollView whose ideal
+        // height is its whole content — so a long Summary or a long outline
+        // made the split taller than the window, which pushed the sidebar's
+        // rows off the top and left the window looking empty.  That is the
+        // "every option disappears" bug.  A `GeometryReader` reports the size
+        // it is PROPOSED and nothing about its content, so the pane fills the
+        // column instead of telling the column how big to be.  See gotcha 24.
+        .modifier(PaneContainment())
+    }
+}
+
+/// Lets a pane fill its column without dictating the column's size.
+private struct PaneContainment: ViewModifier {
+    func body(content: Content) -> some View {
+        GeometryReader { _ in
+            content.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        }
     }
 }
 
@@ -345,6 +372,7 @@ struct TemplatePaneHeader: View {
                         Text(template.displayName)
                             .font(.caption)
                             .foregroundStyle(TemplateStyle.accent(scheme))
+                            .lineLimit(1)
                     }
                 }
                 Text(subtitle)
@@ -352,7 +380,10 @@ struct TemplatePaneHeader: View {
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            Spacer()
+            // Capped, not free: this header's ideal width is the pane's, and
+            // the pane's is the split view's (gotcha 24).
+            .frame(maxWidth: TemplateLayout.contentWidth, alignment: .leading)
+            Spacer(minLength: 8)
             if templates.isDirty(templateID) {
                 Label("Unsaved", systemImage: "circle.fill")
                     .font(.caption2)

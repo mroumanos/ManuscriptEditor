@@ -517,7 +517,14 @@ struct SectionPreviewButton: View {
 
 /// One stacked card = one output file: name/type header, format controls, and
 /// the ordered item list with add/remove/reorder.
-private struct ExportDocumentCard: View {
+/// One document in an export outline: its name, its file type, the items it
+/// prints, and each item's typography.
+///
+/// Deliberately store-free — it takes a document, the content its items name,
+/// and a closure — which is what lets a **journal template** use the very same
+/// card over its own sections.  An outline is an outline; it should not look
+/// like a different thing depending on which object owns it.
+struct ExportDocumentCard: View {
     let document: ExportDocument
     let content: Manuscript?
     let onChange: (ExportDocument) -> Void
@@ -550,7 +557,10 @@ private struct ExportDocumentCard: View {
         }
         .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
         .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.separator, lineWidth: 1))
-        .frame(maxWidth: 640)
+        // Wide enough for a Section row's controls to sit on one line:
+        // margins, columns, line and page numbers were wrapping mid-word
+        // ("col-umns:") at the old width.
+        .frame(maxWidth: 820)
     }
 
     /// An uploaded document has no outline and no typography: it says what

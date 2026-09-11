@@ -832,11 +832,31 @@ from a manuscript. Design and rationale:
   edits. Selecting it swaps the left column for the template's own sidebar,
   disables Active | Compare, and renders one pane.
 - AC: Its sidebar is **Overview**, then Summary · Structure · Tests · Export,
-  then the venue's own sections, then the manuscript's parts — listed and
-  **inactive**, because a venue has an opinion about how they are set, never
-  about what they say. They stay referenceable: `[[title]]`,
+  then **Content laid out exactly as a manuscript's is** — the fixed parts in
+  their usual order (listed, greyed, inactive), Letter to Editor in its usual
+  place but editable and the venue's, the soft rule, then the venue's own
+  sections and Add Section. The fixed parts stay referenceable: `[[title]]`,
   `[[authors.names]]`, `[[authors.institutes]]` resolve against whatever
-  manuscript adopts the template.
+  manuscript adopts the template. The window's own chrome is untouched — the
+  title above the sidebar stays the manuscript's.
+- AC: A template's section is edited in **the ordinary editor** (`RichEditor`),
+  so "/" opens the same reference picker. In a template it offers the part
+  tokens and nothing else: a citation or a figure reference would point at one
+  paper's bibliography and be wrong in every other.
+- AC: A template's **Export pane is the manuscript's Export pane** — the same
+  `ExportDocumentCard` over the template's sections — so the outline and every
+  part's typography are arranged in the one place people already know. The
+  structure's `coreFormats`, `documentFormat` and per-section `format` (what a
+  journal adopts when it is added) are derived from that outline on every
+  change.
+- AC: In a **manuscript**, nothing permanently edits a template: a cut edits
+  its own copy — summary, tests, export outline and formatting, which sections
+  it has — and Load takes the template's copy back.
+- AC: A pane never dictates the window's size. Panes are capped to a reading
+  measure and contained in a view with no intrinsic size, because a
+  `NavigationSplitView` detail hands its ideal size to the split view — which
+  is how selecting Summary once pushed the sidebar off the window and left it
+  looking empty (gotcha 24).
 - AC: **Edits live in memory** (`TemplateWorkspace`). Nothing on disk changes,
   and nothing any manuscript uses changes, until Overview's **Save** — which
   keeps the GUID, takes the next version and rewrites every part's checksum;

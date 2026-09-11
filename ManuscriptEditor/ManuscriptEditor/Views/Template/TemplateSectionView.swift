@@ -11,12 +11,25 @@
 // point.  Here the text belongs to the template, and a manuscript only ever
 // receives it.
 //
-// WHAT IT MAY REFER TO
+// THE SAME EDITOR AS ANY OTHER SECTION
 // ─────────────────────────────────────────────────────────────────────────────
-// The core parts are blank here, and deliberately still REFERENCEABLE:
-// `[[title]]`, `[[authors.names]]`, `[[authors.institutes]]` are how a venue's
-// layout is expressed, and they resolve against whatever manuscript adopts the
-// template.  That is the difference between a template and a form letter.
+// `RichEditor` — the one a body section uses — so "/" opens the same reference
+// picker and typing is the same thing you already know.  In a template it
+// offers the **part tokens only** (`/title`, `/authors` → `[[title]]`,
+// `[[authors.names]]`, `[[authors.institutes]]`): those resolve against
+// whatever manuscript adopts the template, which is how a venue's layout is
+// expressed.  A citation or a figure reference would point at one paper's
+// bibliography and be wrong in every other, so the picker doesn't offer them.
+//
+// Export formatting is NOT here.  It lives in the template's Export pane, in
+// the same outline card a manuscript uses, because a format on one screen and
+// an outline on another is two places to learn and two places to fall out of
+// step.
+//
+// The text itself is stored as the section's `boilerplate` — plain, because
+// that is what a manuscript receives (`RichText(plain:)`) and what the model
+// is given when adapting.  Formatting a template's boilerplate would promise
+// something the other end never reads.
 //
 // See MasterContext/features/journal-templates.md §3.1.
 
@@ -30,6 +43,9 @@ struct TemplateSectionView: View {
     /// is the whole reason sections have one.
     let sectionKey: String
 
+    /// The prose being edited, mirrored out of the template's boilerplate.
+    @State private var content = RichText()
+
     private var template: JournalTemplate? { templates.template(templateID) }
     private var section: StructureSection? {
         template?.structure.sections.first { $0.id.uuidString == sectionKey }
@@ -41,23 +57,21 @@ struct TemplateSectionView: View {
                 TemplatePaneHeader(templateID: templateID,
                                    title: section.displayTitle,
                                    subtitle: subtitle(section))
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 14) {
-                        identity(section)
-                        switch section.kind {
-                        case .text:      content(section)
-                        case .questions: questions(section)
-                        }
-                        formatting(section)
-                    }
-                    .padding(20)
-                    .frame(maxWidth: 820, alignment: .topLeading)
-                    .frame(maxWidth: .infinity, alignment: .topLeading)
+                identity(section)
+                Divider()
+                switch section.kind {
+                case .text:      editor(section)
+                case .questions: questions(section)
                 }
             } else {
                 ContentUnavailableView("Section Removed", systemImage: "text.alignleft",
                                        description: Text("Pick another from the sidebar."))
             }
+        }
+        .onAppear { load() }
+        .onChange(of: sectionKey) { _, _ in load() }
+        .onChange(of: content) { _, new in
+            edit { $0.boilerplate = new.plain.isEmpty ? nil : new.plain }
         }
     }
 
@@ -67,16 +81,23 @@ struct TemplateSectionView: View {
             : "Created in every manuscript that adds this journal."
     }
 
+    private func load() {
+        content = RichText(plain: section?.boilerplate ?? "")
+    }
+
     // MARK: - Identity
 
+    /// One slim bar, the way a section pane's header is slim: what it is
+    /// called, what shape it is, why the venue asks for it, and the gear.
     @ViewBuilder
     private func identity(_ section: StructureSection) -> some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 8) {
             TextField("Section title", text: Binding(
                 get: { section.title },
                 set: { value in edit { $0.title = value } }))
                 .textFieldStyle(.roundedBorder)
-                .frame(maxWidth: 320)
+                .frame(maxWidth: 240)
+
             if section.role == nil {
                 Picker("", selection: Binding(
                     get: { section.kind },
@@ -85,50 +106,30 @@ struct TemplateSectionView: View {
                 }
                 .labelsHidden().fixedSize()
             }
-            Spacer()
+
+            TextField("Why this venue asks for it (optional — sent when adapting)", text: Binding(
+                get: { section.note ?? "" },
+                set: { value in edit { $0.note = value.isEmpty ? nil : value } }))
+                .textFieldStyle(.roundedBorder)
+                .font(.caption)
+
         }
-        TextField("Why this venue asks for it (optional — sent when adapting)", text: Binding(
-            get: { section.note ?? "" },
-            set: { value in edit { $0.note = value.isEmpty ? nil : value } }))
-            .textFieldStyle(.roundedBorder)
-            .font(.caption)
+        .controlSize(.small)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 7)
     }
 
     // MARK: - Content
 
+    /// The venue's default content for this section, in the ordinary editor.
     @ViewBuilder
-    private func content(_ section: StructureSection) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(section.role == .letter ? "LETTER" : "CONTENT")
-                .font(.caption2.weight(.semibold)).foregroundStyle(.tertiary)
-            PlainTextEditor(text: Binding(
-                get: { templates.template(templateID)?.structure.sections
-                        .first { $0.id.uuidString == sectionKey }?.boilerplate ?? "" },
-                set: { value in edit { $0.boilerplate = value.isEmpty ? nil : value } }))
-                .frame(minHeight: 260)
-                .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(.separator))
-            tokenHelp
-        }
-    }
-
-    private var tokenHelp: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text("This is the section's default content: a manuscript adding this journal starts with exactly this text, and a fast-forward writes it back over the section before adapting.")
-                .font(.caption2).foregroundStyle(.tertiary)
-                .fixedSize(horizontal: false, vertical: true)
-            HStack(spacing: 6) {
-                Text("Refers to the manuscript:")
-                    .font(.caption2).foregroundStyle(.tertiary)
-                ForEach(["[[title]]", "[[authors.names]]", "[[authors.institutes]]"], id: \.self) { token in
-                    Text(token)
-                        .font(.caption2.monospaced())
-                        .padding(.horizontal, 5).padding(.vertical, 1)
-                        .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 4))
-                        .textSelection(.enabled)
-                }
-                Spacer()
-            }
-        }
+    private func editor(_ section: StructureSection) -> some View {
+        RichEditor(value: $content,
+                   placeholder: section.role == .letter
+                       ? "The letter this venue expects — “/” inserts [[title]], [[authors.names]]…"
+                       : "What this section contains at this venue — “/” inserts [[title]], [[authors.names]]…",
+                   templateMode: true)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     // MARK: - Questions
@@ -136,25 +137,31 @@ struct TemplateSectionView: View {
     @ViewBuilder
     private func questions(_ section: StructureSection) -> some View {
         let asked = section.questions ?? []
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("QUESTIONS")
-                    .font(.caption2.weight(.semibold)).foregroundStyle(.tertiary)
-                Spacer()
-                Button {
-                    edit { $0.questions = ($0.questions ?? []) + [TemplateQuestion(prompt: "")] }
-                } label: {
-                    Label("Add Question", systemImage: "plus")
+        ScrollView {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("QUESTIONS")
+                        .font(.caption2.weight(.semibold)).foregroundStyle(.tertiary)
+                    Spacer()
+                    Button {
+                        edit { $0.questions = ($0.questions ?? []) + [TemplateQuestion(prompt: "")] }
+                    } label: {
+                        Label("Add Question", systemImage: "plus")
+                    }
+                    .controlSize(.small)
                 }
-                .controlSize(.small)
+                if asked.isEmpty {
+                    Text("The questions this venue asks at submission. A manuscript adding this journal gets the series already asked, each with its limit.")
+                        .font(.callout).foregroundStyle(.tertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                ForEach(Array(asked.enumerated()), id: \.offset) { index, question in
+                    questionRow(index, question, count: asked.count)
+                }
             }
-            if asked.isEmpty {
-                Text("The questions this venue asks at submission. A manuscript adding this journal gets the series already asked, each with its limit.")
-                    .font(.callout).foregroundStyle(.tertiary)
-            }
-            ForEach(Array(asked.enumerated()), id: \.offset) { index, question in
-                questionRow(index, question, count: asked.count)
-            }
+            .padding(16)
+            .frame(maxWidth: TemplateLayout.contentWidth, alignment: .topLeading)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
         }
     }
 
@@ -206,47 +213,12 @@ struct TemplateSectionView: View {
         .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
     }
 
-    // MARK: - Formatting
-
-    @ViewBuilder
-    private func formatting(_ section: StructureSection) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text("EXPORT FORMATTING")
-                    .font(.caption2.weight(.semibold)).foregroundStyle(.tertiary)
-                Spacer()
-                if section.format == nil {
-                    Button("Set") {
-                        edit { $0.format = template?.structure.documentFormat ?? ExportDocumentFormat() }
-                    }
-                    .controlSize(.small)
-                    .help("Only when this venue sets this section differently from the rest of the document")
-                } else {
-                    Button("Clear") { edit { $0.format = nil } }
-                        .controlSize(.small)
-                }
-            }
-            if section.format != nil {
-                ExportFormatForm(format: Binding(
-                    get: { templates.template(templateID)?.structure.sections
-                            .first { $0.id.uuidString == sectionKey }?.format ?? ExportDocumentFormat() },
-                    set: { value in edit { $0.format = value } }))
-            } else {
-                Text("Follows the document — set it only where this venue asks for something different.")
-                    .font(.caption).foregroundStyle(.secondary)
-            }
-        }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
-    }
-
     // MARK: - Editing
 
     private func edit(_ mutate: @escaping (inout StructureSection) -> Void) {
         templates.edit(templateID) { template in
-            guard let idx = template.structure.sections.firstIndex(where: { $0.id.uuidString == sectionKey })
-            else { return }
+            guard let idx = template.structure.sections
+                .firstIndex(where: { $0.id.uuidString == sectionKey }) else { return }
             mutate(&template.structure.sections[idx])
         }
     }

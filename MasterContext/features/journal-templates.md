@@ -130,21 +130,29 @@ window that changes your paper.
 Its sidebar is the four parts plus an overview, and nothing else:
 
 ```
-Overview      title · type · description
-              Save · Save as New… · Discard Changes · Delete
-              Export Template File… · Export for Pull Request…
-Summary       the venue's instructions, distilled
-Structure     which sections a submission here has
-Tests         one per requirement
-Export        the page, the fixed parts, the outline
-              ── the journal-specific sections, editable ──
-Title Page
-Public Health Implications
-Submission Questions
-Letter to the Editor
-              ── from the manuscript, listed and inactive ──
-Title · Authors · Abstract · Keywords · Figures · Tables · Bibliography
+Template   Overview      title · type · description
+                         Save · Save as New… · Discard Changes · Delete
+                         Export Template File… · Export for Pull Request…
+Journal    Summary       the venue's instructions, distilled
+           Structure     which sections a submission here has
+           Tests         one per requirement
+           Export        the outline, and how every part is set
+Content    Title · Authors · Abstract · Keywords · Figures · Tables ·
+           Bibliography              ← listed, greyed, inactive
+           Letter to Editor          ← the venue's, and editable
+           ───────────────────────── the soft rule a manuscript has
+           Title Page
+           Public Health Implications
+           Submission Questions
+           Add Section
 ```
+
+**Content reads exactly as a manuscript's sidebar does** — the fixed parts
+first, in their usual order, then the rule, then the sections. Nothing moves
+to make room for the template; a template is a different object, not a
+different app. The window's own chrome is untouched too: the title above the
+sidebar stays the manuscript's, because that is what the window is. What says
+"template" is the tab, the pane headers, and the colour.
 
 No lineage, no versions, no backend settings: a template is not a manuscript
 and should not pretend to be one. **Overview** is the template's identity —
@@ -154,6 +162,21 @@ bullets, not a second field to disagree with them) — and what you can do to it
 **No pass rate here.** A template has no content to measure, and a percentage
 with nothing behind it is a number people would trust. The rate belongs to a
 cut, where the sidebar carries it: *Tests (86%)*.
+
+**A section is edited in the ordinary editor.** `RichEditor` — the one a body
+section uses — so "/" opens the same picker and typing is the thing you
+already know. In a template it offers the **part tokens only** (`/title`,
+`/authors` → `[[title]]`, `[[authors.names]]`, `[[authors.institutes]]`):
+those resolve wherever the template lands, while a citation or a figure
+reference would point at one paper's bibliography and be wrong in every other.
+
+**Export is the manuscript's Export pane.** Not a second, smaller editor: the
+same `ExportDocumentCard`, given the template's sections instead of a paper's.
+One place to arrange the outline and set every part's typography, already
+learned. What a journal ADOPTS when it is added still comes from the structure
+(`coreFormats`, `documentFormat`, each section's `format`) — derived from the
+outline on every change (`TemplateWorkspace.setExport`), so there is one place
+to edit and no second copy to fall behind.
 
 The four parts are marked with an orange pencil where the draft has moved away
 from the library's copy, and the tab carries a dot while anything is unsaved —
@@ -170,6 +193,11 @@ the template's copy of that part.
 There is no Save: a cut cannot write back into a template, per *Where a
 template is edited* below. Adding a whole journal to the library as a template
 of its own is still one button, in Tests.
+
+**What a cut may change is its own copy, and that is a lot**: its summary, its
+tests, its export outline and formatting, and which sections it has. None of
+it touches the template — which is the point. A scratchpad section, a tighter
+limit, a different page for this one submission: all fine, all local.
 
 That symmetry is the point: the same four things, in the same order, whether
 you are looking at a venue's template or at your cut of it.

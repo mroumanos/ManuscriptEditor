@@ -62,11 +62,12 @@ struct TemplateOverviewView: View {
                         travelling
                     }
                     .padding(20)
-                    .frame(maxWidth: 720, alignment: .topLeading)
+                    .frame(maxWidth: TemplateLayout.contentWidth, alignment: .topLeading)
                     .frame(maxWidth: .infinity, alignment: .topLeading)
                 }
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .alert("Couldn't Share Template", isPresented: Binding(
             get: { shareError != nil }, set: { if !$0 { shareError = nil } }
         )) {

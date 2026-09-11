@@ -32,6 +32,7 @@ struct TemplateSummaryView: View {
                 subtitle: "The journal's own instructions, distilled. The Tests are what the app can enforce of them.")
 
             if let template {
+                ScrollView {
                 VStack(alignment: .leading, spacing: 10) {
                     HStack(spacing: 8) {
                         TextField("Link to the journal's author instructions", text: Binding(
@@ -84,15 +85,21 @@ struct TemplateSummaryView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(12)
                         }
+                        .frame(height: 360)
                         .background(Color(NSColor.textBackgroundColor),
                                     in: RoundedRectangle(cornerRadius: 8))
                         .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(.separator))
                     } else {
+                        // A real height: an NSScrollView with no height of its
+                        // own reports an unbounded ideal, and an unbounded
+                        // ideal in a split view's detail is how the sidebar
+                        // gets squeezed off the window.
                         PlainTextEditor(text: Binding(
                             get: { template.requirements.text },
                             set: { value in
                                 templates.edit(templateID) { $0.requirements.text = value }
                             }))
+                            .frame(height: 360)
                             .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(.separator))
                     }
 
@@ -102,8 +109,12 @@ struct TemplateSummaryView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .padding(20)
+                .frame(maxWidth: TemplateLayout.contentWidth, alignment: .topLeading)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+                }
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 }
 
@@ -153,7 +164,7 @@ struct TemplateStructureView: View {
                         .padding(.top, 6)
                 }
                 .padding(20)
-                .frame(maxWidth: 760, alignment: .topLeading)
+                .frame(maxWidth: TemplateLayout.contentWidth, alignment: .topLeading)
                 .frame(maxWidth: .infinity, alignment: .topLeading)
             }
 
@@ -166,7 +177,10 @@ struct TemplateStructureView: View {
                     .disabled(newTitle.trimmingCharacters(in: .whitespaces).isEmpty)
             }
             .padding(14)
+            .frame(maxWidth: TemplateLayout.contentWidth + 40, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     private func row(_ section: StructureSection, at index: Int) -> some View {
@@ -234,7 +248,8 @@ struct TemplateStructureView: View {
         if let questions = section.questions, !questions.isEmpty {
             parts.append("\(questions.count) question\(questions.count == 1 ? "" : "s")")
         }
-        if section.format != nil { parts.append("format set") }
+        // Formats are not mentioned: they are edited in Export now, and a
+        // row that names something it can't change only sends people looking.
         return parts.joined(separator: " · ")
     }
 
@@ -291,6 +306,7 @@ struct TemplateTestsView: View {
                     footnote: "Written into this template — every manuscript that adopts it starts with these.")
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     private var detail: String {
@@ -311,12 +327,20 @@ struct TemplateTestsView: View {
 
 // MARK: - Export
 
-/// How this venue sets a submission: the page, the fixed parts, and the
-/// outline.
+/// How this venue sets a submission: **the same outline editor a manuscript
+/// has**, over the template's own sections.
 ///
-/// Per-section typography is edited on the section itself, where the rest of
-/// that section's rules are — this pane is the document and the parts a
-/// template can't otherwise reach.
+/// The export options used to be scattered — a format popover on each section,
+/// a list of fixed parts here — which meant learning two places and keeping
+/// them in step by hand.  One place: the outline. `ExportDocumentCard` is
+/// literally the card the Export pane shows for a manuscript, given the
+/// template's sections instead of a paper's, so a venue's typography is
+/// arranged exactly where anyone already knows how to arrange it.
+///
+/// What a journal ADOPTS when it is added still comes from the structure
+/// (`coreFormats`, `documentFormat`, each section's `format`); those are
+/// derived from this outline on every change — see
+/// `TemplateWorkspace.setExport`.
 struct TemplateExportView: View {
     @Environment(TemplateWorkspace.self) private var templates
 
@@ -324,206 +348,86 @@ struct TemplateExportView: View {
 
     private var template: JournalTemplate? { templates.template(templateID) }
 
-    /// The fixed parts a venue can have an opinion about, in export order.
-    private static let coreKinds: [ExportItem.Kind] = [
-        .titlePage, .authors, .abstract, .keywords, .figures, .tables,
-        .references, .coverLetter,
-    ]
+    /// The template's sections as a manuscript, so the outline can name them.
+    ///
+    /// Ids are the sections' own (`StructureSection.uid`), which is what makes
+    /// an outline item survive a rename here exactly as it does in a paper.
+    private var asManuscript: Manuscript? {
+        guard let template else { return nil }
+        var made = Manuscript.new()
+        made.title = template.displayName
+        made.sections = template.structure.sections.enumerated().map { index, section in
+            ManuscriptSection(id: section.uid, type: .custom, title: section.displayTitle,
+                              content: RichText(plain: section.boilerplate ?? ""), order: index)
+        }
+        return made
+    }
 
-    private static func label(_ kind: ExportItem.Kind) -> String {
-        ExportItem(kind: kind).title(in: nil)
+    /// The outline as it stands, or the standard one derived from the
+    /// template's own sections when it has never been configured.
+    private var config: ExportConfig {
+        if let export = template?.export, !export.documents.isEmpty { return export }
+        guard let content = asManuscript else { return ExportConfig(documents: []) }
+        return ExportConfig.standard(content: content, journal: nil)
     }
 
     var body: some View {
         VStack(spacing: 0) {
             TemplatePaneHeader(
                 templateID: templateID, title: "Export",
-                subtitle: "The typography a journal cut adopts from this template — the page, and each fixed part.")
+                subtitle: "The documents a submission here is, what goes in each, and how every part is set. A journal cut from this template adopts it.")
 
             ScrollView {
-                if let template {
-                    VStack(alignment: .leading, spacing: 16) {
-                        document(template)
-                        core(template)
-                        outline(template)
+                VStack(alignment: .leading, spacing: 14) {
+                    ForEach(config.documents) { document in
+                        ExportDocumentCard(
+                            document: document,
+                            content: asManuscript,
+                            onChange: { replace($0) },
+                            onDelete: { remove(document.id) })
                     }
-                    .padding(20)
-                    .frame(maxWidth: 720, alignment: .topLeading)
-                    .frame(maxWidth: .infinity, alignment: .topLeading)
+
+                    HStack(spacing: 12) {
+                        Button {
+                            var edited = config
+                            edited.documents.append(ExportDocument(name: "New Document", items: []))
+                            templates.setExport(edited, for: templateID)
+                        } label: {
+                            Label("Add Document", systemImage: "plus")
+                        }
+                        .buttonStyle(.bordered)
+                        if template?.export == nil {
+                            Text("Not configured — this is the standard outline, derived from the sections above. Change anything and it becomes this template's.")
+                                .font(.caption).foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        Spacer()
+                    }
+
+                    Text("Page geometry sits on the Section rows, typography on each component — the same places a manuscript keeps them. A journal added from this template takes all of it, and can then change its own copy freely.")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
+                .padding(20)
+                .frame(maxWidth: TemplateLayout.exportWidth, alignment: .topLeading)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
-    // MARK: Document
-
-    @ViewBuilder
-    private func document(_ template: JournalTemplate) -> some View {
-        let format = template.structure.documentFormat
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("DOCUMENT")
-                    .font(.caption2.weight(.semibold)).foregroundStyle(.tertiary)
-                Spacer()
-                if format == nil {
-                    Button("Set") {
-                        templates.edit(templateID) {
-                            $0.structure.documentFormat = ExportDocumentFormat()
-                        }
-                    }
-                    .controlSize(.small)
-                    .help("Until this is set, a cut keeps whatever page its manuscript already had")
-                } else {
-                    Button("Clear") {
-                        templates.edit(templateID) { $0.structure.documentFormat = nil }
-                    }
-                    .controlSize(.small)
-                }
-            }
-            if format != nil {
-                ExportFormatForm(format: Binding(
-                    get: { templates.template(templateID)?.structure.documentFormat
-                            ?? ExportDocumentFormat() },
-                    set: { value in
-                        templates.edit(templateID) { $0.structure.documentFormat = value }
-                    }), showsPage: true)
-            } else {
-                Text("Not set — a journal cut from this template keeps its manuscript's page.")
-                    .font(.caption).foregroundStyle(.secondary)
-            }
-        }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
+    private func replace(_ document: ExportDocument) {
+        var edited = config
+        guard let index = edited.documents.firstIndex(where: { $0.id == document.id }) else { return }
+        edited.documents[index] = document
+        templates.setExport(edited, for: templateID)
     }
 
-    // MARK: Fixed parts
-
-    @ViewBuilder
-    private func core(_ template: JournalTemplate) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("FIXED PARTS")
-                .font(.caption2.weight(.semibold)).foregroundStyle(.tertiary)
-            Text("A venue's opinion about the manuscript's own parts is here: how the title block, the byline and the abstract are SET. Their content is never a template's business.")
-                .font(.caption).foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-            ForEach(TemplateExportView.coreKinds, id: \.self) { kind in
-                coreRow(template, kind)
-            }
-        }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
-    }
-
-    @ViewBuilder
-    private func coreRow(_ template: JournalTemplate, _ kind: ExportItem.Kind) -> some View {
-        let key = kind.rawValue
-        let format = template.structure.coreFormats?[key]
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text(TemplateExportView.label(kind)).font(.callout)
-                Spacer()
-                if format == nil {
-                    Button("Set") {
-                        templates.edit(templateID) { edited in
-                            var formats = edited.structure.coreFormats ?? [:]
-                            formats[key] = edited.structure.documentFormat ?? ExportDocumentFormat()
-                            edited.structure.coreFormats = formats
-                        }
-                    }
-                    .controlSize(.small)
-                } else {
-                    Button("Clear") {
-                        templates.edit(templateID) { edited in
-                            edited.structure.coreFormats?[key] = nil
-                            if edited.structure.coreFormats?.isEmpty == true {
-                                edited.structure.coreFormats = nil
-                            }
-                        }
-                    }
-                    .controlSize(.small)
-                }
-            }
-            if format != nil {
-                ExportFormatForm(format: Binding(
-                    get: { templates.template(templateID)?.structure.coreFormats?[key]
-                            ?? ExportDocumentFormat() },
-                    set: { value in
-                        templates.edit(templateID) { edited in
-                            var formats = edited.structure.coreFormats ?? [:]
-                            formats[key] = value
-                            edited.structure.coreFormats = formats
-                        }
-                    }), showsPage: false)
-            }
-        }
-        .padding(8)
-        .background(Color(NSColor.textBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
-    }
-
-    // MARK: Outline
-
-    @ViewBuilder
-    private func outline(_ template: JournalTemplate) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("OUTLINE")
-                    .font(.caption2.weight(.semibold)).foregroundStyle(.tertiary)
-                Spacer()
-                if template.export != nil {
-                    Button("Remove Outline") {
-                        templates.edit(templateID) { $0.export = nil }
-                    }
-                    .controlSize(.small)
-                    .help("A manuscript then derives the standard outline from its own content")
-                }
-            }
-            if let export = template.export, !export.documents.isEmpty {
-                ForEach(Array(export.documents.enumerated()), id: \.offset) { index, document in
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            TextField("Document name", text: Binding(
-                                get: { document.name },
-                                set: { value in
-                                    templates.edit(templateID) {
-                                        $0.export?.documents[index].name = value
-                                    }
-                                }))
-                                .textFieldStyle(.roundedBorder)
-                                .controlSize(.small)
-                            Spacer()
-                        }
-                        Text(document.items.filter { $0.kind != .pageBreak }
-                            .map { $0.effectiveTitle(in: nil) }
-                            .joined(separator: ", "))
-                            .font(.caption).foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                        ExportFormatForm(format: Binding(
-                            get: { templates.template(templateID)?.export?
-                                    .documents[safe: index]?.format ?? ExportDocumentFormat() },
-                            set: { value in
-                                templates.edit(templateID) {
-                                    $0.export?.documents[index].format = value
-                                }
-                            }), showsPage: true)
-                    }
-                    .padding(8)
-                    .background(Color(NSColor.textBackgroundColor),
-                                in: RoundedRectangle(cornerRadius: 8))
-                }
-                Text("Which documents a submission is, and what goes in each. The items themselves are laid out against a manuscript's own sections, so they are arranged in a cut's Export pane and carried here.")
-                    .font(.caption2).foregroundStyle(.tertiary)
-                    .fixedSize(horizontal: false, vertical: true)
-            } else {
-                Text("No outline — a manuscript derives the standard one (manuscript, figures where the venue wants them separate, cover letter) and applies the formats above.")
-                    .font(.caption).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
+    private func remove(_ id: UUID) {
+        var edited = config
+        edited.documents.removeAll { $0.id == id }
+        templates.setExport(edited, for: templateID)
     }
 }
 

@@ -76,6 +76,40 @@ final class TemplateWorkspace {
         drafts[id] = draft
     }
 
+    /// Replaces the template's export outline, and keeps the typography the
+    /// structure carries in step with it.
+    ///
+    /// The outline is where formats are edited — the same card a manuscript's
+    /// Export pane uses — but what a journal ADOPTS when it is added comes
+    /// from `structure` (`coreFormats`, `documentFormat`, each section's
+    /// `format`).  Deriving one from the other on every change means there is
+    /// one place to edit and no second copy to fall behind.
+    func setExport(_ config: ExportConfig, for id: UUID) {
+        edit(id) { template in
+            template.export = config
+            guard let document = config.documents.first(where: { !$0.isAttachment })
+            else { return }
+            template.structure.documentFormat = document.format
+            var core: [String: ExportDocumentFormat] = [:]
+            var bySection: [UUID: ExportDocumentFormat] = [:]
+            for item in document.items {
+                let effective = item.format ?? document.format
+                switch item.kind {
+                case .pageBreak: continue
+                case .section:
+                    if let sectionID = item.sectionID { bySection[sectionID] = effective }
+                default:
+                    core[item.kind.rawValue] = effective
+                }
+            }
+            template.structure.coreFormats = core.isEmpty ? nil : core
+            for index in template.structure.sections.indices {
+                let uid = template.structure.sections[index].uid
+                template.structure.sections[index].format = bySection[uid]
+            }
+        }
+    }
+
     /// Whether this draft has moved away from the library's copy.
     ///
     /// Compared on content and identity — the checksum covers the rules, and

@@ -288,3 +288,20 @@ Requires: clean tree on main, the Developer ID cert, `gh` auth.
     every install reads the same id for the same shipped section. Title
     matching still exists — it is how a template maps onto a manuscript — but
     it lives in `key`, not in `id`.
+
+24. **A pane in a `NavigationSplitView` detail hands its IDEAL size to the
+    split view.** A pane built as a header over a `ScrollView` reports the
+    whole scrollable content as its ideal height; the split view grows to it,
+    the window can't, and the result is that everything — the sidebar
+    included — is laid out past the window's edge and the window looks
+    **empty**. Measured: a 700-point window whose split view was 1271 points
+    tall, offset -284. A long unwrapped `Text` does the same to width (an ideal
+    of 1489 points), which squeezes the sidebar instead.
+    Two defences, both in use: cap the content width
+    (`TemplateLayout.contentWidth`) so a pane's ideal width is a reading
+    measure rather than a sentence's length, and wrap the pane in a container
+    with **no intrinsic size** — a `GeometryReader` — so it fills the column
+    instead of telling the column how big to be (`PaneContainment` in
+    `TemplateEditor.swift`). The regression test is mechanical: host the pane
+    in a split view and assert the split view's frame equals the window's
+    (`fitcheck` harness).
