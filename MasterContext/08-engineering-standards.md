@@ -266,3 +266,25 @@ Requires: clean tree on main, the Developer ID cert, `gh` auth.
     `ManuscriptEditor/JournalProfiles/<slug>/` (version-controlled, reviewable)
     and let the library re-seed; only touch a library copy to clear one that
     predates the fix.
+
+22. **A model persisted through a separate `Doc` type loses every field the
+    `Doc` doesn't have.** `JournalStructure` carried `coreFormats` and
+    `documentFormat` in memory, but `structure.json` is written from
+    `StructureDoc`, which had neither — so a template's typography survived
+    inside a manuscript (where the whole struct is encoded) and vanished the
+    moment it was saved to the library or travelled with a manuscript. No
+    error, no warning: half the file simply wasn't there. Adding a field to a
+    model that has a document type means adding it in three places — the
+    model, the `Doc`, and `read`. Gotcha 12 is the same failure one layer
+    down; between them they have now cost four bugs.
+
+23. **A value's identity must not be something the user can type.**
+    `StructureSection.id` was the lowercased title, which was fine while
+    sections were a list you typed once — and broke the moment one could be
+    edited in place: every keystroke made it a *different* section, so the
+    editor you were typing in vanished. Sections carry a `uid` now, written as
+    `id` (which `ProfileFingerprint` strips, so no existing template's
+    checksum moved) and **derived from the title** when a file has none, so
+    every install reads the same id for the same shipped section. Title
+    matching still exists — it is how a template maps onto a manuscript — but
+    it lives in `key`, not in `id`.

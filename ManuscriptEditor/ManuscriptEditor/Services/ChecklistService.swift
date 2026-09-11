@@ -65,17 +65,27 @@ enum ChecklistService {
         // structure file — the sections it says a submission has.  Optional
         // sections never fail; only the required ones do.
         if condition.metric.isStructure {
-            let expected = journal?.structure?.sections.filter(\.required) ?? []
-            guard !expected.isEmpty else { return (true, "no structure defined") }
+            // Body sections only.  A template's cover-letter entry is a
+            // journal-specific requirement, but it lands in the letter — never
+            // in a section — so looking for a body section by that name always
+            // failed, and told the writer to add a section that must not exist.
+            let expected = (journal?.structure?.sections ?? [])
+                .filter { $0.required && $0.role == nil }
+            let letterExpected = (journal?.structure?.sections ?? []).contains { $0.role == .letter }
+            guard !expected.isEmpty || letterExpected else { return (true, "no structure defined") }
             let present = m.sections.filter { $0.active && !$0.isEmptyContent }
                 .map { $0.title.lowercased() }
-            let missing = expected.filter { section in
-                !present.contains { $0 == section.id || $0.contains(section.id) }
+            var missing = expected.filter { section in
+                !present.contains { $0 == section.key || $0.contains(section.key) }
+            }
+            if letterExpected,
+               m.letterToEditor.body.plain.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                missing.append(StructureSection(title: "Letter to the Editor", role: .letter))
             }
             return (missing.isEmpty,
                     missing.isEmpty
-                        ? "all \(expected.count) required sections present"
-                        : "missing: \(missing.map(\.title).joined(separator: ", "))")
+                        ? "all \(expected.count + (letterExpected ? 1 : 0)) required parts present"
+                        : "missing: \(missing.map(\.displayTitle).joined(separator: ", "))")
         }
 
         /// Narrow a scope's text to the condition's subsections, when set.

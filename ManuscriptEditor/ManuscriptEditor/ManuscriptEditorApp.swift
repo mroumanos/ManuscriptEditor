@@ -23,6 +23,11 @@
 // ─────────────────────────────────────────────────────────────────────────────
 //   WindowGroup   → the main editor window (ContentView)
 //   Settings      → the ⌘-comma preferences window (SettingsView)
+//
+// A third `@Observable`, `TemplateWorkspace`, rides alongside the two stores:
+// the journal templates open for editing, held in memory until saved.  It is
+// injected into both scenes so Settings can hand a template to the main
+// window's tab bar.
 
 import SwiftUI
 
@@ -35,6 +40,12 @@ struct ManuscriptEditorApp: App {
 
     /// Global store: backends, AI services, view configs.
     @State private var appStore: AppStore
+
+    /// The journal templates currently open for editing.  App-lifetime like
+    /// the two stores, because a template opened from Settings has to appear
+    /// in the main window's tab bar — and because its edits live in memory
+    /// until they are saved.
+    @State private var templates = TemplateWorkspace()
 
     init() {
         // Must run before either store loads: pulls container-era data
@@ -60,6 +71,7 @@ struct ManuscriptEditorApp: App {
             ContentView()
                 .environment(store)       // available as @Environment(ManuscriptStore.self)
                 .environment(appStore)    // available as @Environment(AppStore.self)
+                .environment(templates)   // available as @Environment(TemplateWorkspace.self)
                 .frame(minWidth: 1000, minHeight: 680)
                 .preferredColorScheme(colorScheme)
         }
@@ -75,6 +87,7 @@ struct ManuscriptEditorApp: App {
             SettingsView()
                 .environment(store)
                 .environment(appStore)
+                .environment(templates)
                 .preferredColorScheme(colorScheme)
         }
     }

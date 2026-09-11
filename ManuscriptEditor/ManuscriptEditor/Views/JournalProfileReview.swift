@@ -23,7 +23,7 @@ struct JournalProfileReview: View {
         var label: String {
             switch self {
             case .requirements: return "Summary"
-            case .structure:    return "Content"
+            case .structure:    return "Structure"
             case .checks:       return "Tests"
             }
         }

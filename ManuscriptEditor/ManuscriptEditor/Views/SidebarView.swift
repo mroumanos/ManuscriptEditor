@@ -4,7 +4,10 @@
 //
 // STRUCTURE
 // ─────────────────────────────────────────────────────────────────────────────
-//   MANUSCRIPT — Overview, Checks, Data, Versions, Settings.
+//   MANUSCRIPT — Overview, Data, Log.
+//   JOURNAL    — Summary, Structure, Tests, Export, Versions: the four parts
+//                of the active journal's configuration, in the same order a
+//                template's own sidebar lists them, plus its version chain.
 //   CONTENT    — Authors, Abstract, Keywords, the body sections, an inline
 //                "Add Section" row, then Figures, Tables, Bibliography, Letter.
 //                Only visible when at least one comparison tab is open.
@@ -138,27 +141,34 @@ struct SidebarView: View {
 
     // MARK: - Journal section (per-journal: checks, export, versions)
 
+    /// The four parts of the journal's configuration, in the order they read:
+    /// what the venue asks (Summary), what a submission is made of
+    /// (Structure), what the app can check of it (Tests), and how it is set
+    /// (Export).  The same four, in the same order, as a template's own
+    /// sidebar — that symmetry is the point.
     @ViewBuilder
     private var journalSection: some View {
         Section("Journal") {
+            row(SidebarItem.summary, "Summary", "doc.text")
+            row(SidebarItem.structure, "Structure", "list.bullet.indent")
             row(SidebarItem.checks, checksTitle, "checklist")
             row(SidebarItem.export, "Export", "square.and.arrow.up")
             row(SidebarItem.versions, "Versions (\(versionCount))", "arrow.triangle.branch")
         }
     }
 
-    /// "Checks (86%)" — the active journal's live pass rate; plain
-    /// "Checks" for Source or when nothing is configured.
+    /// "Tests (86%)" — the active journal's live pass rate; plain
+    /// "Tests" for Source or when nothing is configured.
     private var checksTitle: String {
         guard case .version(let id) = activeRef,
               let jid = store.versions.first(where: { $0.id == id })?.journalID,
               let journal = store.manuscript?.journals.first(where: { $0.id == jid }),
               let content = store.manuscript(for: activeRef)
-        else { return "Checks" }
+        else { return "Tests" }
         let results = ChecklistService.run(manuscript: content, journal: journal)
-        guard !results.isEmpty else { return "Checks" }
+        guard !results.isEmpty else { return "Tests" }
         let pct = Int((Double(results.filter(\.passed).count) / Double(results.count) * 100).rounded())
-        return "Checks (\(pct)%)"
+        return "Tests (\(pct)%)"
     }
 
     /// A sidebar row: label plus the trailing comment bubble (only once the
@@ -167,10 +177,35 @@ struct SidebarView: View {
         HStack {
             Label(title, systemImage: icon)
             Spacer()
+            editedBadge(item)
             checkBadge(item)
             notesBadge(item)
         }
         .tag(item)
+    }
+
+    /// An orange pencil on a part that has drifted from the template it came
+    /// from — the same badge, and the same question, as the pane's own.
+    @ViewBuilder
+    private func editedBadge(_ item: SidebarItem) -> some View {
+        if let part = profilePart(for: item),
+           let journal = store.paneJournal(for: activeRef),
+           store.partDiffersFromTemplate(part, journal: journal) {
+            Image(systemName: "pencil.circle.fill")
+                .foregroundStyle(.orange)
+                .font(.caption)
+                .help("Differs from the template it came from")
+        }
+    }
+
+    private func profilePart(for item: SidebarItem) -> ProfilePart? {
+        switch item {
+        case .summary:   return .requirements
+        case .structure: return .structure
+        case .checks:    return .checks
+        case .export:    return .export
+        default:         return nil
+        }
     }
 
     /// A red badge carrying the NUMBER of failing checks on that pane — the

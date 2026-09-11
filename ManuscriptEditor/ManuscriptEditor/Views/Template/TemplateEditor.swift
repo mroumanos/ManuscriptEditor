@@ -1,0 +1,368 @@
+// TemplateEditor.swift
+//
+// Editing a journal template as an object: its sidebar, its router, and the
+// header every one of its panes wears.
+//
+// WHY A TAB AND NOT A SHEET
+// ─────────────────────────────────────────────────────────────────────────────
+// A template used to be something you *captured* from a cut: write a title
+// page in a manuscript, press Save, and that text became the template's
+// sample.  That works exactly once.  It made editing a template mean editing
+// some manuscript that happened to be linked to it, it made "which manuscript
+// is the good one" a real question, and it turned every template edit into a
+// decision about somebody's paper.
+//
+// So a template is edited directly, in a tab of its own — and visibly not a
+// manuscript (`TemplateStyle`), because the two live in the same window and
+// typing into the wrong one changes what every manuscript using that template
+// starts from.
+//
+// WHAT IS EDITABLE HERE
+// ─────────────────────────────────────────────────────────────────────────────
+//   editable    the venue's own sections — its title page, the letter it
+//               expects, the questions it asks — plus the four parts
+//   inactive    title, authors, abstract, keywords, figures, tables,
+//               bibliography.  Journal-agnostic: a venue has an opinion about
+//               how they are SET, never about what they say.  They stay
+//               REFERENCEABLE — `[[title]]`, `[[authors.names]]` — which is
+//               how a venue's layout is expressed.
+//
+// Nothing here is written until Overview's Save; see `TemplateWorkspace`.
+//
+// See MasterContext/features/journal-templates.md §3.
+
+import SwiftUI
+
+// MARK: - Sidebar
+
+struct TemplateSidebarView: View {
+    @Environment(TemplateWorkspace.self) private var templates
+    @Environment(\.colorScheme) private var scheme
+    @Environment(\.openSettings) private var openSettings
+
+    let templateID: UUID
+    @Binding var selection: SidebarItem?
+
+    /// Renaming a section from the sidebar (same gesture as a manuscript's).
+    @State private var renamingKey: String?
+    @State private var renameDraft = ""
+
+    private var template: JournalTemplate? { templates.template(templateID) }
+    private var sections: [StructureSection] { template?.structure.sections ?? [] }
+    private var editedParts: Set<ProfilePart> { templates.editedParts(templateID) }
+
+    var body: some View {
+        List(selection: $selection) {
+            Section("Template") {
+                Label("Overview", systemImage: "info.circle")
+                    .tag(SidebarItem.templateOverview)
+            }
+
+            // The same four parts, in the same order, as a journal cut's —
+            // that symmetry is the point: one object, two places to meet it.
+            // Summary · Structure · Tests · Export — `ProfilePart.displayOrder`.
+            Section("Requirements") {
+                partRow(.requirements, SidebarItem.summary, "doc.text", summaryDetail)
+                partRow(.structure, SidebarItem.structure, "list.bullet.indent",
+                        "\(sections.count) section\(sections.count == 1 ? "" : "s")")
+                partRow(.checks, SidebarItem.checks, "checklist",
+                        "\(template?.checks.count ?? 0) test\(template?.checks.count == 1 ? "" : "s")")
+                partRow(.export, SidebarItem.export, "square.and.arrow.up", exportDetail)
+            }
+
+            Section("Sections") {
+                ForEach(sections) { section in
+                    sectionRow(section)
+                }
+                addSectionRow
+            }
+
+            // Listed, and deliberately dead.  Hiding them would suggest a
+            // template could supply them; greying them says what they are —
+            // the manuscript's, and referenceable from anything above.
+            Section("From the manuscript") {
+                ForEach(TemplateSidebarView.fixedParts, id: \.title) { part in
+                    Label(part.title, systemImage: part.icon)
+                        .foregroundStyle(.tertiary)
+                        .help("Journal-agnostic — the manuscript supplies it. Reference it in a section with \(part.token).")
+                }
+                .selectionDisabled()
+            }
+        }
+        .navigationTitle(template?.name ?? "Template")
+        .navigationSubtitle(subtitle)
+        .safeAreaInset(edge: .top, spacing: 0) {
+            // The colour bar: this window can change a venue's rules.
+            HStack(spacing: 6) {
+                Image(systemName: TemplateStyle.symbol)
+                Text("JOURNAL TEMPLATE")
+                    .font(.caption2.weight(.semibold))
+                Spacer()
+                if templates.isDirty(templateID) {
+                    Text("unsaved")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .foregroundStyle(TemplateStyle.accent(scheme))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .templateSurface()
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            VStack(spacing: 0) {
+                Divider()
+                HStack(spacing: 4) {
+                    Button { openSettings() } label: {
+                        Image(systemName: "gearshape")
+                            .font(.system(size: 15))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 32, height: 32)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .help("App Settings")
+                    Spacer()
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(.bar)
+            }
+        }
+    }
+
+    /// The app's fixed parts and the token that reaches each one.
+    static let fixedParts: [(title: String, icon: String, token: String)] = [
+        ("Title",        "textformat",                 "[[title]]"),
+        ("Authors",      "person.2",                   "[[authors.names]]"),
+        ("Abstract",     "text.quote",                 "[[abstract]]"),
+        ("Keywords",     "tag",                        "[[keywords]]"),
+        ("Figures",      "photo.on.rectangle.angled",  "a figure reference"),
+        ("Tables",       "tablecells",                 "a table reference"),
+        ("Bibliography", "books.vertical",             "a citation"),
+    ]
+
+    private var subtitle: String {
+        guard let template else { return "" }
+        var parts = ["v\(template.version)"]
+        if let updated = template.updatedAt {
+            parts.append("saved \(updated.formatted(date: .abbreviated, time: .shortened))")
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    private var summaryDetail: String {
+        let count = template?.requirements.bullets.count ?? 0
+        return "\(count) requirement\(count == 1 ? "" : "s")"
+    }
+
+    private var exportDetail: String {
+        guard let export = template?.export, !export.documents.isEmpty else {
+            return "standard outline"
+        }
+        return "\(export.documents.count) document\(export.documents.count == 1 ? "" : "s")"
+    }
+
+    /// One of the four parts, with the orange pencil when it has moved away
+    /// from the library's copy — the same badge a manuscript's pane uses, for
+    /// the same reason.
+    private func partRow(_ part: ProfilePart, _ item: SidebarItem,
+                         _ icon: String, _ detail: String) -> some View {
+        HStack {
+            // The name wins the space: a truncated "Summa…" beside an intact
+            // "12 requirements" is the wrong way round.
+            Label(part.label, systemImage: icon)
+                .layoutPriority(1)
+            Spacer(minLength: 4)
+            if editedParts.contains(part) {
+                Image(systemName: "pencil.circle.fill")
+                    .foregroundStyle(.orange)
+                    .font(.caption)
+                    .help("Edited since this template was last saved")
+            }
+            Text(detail)
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+        }
+        .tag(item)
+    }
+
+    private func sectionRow(_ section: StructureSection) -> some View {
+        Label(section.displayTitle, systemImage: icon(for: section))
+            .tag(SidebarItem.templateSection(section.id.uuidString))
+            .contextMenu {
+                Button("Rename…") {
+                    renameDraft = section.title
+                    renamingKey = section.id.uuidString
+                }
+                Button("Delete Section", role: .destructive) { delete(section) }
+            }
+            .swipeActions(edge: .trailing) {
+                Button(role: .destructive) { delete(section) } label: {
+                    Label("Delete", systemImage: "trash")
+                }
+            }
+            .alert("Rename Section", isPresented: Binding(
+                get: { renamingKey == section.id.uuidString },
+                set: { if !$0 { renamingKey = nil } }
+            )) {
+                TextField("Section title", text: $renameDraft)
+                Button("Rename") { rename(section) }
+                Button("Cancel", role: .cancel) { renamingKey = nil }
+            } message: {
+                Text("Renames it in this template. Manuscripts that already have a section by the old name keep it — the template's sections are matched by name.")
+            }
+    }
+
+    private func icon(for section: StructureSection) -> String {
+        if section.role == .letter { return "envelope" }
+        return section.kind == .questions ? "list.bullet.rectangle" : "text.alignleft"
+    }
+
+    /// Adding a section here adds it to the template's structure — the two are
+    /// the same list, which is what §3.4 means by staying in sync.
+    private var addSectionRow: some View {
+        Menu {
+            Button {
+                add(StructureSection(title: uniqueTitle("New Section")))
+            } label: {
+                Label("Text Box", systemImage: "text.alignleft")
+            }
+            Button {
+                add(StructureSection(title: uniqueTitle("Submission Questions"), kind: .questions,
+                                     questions: []))
+            } label: {
+                Label("Question Series", systemImage: "list.bullet.rectangle")
+            }
+            if !sections.contains(where: { $0.role == .letter }) {
+                Divider()
+                Button {
+                    add(StructureSection(title: "Letter to the Editor", role: .letter))
+                } label: {
+                    Label("Letter to the Editor", systemImage: "envelope")
+                }
+            }
+        } label: {
+            Label("Add Section", systemImage: "plus")
+                .foregroundStyle(.secondary)
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .help("A section this venue expects. It is created in every manuscript that adds this journal.")
+    }
+
+    private func uniqueTitle(_ base: String) -> String {
+        var candidate = base
+        var n = 2
+        while sections.contains(where: { $0.key == candidate.lowercased() }) {
+            candidate = "\(base) \(n)"
+            n += 1
+        }
+        return candidate
+    }
+
+    private func add(_ section: StructureSection) {
+        templates.edit(templateID) { $0.structure.sections.append(section) }
+        selection = .templateSection(section.id.uuidString)
+    }
+
+    private func rename(_ section: StructureSection) {
+        let title = renameDraft.trimmingCharacters(in: .whitespaces)
+        renamingKey = nil
+        guard !title.isEmpty, title.lowercased() != section.key else { return }
+        templates.edit(templateID) { template in
+            guard let idx = template.structure.sections.firstIndex(where: { $0.id == section.id })
+            else { return }
+            template.structure.sections[idx].title = title
+        }
+    }
+
+    private func delete(_ section: StructureSection) {
+        if selection == .templateSection(section.id.uuidString) { selection = .structure }
+        templates.edit(templateID) { template in
+            template.structure.sections.removeAll { $0.id == section.id }
+        }
+    }
+}
+
+// MARK: - Router
+
+struct TemplateDetailRouter: View {
+    @Environment(TemplateWorkspace.self) private var templates
+
+    let templateID: UUID
+    @Binding var selection: SidebarItem?
+
+    var body: some View {
+        Group {
+            if templates.template(templateID) == nil {
+                ContentUnavailableView(
+                    "Template Not Available",
+                    systemImage: "building.columns",
+                    description: Text("It was deleted from your library. Close this tab.")
+                )
+            } else {
+                switch selection {
+                case .templateOverview, .none: TemplateOverviewView(templateID: templateID)
+                case .summary:                 TemplateSummaryView(templateID: templateID)
+                case .structure:               TemplateStructureView(templateID: templateID,
+                                                                     selection: $selection)
+                case .checks:                  TemplateTestsView(templateID: templateID)
+                case .export:                  TemplateExportView(templateID: templateID)
+                case .templateSection(let key):
+                    TemplateSectionView(templateID: templateID, sectionKey: key)
+                default:
+                    // A manuscript pane selected before the tab switched.
+                    TemplateOverviewView(templateID: templateID)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+// MARK: - Pane header
+
+/// The header every template pane wears: what you are editing, and the fact
+/// that it is a template rather than a paper.
+struct TemplatePaneHeader: View {
+    @Environment(TemplateWorkspace.self) private var templates
+    @Environment(\.colorScheme) private var scheme
+
+    let templateID: UUID
+    let title: String
+    let subtitle: String
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text(title).font(.headline)
+                    if let template = templates.template(templateID) {
+                        Text(template.displayName)
+                            .font(.caption)
+                            .foregroundStyle(TemplateStyle.accent(scheme))
+                    }
+                }
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer()
+            if templates.isDirty(templateID) {
+                Label("Unsaved", systemImage: "circle.fill")
+                    .font(.caption2)
+                    .foregroundStyle(TemplateStyle.accent(scheme))
+                    .help("Held in memory. Save it from Overview to change the template itself.")
+            }
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .templateSurface()
+    }
+}

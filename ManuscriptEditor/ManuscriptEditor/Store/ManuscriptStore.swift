@@ -1053,8 +1053,15 @@ final class ManuscriptStore {
               let journal = m.journals.first(where: { $0.id == journalID }),
               let wanted = journal.structure?.sections, !wanted.isEmpty
         else { return }
+        // The cover letter is journal-specific but is not a body section: a
+        // manuscript keeps one, in its own pane.  So a letter-role entry seeds
+        // that pane instead of creating a section named after it.
+        for entry in wanted where entry.role == .letter {
+            seedLetter(from: entry, journalID: journalID)
+        }
         let existing = Set(m.sections.map { $0.title.lowercased() })
-        for section in wanted where !existing.contains(section.title.lowercased()) {
+        for section in wanted where section.role == nil
+            && !existing.contains(section.title.lowercased()) {
             // A section arrives with whatever the template carries for it —
             // the venue's boilerplate, its questions, its stated format and
             // notes.  That is what makes a template a starting point.  Only
@@ -1151,6 +1158,23 @@ final class ManuscriptStore {
                     return kept
                 }
             }
+        }
+    }
+
+    /// Puts a template's cover-letter boilerplate into the letter — only
+    /// when there is nothing there yet.
+    ///
+    /// Adding a journal never writes over something already written; this is
+    /// the same rule `applyTemplateDefaults` follows for sections, and the
+    /// letter is where it matters most, since there is only one of them.
+    private func seedLetter(from entry: StructureSection, journalID: UUID) {
+        guard let boilerplate = entry.boilerplate, !boilerplate.isEmpty else { return }
+        let ref: VersionRef = latestVersion(forJournal: journalID)
+            .map { .version($0.id) } ?? .source
+        guard manuscript(for: ref)?.letterToEditor.body.plain
+                .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == true else { return }
+        touch(ref, undoable: false) { m in
+            m.letterToEditor.body = RichText(plain: boilerplate)
         }
     }
 
@@ -1435,6 +1459,51 @@ final class ManuscriptStore {
     /// lights the warning icons and what Save to Library will do.
     func libraryStatus(for journal: Journal) -> ProfileLibraryStatus {
         JournalProfileLibrary.shared.status(of: journal.profile)
+    }
+
+    /// The journal behind a pane's tab.  A pane IS its tab's journal; Source
+    /// has none, which is why every one of these returns an optional.
+    func paneJournal(for ref: VersionRef) -> Journal? {
+        guard case .version(let id) = ref,
+              let jid = versions.first(where: { $0.id == id })?.journalID
+        else { return nil }
+        return manuscript?.journals.first { $0.id == jid }
+    }
+
+    /// Whether this part differs from the template it came from.
+    ///
+    /// One question, asked the same way everywhere it is asked — the profile
+    /// panes and the sidebar all want the orange pencil to mean exactly this:
+    /// **have I changed this since it came from the template?**
+    ///
+    /// Prefers the checksums the template recorded when it was saved, since
+    /// the manuscript carries its own copy of the template and the comparison
+    /// should work without the library holding it at all.  The structure is
+    /// compared against what a save WOULD produce, because it is computed from
+    /// this cut's sections and their export formatting — none of which is in
+    /// the stored structure until a capture happens.
+    func partDiffersFromTemplate(_ part: ProfilePart, journal: Journal) -> Bool {
+        var mine = journal.profile
+        if part == .structure, let prospective = structureCapture(journalID: journal.id) {
+            mine.structure = prospective
+        }
+        let template = journal.profileID.flatMap { JournalProfileLibrary.shared.profile(id: $0) }
+        if let saved = (template?.partChecksums ?? journal.profile.partChecksums)?[part.rawValue] {
+            return mine.fingerprint(part) != saved
+        }
+        if let template {
+            return mine.fingerprint(part) != template.fingerprint(part)
+        }
+        switch libraryStatus(for: journal) {
+        case .matches:
+            return false
+        case .differs(let parts), .derived(_, let parts):
+            return parts.contains(part)
+        case .nameMatchDifferentID, .absent:
+            // No template to compare against — this configuration exists only
+            // here, so every part of it is unsaved work.
+            return true
+        }
     }
 
     /// Writes ONE part of this journal's configuration into its template.
@@ -2410,7 +2479,15 @@ final class ManuscriptStore {
     private func applyTemplateContent(_ content: inout Manuscript, journalID: UUID) {
         guard let journal = manuscript?.journals.first(where: { $0.id == journalID }),
               let sections = journal.structure?.sections, !sections.isEmpty else { return }
-        let byTitle = Dictionary(sections.map { ($0.title.lowercased(), $0) },
+        // The cover letter maps to the venue's letter entry, and is replaced
+        // the same way a section is — it is addressed to this journal's
+        // editor, so arriving at a new venue with the old venue's letter is
+        // the thing to avoid.
+        if let letter = sections.first(where: { $0.role == .letter }),
+           let boilerplate = letter.boilerplate, !boilerplate.isEmpty {
+            content.letterToEditor.body = RichText(plain: boilerplate)
+        }
+        let byTitle = Dictionary(sections.filter { $0.role == nil }.map { ($0.title.lowercased(), $0) },
                                  uniquingKeysWith: { first, _ in first })
         for i in content.sections.indices {
             guard let entry = byTitle[content.sections[i].title.lowercased()] else { continue }

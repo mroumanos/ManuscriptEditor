@@ -9,9 +9,10 @@
 // neither resembling the sheet you actually edit that part in.  Same content,
 // three shapes, and only one of them was the shape anyone had learned.
 //
-// So there is one view per part, and everywhere a template is shown, this is
-// what is shown.  Read-only, because a template's rules are edited from a
-// manuscript that has adopted it — there is no cut here to write them against.
+// So there is one view per part, and everywhere a template is *shown*, this is
+// what is shown.  Read-only: a template is EDITED in its own tab (Manage
+// Template), and a second, smaller editor here would only ever do half of what
+// that one does.
 
 import SwiftUI
 
@@ -71,25 +72,31 @@ struct TemplatePartView: View {
         }
     }
 
-    // MARK: - Content
+    // MARK: - Structure
 
     @ViewBuilder
     private var content: some View {
         if template.structure.sections.isEmpty {
-            empty("No content recorded for this journal.")
+            empty("No sections recorded for this journal.")
         } else {
             ForEach(Array(template.structure.sections.enumerated()), id: \.offset) { _, section in
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 6) {
-                        Image(systemName: section.kind == .questions
+                        Image(systemName: section.role == .letter ? "envelope"
+                              : section.kind == .questions
                               ? "list.bullet.rectangle" : "text.alignleft")
                             .font(.caption).foregroundStyle(.tertiary)
-                        Text(section.title).fontWeight(.medium)
-                        Text(section.required ? "required" : "optional")
-                            .font(.caption2)
-                            .padding(.horizontal, 5).padding(.vertical, 1)
-                            .background(Color.secondary.opacity(0.12), in: Capsule())
-                            .foregroundStyle(.secondary)
+                        Text(section.displayTitle).fontWeight(.medium)
+                        // No required/optional pill: every section a template
+                        // names is one the venue wants, and a section you
+                        // don't want is one you delete.
+                        if section.role == .letter {
+                            Text("cover letter")
+                                .font(.caption2)
+                                .padding(.horizontal, 5).padding(.vertical, 1)
+                                .background(Color.secondary.opacity(0.12), in: Capsule())
+                                .foregroundStyle(.secondary)
+                        }
                         if let format = section.format {
                             Text("\(String(format: "%g", format.fontSize)) pt · \(String(format: "%g", format.lineSpacing))×")
                                 .font(.caption2.monospacedDigit())
@@ -222,7 +229,7 @@ struct TemplatePartSheet: View {
         VStack(alignment: .leading, spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
                 Text("\(template.displayName) — \(part.label)").font(.headline)
-                Text("Read-only. A template's rules are edited from a manuscript that uses it, and saved back from there.")
+                Text("Read-only here. Manage Template opens it for editing, in its own tab.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             TemplatePartView(template: template, part: part)

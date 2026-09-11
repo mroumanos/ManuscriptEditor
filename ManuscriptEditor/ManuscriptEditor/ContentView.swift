@@ -32,10 +32,24 @@ enum SidebarItem: Hashable {
     // ── Manuscript ──────────────────────────────────────────────────────────
     case overview
     case log
-    case checks
-    case export
     case data
     case versions
+
+    // ── The four parts of a journal's configuration ─────────────────────────
+    // Summary · Structure · Tests · Export, in that order, whether you are
+    // looking at a venue's template or at your cut of it.  `checks` keeps its
+    // name because it is the checks FILE (and its notes key), and reads as
+    // "Tests" everywhere a person sees it — the same split `ProfilePart` has.
+    case summary
+    case structure
+    case checks
+    case export
+
+    // ── Editing a template ──────────────────────────────────────────────────
+    // Only ever selected in a template tab, which has no manuscript behind it.
+    case templateOverview
+    /// One of the venue's own sections, by `StructureSection.id`.
+    case templateSection(String)
 
     // ── Content ─────────────────────────────────────────────────────────────
     case title
@@ -54,8 +68,17 @@ enum SidebarItem: Hashable {
         case .title, .authors, .abstract, .keywords, .section,
              .figures, .tables, .bibliography, .letterToEditor:
             return true
-        case .overview, .log, .checks, .export, .data, .versions:
+        case .overview, .log, .checks, .export, .data, .versions,
+             .summary, .structure, .templateOverview, .templateSection:
             return false
+        }
+    }
+
+    /// Items that only mean something while editing a template.
+    var isTemplate: Bool {
+        switch self {
+        case .templateOverview, .templateSection: return true
+        default:                                  return false
         }
     }
 
@@ -65,6 +88,7 @@ enum SidebarItem: Hashable {
     /// journal (starting with Source), with no journal picker of its own.
     var isComparable: Bool {
         isContent || self == .checks || self == .versions || self == .export
+            || self == .summary || self == .structure
     }
 
     /// Stable key used to anchor `Note`s to this content item.
@@ -85,6 +109,10 @@ enum SidebarItem: Hashable {
         case .tables:             return "tables"
         case .bibliography:       return "bibliography"
         case .letterToEditor:     return "letter"
+        case .summary:            return "summary"
+        case .structure:          return "structure"
+        case .templateOverview:   return "template"
+        case .templateSection(let key): return "template-section:\(key)"
         }
     }
 }
@@ -97,13 +125,26 @@ enum SidebarItem: Hashable {
 enum JournalTab: Hashable, Identifiable {
     case source
     case journal(UUID)
+    /// A journal TEMPLATE, open for editing.  In the same tab bar because
+    /// that is where you are when you notice a venue's rules are wrong — and
+    /// visibly not a manuscript, because it isn't one.  See
+    /// MasterContext/features/journal-templates.md §3.2.
+    case template(UUID)
 
     var id: String {
         switch self {
         case .source:           return "source"
         case .journal(let id):  return id.uuidString
+        case .template(let id): return "template:\(id.uuidString)"
         }
     }
+
+    var templateID: UUID? {
+        if case .template(let id) = self { return id }
+        return nil
+    }
+
+    var isTemplate: Bool { templateID != nil }
 }
 
 /// How the tab bar presents journals: one active pane, or side-by-side.
@@ -117,10 +158,16 @@ enum TabViewMode: String, CaseIterable {
 struct ContentView: View {
     @Environment(ManuscriptStore.self) private var store
     @Environment(AppStore.self)        private var appStore
+    @Environment(TemplateWorkspace.self) private var templates
     @Environment(\.undoManager)        private var windowUndoManager
     @Environment(\.controlActiveState) private var controlActiveState
 
     @State private var selection: SidebarItem? = .overview
+
+    /// Where you are inside a TEMPLATE tab.  Separate from `selection`
+    /// because the two sidebars name different things: switching to a
+    /// template and back should leave you where you were in each.
+    @State private var templateSelection: SidebarItem? = .templateOverview
 
     /// Tab presentation: one active journal, or a side-by-side comparison of
     /// an explicit subset.  Tabs themselves load automatically (Source +
@@ -151,15 +198,21 @@ struct ContentView: View {
     /// tab; there is no manual tab management.
     private var allTabs: [JournalTab] {
         [.source] + (store.manuscript?.journals ?? []).map { .journal($0.id) }
+            + templates.openIDs.map { .template($0) }
     }
 
-    /// The tabs whose panes are currently rendered.
+    /// The tabs whose panes are currently rendered.  A template is never one
+    /// of them: it has no version to compare against, and comparing a venue's
+    /// rules with a paragraph of somebody's paper answers nothing.
     private var displayedTabs: [JournalTab] {
         switch tabMode {
         case .active:  return [activeTab]
-        case .compare: return allTabs.filter { compareTabs.contains($0) }
+        case .compare: return allTabs.filter { compareTabs.contains($0) && !$0.isTemplate }
         }
     }
+
+    /// The template this window is currently editing, if any.
+    private var activeTemplateID: UUID? { activeTab.templateID }
 
     /// A tab's content reference: Source is the live manuscript; a journal
     /// resolves to its current working head (nil = the journal has no
@@ -170,6 +223,8 @@ struct ContentView: View {
             return .source
         case .journal(let id):
             return store.latestVersion(forJournal: id).map { .version($0.id) }
+        case .template:
+            return nil
         }
     }
 
@@ -186,8 +241,14 @@ struct ContentView: View {
 
     private var splitView: some View {
         NavigationSplitView {
-            SidebarView(selection: $selection, activeRef: ref(for: activeTab) ?? .source)
-                .navigationSplitViewColumnWidth(min: 200, ideal: 230, max: 290)
+            Group {
+                if let templateID = activeTemplateID {
+                    TemplateSidebarView(templateID: templateID, selection: $templateSelection)
+                } else {
+                    SidebarView(selection: $selection, activeRef: ref(for: activeTab) ?? .source)
+                }
+            }
+            .navigationSplitViewColumnWidth(min: 200, ideal: 230, max: 290)
         } detail: {
             if store.manuscript != nil {
                 VStack(spacing: 0) {
@@ -277,6 +338,10 @@ struct ContentView: View {
             // One pane sending you to another — the journal profile's Export
             // row is the only sender today.
             if (note.userInfo?["pane"] as? String) == "export" { selection = .export }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .manageTemplate)) { note in
+            guard let id = note.userInfo?["template"] as? UUID else { return }
+            openTemplate(id)
         }
         .onReceive(NotificationCenter.default.publisher(for: .newManuscript)) { _ in
             if store.manuscript == nil { createInAppData() } else { pendingNew = .file }
@@ -400,6 +465,11 @@ struct ContentView: View {
     }
 
     private var windowTitle: String {
+        // A template tab is not this manuscript, and the title bar is the one
+        // place that says what the window is.
+        if let id = activeTemplateID, let template = templates.template(id) {
+            return "\(template.displayName) — Template"
+        }
         let title = store.manuscript?.title.trimmingCharacters(in: .whitespaces) ?? ""
         return title.isEmpty ? "Manuscript Editor" : title
     }
@@ -423,7 +493,11 @@ struct ContentView: View {
     /// against the live Source.
     @ViewBuilder
     private var detailPaneContent: some View {
-        if let sel = selection, sel.isComparable {
+        if let templateID = activeTemplateID {
+            // One pane, always: a template is a single object, not a version
+            // of anything.
+            TemplateDetailRouter(templateID: templateID, selection: $templateSelection)
+        } else if let sel = selection, sel.isComparable {
             // Left-to-right order of what's on screen: each editor measures
             // itself against the pane to its left.
             let peers = displayedTabs.compactMap { ref(for: $0) }
@@ -612,6 +686,8 @@ struct ContentView: View {
         case .bibliography:      BibliographyView(versionRef: ref)
         case .letterToEditor:    LetterToEditorView(versionRef: ref)
         case .checks:            ChecksView(versionRef: ref)
+        case .summary:           JournalSummaryView(versionRef: ref)
+        case .structure:         JournalStructureView(versionRef: ref)
         case .versions:          VersionsView(versionRef: ref)
         case .export:            ExportView(versionRef: ref)
         default:                 EmptyView()
@@ -658,6 +734,17 @@ struct ContentView: View {
         } else {
             NSWorkspace.shared.activateFileViewerSelecting([url])
         }
+    }
+
+    /// Opens a template in its own tab and goes there.
+    func openTemplate(_ id: UUID) {
+        guard templates.open(id) else {
+            store.showBanner(.error, "That template is no longer in your library.")
+            return
+        }
+        tabMode = .active
+        activeTab = .template(id)
+        templateSelection = .templateOverview
     }
 
     private func resetWorkspace() {
@@ -763,6 +850,12 @@ struct DetailRouter: View {
         case .overview, .none:      OverviewView()
         case .log:                  LogView()
         case .checks:               ChecksView()
+        case .summary:              JournalSummaryView()
+        case .structure:            JournalStructureView()
+        // Template items are routed by `TemplateDetailRouter`; they never
+        // reach here, because they are only selectable in a template tab.
+        case .templateOverview,
+             .templateSection:      EmptyView()
         case .export:               ExportView()
         case .data:                 DataView()
         case .versions:             VersionsView()
@@ -788,6 +881,8 @@ struct DetailRouter: View {
 /// remove it from the side-by-side split).
 struct JournalTabBar: View {
     @Environment(ManuscriptStore.self) private var store
+    @Environment(TemplateWorkspace.self) private var templates
+    @Environment(\.colorScheme) private var scheme
 
     let allTabs: [JournalTab]
     @Binding var mode: TabViewMode
@@ -821,7 +916,12 @@ struct JournalTabBar: View {
             .pickerStyle(.segmented)
             .frame(width: 150)
             .padding(.horizontal, 8)
-            .help("Active: one journal at a time (⌘⇧←/→ to switch). Compare: pick tabs with + to view side-by-side.")
+            // A template has nothing to compare against, so the control that
+            // would put it side by side with a paper is off while one is open.
+            .disabled(activeTab.isTemplate)
+            .help(activeTab.isTemplate
+                  ? "A template is edited on its own — switch to a journal tab to compare."
+                  : "Active: one journal at a time (⌘⇧←/→ to switch). Compare: pick tabs with + to view side-by-side.")
         }
         .frame(height: 36)
         // No material behind the strip — .bar rendered as a lighter glassy
@@ -835,11 +935,17 @@ struct JournalTabBar: View {
             return "Source"
         case .journal(let id):
             return store.manuscript?.journals.first { $0.id == id }?.name ?? "Journal"
+        case .template(let id):
+            return templates.template(id)?.displayName ?? "Template"
         }
     }
 
     private func icon(for tab: JournalTab) -> String {
-        tab == .source ? "doc.text" : "building.columns"
+        switch tab {
+        case .source:   return "doc.text"
+        case .journal:  return "building.columns"
+        case .template: return TemplateStyle.symbol
+        }
     }
 
     /// Whether the tab currently contributes a pane.
@@ -853,17 +959,42 @@ struct JournalTabBar: View {
     @ViewBuilder
     private func tabButton(for tab: JournalTab) -> some View {
         let shown = isShown(tab)
+        let isTemplate = tab.isTemplate
+        let tint = TemplateStyle.accent(scheme)
         HStack(spacing: 5) {
             Image(systemName: icon(for: tab))
                 .font(.caption2)
-                .foregroundStyle(shown ? .primary : .secondary)
+                .foregroundStyle(isTemplate ? AnyShapeStyle(tint)
+                                            : AnyShapeStyle(shown ? Color.primary : .secondary))
             Text(label(for: tab))
                 .font(.callout)
                 .lineLimit(1)
-                .foregroundStyle(shown ? .primary : .secondary)
+                .foregroundStyle(isTemplate ? AnyShapeStyle(tint)
+                                            : AnyShapeStyle(shown ? Color.primary : .secondary))
+
+            if let id = tab.templateID {
+                // A template tab is opened and closed by hand — it is a
+                // document you went looking for, not one of the manuscript's
+                // own tabs, which load themselves.
+                if templates.isDirty(id) {
+                    Circle().fill(tint).frame(width: 5, height: 5)
+                        .help("Unsaved changes — they live only in this tab until you save the template")
+                }
+                Button {
+                    templates.close(id)
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                        .frame(width: 14, height: 14)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help("Close this template")
+            }
 
             // Compare mode: + to include, x to remove (last pane can't go).
-            if mode == .compare {
+            if mode == .compare, !isTemplate {
                 if shown {
                     Button {
                         compareTabs.removeAll { $0 == tab }
@@ -896,17 +1027,27 @@ struct JournalTabBar: View {
         .padding(.vertical, 6)
         // Browser-tab look: the shown tab(s) sit on a lighter raised surface.
         .background(
-            shown ? AnyShapeStyle(Color(nsColor: .textBackgroundColor)) : AnyShapeStyle(.clear),
+            shown ? AnyShapeStyle(isTemplate ? AnyShapeStyle(TemplateStyle.wash(scheme))
+                                             : AnyShapeStyle(Color(nsColor: .textBackgroundColor)))
+                  : AnyShapeStyle(isTemplate ? AnyShapeStyle(TemplateStyle.wash(scheme).opacity(0.5))
+                                             : AnyShapeStyle(Color.clear)),
             in: UnevenRoundedRectangle(topLeadingRadius: 7, bottomLeadingRadius: 0,
                                        bottomTrailingRadius: 0, topTrailingRadius: 7)
         )
         .overlay(alignment: .bottom) {
             if shown {
-                Rectangle().fill(Color.accentColor).frame(height: 2)
+                Rectangle().fill(isTemplate ? tint : Color.accentColor).frame(height: 2)
             }
         }
         .contentShape(Rectangle())
         .onTapGesture {
+            // A template is never one of the compared panes, so clicking it
+            // switches to it rather than adding it to a split.
+            guard !isTemplate else {
+                mode = .active
+                activeTab = tab
+                return
+            }
             switch mode {
             case .active:
                 activeTab = tab

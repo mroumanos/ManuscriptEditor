@@ -109,6 +109,10 @@ extension Notification.Name {
     /// part of a journal's configuration, but it is edited in Export, and
     /// duplicating that editor would be worse than sending you there.
     static let showPane = Notification.Name("ManuscriptEditor.showPane")
+    /// Asks the main window to open a journal template for editing
+    /// (userInfo["template"] = its UUID).  Posted from Settings → Journals,
+    /// which is a different scene and so cannot open a tab itself.
+    static let manageTemplate = Notification.Name("ManuscriptEditor.manageTemplate")
     /// Posted when the user chooses File → New Manuscript (⌘N).
     static let newManuscript  = Notification.Name("ManuscriptEditor.newManuscript")
     /// Posted when the user chooses File → Open Manuscript (Local)… (⌘O).

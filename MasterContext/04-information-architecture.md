@@ -28,16 +28,26 @@ Two sections, plus a bottom utility bar:
 - AI       ← THIS manuscript's AI service selection (Phase II)
 
 **Journal** (the per-journal hub — sits above Content)
-- Checks   ← **comparable**: one live pane per tab, each checking its own
-             tab's journal; hosts Edit Requirements… and Save to Journal
-             Library… (Source shows an explanatory state)
+
+The four parts of a journal's configuration, in the order they read, and in the
+same order a **template's** own sidebar lists them (see
+[features/journal-templates.md](features/journal-templates.md) §3.3) — each
+marked with an orange pencil when this cut's copy has drifted from the template
+it came from:
+- Summary  ← **comparable**: the venue's instructions, distilled, as this cut
+             holds them; Edit, and Load from the template
+- Structure ← **comparable**: which sections a submission here has; add,
+             reorder, remove, and Load from the template
+- Tests    ← **comparable**: one live pane per tab, each checking its own
+             tab's journal; hosts Edit Tests…, Load, Manage <template>, and
+             Add to Template Library (Source shows an explanatory state)
 - Export   ← **comparable**: one pane per tab — that journal's export outline
              editor + package build + Save to Journal Library…
 - Versions (N)   ← **comparable**: one pane per tab — that journal's
              **horizontal version table** (Version · Stamped · From→To · By)
              with Stamp Version and Roll Back…
 
-The Checks/Export/Versions panes **represent the journal of their tab**
+The journal panes **represent the journal of their tab**
 (starting with Source): open a NEJM tab and you see NEJM's side of the
 environment beside Source's. There is never a journal dropdown inside these
 panes.
@@ -64,7 +74,7 @@ that changes the label, not whether the part exists.
 
 *Configurable* — the body **sections** in order (Introduction, Methods, …, each
 shows its word count badge). **Drag to reorder**, **deactivate per journal**
-(dimmed with an orange `eye.slash`; the text is preserved, and Checks/Export
+(dimmed with an orange `eye.slash`; the text is preserved, and Tests/Export
 filter on the flag, never on emptiness), rename, delete. These are exactly what
 a journal's `structure.json` describes.
 - "Add Section" closes the list.
@@ -101,15 +111,22 @@ Tab identity is the **journal**, always resolving to its current working head.
   - **Compare**: each chip gains **＋** (include) / **✕** (remove); included
     tabs render side-by-side, split evenly by default. The last included tab
     can't be removed (falls back to Source).
+- **A template tab is the one exception to all of this.** Opened by hand
+  (Manage Template) and closed by hand (an **✕** on the chip), drawn in the
+  template colour rather than the app accent, and carrying a dot while it has
+  unsaved edits. Selecting it swaps the whole left column for the template's
+  own sidebar, disables Active | Compare, and renders one pane — a venue's
+  rules have nothing to be compared against. See
+  [features/journal-templates.md](features/journal-templates.md) §3.2.
 - **Side-by-side for comparable items.** Comparable = the **Content** items
-  **plus Checks, Versions, and Export**. When a comparable item is selected AND
+  **plus Summary, Structure, Tests, Versions, and Export**. When a comparable item is selected AND
   ≥1 tab is open, the detail splits into one pane per open journal. For the
   remaining manuscript-level items (Overview/Data/Log) the tabs are
   irrelevant and a single pane renders against Source.
-- **Checks renders per-journal and live.** With Source + NEJM open and **Checks**
+- **Tests renders per-journal and live.** With Source + NEJM open and **Tests**
   selected, each pane shows that journal's requirement checklist evaluated against
   that journal's current content — updating **instantly** as you edit. So you can
-  bring up Checks side-by-side exactly like Abstract.
+  bring up Tests side-by-side exactly like Abstract.
 - **Synced navigation.** One shared sidebar selection: click "Methods" and every
   open pane shows Methods; click "Introduction" and they all switch together.
 - **Pane headers are slim** — word count, per-journal section activation (eye),
@@ -127,7 +144,7 @@ Tab identity is the **journal**, always resolving to its current working head.
 |---|---|
 | App-wide theme | Sidebar bottom toggle **and** Preferences → Editor |
 | External accounts (GitHub/GitLab/Claude/OpenAI…) + Test Connection | **Preferences → Accounts** (tokens/keys in Keychain) |
-| Journal library (search, details, requirements) | **Preferences → Journals** |
+| Journal library (search, read-only details, import, clone, delete) | **Preferences → Journals** |
 | User identity (name + signing key) | **Preferences → User** |
 | Editor font / size / line spacing | Preferences → Editor |
 | This manuscript's backend account / local folder / remote repo (create + link) | **Manuscript → Backend** sidebar item |
@@ -135,7 +152,9 @@ Tab identity is the **journal**, always resolving to its current working head.
 | Save (Local) ⌘S / Save (Remote) ⇧⌘S | **File menu** + the **Overview** summary buttons (loading an existing remote = New Manuscript (Remote)… — no separate Load command) |
 | Add journals (from → to); sync between journals; lineage tree | **Manuscript → Overview** (Journals & Lineage card) |
 | Stamp Version / Roll Back; per-journal version table | **Journal → Versions** pane (per tab) |
-| Journal requirements editing; save profile to library | **Journal → Checks** pane (per tab) |
+| A cut's summary / structure / tests; add to the template library | **Journal → Summary · Structure · Tests** panes (per tab) |
+| **Editing a journal template itself** | its **own tab** — Manage Template, from Settings → Journals or any journal pane's "Manage …" link |
+| Import / export a template as one file; contribute one upstream | **Settings → Journals → Import…**; the template tab's **Overview** |
 | Notes & feedback on content | notes button in pane headers (signed) |
 | Import CSV/images; SQL; charts | **Data** sidebar item |
 | New (app data) ⌘N / Open (Local)… ⌘O in-place / Open (Remote)… clone / Export Project zip ⌘E | **File menu** (all warn about unsynced work first) |

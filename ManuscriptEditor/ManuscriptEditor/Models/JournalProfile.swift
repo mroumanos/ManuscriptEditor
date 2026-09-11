@@ -67,6 +67,15 @@ enum ProfilePart: String, Codable, CaseIterable, Sendable, Identifiable {
 
     var fileName: String { "\(rawValue).json" }
 
+    /// The order these read in, everywhere they are listed: what the venue
+    /// asks, what a submission is made of, what the app can check of it, and
+    /// how it is set.
+    ///
+    /// Separate from `allCases` on purpose — that order is what `checksum`
+    /// joins its fingerprints in, so reordering the cases would change every
+    /// template's checksum to fix a cosmetic complaint.
+    static let displayOrder: [ProfilePart] = [.requirements, .structure, .checks, .export]
+
     /// What the user calls it.  The raw values stay `requirements`/`checks`
     /// because they are the file names on disk, but "Summary" and "Tests" are
     /// what these things actually are: a distilled summary of the journal's
@@ -75,10 +84,11 @@ enum ProfilePart: String, Codable, CaseIterable, Sendable, Identifiable {
         switch self {
         case .requirements: return "Summary"
         case .checks:       return "Tests"
-        // "Content", not "Structure": it carries the sections, what goes in
-        // them, how they are set, and the questions a venue asks — a list of
-        // headings was only ever the smallest part of it.
-        case .structure:    return "Content"
+        // "Structure", not "Content".  Calling it Content was a mistake to fix
+        // rather than defend: the content lives in the template's sections,
+        // which are edited directly now, so this part is back to being what a
+        // submission at this venue is MADE of.
+        case .structure:    return "Structure"
         case .export:       return "Export"
         }
     }
@@ -225,8 +235,38 @@ struct TemplateQuestion: Codable, Sendable, Equatable {
 /// — title, authors, abstract, keywords, figures, tables, bibliography, cover
 /// letter — come with every manuscript regardless of journal, so a structure
 /// file has nothing to say about them.
+/// What a template section stands for in a manuscript.
+///
+/// Almost every entry is an ordinary body section, created by title.  The
+/// **cover letter** is the exception: it is journal-specific — addressed to a
+/// named editor at a named venue, following that venue's conventions — but a
+/// manuscript keeps exactly one, in its own pane, not as a body section.  So
+/// the template carries it as a section with a role, and it lands in the
+/// letter rather than becoming a section called "Letter to Editor".
+enum StructureRole: String, Codable, Sendable {
+    case letter
+}
+
 struct StructureSection: Codable, Sendable, Equatable, Identifiable {
+
+    /// Stable identity, so renaming a section is a rename and not a
+    /// delete-and-add.
+    ///
+    /// The title used to be the identity, which was fine while sections were
+    /// a list you typed once and wrong the moment one could be edited in
+    /// place: every keystroke in the title field made it a different section,
+    /// and the editor you were typing in vanished.
+    ///
+    /// Written as `id`, which `ProfileFingerprint` strips — so adding this
+    /// changed no existing template's checksum.  A file without one gets a
+    /// **derived** id, the same one on every machine and every read, so two
+    /// copies of a shipped template agree about which section is which.
+    var uid: UUID
+
     var title: String
+
+    /// What this entry targets — nil for an ordinary body section.
+    var role: StructureRole? = nil
     /// Required sections fail a structure check when missing; optional ones
     /// are part of the journal's shape but never fail.
     var required: Bool = true
@@ -291,25 +331,51 @@ struct StructureSection: Codable, Sendable, Equatable, Identifiable {
     /// exists only so the filtering can happen at one place.
     var isFixedPart: Bool = false
 
-    var id: String { title.lowercased() }
+    var id: UUID { uid }
+
+    /// How a template section is matched to a manuscript's: by name, because
+    /// that is the only thing the two share — a manuscript's sections have
+    /// their own ids, and one template is adopted by many manuscripts.
+    var key: String { title.lowercased() }
+
+    /// What this section is called in the template editor's sidebar.
+    var displayTitle: String {
+        role == .letter && title.isEmpty ? "Letter to the Editor" : title
+    }
 
     private enum CodingKeys: String, CodingKey {
-        case title, required, note, kind, core, sample, questions, format, formatNote
-        case boilerplate
+        case id, title, required, note, kind, core, sample, questions, format, formatNote
+        case boilerplate, role
+    }
+
+    /// The id a section with no stored one gets: derived from its title, so
+    /// every install reads the same id for the same shipped section.
+    static func derivedID(title: String) -> UUID {
+        var bytes = Array(SHA256.hash(data: Data("structure-section:\(title.lowercased())".utf8)).prefix(16))
+        bytes[6] = (bytes[6] & 0x0F) | 0x50
+        bytes[8] = (bytes[8] & 0x3F) | 0x80
+        return UUID(uuid: (bytes[0], bytes[1], bytes[2], bytes[3],
+                           bytes[4], bytes[5], bytes[6], bytes[7],
+                           bytes[8], bytes[9], bytes[10], bytes[11],
+                           bytes[12], bytes[13], bytes[14], bytes[15]))
     }
 
     init(title: String, required: Bool = true, kind: SectionKind = .text,
          note: String? = nil, boilerplate: String? = nil,
          questions: [TemplateQuestion]? = nil,
-         format: ExportDocumentFormat? = nil, formatNote: String? = nil) {
+         format: ExportDocumentFormat? = nil, formatNote: String? = nil,
+         role: StructureRole? = nil, uid: UUID? = nil) {
+        self.uid = uid ?? StructureSection.derivedID(title: title)
         self.title = title; self.required = required; self.kind = kind; self.note = note
         self.boilerplate = boilerplate; self.questions = questions; self.format = format
-        self.formatNote = formatNote
+        self.formatNote = formatNote; self.role = role
     }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         title = try c.decode(String.self, forKey: .title)
+        uid = try c.decodeIfPresent(UUID.self, forKey: .id)
+            ?? StructureSection.derivedID(title: title)
         required = try c.decodeIfPresent(Bool.self, forKey: .required) ?? true
         note = try c.decodeIfPresent(String.self, forKey: .note)
         boilerplate = try c.decodeIfPresent(String.self, forKey: .boilerplate)
@@ -317,6 +383,7 @@ struct StructureSection: Codable, Sendable, Equatable, Identifiable {
         questions = try c.decodeIfPresent([TemplateQuestion].self, forKey: .questions)
         format = try c.decodeIfPresent(ExportDocumentFormat.self, forKey: .format)
         formatNote = try c.decodeIfPresent(String.self, forKey: .formatNote)
+        role = try c.decodeIfPresent(StructureRole.self, forKey: .role)
         // `kind` briefly meant "core"/"text" when structure files also listed
         // the app's fixed parts; anything but a section kind marks the entry
         // for dropping, and only "questions" changes what gets created.
@@ -329,6 +396,7 @@ struct StructureSection: Codable, Sendable, Equatable, Identifiable {
     /// encoding it would change every profile's fingerprint.
     func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(uid, forKey: .id)
         try c.encode(title, forKey: .title)
         try c.encode(required, forKey: .required)
         if kind != .text { try c.encode(kind.rawValue, forKey: .kind) }
@@ -337,6 +405,9 @@ struct StructureSection: Codable, Sendable, Equatable, Identifiable {
         try c.encodeIfPresent(questions, forKey: .questions)
         try c.encodeIfPresent(format, forKey: .format)
         try c.encodeIfPresent(formatNote, forKey: .formatNote)
+        // Absent for an ordinary section, so adding roles left every existing
+        // template's fingerprint exactly where it was.
+        try c.encodeIfPresent(role?.rawValue, forKey: .role)
     }
 }
 
@@ -472,10 +543,21 @@ struct ChecksDoc: Codable, Sendable, Equatable {
 }
 
 /// `structure.json`
+///
+/// The formats are here rather than only on the in-memory `JournalStructure`
+/// because this is the file: without them, a template's core typography — how
+/// the venue sets the title block, the byline, the abstract — was carried
+/// inside a manuscript and then dropped the moment the template was written to
+/// the library or travelled with a manuscript.  It read as a template that
+/// forgot half its formatting every time it was saved.
 struct StructureDoc: Codable, Sendable, Equatable {
     var id: UUID
     var journal: String
     var sections: [StructureSection] = []
+    /// Export formatting for the app's fixed parts, keyed by `ExportItem.Kind`.
+    var coreFormats: [String: ExportDocumentFormat]? = nil
+    /// Page geometry and the defaults everything inherits.
+    var documentFormat: ExportDocumentFormat? = nil
     var updatedAt: Date? = nil
 }
 
@@ -543,6 +625,37 @@ struct JournalProfile: Codable, Identifiable, Sendable, Equatable {
     var partChecksums: [String: String]? = nil
 
     var displayName: String { articleType.map { "\(name) — \($0)" } ?? name }
+
+    /// What this template is, in a line or two.
+    ///
+    /// Not a field of its own: it IS the summary's `description:` bullets.
+    /// The Overview needs somewhere to say what a venue's format is for, and
+    /// the summary already has a standard place for exactly that — a second
+    /// field would be a second answer to the same question, and the two would
+    /// disagree within a week.
+    var summaryDescription: String {
+        get {
+            requirements.bullets
+                .compactMap { bullet -> String? in
+                    let parsed = SourceRequirements.category(of: bullet)
+                    return parsed.category == "description" ? parsed.text : nil
+                }
+                .joined(separator: "\n")
+        }
+        set {
+            let written = newValue
+                .components(separatedBy: .newlines)
+                .map { $0.trimmingCharacters(in: .whitespaces) }
+                .filter { !$0.isEmpty }
+                .map { "description: \($0)" }
+            // Written back where they were, so editing the description never
+            // reorders the rest of the summary.
+            let rest = requirements.bullets.filter {
+                SourceRequirements.category(of: $0).category != "description"
+            }
+            requirements.bullets = written + rest
+        }
+    }
 
     /// Folder name — human-readable, so the files stay browsable on GitHub
     /// and on disk.  Identity is the GUID; this is only the address.
@@ -618,7 +731,10 @@ struct JournalProfile: Codable, Identifiable, Sendable, Equatable {
         ChecksDoc(id: id, journal: name, checks: checks, updatedAt: updatedAt)
     }
     var structureDoc: StructureDoc {
-        StructureDoc(id: id, journal: name, sections: structure.sections, updatedAt: updatedAt)
+        StructureDoc(id: id, journal: name, sections: structure.sections,
+                     coreFormats: structure.coreFormats,
+                     documentFormat: structure.documentFormat,
+                     updatedAt: updatedAt)
     }
 
     /// The content signature of one part — what "differs from your library"
@@ -664,7 +780,12 @@ struct JournalProfile: Codable, Identifiable, Sendable, Equatable {
             requirements: SourceRequirements(url: req.url, bullets: req.bullets,
                                              editedAt: req.updatedAt),
             checks: load(.checks, as: ChecksDoc.self)?.checks ?? [],
-            structure: JournalStructure(sections: load(.structure, as: StructureDoc.self)?.sections ?? []),
+            structure: {
+                let doc = load(.structure, as: StructureDoc.self)
+                return JournalStructure(sections: doc?.sections ?? [],
+                                        coreFormats: doc?.coreFormats,
+                                        documentFormat: doc?.documentFormat)
+            }(),
             export: load(.export, as: ExportConfig.self),
             origin: origin, originURL: originURL, updatedAt: req.updatedAt,
             version: req.version, partChecksums: req.partChecksums

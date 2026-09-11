@@ -1,19 +1,29 @@
 // JournalLibraryView.swift
 //
-// Settings → Journals: the **template library**.  Search reusable
-// journal profiles and inspect their details (name, country, publisher, how
-// many requirements they carry, whether they bundle an export outline).
-// Entries come from the built-in presets, "Save to Journal Library" in a
-// manuscript's Export/Checks panes, and manual editing here.  Adding a
-// journal to a manuscript (Sync → Add Journal) picks from this library.
+// Settings → Journals: the **template library**.  Search the templates you
+// hold, see what each one requires, and open one for editing.
+//
+// Read-only on purpose.  A template is edited in its own tab — **Manage
+// Template** opens it there — because editing it from a settings pane meant a
+// second, smaller editor that could only ever do half of what the real one
+// does.  What stays here is the library itself: finding a template, importing
+// one someone sent, cloning, deleting.
+//
+// See MasterContext/features/journal-templates.md §3.
 
 import SwiftUI
+import AppKit
+import UniformTypeIdentifiers
 
 struct JournalLibraryView: View {
     @Environment(AppStore.self) private var appStore
 
     @State private var query = ""
     @State private var selectedID: UUID?
+    /// A template read from a file, waiting for the user to say what it does
+    /// to the library.
+    @State private var incoming: JournalTemplate?
+    @State private var importError: String?
 
     /// The library is the **profile** library — the same one a manuscript
     /// saves to, adds from, and diffs against.  It used to list a second,
@@ -78,13 +88,22 @@ struct JournalLibraryView: View {
                         if let made = JournalProfileLibrary.shared
                             .createEmpty(named: "New Template", articleType: nil) {
                             selectedID = made.id
+                            manage(made.id)
                         }
                     } label: {
                         Label("Add Template", systemImage: "plus")
                     }
                     .buttonStyle(.borderless)
-                    .padding(10)
-                    .help("An empty template — its rules are written from a manuscript that adopts it")
+                    .padding(.leading, 10).padding(.vertical, 10)
+                    .help("An empty template, opened for editing")
+                    Button {
+                        importTemplate()
+                    } label: {
+                        Label("Import…", systemImage: "square.and.arrow.down")
+                    }
+                    .buttonStyle(.borderless)
+                    .padding(.vertical, 10)
+                    .help("A .journaltemplate.json someone sent you")
                     Spacer()
                     Text("\(profiles.count) template\(profiles.count == 1 ? "" : "s")")
                         .font(.caption)
@@ -96,21 +115,117 @@ struct JournalLibraryView: View {
 
             detail
         }
+        .alert("Couldn't Import Template", isPresented: Binding(
+            get: { importError != nil }, set: { if !$0 { importError = nil } }
+        )) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(importError ?? "")
+        }
+        .confirmationDialog(importTitle, isPresented: Binding(
+            get: { incoming != nil }, set: { if !$0 { incoming = nil } }
+        ), titleVisibility: .visible) {
+            Button(importVerb) {
+                if let incoming, JournalProfileLibrary.shared.save(incoming) {
+                    selectedID = incoming.id
+                }
+                incoming = nil
+            }
+            Button("Cancel", role: .cancel) { incoming = nil }
+        } message: {
+            Text(importMessage)
+        }
+    }
+
+    // MARK: - Import wording
+
+    private var resolution: TemplateFile.Resolution? {
+        incoming.map { TemplateFile.resolve($0, in: JournalProfileLibrary.shared) }
+    }
+
+    private var importTitle: String {
+        guard let incoming else { return "" }
+        switch resolution {
+        case .replaces(let name, let parts, _, _):
+            return parts.isEmpty ? "“\(name)” is already in your library"
+                                 : "Replace “\(name)” with this file?"
+        case .branchOf(let name, _):
+            return "Add this modified copy of “\(name)”?"
+        default:
+            return "Add “\(incoming.displayName)” to your library?"
+        }
+    }
+
+    private var importVerb: String {
+        if case .replaces(_, let parts, _, _) = resolution, !parts.isEmpty { return "Replace" }
+        return "Add"
+    }
+
+    private var importMessage: String {
+        guard let incoming else { return "" }
+        let from = incoming.requirements.bullets.count
+        switch resolution {
+        case .replaces(_, let parts, let mine, let theirs):
+            guard !parts.isEmpty else {
+                return "Identical to the copy you already hold, part for part. Importing changes nothing."
+            }
+            let names = ProfilePart.displayOrder.filter(parts.contains).map(\.label)
+            return "Same template, different contents: \(names.joined(separator: ", ")). "
+                + "You hold version \(mine); this file is version \(theirs). "
+                + "Manuscripts already using it keep their own copy until they Load this one."
+        case .branchOf(let name, let parts):
+            let names = ProfilePart.displayOrder.filter(parts.contains).map(\.label)
+            return "A separate template with its own identity, branched from “\(name)”"
+                + (names.isEmpty ? "" : " and differing in \(names.joined(separator: ", "))")
+                + ". Your copy of “\(name)” is untouched."
+        default:
+            return "Nothing in your library relates to it, so this is a new template — "
+                + "\(from) requirement\(from == 1 ? "" : "s"), \(incoming.checks.count) tests."
+        }
     }
 
     @ViewBuilder
     private var detail: some View {
         if let id = selectedID, let profile = JournalProfileLibrary.shared.profile(id: id) {
-            LibraryProfileDetail(profile: profile, registry: registry(for: profile)) {
-                delete(profile)
-            }
+            LibraryProfileDetail(profile: profile, registry: registry(for: profile),
+                                 onManage: { manage(profile.id) },
+                                 onDelete: { delete(profile) })
         } else {
             ContentUnavailableView(
                 "No Template Selected",
                 systemImage: "building.columns",
-                description: Text("Pick a template to see what it requires. Its rules are edited from a manuscript that uses it.")
+                description: Text("Pick a template to see what it requires. Manage Template opens it for editing, in its own tab.")
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+
+    /// Opens a template in the main window's tab bar.  Settings is its own
+    /// scene and cannot add a tab, so it asks.
+    private func manage(_ id: UUID) {
+        NotificationCenter.default.post(name: .manageTemplate, object: nil,
+                                        userInfo: ["template": id])
+        // Bring the window that has the tab bar forward; the settings window
+        // stays open behind it.
+        NSApp.windows.first { $0.isVisible && $0.contentViewController != nil
+            && $0.title != "Settings" }?.makeKeyAndOrderFront(nil)
+    }
+
+    /// Imports a `.journaltemplate.json`, resolving by GUID — a known one
+    /// says what differs before it replaces anything.
+    private func importTemplate() {
+        let panel = NSOpenPanel()
+        panel.title = "Import Journal Template"
+        panel.message = "Choose a .journaltemplate.json file."
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.allowedContentTypes = [.json]
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        switch TemplateFile.read(url) {
+        case .failure(let error):
+            importError = error.message
+        case .success(let template):
+            incoming = template
         }
     }
 
@@ -128,21 +243,17 @@ struct JournalLibraryView: View {
 
 // MARK: - LibraryProfileDetail
 
-/// A profile as Settings shows it: the same Summary / Structure / Export rows
-/// the manuscript's profile pane has, and its tests compressed to one line
-/// each.
+/// A template as Settings shows it: what it is, what it requires, and the way
+/// into it.
 ///
-/// Read-only, and Export's Open is **disabled**: an outline is edited against a
-/// manuscript's actual content, so there is nothing here to open it on. Saying
-/// that in the row is better than hiding it and leaving the shape different
-/// from the pane people already know.
+/// Read-only.  **Manage Template** opens it in its own tab, which is where a
+/// template is edited — one editor, not a small one here and a real one there.
 private struct LibraryProfileDetail: View {
     let profile: JournalTemplate
     let registry: Journal?
+    let onManage: () -> Void
     let onDelete: () -> Void
 
-    @State private var nameDraft = ""
-    @State private var typeDraft = ""
     @State private var countryDraft = ""
     @State private var loadedFor: UUID?
 
@@ -151,46 +262,17 @@ private struct LibraryProfileDetail: View {
     @State private var cloning = false
     @State private var cloneName = ""
     @State private var confirmingDelete = false
-    @State private var confirmingRename = false
 
     @Environment(AppStore.self) private var appStore
+    @Environment(\.colorScheme) private var scheme
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
-                // Metadata is editable here; the RULES are not.  A template's
-                // tests are written against a manuscript's real content, so
-                // there is nothing here to write them against.
-                // Typing here changes nothing until Rename is pressed.  A
-                // template lives outside any manuscript, so renaming it cannot
-                // be undone with ⌘Z — and a change that can't be undone should
-                // not happen because a field lost focus.
-                Form {
-                    Section("Template") {
-                        TextField("Name", text: $nameDraft)
-                        TextField("Type (Research Article, Research Brief…)", text: $typeDraft)
-                        TextField("Country", text: $countryDraft)
-                        HStack {
-                            Text(metadataChanged
-                                 ? "Not saved yet — renaming a template can't be undone."
-                                 : "Renaming a template can't be undone.")
-                                .font(.caption)
-                                .foregroundStyle(metadataChanged
-                                                 ? AnyShapeStyle(Color.orange)
-                                                 : AnyShapeStyle(.tertiary))
-                            Spacer()
-                            Button("Revert") { loadedFor = nil; loadDrafts() }
-                                .disabled(!metadataChanged)
-                            Button("Rename…") { confirmingRename = true }
-                                .disabled(!metadataChanged)
-                        }
-                    }
-                }
-                .formStyle(.grouped)
-                .frame(height: 190)
+                header
 
                 // The same four components, in the same order, opening the
-                // same read-only view the profile pane opens — a template
+                // same read-only view the journal panes open — a template
                 // should not look like a different object depending on where
                 // you meet it.
                 VStack(spacing: 0) {
@@ -208,19 +290,33 @@ private struct LibraryProfileDetail: View {
                 .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
                 .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.separator))
 
-                Text("A template's summary, structure, tests and export outline are edited from a manuscript that uses it — add this template to a manuscript, change it there, and save it back.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                // Country isn't part of a template's rules, so it stays here
+                // on the registry entry that carries publisher and country.
+                HStack(spacing: 8) {
+                    Text("Country").font(.caption).foregroundStyle(.secondary)
+                    TextField("Country", text: $countryDraft)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(maxWidth: 220)
+                        .onSubmit(commitCountry)
+                    Button("Set", action: commitCountry)
+                        .controlSize(.small)
+                        .disabled(countryDraft.trimmingCharacters(in: .whitespaces) == (registry?.country ?? ""))
+                    Spacer()
+                }
 
                 HStack(spacing: 10) {
+                    Button(action: onManage) {
+                        Label("Manage Template", systemImage: TemplateStyle.symbol)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .help("Open it in its own tab — its name, its sections, its rules")
                     Button {
                         cloneName = "\(profile.name) copy"
                         cloning = true
                     } label: {
                         Label("Clone", systemImage: "doc.on.doc")
                     }
-                    .help("A copy under a new identity, carrying these rules — edit the copy from a manuscript")
+                    .help("A copy under a new identity, carrying these rules")
                     Spacer()
                     Button(role: .destructive) { confirmingDelete = true } label: {
                         Label("Delete", systemImage: "trash").foregroundStyle(.red)
@@ -246,13 +342,6 @@ private struct LibraryProfileDetail: View {
         } message: {
             Text("A copy of “\(profile.displayName)” with its own identity, carrying the same rules and remembering where it came from.")
         }
-        .confirmationDialog("Rename “\(profile.displayName)”?",
-                            isPresented: $confirmingRename, titleVisibility: .visible) {
-            Button("Rename") { commitMetadata(); commitCountry() }
-            Button("Cancel", role: .cancel) { }
-        } message: {
-            Text("Becomes “\(nameDraft.trimmingCharacters(in: .whitespaces))\(typeDraft.trimmingCharacters(in: .whitespaces).isEmpty ? "" : " — " + typeDraft.trimmingCharacters(in: .whitespaces))”. Manuscripts stay linked to it — they follow the identity, not the name — but this cannot be undone with ⌘Z.")
-        }
         .confirmationDialog("Delete “\(profile.displayName)” from your library?",
                             isPresented: $confirmingDelete, titleVisibility: .visible) {
             Button("Delete", role: .destructive) { onDelete() }
@@ -262,29 +351,44 @@ private struct LibraryProfileDetail: View {
         }
     }
 
-    /// Whether the fields differ from what is stored.
-    private var metadataChanged: Bool {
-        nameDraft.trimmingCharacters(in: .whitespaces) != profile.name
-            || typeDraft.trimmingCharacters(in: .whitespaces) != (profile.articleType ?? "")
-            || countryDraft.trimmingCharacters(in: .whitespaces) != (registry?.country ?? "")
+    /// Name, type, description and version — what the template says it is.
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                Image(systemName: TemplateStyle.symbol)
+                    .foregroundStyle(TemplateStyle.accent(scheme))
+                Text(profile.name).font(.title3.weight(.semibold))
+                if let type = profile.articleType, !type.isEmpty {
+                    Text(type)
+                        .font(.caption)
+                        .padding(.horizontal, 7).padding(.vertical, 2)
+                        .background(Color.secondary.opacity(0.12), in: Capsule())
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Text("v\(profile.version)")
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.tertiary)
+                    .help(profile.updatedAt.map {
+                        "Last saved \($0.formatted(date: .abbreviated, time: .shortened))"
+                    } ?? "Never saved")
+            }
+            if !profile.summaryDescription.isEmpty {
+                Text(profile.summaryDescription)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if let publisher = registry?.publisher, !publisher.isEmpty {
+                Text(publisher).font(.caption).foregroundStyle(.tertiary)
+            }
+        }
     }
 
     private func loadDrafts() {
         guard loadedFor != profile.id else { return }
         loadedFor = profile.id
-        nameDraft = profile.name
-        typeDraft = profile.articleType ?? ""
         countryDraft = registry?.country ?? ""
-    }
-
-    private func commitMetadata() {
-        let name = nameDraft.trimmingCharacters(in: .whitespaces)
-        let type = typeDraft.trimmingCharacters(in: .whitespaces)
-        guard !name.isEmpty,
-              name != profile.name || type != (profile.articleType ?? "") else { return }
-        _ = JournalProfileLibrary.shared.rename(id: profile.id, name: name,
-                                                articleType: type.isEmpty ? nil : type)
-        loadedFor = nil
     }
 
     /// Country isn't part of a template's rules, so it stays on the registry

@@ -819,19 +819,70 @@ legible.
   distinguishes "no questions in this series" from "none selected" — the list
   used to show two questions beside "No Questions Yet".
 
-### Template editing (Sep 2026 — designed, not built)
+### The template editor (Sep 2026 — implemented)
 
-A template becomes an editable object in its own tab rather than something
-captured from a manuscript. Its journal-specific sections (title page, letter
-to the editor, submission questions, anything the venue names) are edited
-directly; the journal-agnostic ones stay blank and inactive but remain
-referenceable as `[[title]]`, `[[authors.names]]` …. Summary · Structure ·
-Tests · Export become sidebar sections for cuts as well, "Content" reverts to
-"Structure", `required` disappears, and a template can be exported as one file
-and contributed upstream by pull request.
+A template is an editable object in its own tab rather than something captured
+from a manuscript. Design and rationale:
+[features/journal-templates.md §3](features/journal-templates.md).
 
-**The design is in [features/journal-templates.md §3](features/journal-templates.md);
-none of it is implemented yet.**
+- AC: **Manage Template** — from Settings → Journals or any journal pane's
+  "Manage …" link — opens the template in a **tab of its own**, in the template
+  colour (`TemplateStyle`, teal: the app accent is blue, Assist is violet,
+  "edited" is orange), carrying a close button and a dot while it has unsaved
+  edits. Selecting it swaps the left column for the template's own sidebar,
+  disables Active | Compare, and renders one pane.
+- AC: Its sidebar is **Overview**, then Summary · Structure · Tests · Export,
+  then the venue's own sections, then the manuscript's parts — listed and
+  **inactive**, because a venue has an opinion about how they are set, never
+  about what they say. They stay referenceable: `[[title]]`,
+  `[[authors.names]]`, `[[authors.institutes]]` resolve against whatever
+  manuscript adopts the template.
+- AC: **Edits live in memory** (`TemplateWorkspace`). Nothing on disk changes,
+  and nothing any manuscript uses changes, until Overview's **Save** — which
+  keeps the GUID, takes the next version and rewrites every part's checksum;
+  **Save as New…** takes a new GUID at version 1 with lineage back to this one;
+  **Discard Changes** restores the library's copy; **Delete** removes it, and
+  manuscripts already using it keep their own copy. Each is confirmed and names
+  what it does.
+- AC: Overview is the template's identity — name, type, and a description that
+  IS the summary's `description:` bullets, not a second field to disagree with
+  them — plus its version, when it was last saved, its identity, its ancestor,
+  and which of the four parts have been edited.
+- AC: **No pass rate in a template's Tests.** There is no content to measure;
+  the rate belongs to a cut, where the sidebar carries it — *Tests (86%)*.
+- AC: **The cover letter is journal-specific.** A structure entry with
+  `role: .letter` is edited in the template like any section and lands in a
+  manuscript's **Letter to Editor** — never as a body section named after it.
+  Adding a journal seeds an empty letter and never overwrites one already
+  written; a fast-forward replaces it like any mapped section; the `STRUCTURE`
+  test checks the letter rather than looking for a section that cannot exist.
+- AC: **Structure, reverted.** The part is "Structure" again — the content
+  lives in the sections, edited directly — and editing it adds and removes
+  those sections. `required` is gone from both editors: every section a
+  template names is one the venue wants, and one you don't want is one you
+  delete.
+- AC: Sections have a **stable id**, so renaming one is a rename and not a
+  delete-and-add. Written as `id`, which the fingerprint strips, and derived
+  from the title when a file has none — so no existing template's checksum
+  moved and every install agrees about which section is which.
+- AC: **Summary · Structure · Tests · Export are sidebar sections for a cut
+  too**, replacing the card inside Checks. Each is this manuscript's own copy
+  and editable as such, each marks itself with an orange pencil when it has
+  drifted from its template, each names that template and links to it, and each
+  offers **Load**. None offers Save: a cut cannot write back into a template
+  (see *Where a template is edited*). Adding a whole journal to the library is
+  still one deliberate button.
+- AC: A template **exports as one file** (`<slug>.journaltemplate.json` — four
+  parts, GUID, version, checksum, who exported it) and **imports by GUID**: an
+  unknown one is new; a known one names the parts that differ and both version
+  numbers before overwriting; one that descends from a template you hold is a
+  branch, leaving your copy of its ancestor untouched. **Export for Pull
+  Request…** writes the repository layout, so contributing upstream is a PR
+  against `ManuscriptEditor/JournalProfiles/`.
+- AC: A template's **typography survives being saved.** `structure.json`
+  carries `coreFormats` and `documentFormat`; it did not before, so a
+  template's core formatting vanished the moment it reached the library or
+  travelled with a manuscript (gotcha 22).
 
 ### Journal templates carry content (Sep 2026 — implemented)
 
@@ -843,8 +894,8 @@ none of it is implemented yet.**
   said a journal wants a title page without saying what one looks like there.
   Applied on creation and only into an empty section, so adding a journal is
   never destructive.
-- AC: The part is called **Content**, and it is what a submission at this venue
-  contains — sections, the text in them, per-section **Format** (how it must be
+- AC: The part is called **Structure** (it was "Content" for two weeks in Sep
+  2026), and it is what a submission at this venue contains — sections, the text in them, per-section **Format** (how it must be
   written) and **Notes** (why it is asked for), export settings, and a question
   series' questions with their limits. All of it is summarised in the row and
   visible in the editor; Format and Notes are sent when adapting with Assist.
@@ -855,9 +906,9 @@ none of it is implemented yet.**
   asked for this journal's content to be remade.
 - AC: Every sync offers **Cancel · Append · Overwrite**. Append keeps what the
   cut has and adds the incoming content after it, per section and per question.
-- AC: Each part has **Open · Load · Save** — one component at a time in both
-  directions — and the header says **Linked to \<template\>**, clickable for
-  its details, or offers to link one when it isn't.
+- AC: Each part has **Open · Load** — Save was removed when templates became
+  editable objects — and the header names the template it follows, linking to
+  it (**Manage …**), or offers to link one when it isn't linked.
 - AC: The structure captures a venue's **whole shape**: which additional
   sections exist, the content in them, each one's export formatting, and the
   export formatting of the CORE parts (title page, byline, abstract, …) plus
@@ -870,14 +921,13 @@ none of it is implemented yet.**
   text**. The comparison runs against `structureCapture` — what a save would
   produce — not against the last-saved structure, which is why editing a
   section now lights up Save.
-- AC: The four parts save **individually** (`saveTemplatePart`), each against
-  its own checksum, with **Open** then **Save** on every row and Save enabled
-  only when that part differs. The parts move independently: tightening a test
-  should not publish a half-rewritten summary.
-- AC: Every save is confirmed and names what it overwrites. The structure's
-  warning is the strongest, because saving it captures the text currently in
-  this cut's sections as the template's sample content — how someone's own
-  manuscript could quietly become everyone's starting point.
+- AC: The four parts move **individually**, each against its own checksum:
+  `loadTemplatePart` in a cut, and per-part edited marks in both a cut and a
+  template. Tightening a test should not publish a half-rewritten summary.
+- AC: Every write into the library is confirmed and names what it overwrites.
+  Boilerplate is **never captured from a cut** (`structureCapture` takes the
+  shape, the questions and the formats) — capturing it is how someone's own
+  manuscript text could quietly become everyone's starting point.
 - AC: **Add to Template Library** is permanent, not conditional on drift, and
   "Matches your library" still says when nothing differs.
 
@@ -894,10 +944,12 @@ none of it is implemented yet.**
   of templates used to look empty here because the list was search-only.
 - AC: A journal is renamed from Overview (right-click → Rename Journal…); only
   the instance changes.
-- AC: Settings → Journals manages templates: editable name, type and country;
-  **Details** (read-only, says the rules are edited from a manuscript);
-  **Clone** (new GUID, same rules, remembers its ancestor); Add; Delete. Rules
-  are never editable there — they are written against a manuscript's content.
+- AC: Settings → Journals is the **library**: search, a read-only overview of
+  the selected template (name, type, description, version, and its four parts),
+  **Manage Template** (opens its tab — the one place a template is edited),
+  **Import…**, **Add**, **Clone** (new GUID, same rules, remembers its
+  ancestor), **Delete**, and the country field, which belongs to the registry
+  entry rather than the template.
 - AC: One badge, not three: an **orange pencil** when a part differs from the
   template as your library holds it, nothing when it matches. Green ticks
   repeated what the signature badge already says, and the "new" case was

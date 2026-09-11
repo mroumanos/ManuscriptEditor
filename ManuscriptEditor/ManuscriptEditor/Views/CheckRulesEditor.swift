@@ -1,17 +1,21 @@
 // CheckRulesEditor.swift
 //
-// The checks editor — deliberately behind a button in the Checks pane, so
+// The checks editor — deliberately behind a button in the Tests pane, so
 // the people who never want to think about rules never see it, and the
-// people refining a journal profile get the full vocabulary:
+// people refining a journal's tests get the full vocabulary:
 //
 //   <rule name>   [all of | any of]
 //     LENGTH (words) of Abstract  ≤  250
 //     EXISTS Discussion
 //
-// Rules live on the journal (`Journal.checkRules`), seeded from the profile
-// shipped with the app, and they are the WHOLE checklist — nothing shown in
-// Checks is unreachable from here.  Every condition names a scope, which is
-// what lets a failing rule color that pane in the sidebar.
+// The list itself is `CheckRulesList`, because the same rules are written in
+// two places now: against a manuscript's journal (here, as a sheet) and
+// against a template being edited in its own tab.  One editor, two owners —
+// the alternative was two editors drifting apart, with the template's half
+// quietly missing whatever was added to the manuscript's.
+//
+// Every condition names a scope, which is what lets a failing rule color that
+// pane in the sidebar.
 
 import SwiftUI
 
@@ -31,7 +35,7 @@ struct CheckRulesEditor: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Text("Checks for \(journal.displayName)")
+                Text("Tests for \(journal.displayName)")
                     .font(.headline)
                 Spacer()
                 Button("Done") {
@@ -43,13 +47,37 @@ struct CheckRulesEditor: View {
             .padding(12)
             Divider()
 
+            CheckRulesList(rules: $rules, sectionTitles: sectionTitles,
+                           footnote: "Saved with this manuscript, alongside its summary.")
+        }
+        .frame(width: 640, height: 520)
+        .onAppear { rules = journal.checkRules ?? [] }
+    }
+}
+
+// MARK: - CheckRulesList
+
+/// The rules themselves: the empty state, one card per rule, and the bar that
+/// adds one.  Owns nothing — the binding's owner decides when a change is
+/// written and to what.
+struct CheckRulesList: View {
+
+    @Binding var rules: [CheckRule]
+    /// Section titles a condition can be scoped to.  A template has no
+    /// manuscript behind it, so it passes the titles its own structure names.
+    var sectionTitles: [String] = []
+    /// The line under the add bar — where these rules end up.
+    var footnote: String?
+
+    var body: some View {
+        VStack(spacing: 0) {
             if rules.isEmpty {
                 VStack(spacing: 10) {
                     Spacer()
                     Image(systemName: "checklist")
                         .font(.system(size: 34, weight: .thin))
                         .foregroundStyle(.tertiary)
-                    Text("No checks yet")
+                    Text("No tests yet")
                         .font(.title3.weight(.semibold))
                     Text("Measure LENGTH, COUNT, EXISTS, or CONTAINS over one or\nmore sections — or add a manual check to tick by hand.")
                         .multilineTextAlignment(.center)
@@ -57,11 +85,11 @@ struct CheckRulesEditor: View {
                         .foregroundStyle(.secondary)
                     HStack {
                         Button { rules.append(.newRule()) } label: {
-                            Label("Add Check", systemImage: "plus")
+                            Label("Add Test", systemImage: "plus")
                         }
                         .buttonStyle(.borderedProminent)
                         Button { rules.append(.newManual()) } label: {
-                            Label("Add Manual Check", systemImage: "hand.tap")
+                            Label("Add Manual Test", systemImage: "hand.tap")
                         }
                     }
                     Spacer()
@@ -83,25 +111,25 @@ struct CheckRulesEditor: View {
                 Button {
                     rules.append(.newRule())
                 } label: {
-                    Label("Add Check", systemImage: "plus")
+                    Label("Add Test", systemImage: "plus")
                 }
                 .buttonStyle(.borderless)
                 Button {
                     rules.append(.newManual())
                 } label: {
-                    Label("Add Manual Check", systemImage: "hand.tap")
+                    Label("Add Manual Test", systemImage: "hand.tap")
                 }
                 .buttonStyle(.borderless)
                 .help("A check the app can't measure — it renders as a checkbox to tick by hand")
                 Spacer()
-                Text("Saved with this manuscript, alongside its source requirements.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                if let footnote {
+                    Text(footnote)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
             .padding(12)
         }
-        .frame(width: 640, height: 520)
-        .onAppear { rules = journal.checkRules ?? [] }
     }
 
     // MARK: rule card

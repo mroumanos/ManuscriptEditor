@@ -40,7 +40,8 @@ A template is four files in one folder, and each moves independently:
 ```
 <slug>/requirements.json   the Summary — the venue's instructions, distilled
 <slug>/checks.json         the Tests — one per requirement, machine-evaluated
-<slug>/structure.json      the Content — what a submission here contains
+<slug>/structure.json      the Structure — the sections, their content,
+                           and the typography a cut adopts
 <slug>/export.json         the Export outline and its formatting
 ```
 
@@ -61,11 +62,16 @@ app's fixed parts (title, authors, abstract, references, cover letter)
 deliberately get none — the app supplies those, and a test would look for a body
 section that cannot exist.
 
-### Content
+### Structure
 More than a list of headings. Per section:
 
 - **name** — name of the section
-- **presence** — required or optional
+- **id** — stable, so renaming a section is a rename and not a delete-and-add.
+  Written as `id` (which the fingerprint strips) and derived from the title for
+  a file that has none, so every install agrees about which section is which.
+- **role** — nil for a body section; `letter` for the venue's cover letter,
+  which lands in the manuscript's Letter to Editor rather than becoming a
+  section named after it
 - **boilerplate** (`boilerplate`) — the default content a journal gets when it
   is added: free-form for text sections, the questions for a question series.
   It may reference `[[title]]`, `[[authors.names]]`, `[[authors.institutes]]`.
@@ -73,7 +79,10 @@ More than a list of headings. Per section:
 - **export formatting** (`format`) — the typography of the sections export
 
 Plus, for the whole document: `coreFormats` (the typography of the fixed parts —
-title page, byline, abstract …) and `documentFormat` (page geometry).
+title page, byline, abstract …) and `documentFormat` (page geometry). Both are
+in `structure.json` itself; they were in the in-memory model only until Sep
+2026, so a template lost its typography every time it reached the library (see
+gotcha 22).
 
 ### Export
 The outline: which documents a submission is, what goes in each, page breaks,
@@ -81,7 +90,7 @@ and per-item format. Carried in the template since Sep 2026 — before that it
 lived in a second, parallel library, which is why a template saved from a
 manuscript never appeared when adding a journal.
 
-## 3. A template is an editable object (Sep 2026 — DESIGN, not yet built)
+## 3. A template is an editable object (Sep 2026 — BUILT)
 
 The first version of templates treated a template as something you *captured*
 from a cut: write a title page in a manuscript, press Save, and the text
@@ -121,27 +130,46 @@ window that changes your paper.
 Its sidebar is the four parts plus an overview, and nothing else:
 
 ```
-Overview      title · type · description; Save (overwrite) · Clone · Delete
+Overview      title · type · description
+              Save · Save as New… · Discard Changes · Delete
+              Export Template File… · Export for Pull Request…
 Summary       the venue's instructions, distilled
 Structure     which sections a submission here has
-Tests         one per requirement, with the pass rate
-Export        the outline and its formatting
+Tests         one per requirement
+Export        the page, the fixed parts, the outline
               ── the journal-specific sections, editable ──
 Title Page
-Letter to the Editor
+Public Health Implications
 Submission Questions
+Letter to the Editor
+              ── from the manuscript, listed and inactive ──
+Title · Authors · Abstract · Keywords · Figures · Tables · Bibliography
 ```
 
 No lineage, no versions, no backend settings: a template is not a manuscript
 and should not pretend to be one. **Overview** is the template's identity —
-title, type, free-text description — and the three things you can do to it.
+title, type, free-text description (which is the summary's `description:`
+bullets, not a second field to disagree with them) — and what you can do to it.
+
+**No pass rate here.** A template has no content to measure, and a percentage
+with nothing behind it is a number people would trust. The rate belongs to a
+cut, where the sidebar carries it: *Tests (86%)*.
+
+The four parts are marked with an orange pencil where the draft has moved away
+from the library's copy, and the tab carries a dot while anything is unsaved —
+`TemplateWorkspace` holds every edit in memory until Overview saves it.
 
 ### 3.3 The same four parts, in the manuscript too
 
-Summary · Structure · Tests · Export become **sidebar sections for a journal
-cut as well**, not a card inside Checks. Each is editable, each says which
-template it is linked to, and each offers **Load · Save · Save as new template**
-(which creates the template and links to it).
+Summary · Structure · Tests · Export are **sidebar sections for a journal cut
+as well**, not rows in a card inside Checks. Each is this manuscript's own copy
+and editable as such, each names the template it follows and links to it
+(**Manage …** opens that template's tab), and each offers **Load**, which takes
+the template's copy of that part.
+
+There is no Save: a cut cannot write back into a template, per *Where a
+template is edited* below. Adding a whole journal to the library as a template
+of its own is still one button, in Tests.
 
 That symmetry is the point: the same four things, in the same order, whether
 you are looking at a venue's template or at your cut of it.
@@ -167,7 +195,8 @@ lives in the sections you can now edit directly, so the part goes back to being
 |---|---|
 | **Adding a journal** | The shape: sections created (includes any default content), questions asked, export formatting adopted. |
 | **Fast-forward / backward** | Content. The template's sections overwrite the ones they map to, then the upstream's material arrives — adapted, if Assist is on. Cancel · Append · Overwrite. |
-| **Save from a cut** | Per part, confirmed, naming what it overwrites. Structure and Export still capture from the cut; Summary and Tests are copied as they stand. |
+| **Load into a cut** | Per part, confirmed, naming the template it comes from. Nothing written is touched, and ⌘Z undoes it. |
+| **Add to Template Library** | The whole configuration becomes a template — overwriting the one it came from, or as a new one. The only path from a cut into the library, and it is a deliberate one. |
 
 ### 3.6 Every template ships with the manuscript
 
@@ -215,33 +244,52 @@ happens and links to it.
 A template is a folder of four JSON files with a GUID and a checksum, which is
 already most of what sharing needs. To make it a contribution:
 
-- **Export** writes a single `<slug>.journaltemplate.json` — the four parts,
-  the GUID, the checksum, and who exported it.
-- **Import** reads one, and resolves by GUID: an unknown GUID is a new
-  template; a known one shows what differs, part by part, before overwriting.
-- **Contributing upstream** is a pull request against
-  `ManuscriptEditor/JournalProfiles/`. The GUID makes the merge deterministic,
-  the checksum makes "did this actually change" answerable in review, and
-  someone else's corrected BMJ arrives as a diff rather than as a second BMJ.
+- **Export Template File…** (Overview) writes a single
+  `<slug>.journaltemplate.json` — the four parts, the GUID, the version, the
+  checksum, and who exported it.
+- **Import…** (Settings → Journals) reads one and resolves **by GUID**:
+  - unknown GUID → a new template;
+  - known GUID → the same template, later: the parts that differ are named,
+    with both version numbers, before anything is overwritten;
+  - descends from one you hold → a separate template, branched, and your copy
+    of its ancestor is untouched.
+- **Export for Pull Request…** writes the repository layout —
+  `<slug>/{requirements,checks,structure,export}.json` — so **contributing
+  upstream** is a pull request against `ManuscriptEditor/JournalProfiles/`. The
+  GUID makes the merge deterministic, the checksum makes "did this actually
+  change" answerable in review, and someone else's corrected BMJ arrives as a
+  diff rather than as a second BMJ.
 
-### 3.8 What this costs
+### 3.8 What it cost, and where it lives
 
-Being straight about the size, because it is the largest change since versions:
+Built in the order it was planned, and the plan held:
 
-1. **A template needs content storage.** `structure.json`'s per-section
-   `sample` becomes the section's real content — same file, promoted from
-   "example text" to "the text".
-2. **A second editing mode.** The editor, sidebar and tab bar currently assume
-   a manuscript. A template needs the same views over a different object, with
-   core parts suppressed.
-3. **Migration.** Existing templates map straight across (`sample` → content);
-   existing journals keep their links and checksums.
-4. **The Checks card unwinds** into four sidebar sections, for cuts as well as
-   templates.
+1. **Content storage.** `structure.json`'s per-section `sample` became
+   `boilerplate` — the same file, promoted from "example text" to "the text" —
+   and sections gained a stable `uid` so one can be renamed while you edit it.
+   `StructureDoc` gained `coreFormats` and `documentFormat`, which it should
+   always have had.
+2. **A second editing mode.** `JournalTab.template` puts a template in the
+   window's tab bar; `TemplateSidebarView` replaces the manuscript's sidebar
+   while one is active, and `TemplateDetailRouter` routes its panes.
+   `TemplateWorkspace` holds the open drafts — **edits live in memory until
+   saved**, which is the whole safety property.
+3. **Migration.** Nothing to migrate: `boilerplate` reads `sample`, derived
+   section ids are stable, and the fingerprint ignores both new id fields, so
+   no existing template's checksum moved.
+4. **The Checks card unwound** into `JournalSummaryView` and
+   `JournalStructureView`, sidebar sections beside Tests and Export.
 
-Order I would build it in: content storage first (invisible, testable), then
-the template tab with Overview and the editable sections, then the four
-sidebar parts for cuts, then export/import and the contribution path.
+| Where | What |
+|---|---|
+| `Store/TemplateWorkspace.swift` | open drafts, dirty/edited-parts, save · save-as-new · revert · delete |
+| `Views/Template/TemplateEditor.swift` | the sidebar, the router, the pane header |
+| `Views/Template/TemplateOverviewView.swift` | identity, the three actions, sharing |
+| `Views/Template/TemplatePartEditors.swift` | Summary · Structure · Tests · Export |
+| `Views/Template/TemplateSectionView.swift` | one of the venue's sections |
+| `Views/JournalPartViews.swift` | the same parts, as a cut holds them |
+| `Services/TemplateFile.swift` | one-file export/import, and the PR folder |
+| `Theme/TemplateStyle.swift` | the colour that says "not your paper" |
 
 ## 4. The corpus, and where to fix it
 
