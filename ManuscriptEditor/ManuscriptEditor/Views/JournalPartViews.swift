@@ -35,6 +35,9 @@ struct JournalPartHeader: View {
     let subtitle: String
     /// Set when this part differs from the template it came from.
     var edited: Bool = false
+    /// Off when the header sits inside a pane that pads its own content
+    /// (the Export pane), so the row lines up with what is under it.
+    var padded: Bool = true
 
     @State private var loading = false
 
@@ -80,8 +83,8 @@ struct JournalPartHeader: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 10)
+        .padding(.horizontal, padded ? 20 : 0)
+        .padding(.vertical, padded ? 10 : 0)
         .frame(maxWidth: .infinity, alignment: .leading)
         .confirmationDialog("Replace this journal's \(part.label.lowercased()) with the template's?",
                             isPresented: $loading, titleVisibility: .visible) {

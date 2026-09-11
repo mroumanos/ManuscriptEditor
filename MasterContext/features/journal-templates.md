@@ -156,14 +156,27 @@ Journal    Summary       the venue's instructions, distilled
            Structure     which sections a submission here has
            Tests         one per requirement
            Export        the outline, and how every part is set
-Content    Title · Authors · Abstract · Keywords · Figures · Tables ·
-           Bibliography              ← listed, greyed, inactive
+Content    Title · Authors · Keywords · Figures · Tables ·
+           Bibliography · Letter to the Editor   ← listed, greyed, inactive
            ───────────────────────── the soft rule a manuscript has
+           Abstract                  ← always here: the venue's say about it
            Title Page
            Public Health Implications
            Submission Questions
            Add Section
 ```
+
+**The Abstract is past the rule, in every template.** A venue always has a
+say about the abstract — structured or not, which headings, in what order, a
+boilerplate — so the row is there whether or not the template says anything
+yet. The entry (`StructureSection` titled "Abstract", uid
+`TemplateWorkspace.abstractUID`) is made on the first edit that leaves
+something in it; opening the row never dirties the template. Its title and
+kind are fixed: renamed, it would become an ordinary section every manuscript
+creates. In a manuscript it never becomes a section — it seeds the cut's
+abstract field when the journal is added, pairs with the abstract in the
+fast-forward prompt, and the `STRUCTURE` test counts a written abstract as
+meeting it.
 
 **Content reads exactly as a manuscript's sidebar does** — the fixed parts
 first, in their usual order, then the rule, then the sections. Nothing moves

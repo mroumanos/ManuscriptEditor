@@ -87,9 +87,13 @@ struct TemplateSidebarView: View {
 
                 sectionsDelimiter
 
-                // Past the rule, everything is the venue's.  (The letter is
-                // not: it is the author's, with a fixed row above the rule.)
-                ForEach(sections) { section in
+                // Past the rule, everything is the venue's — the abstract
+                // first, which has a row whether or not the template says
+                // anything about it yet (the entry is made on the first
+                // edit).  The letter is not here: it is the author's, with a
+                // fixed row above the rule, and an entry for it is ignored.
+                abstractRow
+                ForEach(sections.filter { $0.key != "abstract" && $0.kind != .letter }) { section in
                     sectionRow(section)
                 }
                 addSectionRow
@@ -135,7 +139,6 @@ struct TemplateSidebarView: View {
     static let fixedParts: [(title: String, icon: String, token: String)] = [
         ("Title",        "textformat",                 "[[title]]"),
         ("Authors",      "person.2",                   "[[authors.names]]"),
-        ("Abstract",     "text.quote",                 "[[abstract]]"),
         ("Keywords",     "tag",                        "[[keywords]]"),
         ("Figures",      "photo.on.rectangle.angled",  "a figure reference"),
         ("Tables",       "tablecells",                 "a table reference"),
@@ -178,13 +181,29 @@ struct TemplateSidebarView: View {
         .tag(item)
     }
 
+    /// The venue's say about the abstract: the entry when there is one, a
+    /// stand-in with the same uid until then.
+    @ViewBuilder
+    private var abstractRow: some View {
+        if let existing = sections.first(where: { $0.key == "abstract" }) {
+            sectionRow(existing)
+        } else {
+            Label("Abstract", systemImage: "text.quote")
+                .tag(SidebarItem.templateSection(TemplateWorkspace.abstractUID.uuidString))
+                .help("The abstract as this venue wants it — its headings, notes, a boilerplate.")
+        }
+    }
+
     private func sectionRow(_ section: StructureSection) -> some View {
         Label(section.displayTitle, systemImage: icon(for: section))
             .tag(SidebarItem.templateSection(section.id.uuidString))
             .contextMenu {
-                Button("Rename…") {
-                    renameDraft = section.title
-                    renamingKey = section.id.uuidString
+                // Renamed, the Abstract would become an ordinary section.
+                if section.key != "abstract" {
+                    Button("Rename…") {
+                        renameDraft = section.title
+                        renamingKey = section.id.uuidString
+                    }
                 }
                 Button("Delete Section", role: .destructive) { delete(section) }
             }
@@ -205,7 +224,9 @@ struct TemplateSidebarView: View {
             }
     }
 
-    private func icon(for section: StructureSection) -> String { section.kind.systemImage }
+    private func icon(for section: StructureSection) -> String {
+        section.key == "abstract" ? "text.quote" : section.kind.systemImage
+    }
 
     /// Adding a section here adds it to the template's structure — the two are
     /// the same list, which is what §3.4 means by staying in sync.

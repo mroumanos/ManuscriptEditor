@@ -995,7 +995,10 @@ from a manuscript. Design and rationale:
   they are the manuscript's. The **abstract does not**: it is a cut's prose
   like any section (structured at one venue, a paragraph at another), so it
   starts from whatever the structure's "Abstract" entry says and follows the
-  section rules from there. Text arrives on the first **fast-forward** (Sep
+  section rules from there. In the template editor the Abstract has a row
+  past the rule in **every** template (the entry is created on the first
+  edit that says something, never by opening the row; its title and kind are
+  fixed). Text arrives on the first **fast-forward** (Sep
   2026: it used to be snapshotted in, and the boilerplate went into Source's
   copy).
 - AC: A **fast-forward migrates content where the upstream has some.** A
@@ -1020,7 +1023,10 @@ from a manuscript. Design and rationale:
   every citation in Source: gotcha 30.)
 - AC: Each part has **Open · Load** — Save was removed when templates became
   editable objects — and the header names the template it follows, linking to
-  it (**Manage …**), or offers to link one when it isn't linked.
+  it (**Manage …**), or offers to link one when it isn't linked. **Export
+  included** (Sep 2026): the cut's Export pane wears the same header, and Load
+  takes the template's outline remapped onto the cut's sections
+  (`loadTemplatePart(.export)` → `adoptTemplateExport`).
 - AC: The structure captures a venue's **whole shape**: which additional
   sections exist, the content in them, each one's export formatting, and the
   export formatting of the CORE parts (title page, byline, abstract, …) plus

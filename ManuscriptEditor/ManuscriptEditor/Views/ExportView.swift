@@ -177,11 +177,23 @@ struct ExportView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Export").font(.title2.weight(.semibold))
-            Text("Each journal has its own export outline: the documents in its submission package, what goes into each (with page breaks), and each document's format and file type.")
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+            if let journal = journals.first(where: { $0.id == journalID }) {
+                // The header Summary, Structure and Tests wear — the part's
+                // name, the template it follows (Manage) and Load — because
+                // the outline is a part of the profile like the other three,
+                // and it was the one part you could not load.
+                JournalPartHeader(
+                    journal: journal, part: .export,
+                    subtitle: "Each journal has its own export outline: the documents in its submission package, what goes into each (with page breaks), and each document's format and file type.",
+                    edited: store.partDiffersFromTemplate(.export, journal: journal),
+                    padded: false)
+            } else {
+                Text("Export").font(.title2.weight(.semibold))
+                Text("Each journal has its own export outline: the documents in its submission package, what goes into each (with page breaks), and each document's format and file type.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 
             HStack(spacing: 10) {
                 // The pane IS its tab's journal — no picker to re-litigate it.

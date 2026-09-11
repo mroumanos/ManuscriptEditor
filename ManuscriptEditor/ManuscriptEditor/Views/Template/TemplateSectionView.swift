@@ -48,8 +48,12 @@ struct TemplateSectionView: View {
     @State private var content = RichText()
 
     private var template: JournalTemplate? { templates.template(templateID) }
+    /// The abstract's row is there before its entry is (see
+    /// `TemplateWorkspace.editSection`); until then it edits a stand-in.
+    private var isAbstract: Bool { sectionKey == TemplateWorkspace.abstractUID.uuidString }
     private var section: StructureSection? {
         template?.structure.sections.first { $0.id.uuidString == sectionKey }
+            ?? (isAbstract ? StructureSection(title: "Abstract") : nil)
     }
 
     var body: some View {
@@ -77,7 +81,10 @@ struct TemplateSectionView: View {
     }
 
     private func subtitle(_ section: StructureSection) -> String {
-        section.kind == .letter
+        if isAbstract {
+            return "The abstract as this venue wants it. A manuscript's abstract starts from this when it adds the journal, and Assist writes to it."
+        }
+        return section.kind == .letter
             ? "Created in every manuscript that adds this journal — with a letterhead and a signature of its own."
             : "Created in every manuscript that adds this journal."
     }
@@ -106,18 +113,23 @@ struct TemplateSectionView: View {
     @ViewBuilder
     private func identity(_ section: StructureSection) -> some View {
         HStack(spacing: 8) {
+            // The abstract's name and shape are fixed: renamed, it would
+            // become an ordinary section every manuscript creates.
             TextField("Section title", text: Binding(
                 get: { section.title },
                 set: { value in edit { $0.title = value } }))
                 .textFieldStyle(.roundedBorder)
                 .frame(maxWidth: 240)
+                .disabled(isAbstract)
 
-            Picker("", selection: Binding(
-                get: { section.kind },
-                set: { value in edit { $0.kind = value } })) {
-                ForEach(SectionKind.addable, id: \.self) { Text($0.label).tag($0) }
+            if !isAbstract {
+                Picker("", selection: Binding(
+                    get: { section.kind },
+                    set: { value in edit { $0.kind = value } })) {
+                    ForEach(SectionKind.addable, id: \.self) { Text($0.label).tag($0) }
+                }
+                .labelsHidden().fixedSize()
             }
-            .labelsHidden().fixedSize()
 
             TextField("Why this venue asks for it (optional — sent when adapting)", text: Binding(
                 get: { section.note ?? "" },
@@ -139,7 +151,9 @@ struct TemplateSectionView: View {
     @ViewBuilder
     private func editor(_ section: StructureSection) -> some View {
         RichEditor(value: $content,
-                   placeholder: section.kind == .letter
+                   placeholder: isAbstract
+                       ? "How this venue's abstract reads — its headings, in its order — “/” inserts [[title]]…"
+                       : section.kind == .letter
                        ? "The letter this venue expects — “/” inserts [[title]], [[authors.names]]…"
                        : "What this section contains at this venue — “/” inserts [[title]], [[authors.names]]…",
                    templateMode: true)
@@ -240,11 +254,8 @@ struct TemplateSectionView: View {
     // MARK: - Editing
 
     private func edit(_ mutate: @escaping (inout StructureSection) -> Void) {
-        templates.edit(templateID) { template in
-            guard let idx = template.structure.sections
-                .firstIndex(where: { $0.id.uuidString == sectionKey }) else { return }
-            mutate(&template.structure.sections[idx])
-        }
+        guard let uid = UUID(uuidString: sectionKey) else { return }
+        templates.editSection(uid, in: templateID, mutate)
     }
 
     private func editQuestion(_ index: Int, _ mutate: @escaping (inout TemplateQuestion) -> Void) {

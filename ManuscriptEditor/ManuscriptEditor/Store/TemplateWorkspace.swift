@@ -70,6 +70,33 @@ final class TemplateWorkspace {
 
     /// Edits the draft in memory.  Nothing else happens — no file is written,
     /// no manuscript changes, and no other window is told.
+    /// The uid of a template's "Abstract" entry — the one entry every
+    /// template has a row for, whether or not it exists yet.
+    static let abstractUID = StructureSection.derivedID(title: "Abstract")
+
+    /// Edits one of a template's sections by uid.
+    ///
+    /// The Abstract is the exception that is created on first edit: a venue
+    /// always has a say about the abstract — its headings, its order, a
+    /// boilerplate — so its row is always there, but a template with
+    /// nothing to say should not carry an empty entry, and opening the row
+    /// must never make the template dirty.  So the entry is made only when
+    /// the edit leaves something in it.
+    func editSection(_ uid: UUID, in id: UUID, _ mutate: (inout StructureSection) -> Void) {
+        edit(id) { template in
+            if let idx = template.structure.sections.firstIndex(where: { $0.uid == uid }) {
+                mutate(&template.structure.sections[idx])
+            } else if uid == TemplateWorkspace.abstractUID {
+                var made = StructureSection(title: "Abstract")
+                mutate(&made)
+                let saysSomething = made.boilerplate != nil || made.note != nil
+                    || made.formatNote != nil || !(made.questions ?? []).isEmpty
+                guard saysSomething else { return }
+                template.structure.sections.insert(made, at: 0)
+            }
+        }
+    }
+
     func edit(_ id: UUID, _ mutate: (inout JournalTemplate) -> Void) {
         guard var draft = drafts[id] else { return }
         mutate(&draft)
