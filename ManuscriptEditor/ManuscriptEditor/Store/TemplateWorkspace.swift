@@ -105,11 +105,14 @@ final class TemplateWorkspace {
     static func asManuscript(_ template: JournalTemplate) -> Manuscript {
         var made = Manuscript.new()
         made.title = template.displayName
-        made.sections = template.structure.sections.enumerated().map { index, section in
-            ManuscriptSection(id: section.uid, type: .custom, title: section.title,
-                              content: RichText(plain: section.boilerplate ?? ""), order: index,
-                              kind: section.kind == .text ? nil : section.kind)
-        }
+        // An "Abstract" entry describes the abstract field, which the outline
+        // already carries as a fixed item — it is not a section of its own.
+        made.sections = template.structure.sections.filter { $0.key != "abstract" }
+            .enumerated().map { index, section in
+                ManuscriptSection(id: section.uid, type: .custom, title: section.title,
+                                  content: PartEngine.richText(section.boilerplate ?? ""), order: index,
+                                  kind: section.kind == .text ? nil : section.kind)
+            }
         return made
     }
 

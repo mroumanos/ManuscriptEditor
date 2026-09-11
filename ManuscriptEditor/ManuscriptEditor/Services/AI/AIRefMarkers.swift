@@ -24,9 +24,10 @@
 //
 // The same protection covers **part tokens** (`[[title]]`, `[[authors.names]]`
 // …), which are already literal text: the first run replaced
-// `[[authors.names]]` with an invented author list.  They are not touched here
-// — they simply fall under the same "keep every [[…]] exactly as it is" rule in
-// the prompt, and `restore` checks they came back too.
+// `[[authors.names]]` with an invented author list.  They fall under the same
+// "keep every [[…]] exactly as it is" rule in the prompt, `restore` checks
+// they came back, and puts the `part://` link back on each one — a token the
+// model returns is text until something makes it a token again.
 //
 // See MasterContext/features/ai-assist.md §7.2.
 
@@ -138,10 +139,13 @@ enum AIRefMarkers {
                 seen.insert(token)
                 result.append(citation(marked, context: context))
             } else {
-                // A part token, or something the model invented: keep the text
-                // exactly as it stands.  Inventing a reference is not possible
-                // this way, which is the point.
-                result.append(NSAttributedString(string: token))
+                // A part token comes back LIVE — `[[title]]` is only a token
+                // by its `part://` link, and appending it as text left every
+                // adapted title page with fields that never resolved.  Only a
+                // path in the catalog becomes one; anything else the model put
+                // in brackets stays exactly as it stands, so inventing a
+                // reference is not possible this way, which is the point.
+                result.append(PartEngine.tokenized(token, attributes: [:]))
                 seen.insert(token)
             }
             rest = rest[close.upperBound...]

@@ -67,8 +67,10 @@ enum ChecklistService {
         if condition.metric.isStructure {
             let expected = (journal?.structure?.sections ?? []).filter(\.required)
             guard !expected.isEmpty else { return (true, "no structure defined") }
+            // The abstract is a field, not a section, but a structure may
+            // require it by name: it counts as present when it is written.
             let present = m.sections.filter { $0.active && !$0.isEmptyContent }
-                .map { $0.title.lowercased() }
+                .map { $0.title.lowercased() } + (m.abstract.isEmpty ? [] : ["abstract"])
             let missing = expected.filter { section in
                 !present.contains { $0 == section.key || $0.contains(section.key) }
             }

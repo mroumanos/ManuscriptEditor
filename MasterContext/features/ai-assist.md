@@ -413,6 +413,19 @@ the downstream cut and stamps a version. Never touches the upstream; never
 applies without the diff being visible. The adaptation is the **last write**:
 nothing (the template's content included) is applied over it afterwards.
 
+**The template is a specification (Sep 2026).** Each section goes out paired
+with the target structure's entry for it — the boilerplate as `template`, its
+`formatNote` as `format`, its `note` as `notes` — and the prompt's rule 4 says
+what that means: write the section *to* the template, from the manuscript's
+material, replacing the placeholder wording completely and keeping every
+`[[…]]` token where the template puts it. A section that holds only the
+boilerplate (`Payload.holdsTemplate`) goes out with empty text, so the model
+cannot simply echo it; the template's tokens join the section's own in
+`Prepared.required`, so dropping one still refuses the section. The
+**abstract** travels as a section of its own (`FastForwardIntent.abstractID`)
+and is written back to `content.abstract` — it is a cut's prose, and the
+abstract checks were being sent for a field the model was never shown.
+
 **Seeing what the tool is doing.** Claude Code writes a transcript of every run
 under `~/.claude/projects/<encoded working directory>/<session>.jsonl`. The app
 passes `--session-id` so that file is named after the prompt-log entry and can
@@ -462,6 +475,18 @@ abbreviations the journal's instructions asked for (`HF` → heart failure,
 `SGLT2i` → sodium-glucose cotransporter 2 inhibitor, `eGFR` → estimated
 glomerular filtration rate), returned Methods unchanged because it already
 suited the target, and preserved every number — 412, 72 hours, 10 mg, p = 0.03.
+
+**What the first local-model run found (Sep 11, 2026).** A gemma4:26b run
+that "adapted 7 sections" came back with no citations and a title page whose
+`[[title]]` was plain text. Neither was the model's doing. The prompt log
+showed **1** `[[cite:N]]` marker sent where the Opus run two days earlier had
+sent 18: Source's own sections had been flattened to plain text between two
+stamps — an Append-mode sync joined rich text with `RichText(plain: a + b)`
+(gotcha 30) — so there were no links to mark. And `restore` appended a returned
+part token as text, so even a kept `[[title]]` came back dead. Both fixed;
+the harness now proves a citation and a part token survive the round trip and
+an Append. The lesson for reading a log: *count the markers in the prompt
+before blaming the reply.*
 
 **What the first real run got wrong, and what fixed it (Sep 2026).** A
 44-minute pass on a seven-section manuscript applied cleanly and was still

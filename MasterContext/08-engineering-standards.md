@@ -348,8 +348,11 @@ Requires: clean tree on main, the Developer ID cert, `gh` auth.
     and loses the link, so boilerplate written that way arrived as literal
     `[[title]]` that clicked like prose and never resolved on export — three
     times, in three places (the template editor, adding a journal, the
-    fast-forward). Any new place a template's text lands in a section goes
-    through `richText`, and the harness checks the link is there.
+    fast-forward) — and a fourth on the way back from a model, where
+    `AIRefMarkers.restore` appended a returned `[[title]]` as text. Any new
+    place a template's text lands in a section goes through `richText`
+    (`restore` uses `tokenized` for the same reason), and the harness checks
+    the link is there.
 
 29. **The adaptation is the last write.** `syncJournal` once applied the
     model's rewrite and then re-applied the template's content over it — so
@@ -358,3 +361,12 @@ Requires: clean tree on main, the Developer ID cert, `gh` auth.
     write). The prompt log's *applied, 7 changes* was true and useless. When
     a write path has several contributors, the one the user asked for goes
     last, and the harness asserts what lands, not what was measured.
+
+30. **Never join rich text as strings.** `RichText(plain: a + "\n\n" + b)`
+    was how an Append-mode sync combined a cut's text with the incoming copy.
+    It kept the words and lost the RTF — and a citation is a link attribute
+    in the RTF, nothing else — so one Append flattened every section it
+    touched; Source went from 18 citation links to none between two stamps,
+    and the next assisted run had nothing to mark. `RefEngine.joined` is the
+    only way two `RichText`s become one. The tell in the data: every section
+    exactly N characters longer, with `rtf` gone.

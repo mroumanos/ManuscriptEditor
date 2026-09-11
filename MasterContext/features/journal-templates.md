@@ -276,7 +276,7 @@ lives in the sections you can now edit directly, so the part goes back to being
 
 | Moment | What moves |
 |---|---|
-| **Adding a journal** | The shape and the venue's content: sections created, the cut's copies holding the boilerplate (tokens live) and the questions; none of the upstream's text. Export formatting adopted. |
+| **Adding a journal** | The shape and the venue's content: sections created, the cut's copies holding the boilerplate (tokens live) and the questions; none of the upstream's text, and not its abstract either — an "Abstract" entry in the structure seeds it like a section. Export formatting adopted. |
 | **Fast-forward / backward** | The upstream's text, into every section it has text in; a section it leaves empty keeps the cut's own (boilerplate or written). Adapted on the way, if Assist is on — the model's rewrite is the last word. Cancel · Append · Overwrite. |
 | **Load into a cut** | Per part, confirmed, naming the template it comes from. Nothing written is touched, and ⌘Z undoes it. |
 | **Add to Template Library** | The whole configuration becomes a template — overwriting the one it came from, or as a new one. The only path from a cut into the library, and it is a deliberate one. |

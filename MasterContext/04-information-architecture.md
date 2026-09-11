@@ -63,7 +63,6 @@ title or a bibliography isn't a manuscript). Renaming a pane is still allowed:
 that changes the label, not whether the part exists.
 - Title
 - Authors (N)
-- Abstract
 - Keywords (N)
 - Figures (N)
 - Tables (N)
@@ -71,7 +70,12 @@ that changes the label, not whether the part exists.
 
 — soft rule —
 
-*Configurable* — the body **sections** in order (Introduction, Methods, …, each
+*Configurable* — first the **Abstract** (Sep 2026: it sits below the rule
+because it is a cut's prose — structured at one venue, a paragraph at
+another — and follows the sections' rules: not carried when a journal is
+added, migrated on fast-forward, adapted with Assist; a template describes
+it with a structure entry titled "Abstract", which never becomes a section),
+then the body **sections** in order (Introduction, Methods, …, each
 shows its word count badge). **Drag to reorder**, **deactivate per journal**
 (dimmed with an orange `eye.slash`; the text is preserved, and Tests/Export
 filter on the flag, never on emptiness), rename, delete. These are exactly what

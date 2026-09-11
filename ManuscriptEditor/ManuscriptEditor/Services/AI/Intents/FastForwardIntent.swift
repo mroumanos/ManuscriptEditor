@@ -71,6 +71,24 @@ struct FastForwardIntent: AIIntent {
 
     // MARK: - What gets sent
 
+    /// The abstract's id in the payload — it is a field of the manuscript,
+    /// not a section, but it is a cut's prose like any section: a structured
+    /// abstract at one venue is a paragraph at another, and a fast-forward
+    /// that left it out could never satisfy the abstract checks it was sent.
+    static let abstractID = UUID(uuidString: "AB57AC70-0000-4000-8000-000000000001")!
+
+    /// The abstract as a section, so it travels and returns like one.
+    static func abstractSection(_ content: Manuscript) -> ManuscriptSection {
+        ManuscriptSection(id: abstractID, type: .custom, title: "Abstract",
+                          content: content.abstract, order: -1, active: true)
+    }
+
+    /// Everything that goes out for a manuscript: the abstract first, then
+    /// its active sections.
+    static func payloads(for content: Manuscript, target: Journal? = nil) -> [Payload] {
+        payloads([abstractSection(content)], target: target) + payloads(content.sections, target: target)
+    }
+
     /// One section as it goes out, and everything needed to put it back.
     struct Payload {
         let section: ManuscriptSection
@@ -78,6 +96,13 @@ struct FastForwardIntent: AIIntent {
         let prepared: AIRefMarkers.Prepared?
         /// Question series: each question, prepared separately.
         let questions: [(question: QuestionEntry, prepared: AIRefMarkers.Prepared)]
+        /// What the target venue says this section is — its boilerplate,
+        /// format and notes — when its structure has an entry for it.
+        let template: StructureSection?
+        /// The section's text IS the venue's boilerplate, nothing of the
+        /// author's: it goes out as an empty section with a template, so
+        /// the model writes it rather than echoing the placeholder.
+        let holdsTemplate: Bool
     }
 
     /// The sections that will be sent.
@@ -85,18 +110,38 @@ struct FastForwardIntent: AIIntent {
     /// Active sections, **including empty ones** — an empty required section is
     /// exactly the case that needs writing, and skipping it was why submission
     /// questions came back untouched.
-    static func payloads(_ sections: [ManuscriptSection]) -> [Payload] {
-        sections.filter(\.active).sorted { $0.order < $1.order }.map { section in
+    ///
+    /// With a `target`, each section is paired with the venue's entry for it
+    /// (by title).  The entry's boilerplate is a **specification**, not text:
+    /// the model writes the section to it, and every `[[…]]` token it uses is
+    /// required in the answer just as one already in the text would be.
+    static func payloads(_ sections: [ManuscriptSection], target: Journal? = nil) -> [Payload] {
+        let entries = Dictionary((target?.structure?.sections ?? []).map { ($0.key, $0) },
+                                 uniquingKeysWith: { first, _ in first })
+        return sections.filter(\.active).sorted { $0.order < $1.order }.map { section in
+            let entry = entries[section.title.lowercased()]
+            let sample = entry?.sample?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             switch section.sectionKind {
             case .text, .letter:
-                return Payload(section: section,
-                               prepared: AIRefMarkers.prepare(section.content),
-                               questions: [])
+                var prepared = AIRefMarkers.prepare(section.content)
+                let holds = !sample.isEmpty
+                    && section.content.plain.trimmingCharacters(in: .whitespacesAndNewlines) == sample
+                if !sample.isEmpty {
+                    let wanted = AIRefMarkers.partTokenList(in: sample)
+                        .filter { !prepared.partTokens.contains($0) }
+                    if !wanted.isEmpty {
+                        prepared = AIRefMarkers.Prepared(text: prepared.text, markers: prepared.markers,
+                                                         partTokens: prepared.partTokens + wanted)
+                    }
+                }
+                return Payload(section: section, prepared: prepared, questions: [],
+                               template: entry, holdsTemplate: holds)
             case .questions:
                 return Payload(section: section, prepared: nil,
                                questions: section.orderedQuestions.map {
                                    ($0, AIRefMarkers.prepare($0.response))
-                               })
+                               },
+                               template: entry, holdsTemplate: false)
             }
         }
     }
@@ -107,8 +152,8 @@ struct FastForwardIntent: AIIntent {
     /// `AIRequestService.prompt(context:task:)`, which is the only thing that
     /// reads the checkboxes.
     static func task(content: Manuscript, target: Journal) throws -> String {
-        let payloads = payloads(content.sections)
-        guard !payloads.isEmpty else { throw FastForwardError.nothingToAdapt }
+        let payloads = payloads(for: content, target: target)
+        guard payloads.count > 1 else { throw FastForwardError.nothingToAdapt }
 
         var sectionJSON: [[String: Any]] = []
         for payload in payloads {
@@ -116,11 +161,19 @@ struct FastForwardIntent: AIIntent {
                 "id": payload.section.id.uuidString,
                 "title": payload.section.title,
             ]
+            // The venue's specification for this section travels WITH the
+            // section, not only in the profile above: what it must look
+            // like, how it must be written, and why it is asked for.
+            if let template = payload.template {
+                if let sample = template.sample, !sample.isEmpty { entry["template"] = sample }
+                if let format = template.formatNote, !format.isEmpty { entry["format"] = format }
+                if let note = template.note, !note.isEmpty { entry["notes"] = note }
+            }
             switch payload.section.sectionKind {
             case .text, .letter:
                 entry["kind"] = "prose"
-                entry["words"] = payload.section.wordCount
-                entry["text"] = payload.prepared?.text ?? ""
+                entry["words"] = payload.holdsTemplate ? 0 : payload.section.wordCount
+                entry["text"] = payload.holdsTemplate ? "" : (payload.prepared?.text ?? "")
             case .questions:
                 entry["kind"] = "questions"
                 entry["questions"] = payload.questions.map { item -> [String: Any] in
@@ -150,7 +203,8 @@ struct FastForwardIntent: AIIntent {
 
         1. TOKENS IN DOUBLE BRACKETS ARE NOT TEXT. `[[cite:3]]`, `[[figref:1]]`, \
         `[[tabref:2]]`, `[[title]]`, `[[authors.names]]` and any other `[[…]]` \
-        stand for citations, figures, tables and manuscript fields. Reproduce \
+        stand for citations, figures, tables and manuscript fields — in a \
+        section's text and in its template alike. Reproduce \
         every one of them exactly as written, in the same place in the argument. \
         Never delete one, never renumber one, never invent a new one, and never \
         replace one with words of your own — `[[authors.names]]` must come back \
@@ -168,11 +222,21 @@ struct FastForwardIntent: AIIntent {
         drop background that the target's readers already have — rather than \
         deleting findings. Respect the per-section budgets where they are given.
 
-        4. WRITE THE EMPTY ONES. A section or question that arrives empty still \
+        4. A "template" IS A SPECIFICATION, NOT TEXT. A section that carries one \
+        is written TO it: the venue's layout, headings, statements and \
+        `[[…]]` tokens, in the order the template gives them, filled from the \
+        manuscript's own material — its "format" says how it must be written \
+        and its "notes" say why it is asked for. Return the whole section: the \
+        template's placeholder wording is replaced completely, nothing of it \
+        is quoted back, and every `[[…]]` token the template uses appears in \
+        your answer where the template puts it. A section whose "text" is \
+        empty and that has a template is written from the template alone.
+
+        5. WRITE THE EMPTY ONES. A section or question that arrives empty still \
         has to be answered, from the manuscript's own content, within its word \
         limit. Do not leave it blank and do not answer with a placeholder.
 
-        5. ADAPT, DON'T RESTRUCTURE. Keep each section's subject matter; do not \
+        6. ADAPT, DON'T RESTRUCTURE. Keep each section's subject matter; do not \
         move content between sections, merge them or split them.
 
         SECTIONS (JSON):
@@ -209,12 +273,14 @@ struct FastForwardIntent: AIIntent {
                 if let note = section.note, !note.isEmpty {
                     lines.append("    Notes: \(note)")
                 }
-                // The venue's boilerplate — which is where its format and its
-                // notes live, written the way it wants them read.
+                if let format = section.formatNote, !format.isEmpty {
+                    lines.append("    Format: \(format)")
+                }
+                // The boilerplate itself travels with the section it is for
+                // (see `task`), where the model reads it as that section's
+                // specification rather than as journal trivia.
                 if let sample = section.sample, !sample.isEmpty {
-                    lines.append("    This journal's boilerplate for it, including any format and notes it states:")
-                    lines.append(sample.split(separator: "\n")
-                        .map { "      \($0)" }.joined(separator: "\n"))
+                    lines.append("    Has a template (sent with the section).")
                 }
                 for q in section.questions ?? [] {
                     let limit = q.wordLimit.map { " (\($0) \((q.limitUnit ?? .words).label))" } ?? ""

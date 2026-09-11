@@ -296,14 +296,15 @@ struct SidebarView: View {
     /// Content splits in two.  FIRST the parts every manuscript has, in a
     /// fixed order — they can't be reordered or switched off, because a
     /// manuscript without a title or a bibliography isn't a manuscript.
-    /// THEN, past a soft rule, the sections the author actually shapes:
+    /// THEN, past a soft rule, the prose a journal shapes: the abstract
+    /// first (structured at one venue, a paragraph at another — it is a
+    /// cut's writing, not the manuscript's identity), then the sections:
     /// drag to reorder, deactivate per journal, rename, delete.
     @ViewBuilder
     private var contentSection: some View {
         Section("Content") {
             row(SidebarItem.title, "Title", "textformat")
             row(SidebarItem.authors, "Authors (\(active?.authors.count ?? 0))", "person.2")
-            row(SidebarItem.abstract, "Abstract", "text.quote")
             row(SidebarItem.keywords, "Keywords (\(active?.keywords.count ?? 0))", "tag")
             ForEach(fixedPanes, id: \.key) { pane in
                 fixedPaneRow(pane)
@@ -311,6 +312,7 @@ struct SidebarView: View {
 
             sectionsDelimiter
 
+            row(SidebarItem.abstract, "Abstract", "text.quote")
             bodySection
 
             // Inline "add section" row at the very bottom of the Content list.

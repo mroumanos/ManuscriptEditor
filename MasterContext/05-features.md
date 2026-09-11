@@ -986,10 +986,13 @@ from a manuscript. Design and rationale:
   template says for them (boilerplate as rich text, so `[[title]]` and the
   other tokens are live; a question series with its questions, which are the
   journal's rather than the author's) and are otherwise empty; title, authors,
-  abstract, figures, tables and bibliography come along, since the tokens
-  need them and they are the manuscript's rather than a cut's prose. Text
-  arrives on the first **fast-forward** (Sep 2026: it used to be snapshotted
-  in, and the boilerplate went into Source's copy).
+  figures, tables and bibliography come along, since the tokens need them and
+  they are the manuscript's. The **abstract does not**: it is a cut's prose
+  like any section (structured at one venue, a paragraph at another), so it
+  starts from whatever the structure's "Abstract" entry says and follows the
+  section rules from there. Text arrives on the first **fast-forward** (Sep
+  2026: it used to be snapshotted in, and the boilerplate went into Source's
+  copy).
 - AC: A **fast-forward migrates content where the upstream has some.** A
   section the upstream leaves empty — the venue's title page, its questions,
   a letter — keeps what the cut has: its boilerplate, or what was written
@@ -997,8 +1000,19 @@ from a manuscript. Design and rationale:
   Assist on, the model adapts the same merged base and its rewrite is the
   last word (a re-apply after the adaptation once replaced every rewritten
   section with its boilerplate while the banner reported the rewrite).
+- AC: With Assist on, the **template is a specification, not text.** Each
+  section goes out paired with the venue's entry for it — boilerplate as
+  `template`, its `format` and `notes` — and a section that holds only the
+  boilerplate goes out with empty text, so the model writes it to the template
+  from the manuscript's material rather than echoing the placeholder. The
+  template's `[[…]]` tokens are required in the reply like any already in the
+  text; a returned part token comes back **live** (its `part://` link put
+  back), not as prose. The **abstract** is sent and adapted with the sections.
 - AC: Every sync offers **Cancel · Append · Overwrite**. Append keeps what the
-  cut has and adds the incoming content after it, per section and per question.
+  cut has and adds the incoming content after it, per section and per question
+  — joined as **rich text**, so every citation and token on both sides
+  survives. (It joined plain strings until Sep 2026, and one Append flattened
+  every citation in Source: gotcha 30.)
 - AC: Each part has **Open · Load** — Save was removed when templates became
   editable objects — and the header names the template it follows, linking to
   it (**Manage …**), or offers to link one when it isn't linked.

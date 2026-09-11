@@ -1076,7 +1076,9 @@ final class ManuscriptStore {
         else { return }
         let existing = Set(m.sections.map { $0.title.lowercased() })
         var created: [(id: UUID, entry: StructureSection)] = []
-        for section in wanted where !existing.contains(section.key) {
+        // An "Abstract" entry describes the abstract FIELD — its format,
+        // notes and boilerplate — not a section to create beside it.
+        for section in wanted where !existing.contains(section.key) && section.key != "abstract" {
             guard let id = addSection(type: .custom, title: section.title, kind: section.kind)
             else { continue }
             created.append((id, section))
@@ -1242,14 +1244,19 @@ final class ManuscriptStore {
     }
 
     /// The upstream's content as a new journal receives it: everything but
-    /// the sections' text.  Title, authors, abstract, figures, tables and
-    /// bibliography come along — the tokens in a title page need them, and
-    /// they are the manuscript's, not a cut's prose.
+    /// its prose.  Title, authors, figures, tables and bibliography come
+    /// along — the tokens in a title page need them, and they are the
+    /// manuscript's.  The **abstract** does not: it is a cut's prose like
+    /// any section (structured at one venue, a paragraph at another), so it
+    /// starts from what the venue's structure says for "Abstract", if
+    /// anything, and arrives on the first fast-forward like the rest.
     func templatedContent(_ content: Manuscript, journal: Journal) -> Manuscript {
         let byKey = Dictionary((journal.structure?.sections ?? []).map { ($0.key, $0) },
                                uniquingKeysWith: { first, _ in first })
         var out = content
         out.sections = content.sections.map { Self.templated($0, entry: byKey[$0.title.lowercased()]) }
+        out.abstract = Self.templated(FastForwardIntent.abstractSection(content),
+                                      entry: byKey["abstract"]).content
         return out
     }
 
@@ -2536,7 +2543,8 @@ final class ManuscriptStore {
                 let arriving = incoming.sections[i].content.plain
                 guard !kept.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
                       !kept.contains(arriving), !arriving.contains(kept) else { continue }
-                incoming.sections[i].content = RichText(plain: kept + "\n\n" + arriving)
+                // Joined as rich text: a plain join dropped every citation.
+                incoming.sections[i].content = RefEngine.joined(mine.content, incoming.sections[i].content)
             case .questions:
                 // Answers are per question: keep the one already written when
                 // the arriving copy has nothing to say.
@@ -2551,7 +2559,7 @@ final class ManuscriptStore {
                         incoming.sections[i].questions![q].response = kept.response
                     } else if !kept.response.plain.contains(arriving) {
                         incoming.sections[i].questions![q].response =
-                            RichText(plain: kept.response.plain + "\n\n" + arriving)
+                            RefEngine.joined(kept.response, incoming.sections[i].questions![q].response)
                     }
                 }
             }
@@ -2568,6 +2576,7 @@ final class ManuscriptStore {
     /// full override it always was.
     private func migrated(_ upstream: Manuscript, into head: Manuscript) -> Manuscript {
         var out = upstream
+        if upstream.abstract.isEmpty { out.abstract = head.abstract }
         let byID = Dictionary(head.sections.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         let byTitle = Dictionary(head.sections.map { ($0.title.lowercased(), $0) },
                                  uniquingKeysWith: { first, _ in first })
@@ -2590,6 +2599,9 @@ final class ManuscriptStore {
     /// reference in it.  `AIRefMarkers` has already rebuilt those links.
     private func applyAdaptation(_ adaptation: FastForwardIntent.Adaptation,
                                  to content: inout Manuscript) {
+        if let rich = adaptation.sections[FastForwardIntent.abstractID] {
+            content.abstract = rich
+        }
         for i in content.sections.indices {
             let id = content.sections[i].id
             if let rich = adaptation.sections[id] {
@@ -2765,7 +2777,7 @@ final class ManuscriptStore {
 
         var prompt = ""
         do {
-            let sent = FastForwardIntent.payloads(baseContent.sections)
+            let sent = FastForwardIntent.payloads(for: baseContent, target: target)
             prompt = AIRequestService.prompt(
                 context: bundle,
                 task: try FastForwardIntent.task(content: baseContent, target: target))

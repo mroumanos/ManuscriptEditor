@@ -415,6 +415,30 @@ enum RefEngine {
         return scanRefs(in: attributed)
     }
 
+    /// Two rich texts as one, separated — with every link of both intact:
+    /// citations, figure and table references, part tokens.
+    ///
+    /// `RichText(plain: a + b)` was how an Append-mode sync joined them, and
+    /// it flattened every citation in every section it touched: a citation is
+    /// a link attribute in the RTF, and the plain mirror has no trace of it.
+    /// One Append and Source had no references left to show a model.
+    static func joined(_ first: RichText, _ second: RichText,
+                       separator: String = "\n\n") -> RichText {
+        func attributed(_ rt: RichText) -> NSAttributedString {
+            if let rtf = rt.rtf, let a = NSAttributedString(rtf: rtf, documentAttributes: nil) {
+                return a
+            }
+            return NSAttributedString(string: rt.plain)
+        }
+        let out = NSMutableAttributedString(attributedString: attributed(first))
+        out.append(NSAttributedString(string: separator))
+        out.append(attributed(second))
+        let full = NSRange(location: 0, length: out.length)
+        return RichText(plain: out.string,
+                        rtf: out.rtf(from: full, documentAttributes: [:]),
+                        refs: scanRefs(in: out))
+    }
+
     // MARK: - Document order & numbering
 
     /// Every token in the manuscript with the name of the prose field it sits
