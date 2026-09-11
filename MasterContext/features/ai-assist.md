@@ -47,6 +47,18 @@ so AI features cost nothing beyond the subscription the user already has:
 Ollama is the fourth connector and a different shape: a local HTTP server, no
 auth, no cost, fully offline — and the only one whose models we can enumerate.
 
+**Built (Sep 2026).** `AIConnectorRunner.runOllama` posts to
+`<endpoint>/api/generate` with `stream: true` and reads the newline-delimited
+answer token by token, so the same stall clock that guards Claude Code guards
+a local model: silence, not wall time, is what means stuck. The answer
+reports the tag it came from, and a longer tag for the same model
+(`llama3.1:latest` for `llama3.1`) is not a substitution. Settings → Accounts
+shows the server URL and a **Models** picker read off `/api/tags` when Test
+runs — `ollama pull` something new and press Test again — and the list is
+kept on the connector (`availableModels`) so the manuscript's model picker
+can offer it without a network call mid-render. A server with nothing pulled
+tests red and says so.
+
 The **existing API-key path** (`SmartSyncService`, real, `claude-opus-5`) stays
 as a fallback for anyone who would rather pay per token than install a CLI. It
 is not the headline and it is not the default.

@@ -455,7 +455,7 @@ struct JournalLineageCard: View {
         if let id = settings.activeConnectorID,
            let connector = appStore.connectors.first(where: { $0.id == id }) {
             let model = settings.aiModel ?? connector.selectedModel
-            return AIModelCatalog.models(for: connector.kind).first { $0.id == model }?.label
+            return connector.modelEntries.first { $0.id == model }?.label
                 ?? connector.kind.displayName
         }
         if let id = settings.activeAIServiceID,

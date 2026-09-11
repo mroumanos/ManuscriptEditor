@@ -88,6 +88,8 @@ struct AIRunProgress: Sendable, Equatable {
     /// 71,000 output tokens, and copying that string on every delta would cost
     /// more than the request.  What a live view can show is the end anyway.
     var tail: String = ""
+    /// How much of the answer's end a live view is handed.
+    static let tailLength = 4_000
 
     var summary: String {
         switch phase {
@@ -218,9 +220,135 @@ enum AIConnectorRunner {
                                            sessionID: sessionID,
                                            timeout: timeout, onResolvePath: onResolvePath,
                                            onProgress: onProgress)
-        case .codexCLI, .geminiCLI, .ollama:
+        case .ollama:
+            return try await runOllama(prompt: prompt, connector: connector,
+                                       timeout: timeout, onProgress: onProgress)
+        case .codexCLI, .geminiCLI:
             throw AIConnectorError.notImplemented(connector.kind.displayName)
         }
+    }
+
+    // MARK: Ollama
+
+    /// `POST <endpoint>/api/generate` with `stream: true`.
+    ///
+    /// Ollama answers as newline-delimited JSON, one object per token, with a
+    /// final object carrying `done: true` and the usage.  Streaming rather
+    /// than waiting for the whole answer for the same reason the Claude path
+    /// does: a local 26B model takes minutes on a manuscript, and the
+    /// difference between "working" and "stuck" is whether tokens keep
+    /// arriving.  Silence is judged by the same `stallTimeout`.
+    ///
+    /// The model is whatever `selectedModel` names — Ollama refuses a name it
+    /// hasn't pulled, and says so, which is the honest failure.  The answer
+    /// reports the model it came from, so substitution is detected exactly
+    /// as it is for Claude Code.
+    private static func runOllama(prompt: String,
+                                  connector: AIConnector,
+                                  timeout: Int,
+                                  onProgress: (@Sendable (AIRunProgress) -> Void)?) async throws -> AIRunResult {
+        let base = connector.endpoint.trimmingCharacters(in: .whitespaces)
+        guard let url = URL(string: base.isEmpty ? "http://localhost:11434" : base)?
+                .appendingPathComponent("api/generate") else {
+            throw AIConnectorError.launchFailed("“\(connector.endpoint)” isn't a URL.")
+        }
+        guard !connector.selectedModel.isEmpty else {
+            throw AIConnectorError.toolFailed("No model chosen — pick one of the models Ollama has pulled.")
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.timeoutInterval = TimeInterval(timeout)
+        request.httpBody = try JSONSerialization.data(withJSONObject: [
+            "model": connector.selectedModel,
+            "prompt": prompt,
+            "stream": true,
+        ] as [String: Any])
+
+        let started = Date()
+        let clock = ActivityClock()
+        var text = ""
+        var reportedModel: String? = nil
+        var progress = AIRunProgress()
+        progress.phase = .starting
+        onProgress?(progress)
+
+        let bytes: URLSession.AsyncBytes
+        let response: URLResponse
+        do {
+            (bytes, response) = try await URLSession.shared.bytes(for: request)
+        } catch {
+            throw AIConnectorError.launchFailed(
+                "Couldn't reach Ollama at \(base.isEmpty ? "localhost:11434" : base) — is it running? (\(error.localizedDescription))")
+        }
+        if let http = response as? HTTPURLResponse, http.statusCode != 200 {
+            // Ollama puts the reason in the body: "model 'x' not found", etc.
+            var detail = ""
+            for try await line in bytes.lines { detail += line }
+            let reason = (try? JSONSerialization.jsonObject(with: Data(detail.utf8)) as? [String: Any])?["error"] as? String
+            throw AIConnectorError.toolFailed(reason ?? "Ollama answered HTTP \(http.statusCode).")
+        }
+
+        // The watchdog reads the same clock the stream touches; on silence it
+        // cancels the read, which surfaces here as a thrown error we
+        // translate below.
+        let reader = Task { () throws -> Void in
+            for try await line in bytes.lines {
+                clock.touch()
+                guard let data = line.data(using: .utf8),
+                      let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+                else { continue }
+                if let error = json["error"] as? String {
+                    throw AIConnectorError.toolFailed(error)
+                }
+                if let piece = json["response"] as? String, !piece.isEmpty {
+                    text += piece
+                    progress.phase = .writing
+                    progress.responseCharacters = text.count
+                    progress.tail = String(text.suffix(AIRunProgress.tailLength))
+                    onProgress?(progress)
+                }
+                if let model = json["model"] as? String { reportedModel = model }
+                if (json["done"] as? Bool) == true { break }
+            }
+        }
+        let watchdog = Task {
+            while !Task.isCancelled {
+                try await Task.sleep(for: .seconds(2))
+                if clock.elapsedSinceLastEvent > Double(stallTimeout) { clock.stop(.stall); reader.cancel(); return }
+                if clock.totalElapsed > Double(timeout) { clock.stop(.deadline); reader.cancel(); return }
+            }
+        }
+        defer { watchdog.cancel() }
+        do {
+            try await reader.value
+        } catch is CancellationError {
+            if clock.stop == .stall { throw AIConnectorError.stalled(stallTimeout) }
+            throw AIConnectorError.timedOut(timeout)
+        } catch let error as AIConnectorError {
+            throw error
+        } catch {
+            if clock.stop == .stall { throw AIConnectorError.stalled(stallTimeout) }
+            if clock.stop == .deadline { throw AIConnectorError.timedOut(timeout) }
+            throw AIConnectorError.toolFailed(error.localizedDescription)
+        }
+
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw AIConnectorError.emptyResponse
+        }
+        // Ollama reports the tag it resolved ("gemma4:26b" for "gemma4:26b",
+        // but also "llama3.1:latest" for "llama3.1"): the same model under a
+        // longer name is not a substitution.
+        let requested = connector.selectedModel
+        let substituted = reportedModel.map { answered in
+            answered != requested && !answered.hasPrefix(requested + ":") && !requested.hasPrefix(answered + ":")
+        } ?? false
+        return AIRunResult(text: text,
+                           reportedModel: reportedModel,
+                           modelWasSubstituted: substituted,
+                           costUSD: 0,            // local: nothing is billed
+                           sessionID: nil,
+                           duration: Date().timeIntervalSince(started))
     }
 
     /// `claude -p <prompt> --model <id> --output-format stream-json --verbose
@@ -361,7 +489,7 @@ enum AIConnectorRunner {
     /// shared state.
     private final class StreamCollector: @unchecked Sendable {
         /// How much of the answer's end to keep for the live view.
-        private let tailLength = 4_000
+        private let tailLength = AIRunProgress.tailLength
         private let lock = NSLock()
         private let onProgress: (@Sendable (AIRunProgress) -> Void)?
         private var progress = AIRunProgress()

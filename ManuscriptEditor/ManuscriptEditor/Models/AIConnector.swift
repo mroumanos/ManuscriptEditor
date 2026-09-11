@@ -84,9 +84,8 @@ enum AIConnectorKind: String, Codable, CaseIterable, Sendable, Identifiable {
     }
 
     /// Whether the app can drive this connector yet.  The others are modelled
-    /// so the settings UI and the plan are honest about what is coming, but
-    /// only Claude Code is wired up.
-    var isImplemented: Bool { self == .claudeCLI }
+    /// so the settings UI and the plan are honest about what is coming.
+    var isImplemented: Bool { self == .claudeCLI || self == .ollama }
 }
 
 // MARK: - Model catalog
@@ -121,7 +120,26 @@ enum AIModelCatalog {
         case .codexCLI, .geminiCLI:
             return []           // curated once verified; free text until then
         case .ollama:
-            return []           // discovered live from /api/tags
+            return []           // discovered live: `AIModelCatalog.installedOllamaModels`
+        }
+    }
+
+    /// What an Ollama server actually has pulled — the only model list this
+    /// app can give honestly, since it is read off the server rather than
+    /// remembered from a release.  Empty when the server isn't answering.
+    static func installedOllamaModels(endpoint: String) async -> [Entry] {
+        guard let url = URL(string: endpoint.trimmingCharacters(in: .whitespaces))?
+                .appendingPathComponent("api/tags") else { return [] }
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 4
+        guard let (data, _) = try? await URLSession.shared.data(for: request),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let models = json["models"] as? [[String: Any]] else { return [] }
+        return models.compactMap { model in
+            guard let name = model["name"] as? String else { return nil }
+            let details = model["details"] as? [String: Any]
+            let size = details?["parameter_size"] as? String
+            return Entry(id: name, label: size.map { "\(name) (\($0))" } ?? name)
         }
     }
 
@@ -130,7 +148,7 @@ enum AIModelCatalog {
         case .claudeCLI: return "claude-opus-5"
         case .codexCLI:  return ""
         case .geminiCLI: return ""
-        case .ollama:    return "llama3.1"
+        case .ollama:    return ""     // whatever the server has pulled; Test picks the first
         }
     }
 }
@@ -153,6 +171,14 @@ struct AIConnector: Identifiable, Codable, Sendable, Equatable {
 
     var selectedModel: String = ""
 
+    /// The models this connector was seen to offer, as of the last `Test`.
+    ///
+    /// Only Ollama fills this — it is read off the server (`/api/tags`), so
+    /// it is the one model list the app can give honestly.  Kept on the
+    /// connector so the manuscript's model picker can list it without a
+    /// network call in the middle of a render.
+    var availableModels: [String] = []
+
     /// Result of the last `Test`, kept so the row can say something useful
     /// without re-running anything.
     var lastTestedAt: Date? = nil
@@ -173,10 +199,19 @@ struct AIConnector: Identifiable, Codable, Sendable, Equatable {
     /// Whether this connector is ready to be used for real work.
     var isReady: Bool { lastTestSucceeded == true }
 
+    /// The models to offer for this connector: the curated list for a CLI,
+    /// what the server has pulled for Ollama.
+    var modelEntries: [AIModelCatalog.Entry] {
+        if kind == .ollama {
+            return availableModels.map { AIModelCatalog.Entry(id: $0, label: $0) }
+        }
+        return AIModelCatalog.models(for: kind)
+    }
+
     // MARK: Codable (tolerant — new fields must not break old app.json)
 
     private enum CodingKeys: String, CodingKey {
-        case id, kind, executablePath, endpoint, selectedModel
+        case id, kind, executablePath, endpoint, selectedModel, availableModels
         case lastTestedAt, lastTestSucceeded, lastTestMessage
     }
 
@@ -189,6 +224,7 @@ struct AIConnector: Identifiable, Codable, Sendable, Equatable {
             ?? (kind.defaultEndpoint ?? "")
         selectedModel = try c.decodeIfPresent(String.self, forKey: .selectedModel)
             ?? AIModelCatalog.defaultModel(for: kind)
+        availableModels = try c.decodeIfPresent([String].self, forKey: .availableModels) ?? []
         lastTestedAt = try c.decodeIfPresent(Date.self, forKey: .lastTestedAt)
         lastTestSucceeded = try c.decodeIfPresent(Bool.self, forKey: .lastTestSucceeded)
         lastTestMessage = try c.decodeIfPresent(String.self, forKey: .lastTestMessage)

@@ -20,6 +20,7 @@ struct ConnectorDetailView: View {
     let onRemove: () -> Void
 
     @State private var pathDraft = ""
+    @State private var endpointDraft = ""
     @State private var testing = false
     @State private var testMessage: String?
     @State private var testSucceeded: Bool?
@@ -82,6 +83,49 @@ struct ConnectorDetailView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 } header: {
                     Text("Executable")
+                }
+            }
+
+            if connector.kind == .ollama {
+                Section {
+                    HStack(spacing: 8) {
+                        TextField("", text: $endpointDraft, prompt: Text("http://localhost:11434"))
+                            .textFieldStyle(.roundedBorder)
+                            .font(.system(.body, design: .monospaced))
+                            .onSubmit(saveEndpoint)
+                    }
+                    Text("Where Ollama is listening. The default is right for a copy running on this Mac.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                } header: {
+                    Text("Server")
+                }
+                Section {
+                    if connector.availableModels.isEmpty {
+                        Text("Press Test to read what this server has pulled.")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        // Read off the server, so it lists what is actually
+                        // installed — `ollama pull` something new and press
+                        // Test again.
+                        Picker("Model", selection: Binding(
+                            get: { connector.selectedModel },
+                            set: { value in
+                                var edited = connector
+                                edited.selectedModel = value
+                                appStore.updateConnector(edited)
+                            })) {
+                            ForEach(connector.availableModels, id: \.self) { Text($0).tag($0) }
+                        }
+                        Text("Test proves this model answers; the manuscript picks its own in Overview → Settings → AI.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                } header: {
+                    Text("Models")
                 }
             }
 
@@ -152,6 +196,7 @@ struct ConnectorDetailView: View {
 
     private func load() {
         pathDraft = connector.executablePath
+        endpointDraft = connector.endpoint
         testMessage = nil
         testSucceeded = nil
     }
@@ -174,14 +219,46 @@ struct ConnectorDetailView: View {
         savePath()
     }
 
+    private func saveEndpoint() {
+        var edited = connector
+        edited.endpoint = endpointDraft.trimmingCharacters(in: .whitespaces)
+        appStore.updateConnector(edited)
+    }
+
     /// One real round-trip: resolve the binary, ask for a single word back, and
     /// report what happened — including which model answered.
+    ///
+    /// For Ollama the first step is different: read the model list off the
+    /// server, so the picker shows what is actually pulled, and pick the
+    /// first one if nothing is chosen yet.
     private func runTest() async {
         testing = true
         testMessage = nil
         defer { testing = false }
 
         var edited = connector
+        if edited.kind == .ollama {
+            if !endpointDraft.trimmingCharacters(in: .whitespaces).isEmpty {
+                edited.endpoint = endpointDraft.trimmingCharacters(in: .whitespaces)
+            }
+            let installed = await AIModelCatalog.installedOllamaModels(endpoint: edited.endpoint)
+            edited.availableModels = installed.map(\.id)
+            if !installed.contains(where: { $0.id == edited.selectedModel }) {
+                edited.selectedModel = installed.first?.id ?? ""
+            }
+            appStore.updateConnector(edited)
+            if installed.isEmpty {
+                let message = "Ollama answered at \(edited.endpoint), but has no models pulled — run `ollama pull <model>` first."
+                edited.lastTestSucceeded = false
+                edited.lastTestMessage = message
+                edited.lastTestedAt = Date()
+                appStore.updateConnector(edited)
+                testMessage = message
+                testSucceeded = false
+                testedThisSession[connector.id] = false
+                return
+            }
+        }
         if edited.selectedModel.isEmpty {
             edited.selectedModel = AIModelCatalog.defaultModel(for: edited.kind)
         }

@@ -174,7 +174,7 @@ struct OverviewView: View {
                     Picker("", selection: aiChoice) {
                         Text("None").tag(AIChoice.none)
                         ForEach(appStore.connectors.filter(\.isReady)) { connector in
-                            let models = AIModelCatalog.models(for: connector.kind)
+                            let models = connector.modelEntries
                             if models.isEmpty {
                                 Text(connector.kind.displayName)
                                     .tag(AIChoice.connector(connector.id,
