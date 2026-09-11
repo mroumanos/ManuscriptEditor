@@ -1039,12 +1039,17 @@ from a manuscript. Design and rationale:
   back), not as prose. The **abstract** is sent and adapted with the sections.
   With a template, the template goes out as the venue's **boilerplate** to
   follow — reuse its format, fill in where it calls for the manuscript's
-  content — and its tokens are the requirement on the way back (the old
-  text's are superseded); every section lists the **citations** it carries
-  (`mustKeep`), never the template's tokens; a section refused for a dropped
-  token gets **one repair round** naming what it dropped, logged as its own
-  request, and lands if it comes back whole. The banner leads with refusals
-  when there are any.
+  content — and its field tokens are the requirement on the way back (the
+  old text's are superseded). **Citations are by understanding**: the
+  manuscript's references, figures and tables go out as a keyed legend
+  (`R1…`, `F1…`, `T1…`, each with its text), the sections cite by key, and
+  the rules say how a co-author carries citations with claims — a cut claim
+  takes its citations with it, and a reference no longer cited leaves the
+  cut's list. Refused, and named: an invented key, a section that cited
+  several and comes back citing none, a lost field. A refused section gets
+  **one repair round** naming its problems, logged as its own request, and
+  lands if it comes back clean. The banner leads with refusals when there
+  are any; the log's detail carries the citation accounting.
 - AC: Every sync offers **Cancel · Append · Overwrite**. Append keeps what the
   cut has and adds the incoming content after it, per section and per question
   — joined as **rich text**, so every citation and token on both sides

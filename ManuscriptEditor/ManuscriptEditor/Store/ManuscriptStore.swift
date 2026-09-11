@@ -2470,7 +2470,16 @@ final class ManuscriptStore {
         // and quietly replaced every rewritten section with its boilerplate
         // while the banner reported the rewrite.)
         var baseContent = migrated(base?.content ?? m, into: head.content)
-        if let adaptation { applyAdaptation(adaptation, to: &baseContent) }
+        if let adaptation {
+            let citedBefore = Set(RefEngine.citedOrder(in: baseContent))
+            applyAdaptation(adaptation, to: &baseContent)
+            // A reference the adaptation stopped citing leaves this cut's
+            // list — that is how a reference limit is met, and the model was
+            // told so.  Only ones it was citing: an entry that was never cited
+            // is the author's to keep.  Source's list is untouched.
+            let citedAfter = Set(RefEngine.citedOrder(in: baseContent))
+            baseContent.bibliography.removeAll { citedBefore.contains($0.id) && !citedAfter.contains($0.id) }
+        }
         if mode == .append, let head = latestVersion(forJournal: journalID)?.content {
             appendIncoming(into: &baseContent, keeping: head)
         }
@@ -2836,8 +2845,8 @@ final class ManuscriptStore {
             // local model cutting a paper by half drops citations with the
             // sentences; asked again with the names, it mostly keeps them.
             // Recorded as a request of its own, so the log shows both.
-            if !adaptation.missingByID.isEmpty {
-                let refusedPayloads = sent.filter { adaptation.missingByID[$0.section.id] != nil }
+            if !adaptation.problemsByID.isEmpty {
+                let refusedPayloads = sent.filter { adaptation.problemsByID[$0.section.id] != nil }
                 let retryID = UUID()
                 let retryStarted = Date()
                 var retryPrompt = ""
@@ -2845,7 +2854,7 @@ final class ManuscriptStore {
                     retryPrompt = AIRequestService.prompt(
                         context: bundle,
                         task: try FastForwardIntent.repairTask(
-                            payloads: refusedPayloads, missing: adaptation.missingByID, target: target))
+                            payloads: refusedPayloads, problems: adaptation.problemsByID, target: target))
                     let retry = try await AIRequestService.send(
                         prompt: retryPrompt, to: destination, sessionID: retryID,
                         onProgress: { [weak self] progress in
@@ -2861,15 +2870,15 @@ final class ManuscriptStore {
                     record(AIPromptLogEntry(
                         id: retryID,
                         intentID: FastForwardIntent.descriptor.id,
-                        summary: "\(summary) — repair round for \(refusedPayloads.count) section\(refusedPayloads.count == 1 ? "" : "s") that dropped tokens",
+                        summary: "\(summary) — repair round for \(refusedPayloads.count) refused section\(refusedPayloads.count == 1 ? "" : "s")",
                         connectorLabel: destination.label,
                         model: retry.model,
                         startedAt: retryStarted,
                         duration: retry.duration,
                         outcome: recovered > 0 ? .applied : .noChange,
                         detail: recovered > 0
-                            ? "\(recovered) of \(refusedPayloads.count) came back with every token and landed with the main run."
-                            : "Still missing tokens — those sections keep their previous text.",
+                            ? "\(recovered) of \(refusedPayloads.count) came back clean and landed with the main run."
+                            : "Still refused — those sections keep their previous text.",
                         contextTitles: bundle.pieces.map(\.title),
                         excludedContextTitles: bundle.excludedTitles,
                         promptCharacters: retryPrompt.count,
@@ -2953,7 +2962,7 @@ final class ManuscriptStore {
                 if refusedCount > 0 {
                     // Refusals lead: a run that kept most of its sections
                     // reads as "it copied them" unless the reason comes first.
-                    message = "\(summary) — \(refusedCount) of \(changes.count + refusedCount) section\(changes.count + refusedCount == 1 ? "" : "s") KEPT UNCHANGED because \(result.model)'s reply dropped a citation or field, even after a repair round: \(adaptation.refused.joined(separator: ", ")). \(changes.count) adapted and stamped as a new version; the previous content is in Versions. Log → AI Requests names the dropped tokens."
+                    message = "\(summary) — \(refusedCount) of \(changes.count + refusedCount) section\(changes.count + refusedCount == 1 ? "" : "s") KEPT UNCHANGED because \(result.model)'s reply dropped a field, invented a reference or lost every citation, even after a repair round: \(adaptation.refused.joined(separator: ", ")). \(changes.count) adapted and stamped as a new version; the previous content is in Versions. Log → AI Requests names each problem."
                 } else {
                     message = "\(summary) — \(changes.count) section\(changes.count == 1 ? "" : "s") adapted by \(result.model). Stamped as a new version; the previous content is in Versions."
                 }
@@ -3011,8 +3020,27 @@ final class ManuscriptStore {
             parts.append("The override didn't run — nothing was written.")
             return parts.joined(separator: " ")
         }
-        for (section, tokens) in adaptation.missingTokens.sorted(by: { $0.key < $1.key }) {
-            parts.append("\(section): kept unchanged — the reply dropped \(tokens.joined(separator: ", ")).")
+        for (section, problems) in adaptation.problems.sorted(by: { $0.key < $1.key }) {
+            parts.append("\(section): kept unchanged — \(problems.joined(separator: "; ")).")
+        }
+        // The citations, before and after: what moved, what went, what came.
+        let before = Set(adaptation.citations.values.flatMap(\.before))
+        let after = Set(adaptation.citations.values.flatMap(\.after))
+        if !before.isEmpty || !after.isEmpty {
+            var line = "Citations in the adapted sections: \(before.count) references cited before, \(after.count) after"
+            let dropped = before.subtracting(after).sorted(), added = after.subtracting(before).sorted()
+            if !dropped.isEmpty { line += "; no longer cited: \(dropped.joined(separator: ", "))" }
+            if !added.isEmpty { line += "; newly cited: \(added.joined(separator: ", "))" }
+            parts.append(line + ".")
+        }
+        if let head = latestVersion(forJournal: journalID)?.content {
+            let kept = Set(head.bibliography.map(\.id))
+            let pruned = (syncBase(forUpstream: nil)?.content.bibliography ?? [])
+                .filter { !kept.contains($0.id) }
+            if !pruned.isEmpty {
+                parts.append("\(pruned.count) reference\(pruned.count == 1 ? "" : "s") no longer cited anywhere left this cut's list (Source keeps them): "
+                             + pruned.map { $0.key.isEmpty ? String($0.title.prefix(40)) : $0.key }.joined(separator: ", ") + ".")
+            }
         }
         let failures = failingChecks(forJournal: journalID, target: target)
         if failures.isEmpty {

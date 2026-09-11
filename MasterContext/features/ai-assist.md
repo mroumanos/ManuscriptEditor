@@ -476,6 +476,33 @@ abbreviations the journal's instructions asked for (`HF` → heart failure,
 glomerular filtration rate), returned Methods unchanged because it already
 suited the target, and preserved every number — 412, 72 hours, 10 mg, p = 0.03.
 
+**Citations by understanding, not by copying (Sep 11, 2026 — the third
+design).** The marker protocol below (each citation *run* as an opaque
+`[[cite:3]]` that had to come back verbatim) was safe and wrong for the work:
+a model adapting a paper merges sentences, moves claims and cuts the ones a
+limit can't afford, and a citation belongs to a *claim*, not to a position.
+Now the manuscript's references go out as a **legend** — every bibliography
+entry as `R1…Rn` in the order the list prints (so `R3` is the reference
+printed as [3]), every figure `F1…`, every table `T1…`, each with its text —
+and the sections cite by key: `[[cite:R3]]`, `[[cite:R3,R7]]`, `[[fig:F2]]`,
+`[[tab:T1]]`, `[[figplace:F2]]`. Rule 1 says how a co-author uses them: a
+claim keeps its citations; merged sentences carry theirs; a cut claim takes
+its citations with it and a reference no longer cited leaves the list — which
+is how a reference limit is met; a listed reference may be cited where it
+supports a claim; nothing outside the list, ever. On the way back
+(`AIRefMarkers.restore`) every key becomes the link it stands for, displayed
+as the editor displays it, and `syncJournal` drops from the **cut's** list
+any reference the adaptation was citing and no longer cites (Source's list is
+untouched; an entry that was never cited is the author's to keep).
+
+What is still refused, and named in the log: a key not in the legend (an
+invented reference, or `[[fig:R3]]`), a section that cited several entries
+and comes back citing none (the system ignored, not a judgement), and a
+manuscript **field** (`[[title]]`) that went missing. There is no `mustKeep`
+list any more: the reference list *is* the context. The log's detail reports
+the citation accounting per run — cited before, cited after, no longer cited,
+newly cited, and the references that left the cut's list.
+
 **What the second local-model run found (Sep 11, 2026) — refusals read as
 copies.** With Source's citations restored, a gemma4:26b run rewrote every
 section (Introduction 414 → 166 words, Discussion 444 → 134, the title page

@@ -383,3 +383,14 @@ Requires: clean tree on main, the Developer ID cert, `gh` auth.
     and the next assisted run had nothing to mark. `RefEngine.joined` is the
     only way two `RichText`s become one. The tell in the data: every section
     exactly N characters longer, with `rtf` gone.
+
+31. **A citation belongs to a claim, not to a position.** The first
+    fast-forward protocol sent each citation run as an opaque marker that
+    had to come back verbatim; a model halving a paper dropped them with the
+    sentences and most sections were refused. Citations go to a model by
+    **key** against a legend of the manuscript's references (`AIRefMarkers
+    .Legend`), with rules on how they travel with claims, and come back as
+    links; only an invented key, a section that lost every citation, or a
+    lost field token refuses a section. Don't reintroduce per-occurrence
+    markers or a "must keep" list for citations — the reference list is the
+    context.

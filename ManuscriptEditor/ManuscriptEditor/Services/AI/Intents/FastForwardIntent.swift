@@ -1,11 +1,12 @@
 // FastForwardIntent.swift
 //
 // AI INTENT  journal.fastForward
-//   Sends:   enabled context rows · the sections as the copy would bring
+//   Sends:   enabled context rows · the manuscript's references, figures and
+//            tables as a keyed legend · the sections as the copy would bring
 //            them down (the upstream's text where it has some, the cut's own
-//            — its boilerplate — where it hasn't), with every citation and
-//            part token marked · the target journal's profile ·
-//            **the target's checks, evaluated, with their current numbers**
+//            — its boilerplate — where it hasn't), citing by key · the
+//            target journal's profile · **the target's checks, evaluated,
+//            with their current numbers**
 //   Writes:  the downstream cut's sections and submission answers, as a new
 //            stamped version
 //   Reverts: the overridden content is stamped into version history first,
@@ -19,9 +20,12 @@
 //
 // THREE RULES THIS PROMPT IS BUILT AROUND
 // ─────────────────────────────────────────────────────────────────────────────
-// 1. **Never invent, never drop.** Every claim, number, citation marker and
-//    figure/table reference survives verbatim.  A model that improves a result
-//    is worse than useless in a scientific manuscript.
+// 1. **Never invent a result; cite like a co-author.** Every claim, number
+//    and statistic survives verbatim — a model that improves a result is worse
+//    than useless in a scientific manuscript.  Citations are handled by
+//    understanding, not by copying: the model sees the reference list and
+//    keeps each claim's citations with the claim, moving them when it merges
+//    sentences and letting them go with a claim it cuts (see AIRefMarkers).
 //
 // 2. **The checks are the specification, with their numbers.**  The first
 //    version sent the checks as names ("Body ≤ 1200 words") and got back prose
@@ -47,7 +51,8 @@ struct FastForwardIntent: AIIntent {
         title: "Fast-forward a journal",
         summary: "Adapts the upstream's content toward the target journal's requirements, limits and checks while copying it down.",
         sends: ["Enabled context rows",
-                "The sections a fast-forward would copy — the upstream's text, the cut's own where the upstream is empty — with citations and part tokens marked",
+                "The manuscript's references, figures and tables, keyed (R1…, F1…, T1…) with each reference's text",
+                "The sections a fast-forward would copy — the upstream's text, the cut's own where the upstream is empty — citing by key",
                 "The target journal's requirements, structure and checks",
                 "Each check's current measurement against the content being adapted"],
         writes: "The target journal's sections and submission answers, stamped as a new version",
@@ -84,9 +89,12 @@ struct FastForwardIntent: AIIntent {
     }
 
     /// Everything that goes out for a manuscript: the abstract first, then
-    /// its active sections.
+    /// its active sections — all citing by the same legend.
     static func payloads(for content: Manuscript, target: Journal? = nil) -> [Payload] {
-        payloads([abstractSection(content)], target: target) + payloads(content.sections, target: target)
+        let legend = AIRefMarkers.Legend(
+            content: content, citationStyle: target?.requirements.citationStyle.cslID ?? "apa")
+        return payloads([abstractSection(content)], target: target, legend: legend)
+            + payloads(content.sections, target: target, legend: legend)
     }
 
     /// One section as it goes out, and everything needed to put it back.
@@ -115,7 +123,9 @@ struct FastForwardIntent: AIIntent {
     /// (by title).  The entry's boilerplate is a **specification**, not text:
     /// the model writes the section to it, and every `[[…]]` token it uses is
     /// required in the answer just as one already in the text would be.
-    static func payloads(_ sections: [ManuscriptSection], target: Journal? = nil) -> [Payload] {
+    static func payloads(_ sections: [ManuscriptSection], target: Journal? = nil,
+                         legend: AIRefMarkers.Legend? = nil) -> [Payload] {
+        let legend = legend ?? AIRefMarkers.Legend(content: Manuscript.new())
         let entries = Dictionary((target?.structure?.journalEntries ?? []).map { ($0.key, $0) },
                                  uniquingKeysWith: { first, _ in first })
         // Journal content only: core content is the author's, never adapted.
@@ -125,25 +135,25 @@ struct FastForwardIntent: AIIntent {
             let sample = entry?.sample?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             switch section.sectionKind {
             case .text, .letter:
-                var prepared = AIRefMarkers.prepare(section.content)
+                var prepared = AIRefMarkers.prepare(section.content, legend: legend)
                 let holds = !sample.isEmpty
                     && section.content.plain.trimmingCharacters(in: .whitespacesAndNewlines) == sample
                 if !sample.isEmpty {
-                    // Written TO the template, the section keeps the
+                    // Written to the template, the section keeps the
                     // template's field tokens — not the old text's, which
                     // the template supersedes.  (A title page whose old text
                     // said `[[authors]]` was refused for dropping it, when
                     // the template had replaced it with `[[authors.names]]`.)
-                    // Citations are the text's and stay required.
-                    prepared = AIRefMarkers.Prepared(text: prepared.text, markers: prepared.markers,
-                                                     partTokens: AIRefMarkers.partTokenList(in: sample))
+                    prepared = AIRefMarkers.Prepared(text: prepared.text, citedKeys: prepared.citedKeys,
+                                                     partTokens: AIRefMarkers.partTokenList(in: sample),
+                                                     legend: legend)
                 }
                 return Payload(section: section, prepared: prepared, questions: [],
                                template: entry, holdsTemplate: holds)
             case .questions:
                 return Payload(section: section, prepared: nil,
                                questions: section.orderedQuestions.map {
-                                   ($0, AIRefMarkers.prepare($0.response))
+                                   ($0, AIRefMarkers.prepare($0.response, legend: legend))
                                },
                                template: entry, holdsTemplate: false)
             }
@@ -178,14 +188,6 @@ struct FastForwardIntent: AIIntent {
                 entry["kind"] = "prose"
                 entry["words"] = payload.holdsTemplate ? 0 : payload.section.wordCount
                 entry["text"] = payload.holdsTemplate ? "" : (payload.prepared?.text ?? "")
-                // The citations and figure/table references the text
-                // carries, spelled out beside it: a rule at the top is
-                // honoured in general and forgotten in a section being cut
-                // by half.  Not the template's tokens — the template is a
-                // boilerplate the model reuses, and its tokens are part of
-                // that format, not items to tag.
-                let keep = Array(Set(payload.prepared?.markers.map(\.marker) ?? [])).sorted()
-                if !keep.isEmpty { entry["mustKeep"] = keep }
             case .questions:
                 entry["kind"] = "questions"
                 entry["questions"] = payload.questions.map { item -> [String: Any] in
@@ -195,8 +197,6 @@ struct FastForwardIntent: AIIntent {
                         "answer": item.prepared.text,
                     ]
                     if let limit = item.question.wordLimit { q["wordLimit"] = limit }
-                    let keep = Array(Set(item.prepared.markers.map(\.marker))).sorted()
-                    if !keep.isEmpty { q["mustKeep"] = keep }
                     return q
                 }
             }
@@ -206,6 +206,10 @@ struct FastForwardIntent: AIIntent {
             data: try JSONSerialization.data(withJSONObject: sectionJSON, options: [.sortedKeys]),
             encoding: .utf8) ?? "[]"
 
+        let legend = payloads.first?.prepared?.legend
+            ?? payloads.first?.questions.first?.prepared.legend
+        let legendText = legend.map { $0.isEmpty ? "" : $0.promptText } ?? ""
+
         return """
         Adapt this manuscript for submission to "\(target.displayName)".
 
@@ -213,35 +217,47 @@ struct FastForwardIntent: AIIntent {
 
         \(checkText(content: content, target: target))
 
+        \(legendText)
+
         RULES — in order of importance
 
-        1. TOKENS IN DOUBLE BRACKETS ARE NOT TEXT. `[[cite:3]]`, `[[figref:1]]`, \
-        `[[tabref:2]]`, `[[title]]`, `[[authors.names]]` and any other `[[…]]` \
-        stand for citations, figures, tables and manuscript fields — in a \
-        section's text and in its template alike. Reproduce \
-        every one of them exactly as written, in the same place in the argument. \
-        Never delete one, never renumber one, never invent a new one, and never \
-        replace one with words of your own — `[[authors.names]]` must come back \
-        as `[[authors.names]]`, not as a list of names. A dropped token is a \
-        lost citation. Each section lists the citations and figure/table \
-        references its text carries in "mustKeep": your answer for that \
-        section contains every one of them, however much you cut. When you \
-        drop a sentence that carries a citation, the citation moves to the \
-        sentence that keeps the claim — it never disappears. A section that \
-        comes back missing a token is rejected whole and the old text kept.
+        1. CITATIONS ARE PART OF THE ARGUMENT — USE THEM AS A CO-AUTHOR WOULD. \
+        The manuscript's references are listed above by key. In the text, \
+        `[[cite:R3]]` cites reference R3 and `[[cite:R3,R7]]` cites two at once; \
+        `[[fig:F2]]` and `[[tab:T1]]` refer to a figure or a table, and \
+        `[[figplace:F2]]` marks where one is placed. Write them exactly in that \
+        form, in the running text where the citation belongs. A claim keeps \
+        the citations that support it. When you merge or move sentences, \
+        their citations move with the claim. When you cut a claim, its \
+        citations go with it — and a reference no longer cited anywhere leaves \
+        the reference list, which is how a reference limit is met: cut the \
+        claims that need the extra references, never the citations alone. \
+        Where a listed reference supports a claim better than what is there, \
+        or a claim you keep has lost its support, cite it. Cite only \
+        references in the list above — never invent one, never write a \
+        citation as words or as a bare number, never change a key. A figure \
+        or table that stays in the paper keeps its references.
 
-        2. PRESERVE THE SCIENCE. Every claim, number, statistic, p-value, \
+        2. MANUSCRIPT FIELDS ARE NOT TEXT. `[[title]]`, `[[authors.names]]`, \
+        `[[authors.institutes]]` and any other `[[…]]` without a colon stand \
+        for values filled in on export. Reproduce each exactly as written, \
+        where it belongs — never as words: `[[authors.names]]` comes back as \
+        `[[authors.names]]`, not as a list of names. A section that comes back \
+        without a field it had, or citing a key that is not in the list, is \
+        rejected whole and the old text kept.
+
+        3. PRESERVE THE SCIENCE. Every claim, number, statistic, p-value, \
         confidence interval, unit, sample size and date exactly as given. Never \
         add a finding, never remove one, never soften or strengthen a claim, \
         never introduce a fact that is not already in the material you were sent.
 
-        3. MEET THE CHECKS ABOVE. Every check listed as FAILING must pass after \
+        4. MEET THE CHECKS ABOVE. Every check listed as FAILING must pass after \
         your rewrite; every check listed as passing must still pass. Where a \
         length limit is failing, cut — tighten sentences, remove redundancy, \
         drop background that the target's readers already have — rather than \
         deleting findings. Respect the per-section budgets where they are given.
 
-        4. A "template" IS THE VENUE'S BOILERPLATE FOR THAT SECTION. Follow its \
+        5. A "template" IS THE VENUE'S BOILERPLATE FOR THAT SECTION. Follow its \
         format: reuse its layout, its headings, its statements and its \
         `[[…]]` tokens as they stand, and fill in where it calls for the \
         manuscript's own content — its "format" says how it must be written \
@@ -251,11 +267,11 @@ struct FastForwardIntent: AIIntent {
         left. A section whose "text" is empty and that has a template is \
         written from the template alone.
 
-        5. WRITE THE EMPTY ONES. A section or question that arrives empty still \
+        6. WRITE THE EMPTY ONES. A section or question that arrives empty still \
         has to be answered, from the manuscript's own content, within its word \
         limit. Do not leave it blank and do not answer with a placeholder.
 
-        6. ADAPT, DON'T RESTRUCTURE. Keep each section's subject matter; do not \
+        7. ADAPT, DON'T RESTRUCTURE. Keep each section's subject matter; do not \
         move content between sections, merge them or split them.
 
         SECTIONS (JSON):
@@ -280,7 +296,7 @@ struct FastForwardIntent: AIIntent {
     /// paper by half handed back most of it "unchanged".  Naming the dropped
     /// tokens and asking again is cheap (one more request, free on a local
     /// model) and turns most refusals into landed sections.
-    static func repairTask(payloads: [Payload], missing: [UUID: [String]],
+    static func repairTask(payloads: [Payload], problems: [UUID: [String]],
                            target: Journal) throws -> String {
         guard !payloads.isEmpty else { throw FastForwardError.nothingToAdapt }
         var sectionJSON: [[String: Any]] = []
@@ -288,7 +304,7 @@ struct FastForwardIntent: AIIntent {
             var entry: [String: Any] = [
                 "id": payload.section.id.uuidString,
                 "title": payload.section.title,
-                "dropped": (missing[payload.section.id] ?? []).sorted(),
+                "problems": problems[payload.section.id] ?? [],
             ]
             if let template = payload.template {
                 if let sample = template.sample, !sample.isEmpty { entry["template"] = sample }
@@ -299,7 +315,6 @@ struct FastForwardIntent: AIIntent {
             case .text, .letter:
                 entry["kind"] = "prose"
                 entry["text"] = payload.holdsTemplate ? "" : (payload.prepared?.text ?? "")
-                entry["mustKeep"] = Array(Set(payload.prepared?.required ?? [])).sorted()
             case .questions:
                 entry["kind"] = "questions"
                 entry["questions"] = payload.questions.map { item -> [String: Any] in
@@ -307,7 +322,6 @@ struct FastForwardIntent: AIIntent {
                         "id": item.question.id.uuidString,
                         "prompt": item.question.prompt,
                         "answer": item.prepared.text,
-                        "mustKeep": Array(Set(item.prepared.required)).sorted(),
                     ]
                     if let limit = item.question.wordLimit { q["wordLimit"] = limit }
                     return q
@@ -319,21 +333,28 @@ struct FastForwardIntent: AIIntent {
             data: try JSONSerialization.data(withJSONObject: sectionJSON, options: [.sortedKeys]),
             encoding: .utf8) ?? "[]"
 
+        let legend = payloads.first?.prepared?.legend
+            ?? payloads.first?.questions.first?.prepared.legend
+        let legendText = legend.map { $0.isEmpty ? "" : $0.promptText } ?? ""
+
         return """
         You were adapting this manuscript for submission to "\(target.displayName)". \
-        Your answer for the sections below was REJECTED, because each one came \
-        back without tokens it had to keep — they are listed per section as \
-        "dropped". Nothing from that answer was used.
+        Your answer for the sections below was REJECTED — each one's "problems" \
+        says why. Nothing from that answer was used.
 
         \(profileText(for: target))
 
+        \(legendText)
+
         Adapt these sections again, toward the same target and the same limits, \
-        and this time keep every token in "mustKeep" — the ones in "dropped" \
-        above all. A `[[cite:N]]` stands for a citation: when you cut the \
-        sentence it sat in, place it on the sentence that keeps the claim. A \
-        `[[title]]` or `[[authors.names]]` stands for a manuscript field: it \
-        stays where the template puts it. Reproduce every token exactly as \
-        written. Preserve every claim, number and statistic; add nothing.
+        without those problems. Citations are written as `[[cite:R3]]` (or \
+        `[[cite:R3,R7]]`), figure and table references as `[[fig:F2]]` and \
+        `[[tab:T1]]`, using only keys from the list above; a claim keeps the \
+        citations that support it, and a claim you cut takes its citations \
+        with it — but a section that keeps its claims keeps their citations. \
+        A `[[title]]` or `[[authors.names]]` stands for a manuscript field and \
+        stays exactly as written, where the template puts it. Preserve every \
+        claim, number and statistic; add nothing.
 
         SECTIONS (JSON):
         \(sectionsText)
@@ -494,17 +515,21 @@ struct FastForwardIntent: AIIntent {
         var sections: [UUID: RichText] = [:]
         /// Question series: section id → (question id → rebuilt answer).
         var answers: [UUID: [UUID: RichText]] = [:]
-        /// Markers the model failed to return, per section title.
-        var missingTokens: [String: [String]] = [:]
+        /// Why a section was refused, per section title.
+        var problems: [String: [String]] = [:]
         /// The same, by section id — what a repair round is built from.
-        var missingByID: [UUID: [String]] = [:]
-        /// Sections REFUSED because the reply dropped a citation or a field.
+        var problemsByID: [UUID: [String]] = [:]
+        /// What each accepted prose section cited before and after, by key —
+        /// for the log, so a run's citation changes are visible.
+        var citations: [UUID: (before: [String], after: [String])] = [:]
+        /// Sections REFUSED: a field dropped, a reference invented, or every
+        /// citation gone from a section that had several.
         ///
-        /// Refused, not written-with-a-warning: a section that lost a
-        /// reference is worse than a section that wasn't adapted.  The
-        /// upstream text stays and the log names what was dropped — the title
-        /// page came back once with `[[authors.names]]` replaced by an
-        /// invented author list, and that must not be able to land.
+        /// Refused, not written-with-a-warning: a section that lost its
+        /// references is worse than a section that wasn't adapted.  The
+        /// upstream text stays and the log names the problem — the title page
+        /// came back once with `[[authors.names]]` replaced by an invented
+        /// author list, and that must not be able to land.
         var refused: [String] = []
 
         var isEmpty: Bool { sections.isEmpty && answers.isEmpty }
@@ -516,6 +541,7 @@ struct FastForwardIntent: AIIntent {
             let byID = Dictionary(uniqueKeysWithValues: sent.map { ($0.section.id, $0) })
             for (id, rich) in repair.sections {
                 sections[id] = rich
+                citations[id] = repair.citations[id]
                 accepted(id, byID: byID)
             }
             for (id, answersFor) in repair.answers {
@@ -525,15 +551,15 @@ struct FastForwardIntent: AIIntent {
         }
 
         private mutating func accepted(_ id: UUID, byID: [UUID: Payload]) {
-            missingByID[id] = nil
+            problemsByID[id] = nil
             guard let title = byID[id]?.section.title else { return }
-            missingTokens[title] = nil
+            problems[title] = nil
             refused.removeAll { $0 == title || $0.hasPrefix(title + " — ") }
         }
     }
 
-    /// Reads the reply and rebuilds rich text, restoring every marked
-    /// reference to the link it stood for.
+    /// Reads the reply and rebuilds rich text, turning every key back into
+    /// the link it stands for.
     ///
     /// Entries with an unknown id or empty text are dropped rather than
     /// guessed at: writing a section the model didn't actually return would be
@@ -559,11 +585,12 @@ struct FastForwardIntent: AIIntent {
                !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
                let prepared = sent.prepared {
                 let restored = AIRefMarkers.restore(text, from: prepared, context: context)
-                if restored.missing.isEmpty {
+                if restored.isAccepted {
                     out.sections[id] = restored.rich
+                    out.citations[id] = (restored.citedBefore, restored.citedAfter)
                 } else {
-                    out.missingTokens[sent.section.title, default: []] += restored.missing
-                    out.missingByID[id, default: []] += restored.missing
+                    out.problems[sent.section.title, default: []] += restored.problems
+                    out.problemsByID[id, default: []] += restored.problems
                     out.refused.append(sent.section.title)
                 }
             }
@@ -575,11 +602,11 @@ struct FastForwardIntent: AIIntent {
                 else { continue }
                 let restored = AIRefMarkers.restore(answer.content, from: item.prepared,
                                                     context: context)
-                if restored.missing.isEmpty {
+                if restored.isAccepted {
                     out.answers[id, default: [:]][questionID] = restored.rich
                 } else {
-                    out.missingTokens[sent.section.title, default: []] += restored.missing
-                    out.missingByID[id, default: []] += restored.missing
+                    out.problems[sent.section.title, default: []] += restored.problems
+                    out.problemsByID[id, default: []] += restored.problems
                     out.refused.append("\(sent.section.title) — \(item.question.prompt.prefix(40))")
                 }
             }
