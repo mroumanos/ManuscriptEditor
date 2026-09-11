@@ -31,9 +31,12 @@ Two sections, plus a bottom utility bar:
 
 The four parts of a journal's configuration, in the order they read, and in the
 same order a **template's** own sidebar lists them (see
-[features/journal-templates.md](features/journal-templates.md) §3.3) — each
-marked with an orange pencil when this cut's copy has drifted from the template
-it came from:
+[features/journal-templates.md](features/journal-templates.md) §3.3). The rows
+carry **no** edited marker (Sep 2026): whether a part differs from its
+template is answered on the part's own page — an orange pencil beside its
+name, only when the copy actually differs, next to the template it names and
+the Load that takes the template's copy back. (A template tab's rows do mark
+unsaved edits; that is a different question.)
 - Summary  ← **comparable**: the venue's instructions, distilled, as this cut
              holds them; Edit, and Load from the template
 - Structure ← **comparable**: which sections a submission here has; add,

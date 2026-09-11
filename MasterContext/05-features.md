@@ -955,9 +955,16 @@ from a manuscript. Design and rationale:
   moved and every install agrees about which section is which.
 - AC: **Summary · Structure · Tests · Export are sidebar sections for a cut
   too**, replacing the card inside Checks. Each is this manuscript's own copy
-  and editable as such, each marks itself with an orange pencil when it has
-  drifted from its template, each names that template and links to it, and each
-  offers **Load**. None offers Save: a cut cannot write back into a template
+  and editable as such; each page marks itself with an orange pencil **only
+  when its copy differs from the template's** — the sidebar rows carry no
+  marker (Sep 2026) — each names that template and links to it, and each
+  offers **Load**. "Differs" asks what you changed and nothing else:
+  Structure compares the stored copy the Structure pane edits (not a capture
+  of the cut's sections, which lit the marker on every journal), and Export
+  compares the outline as the cut would print it against the template's
+  remapped onto the cut's sections, both normalized the same way, so
+  remapped ids and the pane's page-break anchors never count. None offers
+  Save: a cut cannot write back into a template
   (see *Where a template is edited*). Adding a whole journal to the library is
   still one deliberate button.
 - AC: **Sharing is that a template travels with the manuscript.** The

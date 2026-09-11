@@ -1578,12 +1578,32 @@ final class ManuscriptStore {
     /// compared against what a save WOULD produce, because it is computed from
     /// this cut's sections and their export formatting — none of which is in
     /// the stored structure until a capture happens.
+    ///
+    /// **Structure** is the stored copy — what the Structure pane edits — not
+    /// a capture of the cut's sections: a capture lists every section the cut
+    /// has, which no template does, so that read as "edited" on every
+    /// journal.  **Export** is compared as this cut would print it: the
+    /// template's outline remapped onto the cut's sections, both sides
+    /// normalized the same way, so neither the remapped ids nor the pane's
+    /// anchors count — only what you changed.
     func partDiffersFromTemplate(_ part: ProfilePart, journal: Journal) -> Bool {
-        var mine = journal.profile
-        if part == .structure, let prospective = structureCapture(journalID: journal.id) {
-            mine.structure = prospective
-        }
         let template = journal.profileID.flatMap { JournalProfileLibrary.shared.profile(id: $0) }
+        if part == .export {
+            // Without the template there is nothing to remap against, and
+            // "unknown" must not read as "edited".
+            guard let template,
+                  let content = latestVersion(forJournal: journal.id)?.content ?? manuscript
+            else { return false }
+            let theirs: ExportConfig
+            if let export = template.export, !export.documents.isEmpty {
+                theirs = remappedExport(export, template: template, content: content)
+            } else {
+                theirs = ExportConfig.standard(content: content, journal: journal)
+            }
+            return ProfileFingerprint.of(exportConfig(forJournal: journal.id))
+                != ProfileFingerprint.of(normalizedOutline(theirs, content: content))
+        }
+        let mine = journal.profile
         if let saved = (template?.partChecksums ?? journal.profile.partChecksums)?[part.rawValue] {
             return mine.fingerprint(part) != saved
         }
@@ -1950,6 +1970,18 @@ final class ManuscriptStore {
         } else {
             config = m.sourceExportConfig ?? .standard(content: m, journal: nil)
         }
+        let content = journalID.flatMap { latestVersion(forJournal: $0)?.content } ?? m
+        return normalizedOutline(config, content: content)
+    }
+
+    /// An outline as the pane and the exporter read it: every document
+    /// leading with its format anchor, a legacy cover-letter item pointed at
+    /// the letter section (or gone), no document left holding only breaks.
+    ///
+    /// The comparison with a template's outline runs both sides through
+    /// here, so what this adds is never counted as an edit.
+    func normalizedOutline(_ config: ExportConfig, content: Manuscript) -> ExportConfig {
+        var config = config
         // Every document leads with a pinned Section — the format anchor;
         // configs saved before sections existed gain one here.
         for i in config.documents.indices
@@ -1960,7 +1992,6 @@ final class ManuscriptStore {
         // An outline from when the cover letter was its own kind of item:
         // that item now means "the manuscript's letter section" — the first
         // one — or nothing at all if there isn't one.
-        let content = journalID.flatMap { latestVersion(forJournal: $0)?.content } ?? m
         let letterID = content.sections.sorted { $0.order < $1.order }
             .first { $0.sectionKind == .letter }?.id
         for d in config.documents.indices {

@@ -179,36 +179,17 @@ struct SidebarView: View {
         HStack {
             Label(title, systemImage: icon)
             Spacer()
-            editedBadge(item)
             checkBadge(item)
             notesBadge(item)
         }
         .tag(item)
     }
 
-    /// An orange pencil on a part that has drifted from the template it came
-    /// from — the same badge, and the same question, as the pane's own.
-    @ViewBuilder
-    private func editedBadge(_ item: SidebarItem) -> some View {
-        if let part = profilePart(for: item),
-           let journal = store.paneJournal(for: activeRef),
-           store.partDiffersFromTemplate(part, journal: journal) {
-            Image(systemName: "pencil.circle.fill")
-                .foregroundStyle(.orange)
-                .font(.caption)
-                .help("Differs from the template it came from")
-        }
-    }
-
-    private func profilePart(for item: SidebarItem) -> ProfilePart? {
-        switch item {
-        case .summary:   return .requirements
-        case .structure: return .structure
-        case .checks:    return .checks
-        case .export:    return .export
-        default:         return nil
-        }
-    }
+    // No "edited" marker on a journal's rows: whether a part differs from
+    // its template is answered on the part's own page, where the template is
+    // named and Load sits beside the answer.  (A template tab's rows do mark
+    // unsaved edits — that is a different question: saved to the library or
+    // not.)
 
     /// A red badge carrying the NUMBER of failing checks on that pane — the
     /// count is the useful part, and an exclamation mark only said "some".
