@@ -76,6 +76,9 @@ struct AIRunProgress: Sendable, Equatable {
         /// Extended thinking, before a single character of the answer exists.
         /// On a manuscript-sized adaptation this is most of the wait.
         case thinking
+        /// Busy, with nothing to count: a tool that reports a turn in flight
+        /// but neither thinking tokens nor text deltas (Codex).
+        case working
         case writing
     }
     var phase: Phase = .starting
@@ -95,6 +98,7 @@ struct AIRunProgress: Sendable, Equatable {
         switch phase {
         case .starting: return "Starting…"
         case .thinking: return "Thinking · \(thinkingTokens.formatted()) tokens"
+        case .working:  return "Working…"
         case .writing:  return "Writing · \(responseCharacters.formatted()) characters"
         }
     }
@@ -136,7 +140,11 @@ enum AIConnectorRunner {
     /// Where these tools actually get installed, in the order worth trying.
     private static func candidatePaths(for tool: String) -> [String] {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
-        return [
+        // The ChatGPT app for Mac ships the Codex CLI inside its bundle, and
+        // a user who has the app has it without ever running npm.
+        let bundled = tool == "codex" ? ["/Applications/ChatGPT.app/Contents/Resources/codex",
+                                         "\(home)/Applications/ChatGPT.app/Contents/Resources/codex"] : []
+        return bundled + [
             "/opt/homebrew/bin/\(tool)",
             "/usr/local/bin/\(tool)",
             "\(home)/.local/bin/\(tool)",
@@ -223,8 +231,142 @@ enum AIConnectorRunner {
         case .ollama:
             return try await runOllama(prompt: prompt, connector: connector,
                                        timeout: timeout, onProgress: onProgress)
-        case .codexCLI, .geminiCLI:
+        case .codexCLI:
+            return try await runCodex(prompt: prompt, connector: connector,
+                                      timeout: timeout, onResolvePath: onResolvePath,
+                                      onProgress: onProgress)
+        case .geminiCLI:
             throw AIConnectorError.notImplemented(connector.kind.displayName)
+        }
+    }
+
+    // MARK: Codex
+
+    /// `codex exec --json`, non-interactive, in the app-owned workspace.
+    ///
+    /// Codex is an agent CLI: given a prompt it may run shell commands, so it
+    /// runs in its **read-only** sandbox with the empty workspace as its root
+    /// (`--skip-git-repo-check` because that directory is not a repository).
+    /// Events arrive as JSONL — `thread.started` with the thread id,
+    /// `turn.started`, `item.completed` carrying the answer whole (Codex does
+    /// not stream deltas), `turn.completed` with the usage — and every event
+    /// is a sign of life for the watchdog.  The answer is also written to a
+    /// file (`--output-last-message`), which is what the result reads: it is
+    /// the one thing that does not depend on the event schema.
+    ///
+    /// No event names the model that answered, so substitution cannot be
+    /// detected here; the model is the one asked for (`--model`), or Codex's
+    /// configured default when none is.
+    private static func runCodex(prompt: String,
+                                 connector: AIConnector,
+                                 timeout: Int,
+                                 onResolvePath: ((String) -> Void)?,
+                                 onProgress: (@Sendable (AIRunProgress) -> Void)?) async throws -> AIRunResult {
+        let path = try resolve(tool: "codex", storedPath: connector.executablePath)
+        onResolvePath?(path)
+
+        let workspace = workspaceDirectory()
+        let lastMessage = workspace.appendingPathComponent("codex-last-\(UUID().uuidString).md")
+        defer { try? FileManager.default.removeItem(at: lastMessage) }
+
+        var arguments = ["exec",
+                         "--skip-git-repo-check",
+                         "--sandbox", "read-only",
+                         "--cd", workspace.path,
+                         "--color", "never",
+                         "--json",
+                         "--output-last-message", lastMessage.path]
+        if !connector.selectedModel.isEmpty {
+            arguments.append(contentsOf: ["--model", connector.selectedModel])
+        }
+        // "--" so a prompt that happens to begin with a dash is a prompt.
+        arguments.append(contentsOf: ["--", prompt])
+
+        let started = Date()
+        let collector = CodexCollector(onProgress: onProgress)
+        let output = try await execute(path: path, arguments: arguments,
+                                       stallTimeout: stallTimeout, hardTimeout: timeout,
+                                       onLine: { collector.consume($0) })
+        let duration = Date().timeIntervalSince(started)
+
+        if output.stoppedBecause == .stall { throw AIConnectorError.stalled(stallTimeout) }
+        if output.stoppedBecause == .deadline { throw AIConnectorError.timedOut(timeout) }
+
+        let fromFile = ((try? String(contentsOf: lastMessage, encoding: .utf8)) ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let text = fromFile.isEmpty ? collector.text : fromFile
+
+        if output.status != 0 {
+            let detail = [collector.errorMessage, output.stderr, collector.text]
+                .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .first { !$0.isEmpty }
+            throw AIConnectorError.toolFailed(
+                detail ?? "Codex exited with code \(output.status) and said nothing. If it has never run here, sign in once with `codex login`.")
+        }
+        guard !text.isEmpty else {
+            throw AIConnectorError.toolFailed(
+                collector.errorMessage ?? (output.stderr.isEmpty
+                    ? "Codex returned nothing."
+                    : output.stderr.trimmingCharacters(in: .whitespacesAndNewlines)))
+        }
+
+        return AIRunResult(text: text,
+                           reportedModel: connector.selectedModel.isEmpty ? nil : connector.selectedModel,
+                           modelWasSubstituted: false,
+                           costUSD: nil,
+                           sessionID: collector.threadID,
+                           duration: duration)
+    }
+
+    /// Reads `codex exec --json`.  Internal, not private, so the harness can
+    /// feed it lines.
+    final class CodexCollector: @unchecked Sendable {
+        private let lock = NSLock()
+        private var progress = AIRunProgress()
+        private var messages: [String] = []
+        private var thread: String?
+        private var error: String?
+        private let onProgress: (@Sendable (AIRunProgress) -> Void)?
+
+        init(onProgress: (@Sendable (AIRunProgress) -> Void)?) {
+            self.onProgress = onProgress
+        }
+
+        /// The agent's messages, in order — the fallback when the last-message
+        /// file is empty.
+        var text: String { lock.withLock { messages.joined(separator: "\n\n") } }
+        var threadID: String? { lock.withLock { thread } }
+        var errorMessage: String? { lock.withLock { error } }
+
+        func consume(_ line: String) {
+            guard let data = line.data(using: .utf8),
+                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+            else { return }
+            var snapshot: AIRunProgress?
+            lock.withLock {
+                switch json["type"] as? String {
+                case "thread.started":
+                    thread = json["thread_id"] as? String
+                case "turn.started":
+                    progress.phase = .working
+                    snapshot = progress
+                case "item.completed":
+                    guard let item = json["item"] as? [String: Any],
+                          item["type"] as? String == "agent_message",
+                          let piece = item["text"] as? String else { return }
+                    messages.append(piece)
+                    let all = messages.joined(separator: "\n\n")
+                    progress.phase = .writing
+                    progress.responseCharacters = all.count
+                    progress.tail = String(all.suffix(AIRunProgress.tailLength))
+                    snapshot = progress
+                case "error":
+                    error = (json["message"] as? String) ?? (json["error"] as? String)
+                default:
+                    break
+                }
+            }
+            if let snapshot { onProgress?(snapshot) }
         }
     }
 

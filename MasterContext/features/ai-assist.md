@@ -41,11 +41,26 @@ so AI features cost nothing beyond the subscription the user already has:
 | CLI | Non-interactive | Subscription sign-in |
 |---|---|---|
 | Claude Code | `claude -p` | yes — only `--bare` requires `ANTHROPIC_API_KEY` |
-| Codex | `codex exec` | yes — "Sign in with ChatGPT" |
+| Codex | `codex exec` — **built, Sep 2026** | yes — "Sign in with ChatGPT" (`codex login`); the ChatGPT app for Mac bundles the CLI at `/Applications/ChatGPT.app/Contents/Resources/codex`, which the app looks in first |
 | Gemini CLI | *assumed `-p`; verify* | *assumed; verify* |
 
 Ollama is the fourth connector and a different shape: a local HTTP server, no
 auth, no cost, fully offline — and the only one whose models we can enumerate.
+
+**How Codex is driven (Sep 2026).** `codex exec --skip-git-repo-check
+--sandbox read-only --cd <workspace> --color never --json
+--output-last-message <file> [--model …] -- <prompt>` in the app-owned
+workspace: Codex is an agent and may run shell commands, so it gets the
+read-only sandbox and an empty directory as its root. Its events are JSONL —
+`thread.started` (the thread id, kept as the session id), `turn.started`,
+`item.completed` with an `agent_message` carrying the answer whole (no
+deltas), `turn.completed` with usage — and every event is a sign of life for
+the same stall watchdog Claude Code uses. The answer is read from the
+`--output-last-message` file, the one thing that does not depend on the
+event schema, with the collected messages as the fallback. Progress shows
+"Working…" rather than a token count, because Codex reports neither thinking
+tokens nor text deltas. A one-word probe through a ChatGPT sign-in answered
+in seconds with 16k input tokens — Codex's own preamble, cached.
 
 **Built (Sep 2026).** `AIConnectorRunner.runOllama` posts to
 `<endpoint>/api/generate` with `stream: true` and reads the newline-delimited
@@ -189,7 +204,11 @@ The list per connector:
   Sonnet 5, Sonnet 4.6, Haiku 4.5. Passed as `--model`.
 - **Ollama** — **discovered live** from `/api/tags`; only this connector can
   enumerate honestly.
-- **Codex / Gemini CLI** — curated list once verified, plus a free-text field.
+- **Codex** — no list: `codex exec --json` names no model in its events, so
+  the manuscript picks "Codex" and the CLI's configured default answers
+  (`--model` is passed when a model id is set on the connector). Substitution
+  cannot be detected, and the log says so by reporting the requested model.
+- **Gemini CLI** — curated list once verified, plus a free-text field.
 
 Every connector's dropdown ends with a **free-text entry**, because model lists
 go stale between app releases and a user on a newer CLI should not be blocked by

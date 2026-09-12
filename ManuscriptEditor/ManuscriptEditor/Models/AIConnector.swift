@@ -50,7 +50,7 @@ enum AIConnectorKind: String, Codable, CaseIterable, Sendable, Identifiable {
         case .claudeCLI:
             return "Runs on your Claude subscription — no API key. Install the CLI, then sign in by running it once."
         case .codexCLI:
-            return "Runs on your ChatGPT subscription — no API key. Install the CLI, then sign in by running it once."
+            return "Runs on your ChatGPT subscription — no API key. The ChatGPT app for Mac bundles the CLI; otherwise install it. Sign in once with `codex login`."
         case .geminiCLI:
             return "Runs on your Google account. Install the CLI, then sign in by running it once."
         case .ollama:
@@ -83,9 +83,9 @@ enum AIConnectorKind: String, Codable, CaseIterable, Sendable, Identifiable {
         self == .ollama ? "http://localhost:11434" : nil
     }
 
-    /// Whether the app can drive this connector yet.  The others are modelled
-    /// so the settings UI and the plan are honest about what is coming.
-    var isImplemented: Bool { self == .claudeCLI || self == .ollama }
+    /// Whether the app can drive this connector yet.  Gemini is modelled so
+    /// the settings UI and the plan are honest about what is coming.
+    var isImplemented: Bool { self == .claudeCLI || self == .codexCLI || self == .ollama }
 }
 
 // MARK: - Model catalog
