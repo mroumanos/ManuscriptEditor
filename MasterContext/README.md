@@ -34,7 +34,7 @@ without re-deriving requirements from scattered prompts.
 | [08-engineering-standards.md](08-engineering-standards.md) | Code structure, documentation, testing, and known platform gotchas. |
 | [09-roadmap.md](09-roadmap.md) | Phase I & II (build now) vs Phase III (stub), and current build status. |
 | [10-performance-plan.md](10-performance-plan.md) | Audited performance/smoothness findings and the phased fix plan. |
-| [features/ai-assist.md](features/ai-assist.md) | **Plan (not built):** AI connectors (local CLIs + Ollama), context, "AI active", the prompt log, and the two first intents. |
+| [features/ai-assist.md](features/ai-assist.md) | **Built (Sep 2026):** AI connectors (Claude Code, Codex, Ollama), per-manuscript context, the ✦ toggle, the prompt log, and the assisted fast-forward — citations by a keyed legend, templates as boilerplate, refusals and the repair round. |
 | [glossary.md](glossary.md) | Precise definitions of every domain term. |
 | [examples/](examples/) | Real UI reference images (editor bar, ruler, line numbers, notes, unsaved banner, lineage views) — embedded throughout the docs. |
 | [assets/](assets/) | Space for additional screenshots/mockups + design inspiration. |

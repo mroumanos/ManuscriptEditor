@@ -36,6 +36,11 @@ Every journal — including the Source — keeps its own save-point history.
 Lineage edges record which version each cut derives from, with explicit
 per-edge sync and rollback, locally and against an optional Git remote.
 
+A journal is an instance of a **template** — a venue's instructions, the
+sections it wants (with its own boilerplate, title-page layout and
+submission questions), its tests, and its export outline. Templates are
+edited in a tab of their own and travel with every manuscript that uses them.
+
 ![Overview with journals and lineage](screenshots/overview-lineage.png)
 
 ## Compare everything side by side
@@ -84,6 +89,29 @@ render in APA, AMA, Vancouver, MLA, Chicago, or Harvard — per journal.
 
 ![The bibliography with cited-in tracking](screenshots/bibliography.png)
 
+## AI assist that shows its work
+
+Bring your own model: **Claude Code** or **Codex** on the subscription you
+already have, or **Ollama** for a local model that never leaves the machine.
+No API keys, nothing stored. Each manuscript chooses which model it writes
+with and — row by row — what that model may read.
+
+![Choosing a model and its context in Overview → Settings](screenshots/ai-assist-enable.png)
+
+With Assist on, a fast-forward **adapts** each section toward the target
+journal: its instructions, its boilerplate, and its checks with their current
+numbers. Citations travel with the claims they support (the model sees the
+reference list and cites by key), manuscript fields stay as tokens, and a
+reply that invents a reference or drops a field is refused — that section
+keeps its previous text and the log says why. Every request is recorded in
+**Log → AI Requests** with the prompt, the raw output, and a per-section
+account of what changed, and the adapted content is stamped as a new version
+you can roll back.
+
+![An assisted fast-forward in the Log, with its per-section changes](screenshots/ai-assist-ff.png)
+
+Setting it up takes a minute — see [QUICKSTART.md](QUICKSTART.md#8-ai-assist-optional).
+
 ## Export the whole package
 
 Each journal has its own export outline — documents, sections with per-page
@@ -98,8 +126,8 @@ is what submits.
 
 New tester? **[QUICKSTART.md](QUICKSTART.md)** walks through everything in
 about 15 minutes: install, GitHub token + identity setup, opening the shared
-test manuscript, editing and syncing, journal cuts and comparison, and
-exporting.
+test manuscript, editing and syncing, journal cuts and comparison,
+exporting, and turning on AI assist.
 
 Compiled builds are published on the
 [Releases](../../releases) page as drag-to-install `.dmg` images

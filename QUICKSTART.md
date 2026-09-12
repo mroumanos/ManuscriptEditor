@@ -131,11 +131,64 @@ per target journal — the data and structure stay shared.
    and rendered charts/tables, a Word file with native tables, the cover
    letter with your letterhead, date, and signature resolved.
 
+## 8. AI assist (optional)
+
+Assist lets a model of your choosing adapt a journal cut for you — on a
+subscription you already have, or on a local model that never leaves your
+Mac. Nothing is sent anywhere until you turn it on, and every request is
+recorded.
+
+**a. Connect a tool** (once, app-wide): Settings (⌘,) → **Accounts** →
+**Add Connector**. Three kinds work today:
+
+| Connector | What you need | Then |
+|---|---|---|
+| **Claude Code** | `npm install -g @anthropic-ai/claude-code`, run `claude` once in Terminal and sign in | Test |
+| **Codex** | The ChatGPT app for Mac (it bundles the CLI), or `npm install -g @openai/codex`; then `codex login` once | Test |
+| **Ollama** | `brew install ollama && ollama serve`, then `ollama pull gemma4:26b` (or any model) | Test — it lists what the server has pulled; pick one |
+
+Press **Test** on the connector. It runs a one-word request through the real
+tool and shows which model answered. Only tested connectors are offered to
+manuscripts. (No API keys are involved; the app borrows the sign-in you
+already made. Apps launched from Finder don't see your shell's `PATH`, so if
+Test can't find a CLI, point **Browse…** at it.)
+
+**b. Choose a model for the manuscript**: Sidebar → **Overview** → **Settings**
+→ **AI**. The model is a manuscript decision, so every manuscript starts at
+*None*. Pick one, then tick the **Context** rows the model may read — how the
+app works, this manuscript's shape, any notes or files you add. Unticked rows
+are never sent.
+
+**c. Turn Assist on**: the ✦ button beside Active/Compare in the tab bar. It
+is greyed until a model is chosen. On, the fast-forward buttons in the
+lineage card take on the ✦ treatment.
+
+**d. Run an assisted fast-forward**: Overview → the journal's row → ⏩. The
+model adapts each section toward that journal's instructions, its
+boilerplate, and its tests with their current numbers, and the result is
+stamped as a new version — the previous content is in **Versions**, one
+rollback away. Citations travel with their claims (the model sees your
+reference list and cites by key); a reply that invents a reference, drops a
+manuscript field, or loses every citation in a section is refused, and that
+section keeps its previous text.
+
+**e. Read what happened**: Sidebar → **Log** → **AI Requests**. Each request
+shows the model, the time it took, a per-section bar of how much changed,
+what happened to the citations, which tests still fail, and — expanded — the
+prompt, the raw output, and the tool's own session log. Refused sections are
+named with the reason. A local model can take minutes; the row shows a clock
+and a live tail of the answer while it works.
+
 ## If something goes wrong
 
 - **"No personal access token stored"** — revisit step 2; the ⚡ test should
   green-check.
 - **A red message in the title bar** — that's the app telling you exactly
   what it refused and why (most often: "stamp first, then sync").
+- **Assist's ✦ button is greyed** — that manuscript hasn't chosen a model:
+  Overview → Settings → AI. Only *tested* connectors are listed there.
+- **An assisted run "kept sections unchanged"** — the reply dropped a field
+  or invented a reference; Log → AI Requests names each one. Run it again, or
+  try a stronger model.
 - Anything else: note what you clicked and what you expected, and send it to
   the person who invited you — that's exactly the feedback this test is for.
