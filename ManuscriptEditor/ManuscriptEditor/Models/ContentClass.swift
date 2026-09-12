@@ -101,8 +101,9 @@ extension SectionKind {
     var contentClass: ContentClass { self == .letter ? .core : .journal }
 
     /// The kinds Add Section offers: journal content only.  The letter has a
-    /// pane of its own.
-    static var addable: [SectionKind] { allCases.filter { $0.contentClass == .journal } }
+    /// pane of its own, and the abstract is offered only while the
+    /// manuscript has none (`ManuscriptStore.addableSectionKinds`).
+    static var addable: [SectionKind] { [.text, .questions] }
 }
 
 extension ManuscriptSection {
@@ -121,6 +122,18 @@ extension Manuscript {
     /// The prose a venue shapes: every section but the letter.
     var journalSections: [ManuscriptSection] {
         sections.filter(\.isJournalContent)
+    }
+
+    /// The abstract section — one per manuscript, none once the author
+    /// deletes it.
+    var abstractSection: ManuscriptSection? {
+        sections.first { $0.sectionKind == .abstract }
+    }
+
+    /// The body: journal content minus the abstract — what a body word
+    /// limit measures.
+    var bodySections: [ManuscriptSection] {
+        sections.filter { $0.isJournalContent && $0.sectionKind != .abstract }
     }
 }
 

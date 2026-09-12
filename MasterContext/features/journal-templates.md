@@ -177,10 +177,11 @@ yet. The entry (`StructureSection` titled "Abstract", uid
 `TemplateWorkspace.abstractUID`) is made on the first edit that leaves
 something in it; opening the row never dirties the template. Its title and
 kind are fixed: renamed, it would become an ordinary section every manuscript
-creates. In a manuscript it never becomes a section — it seeds the cut's
-abstract field when the journal is added, pairs with the abstract in the
-fast-forward prompt, and the `STRUCTURE` test counts a written abstract as
-meeting it.
+creates. In a manuscript it never makes a second section — it seeds the
+cut's abstract **section** (a section of its own kind since Sep 2026) when
+the journal is added, pairs with it in the fast-forward prompt by kind (so a
+renamed abstract still finds it), and the `STRUCTURE` test counts a written
+abstract as meeting it.
 
 **Content reads exactly as a manuscript's sidebar does** — the fixed parts
 first, in their usual order, then the rule, then the sections. Nothing moves

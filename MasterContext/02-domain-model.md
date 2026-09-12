@@ -221,9 +221,9 @@ outline, the sidebar — reads the same answer:
 | Fast-forward | Comes down whole, like everything else in a full override | Comes down where the upstream **has text**; a section the upstream leaves empty keeps the cut's own |
 | Assist | Never sent, never adapted | Sent paired with the template's entry (a specification: `template`, `format`, `notes`); the reply is the last write |
 | Template | Never described. A letter entry (some templates carried one) is **ignored** everywhere entries are read | Described by a structure entry — an "Abstract" entry describes the field and never becomes a section; every other entry becomes a section |
-| Sidebar | A fixed row above the rule (`CorePart`, in order) | Below the rule: Abstract first, then the sections; Add Section offers journal kinds only |
-| Outline | The fixed items — `coreKinds`, the letter's `coverLetter` among them | `abstract` and `section` items; Add Item lists the Abstract with the body sections |
-| Storage | Fields on the manuscript — except the letter, stored as the one section of kind `letter` (`Manuscript.letterSection`), owned like a title | `abstract` (a field) and `sections` of kind `text` / `questions` |
+| Sidebar | A fixed row above the rule (`CorePart`, in order) — **no rename, no reorder, no delete** | Below the rule, every one a section: **drag to reorder, rename, deactivate, delete, add** (Add Section offers a text box, a question series, and the abstract while there is none) |
+| Outline | The fixed items — `coreKinds`, the letter's `coverLetter` among them | The fixed `abstract` item (prints the abstract section, under its title) and `section` items; Add Item lists the Abstract with the body sections |
+| Storage | Fields on the manuscript — except the letter, stored as the one section of kind `letter` (`Manuscript.letterSection`), owned like a title | `sections` of kind `abstract` / `text` / `questions`. **The abstract is a section** (Sep 2026, `SectionKind.abstract`, one per manuscript, `Manuscript.abstractSection`); `Manuscript.abstract` reads and writes it, so every reader of the old field still works; files from before carry `abstract` as a field, moved into the section on load (`migrateAbstract`) and never written again — a deleted abstract stays deleted |
 
 **Rule for code.** A call site that needs to know which side something is on
 asks the model — `isCore` / `isJournalContent`, `subject`, `contentClass`,

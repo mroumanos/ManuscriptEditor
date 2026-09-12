@@ -40,7 +40,6 @@ struct SidebarView: View {
     @State private var renamingSectionID: UUID?
     @State private var renameDraft = ""
     /// Fixed pane ("figures"/"tables"/…) being renamed via the context menu.
-    @State private var renamingPaneKey: String?
 
     private var manuscript: Manuscript? { store.manuscript }
 
@@ -255,32 +254,19 @@ struct SidebarView: View {
     // MARK: - Content section
 
     /// The fixed content panes: key (persistence), default name, icon, item.
-    ///
-    /// The letter is not one of them.  It is a SECTION — a text box with a
-    /// letterhead and a signature — added, removed and reordered below the
-    /// rule like any other, so a manuscript can have one, none, or several.
     private var fixedPanes: [(key: String, name: String, icon: String, item: SidebarItem)] {
         [("figures",      "Figures (\(active?.figures.count ?? 0))",           "photo.on.rectangle.angled", .figures),
          ("tables",       "Tables (\(active?.tables.count ?? 0))",             "tablecells",                .tables),
          ("bibliography", "Bibliography (\(active?.bibliography.count ?? 0))", "books.vertical",            .bibliography)]
     }
 
-    /// Default (count-free) name of a fixed pane, for rename prompts.
-    private func defaultPaneName(_ key: String) -> String {
-        switch key {
-        case "figures": return "Figures"
-        case "tables": return "Tables"
-        default: return "Bibliography"
-        }
-    }
-
-    /// Content splits in two.  FIRST the parts every manuscript has, in a
-    /// fixed order — they can't be reordered or switched off, because a
-    /// manuscript without a title or a bibliography isn't a manuscript.
-    /// THEN, past a soft rule, the prose a journal shapes: the abstract
-    /// first (structured at one venue, a paragraph at another — it is a
-    /// cut's writing, not the manuscript's identity), then the sections:
-    /// drag to reorder, deactivate per journal, rename, delete.
+    /// Content splits in two — the two classes `ContentClass` defines.
+    /// FIRST the core parts (`CorePart`, in order): they can't be renamed,
+    /// reordered or switched off, because a manuscript without a title or a
+    /// bibliography isn't a manuscript, and the letter is the author's.
+    /// THEN, past a soft rule, the journal content — the abstract and the
+    /// body sections, every one a section: drag to reorder, rename,
+    /// deactivate per journal, delete, add.
     @ViewBuilder
     private var contentSection: some View {
         Section("Content") {
@@ -297,7 +283,6 @@ struct SidebarView: View {
 
             sectionsDelimiter
 
-            row(SidebarItem.abstract, "Abstract", "text.quote")
             bodySection
 
             // Inline "add section" row at the very bottom of the Content list.
@@ -316,39 +301,18 @@ struct SidebarView: View {
             .accessibilityLabel("Sections")
     }
 
-    /// A fixed pane row with rename/remove context actions (mirrors sections).
+    /// A core row with its badges.  No rename, no reorder: core parts are
+    /// what every manuscript has, under their own names.  (A "Rename Pane"
+    /// context action lived here until Sep 2026; it made the core rows the
+    /// one place the sidebar's two halves disagreed.)
     private func fixedPaneRow(_ pane: (key: String, name: String, icon: String, item: SidebarItem)) -> some View {
-        // A custom name replaces the default, keeping the count suffix.
-        let custom = store.manuscript?.paneTitles?[pane.key]
-        let display = custom.map { name in
-            pane.name.contains("(") ? "\(name) (\(pane.name.split(separator: "(").last?.dropLast() ?? ""))" : name
-        } ?? pane.name
-        return HStack {
-            Label(display, systemImage: pane.icon)
+        HStack {
+            Label(pane.name, systemImage: pane.icon)
             Spacer()
             checkBadge(pane.item)
             notesBadge(pane.item)
         }
-            .tag(pane.item)
-            .contextMenu {
-                Button("Rename…") {
-                    renameDraft = custom ?? defaultPaneName(pane.key)
-                    renamingPaneKey = pane.key
-                }
-            }
-            .alert("Rename Pane", isPresented: Binding(
-                get: { renamingPaneKey == pane.key },
-                set: { if !$0 { renamingPaneKey = nil } }
-            )) {
-                TextField("Name", text: $renameDraft)
-                Button("Rename") {
-                    store.renamePane(pane.key, to: renameDraft == defaultPaneName(pane.key) ? "" : renameDraft)
-                    renamingPaneKey = nil
-                }
-                Button("Cancel", role: .cancel) { renamingPaneKey = nil }
-            } message: {
-                Text("Renames this pane in the sidebar. Its contents are untouched.")
-            }
+        .tag(pane.item)
     }
 
     @ViewBuilder
@@ -364,7 +328,7 @@ struct SidebarView: View {
         Menu {
             // Two shapes of section: prose, or the questions a journal asks
             // at submission.
-            ForEach(SectionKind.addable, id: \.self) { kind in
+            ForEach(store.addableSectionKinds, id: \.self) { kind in
                 Button {
                     if let id = store.addSection(kind: kind) { selection = .section(id) }
                 } label: {

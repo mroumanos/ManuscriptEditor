@@ -394,3 +394,14 @@ Requires: clean tree on main, the Developer ID cert, `gh` auth.
     lost field token refuses a section. Don't reintroduce per-occurrence
     markers or a "must keep" list for citations — the reference list is the
     context.
+
+32. **`Manuscript.abstract` is a computed property over the abstract
+    section, and `CodingKeys` is declared by hand.** The abstract became a
+    section (Sep 2026); the property stayed so its readers didn't move. Two
+    consequences: a manuscript with no abstract section reads empty and
+    drops writes (check `abstractSection` before offering an editor), and
+    the legacy `abstract` field is `legacyAbstract` — decoded under the old
+    key, migrated on load, never encoded. Declaring `CodingKeys` was the
+    price of that key mapping: **every stored property must be listed**, or
+    it silently stops being saved. `Manuscript.new()` and the migration both
+    give the abstract section its place at order 0.

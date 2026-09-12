@@ -444,8 +444,8 @@ enum RefEngine {
     /// Every token in the manuscript with the name of the prose field it sits
     /// in, in document order: abstract → active sections → letter to editor.
     static func orderedRefs(in m: Manuscript) -> [(occ: RefOccurrence, location: String)] {
+        // The abstract is one of the sections, in its place in the order.
         var out: [(RefOccurrence, String)] = []
-        out += (m.abstract.refs ?? []).map { ($0, "Abstract") }
         for s in m.sections.sorted(by: { $0.order < $1.order }) where s.active {
             out += (s.content.refs ?? []).map { ($0, s.title) }
         }

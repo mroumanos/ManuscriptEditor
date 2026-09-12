@@ -96,7 +96,7 @@ enum ChecklistService {
             case .abstract:    return m.abstract.plain
             case .keywords:    return m.keywords.joined(separator: ", ")
             case .authors:     return m.authors.map(\.fullName).joined(separator: "; ")
-            case .body:        return m.sections.filter(\.active).map(\.plainText).joined(separator: "\n")
+            case .body:        return m.bodySections.filter(\.active).map(\.plainText).joined(separator: "\n")
             case .section:
                 let wanted = (scope.name ?? "").lowercased()
                 return m.sections.first { $0.active && $0.title.lowercased() == wanted }?.plainText
@@ -121,7 +121,7 @@ enum ChecklistService {
             case .references: return m.bibliography.count
             case .keywords:   return m.keywords.count
             case .authors:    return m.authors.count
-            case .body:       return m.sections.filter { $0.active && !$0.isEmptyContent }.count
+            case .body:       return m.bodySections.filter { $0.active && !$0.isEmptyContent }.count
             case .section:
                 let wanted = (scope.name ?? "").lowercased()
                 return m.sections.filter { $0.active && $0.title.lowercased().contains(wanted) }.count

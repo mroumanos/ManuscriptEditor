@@ -635,7 +635,7 @@ struct ExportService {
 
         // Deactivated sections are excluded from the submission package.
         for section in m.sections.sorted(by: { $0.order < $1.order })
-        where section.active && !section.isEmptyContent {
+        where section.active && !section.isEmptyContent && section.sectionKind != .abstract {
             if section.sectionKind == .letter {
                 // A letter: letterhead, body with its tokens resolved, and
                 // the drawn signature — and no printed label.
@@ -1133,7 +1133,10 @@ private struct OutlineBuilder {
         case .abstract:
             guard !m.abstract.isEmpty else { return nil }
             let doc = NSMutableAttributedString()
-            if item.titleShown { doc.append(headingBlock(item.customTitle ?? "Abstract", style: item.effectiveHeadingStyle)) }
+            if item.titleShown {
+                doc.append(headingBlock(item.customTitle ?? m.abstractSection?.title ?? "Abstract",
+                                        style: item.effectiveHeadingStyle))
+            }
             doc.append(rich(m.abstract, in: m))
             return doc
         case .keywords:
@@ -1155,7 +1158,7 @@ private struct OutlineBuilder {
                 doc.append(headingBlock(item.customTitle ?? section.title, style: item.effectiveHeadingStyle))
             }
             switch section.sectionKind {
-            case .text:
+            case .text, .abstract:
                 doc.append(rich(section.content, in: m))
             case .letter:
                 let letter = section.letter ?? LetterDetails()

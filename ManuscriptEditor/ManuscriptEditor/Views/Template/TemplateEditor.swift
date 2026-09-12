@@ -227,8 +227,9 @@ struct TemplateSidebarView: View {
                     case .text:      add(StructureSection(title: uniqueTitle("New Section")))
                     case .questions: add(StructureSection(title: uniqueTitle("Submission Questions"),
                                                           kind: .questions, questions: []))
-                    case .letter:    add(StructureSection(title: uniqueTitle("Letter to the Editor"),
-                                                          kind: .letter))
+                    // Neither is offered here: the abstract's row is always
+                    // there, and the letter is the author's.
+                    case .abstract, .letter: break
                     }
                 } label: {
                     Label(kind.label, systemImage: kind.systemImage)

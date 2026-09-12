@@ -929,6 +929,17 @@ from a manuscript. Design and rationale:
   and which of the four parts have been edited.
 - AC: **No pass rate in a template's Tests.** There is no content to measure;
   the rate belongs to a cut, where the sidebar carries it — *Tests (86%)*.
+- AC: **The two halves of the sidebar are consistent** (Sep 2026). Core rows
+  (Title, Authors, Keywords, Figures, Tables, Bibliography, Letter) cannot be
+  renamed, reordered or removed — the "Rename Pane" action is gone. Every
+  row below the rule is a section that can be sorted, renamed, deactivated,
+  deleted and added, **the Abstract included**: it is a section of kind
+  `abstract` now (one per manuscript; `Manuscript.abstract` still reads and
+  writes it, so checks, export, context and compare work unchanged; older
+  files' `abstract` field migrates into the section on load and is never
+  written again; the body word count and the `body` check scope exclude it;
+  the outline's fixed Abstract item prints it under its title; a deleted
+  abstract stays deleted and comes back only from Add Section).
 - AC: **Core content and journal content are one model** (Sep 2026):
   `Models/ContentClass.swift` classifies every section kind, manuscript
   section, template entry (`subject`: abstract · section · core), outline item

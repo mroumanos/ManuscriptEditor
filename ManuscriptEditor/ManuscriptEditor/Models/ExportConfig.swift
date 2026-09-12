@@ -69,14 +69,15 @@ struct ExportConfig: Codable, Sendable, Equatable {
             ExportItem(kind: .pageBreak),
             ExportItem(kind: .titlePage),
             ExportItem(kind: .authors),
-            ExportItem(kind: .abstract),
-            ExportItem(kind: .keywords),
-            ExportItem(kind: .pageBreak),
         ]
-        // Letter sections get documents of their own below — a cover letter
-        // is sent beside the manuscript, not bound into it.
+        // The abstract has a fixed item of its own (it prints the abstract
+        // section), so it is not also a section item below.
+        if content.abstractSection != nil { items.append(ExportItem(kind: .abstract)) }
+        items += [ExportItem(kind: .keywords), ExportItem(kind: .pageBreak)]
+        // The letter gets a document of its own below — sent beside the
+        // manuscript, not bound into it.
         for section in content.sections.sorted(by: { $0.order < $1.order })
-        where section.active && section.isJournalContent {
+        where section.active && section.isJournalContent && section.sectionKind != .abstract {
             items.append(ExportItem(kind: .section, sectionID: section.id))
         }
         items.append(ExportItem(kind: .pageBreak))
@@ -533,7 +534,7 @@ struct ExportItem: Codable, Identifiable, Sendable, Equatable {
         switch kind {
         case .titlePage:   return "Title"
         case .authors:     return "Authors"
-        case .abstract:    return "Abstract"
+        case .abstract:    return content?.abstractSection?.title ?? "Abstract"
         case .keywords:    return "Keywords"
         case .section:
             guard let sectionID,

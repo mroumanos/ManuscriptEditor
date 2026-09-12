@@ -63,9 +63,10 @@ manuscript has, in a fixed order (`CorePart`); below it, **journal content** —
 the prose a venue shapes. The two classes are defined once, in
 [`02-domain-model.md`](02-domain-model.md) "Core content and journal content".
 
-*Fixed* — cannot be reordered, deactivated, or removed (a manuscript without a
-title or a bibliography isn't a manuscript). Renaming a pane is still allowed:
-that changes the label, not whether the part exists.
+*Fixed* — cannot be reordered, renamed, deactivated, or removed (a manuscript
+without a title or a bibliography isn't a manuscript). The "Rename Pane"
+action Figures, Tables and Bibliography carried was removed in Sep 2026: it
+made the core rows the one place the sidebar's two halves disagreed.
 - Title
 - Authors (N)
 - Keywords (N)
@@ -79,13 +80,15 @@ that changes the label, not whether the part exists.
 
 — soft rule —
 
-*Configurable* — first the **Abstract** (Sep 2026: it sits below the rule
-because it is a cut's prose — structured at one venue, a paragraph at
-another — and follows the sections' rules: not carried when a journal is
-added, migrated on fast-forward, adapted with Assist; a template describes
-it with a structure entry titled "Abstract", which never becomes a section),
-then the body **sections** in order (Introduction, Methods, …, each
-shows its word count badge). **Drag to reorder**, **deactivate per journal**
+*Configurable* — every row a **section**, the **Abstract** among them (Sep
+2026: it is a section of its own kind, one per manuscript, and follows the
+sections' rules in full — sorted, renamed, deactivated, deleted, added back
+from Add Section while there is none; not carried when a journal is added,
+migrated on fast-forward, adapted with Assist; a template describes it with a
+structure entry titled "Abstract", which seeds the abstract section rather
+than making a second one), then the body sections in order (Introduction,
+Methods, …, each shows its word count badge). **Drag to reorder**,
+**rename**, **deactivate per journal**
 (dimmed with an orange `eye.slash`; the text is preserved, and Tests/Export
 filter on the flag, never on emptiness), rename, delete. These are exactly what
 a journal's `structure.json` describes.

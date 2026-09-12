@@ -134,10 +134,16 @@ final class TemplateWorkspace {
         made.title = template.displayName
         // An "Abstract" entry describes the abstract field, which the outline
         // already carries as a fixed item — it is not a section of its own.
-        made.sections = template.structure.sectionEntries
-            .enumerated().map { index, section in
+        // The abstract first, so the outline's fixed Abstract item has one to
+        // print (the venue's boilerplate, if it says anything), then the
+        // entries that become sections.
+        made.sections = [ManuscriptSection(
+            id: TemplateWorkspace.abstractUID, type: .custom, title: "Abstract",
+            content: PartEngine.richText(template.structure.abstractEntry?.boilerplate ?? ""),
+            order: 0, kind: .abstract)]
+            + template.structure.sectionEntries.enumerated().map { index, section in
                 ManuscriptSection(id: section.uid, type: .custom, title: section.title,
-                                  content: PartEngine.richText(section.boilerplate ?? ""), order: index,
+                                  content: PartEngine.richText(section.boilerplate ?? ""), order: index + 1,
                                   kind: section.kind == .text ? nil : section.kind)
             }
         return made

@@ -42,8 +42,24 @@ struct Manuscript: Codable, Identifiable, Sendable {
     /// The ordered list of authors.  See `Author` for per-author fields.
     var authors: [Author]
 
-    /// The manuscript abstract (rich text; no section structure).
-    var abstract: RichText
+    /// The abstract, read from and written to the abstract SECTION (kind
+    /// `.abstract`, Sep 2026).  It is journal content like any section —
+    /// sorted, renamed, deleted, templated, adapted — and every reader of
+    /// the old field keeps working through this.  A manuscript whose author
+    /// deleted the abstract reads empty and drops writes.
+    var abstract: RichText {
+        get { sections.first { $0.sectionKind == .abstract }?.content ?? RichText() }
+        set {
+            if let i = sections.firstIndex(where: { $0.sectionKind == .abstract }) {
+                sections[i].content = newValue
+            }
+        }
+    }
+
+    /// The abstract as files written before Sep 2026 carry it: a field.
+    /// Decoded, moved into a section by `migrateAbstract`, never written
+    /// again (nil encodes as no key).
+    var legacyAbstract: RichText? = nil
 
     /// The body of the paper broken into named sections (Introduction, Methods, etc.).
     /// Stored in display order via `ManuscriptSection.order`.
@@ -159,10 +175,14 @@ struct Manuscript: Codable, Identifiable, Sendable {
             runningTitle: "",
             keywords: [],
             authors: [],
-            abstract: RichText(),
-            sections: SectionType.defaultOrder.enumerated().map { i, type in
-                ManuscriptSection(id: UUID(), type: type, title: type.rawValue, content: RichText(), order: i)
-            },
+            // The abstract first — a section of its own kind — then the
+            // usual body sections.
+            sections: [ManuscriptSection(id: UUID(), type: .custom, title: "Abstract",
+                                         content: RichText(), order: 0, kind: .abstract)]
+                + SectionType.defaultOrder.enumerated().map { i, type in
+                    ManuscriptSection(id: UUID(), type: type, title: type.rawValue,
+                                      content: RichText(), order: i + 1)
+                },
             figures: [],
             tables: [],
             dataAssets: [],
@@ -179,20 +199,55 @@ struct Manuscript: Codable, Identifiable, Sendable {
         )
     }
 
+    // MARK: - Coding keys
+    // Declared (they were synthesized) so the legacy abstract field keeps
+    // the key older files wrote it under.  Every stored property is here;
+    // one left out would silently stop being saved.
+    enum CodingKeys: String, CodingKey {
+        case id,
+             title,
+             runningTitle,
+             keywords,
+             authors,
+             legacyAbstract = "abstract",
+             sections,
+             figures,
+             tables,
+             dataAssets,
+             bibliography,
+             folderBookmark,
+             journals,
+             versions,
+             notes,
+             letterToEditor,
+             settings,
+             sourceExportConfig,
+             createdAt,
+             updatedAt,
+             lastSyncedAt,
+             about,
+             articleTitle,
+             subtitle,
+             institutions,
+             paneTitles,
+             hiddenPanes,
+             aiContext
+    }
+
     // MARK: - Memberwise init
     // Needed explicitly because we also define `init(from:)` below.
     // Swift only synthesises a memberwise init when there is no custom init defined in the
     // struct body — once we add the Codable override, we have to write this out ourselves.
 
     init(id: UUID, title: String, runningTitle: String, keywords: [String], authors: [Author],
-         abstract: RichText, sections: [ManuscriptSection], figures: [Figure],
+         sections: [ManuscriptSection], figures: [Figure],
          tables: [ManuscriptTable], dataAssets: [DataAsset], folderBookmark: Data?,
          bibliography: [BibEntry], journals: [Journal], versions: [ManuscriptVersion],
          notes: [Note], letterToEditor: LetterToEditor, settings: ManuscriptSettings,
          sourceExportConfig: ExportConfig? = nil,
          createdAt: Date, updatedAt: Date) {
         self.id = id; self.title = title; self.runningTitle = runningTitle
-        self.keywords = keywords; self.authors = authors; self.abstract = abstract
+        self.keywords = keywords; self.authors = authors
         self.sections = sections; self.figures = figures; self.tables = tables
         self.dataAssets = dataAssets; self.folderBookmark = folderBookmark
         self.bibliography = bibliography; self.journals = journals; self.versions = versions
@@ -214,7 +269,7 @@ struct Manuscript: Codable, Identifiable, Sendable {
         runningTitle  = try c.decode(String.self,                forKey: .runningTitle)
         keywords      = try c.decode([String].self,              forKey: .keywords)
         authors       = try c.decode([Author].self,              forKey: .authors)
-        abstract      = try c.decodeIfPresent(RichText.self,     forKey: .abstract) ?? RichText()
+        legacyAbstract = try c.decodeIfPresent(RichText.self,    forKey: .legacyAbstract)
         sections      = try c.decode([ManuscriptSection].self,   forKey: .sections)
         figures        = try c.decode([Figure].self,              forKey: .figures)
         tables         = try c.decode([ManuscriptTable].self,    forKey: .tables)
@@ -242,11 +297,28 @@ struct Manuscript: Codable, Identifiable, Sendable {
 
     // MARK: - Computed word counts
 
-    /// Total word count across active body sections (excludes the abstract).
-    /// Deactivated sections keep their content but are hidden from the journal,
-    /// so their words must not count against word-limit checks.
+    /// Total word count across active body sections (excludes the abstract
+    /// and the letter).  Deactivated sections keep their content but are
+    /// hidden from the journal, so their words must not count against
+    /// word-limit checks.
     var bodyWordCount: Int {
-        sections.reduce(0) { $0 + ($1.active ? $1.wordCount : 0) }
+        bodySections.reduce(0) { $0 + ($1.active ? $1.wordCount : 0) }
+    }
+
+    /// Files written before the abstract was a section carry it as a field.
+    /// It becomes the first section, of kind `.abstract`, with the given id
+    /// — the same in Source and in every version, as a section's id is —
+    /// and the field is cleared so this runs once.  A file with no field
+    /// (written since, or whose author deleted the abstract) is left alone:
+    /// a deleted abstract must not come back on the next open.
+    mutating func migrateAbstract(id: UUID) {
+        guard let legacy = legacyAbstract else { return }
+        legacyAbstract = nil
+        guard !sections.contains(where: { $0.sectionKind == .abstract }) else { return }
+        for i in sections.indices { sections[i].order += 1 }
+        sections.insert(ManuscriptSection(id: id, type: .custom, title: "Abstract",
+                                          content: legacy, order: 0, active: true, kind: .abstract),
+                        at: 0)
     }
 
     /// Word count of just the abstract.

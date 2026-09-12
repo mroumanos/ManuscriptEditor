@@ -96,7 +96,7 @@ struct ManuscriptSection: Codable, Identifiable, Sendable {
     /// highlighting all read this rather than `content` directly.
     var plainText: String {
         switch sectionKind {
-        case .text, .letter: return content.plain
+        case .text, .letter, .abstract: return content.plain
         case .questions:
             return orderedQuestions
                 .map { [$0.prompt, $0.response.plain].filter { !$0.isEmpty }.joined(separator: "\n") }
@@ -107,8 +107,8 @@ struct ManuscriptSection: Codable, Identifiable, Sendable {
     /// True when there is nothing in this section at all.
     var isEmptyContent: Bool {
         switch sectionKind {
-        case .text, .letter: return content.isEmpty
-        case .questions:     return orderedQuestions.allSatisfy { $0.isEmpty }
+        case .text, .letter, .abstract: return content.isEmpty
+        case .questions:                return orderedQuestions.allSatisfy { $0.isEmpty }
         }
     }
 
@@ -156,6 +156,13 @@ struct ManuscriptSection: Codable, Identifiable, Sendable {
 /// Whether a section is prose or a list of submission questions.
 enum SectionKind: String, Codable, CaseIterable, Sendable {
     case text, questions
+    /// The abstract — journal content like any section (structured at one
+    /// venue, a paragraph at another): sorted, renamed, deleted, templated
+    /// from a template's "Abstract" entry, adapted with Assist.  One per
+    /// manuscript; `Manuscript.abstract` reads and writes it, so every
+    /// reader of the old field still works.  Not offered from Add Section
+    /// while the manuscript has one.
+    case abstract
     /// A text box that also carries a letterhead and a signature — the
     /// author's letter to the editor.  Stored as a section (one per
     /// manuscript, made when its pane is first opened) but it is a FIXED
@@ -169,6 +176,7 @@ enum SectionKind: String, Codable, CaseIterable, Sendable {
         switch self {
         case .text:      return "Text Box"
         case .questions: return "Question Series"
+        case .abstract:  return "Abstract"
         case .letter:    return "Letter to the Editor"
         }
     }
@@ -177,6 +185,7 @@ enum SectionKind: String, Codable, CaseIterable, Sendable {
         switch self {
         case .text:      return "text.alignleft"
         case .questions: return "list.bullet.rectangle"
+        case .abstract:  return "text.quote"
         case .letter:    return "envelope"
         }
     }

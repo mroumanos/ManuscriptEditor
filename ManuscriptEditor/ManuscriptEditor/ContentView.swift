@@ -677,6 +677,7 @@ struct ContentView: View {
             switch resolvedSection(id, ref)?.sectionKind ?? .text {
             case .questions: QuestionSeriesView(sectionID: id, versionRef: ref)
             case .letter:    LetterSectionView(sectionID: id, versionRef: ref)
+            case .abstract:  AbstractView(versionRef: ref)
             case .text:      SectionEditorView(sectionID: id, versionRef: ref)
             }
         case .figures:           FiguresView(versionRef: ref)
@@ -861,7 +862,12 @@ struct DetailRouter: View {
         case .abstract:             AbstractView()
         case .letterToEditor:       LetterPane()
         case .keywords:             KeywordsView()
-        case .section(let id):      SectionEditorView(sectionID: id)
+        case .section(let id):
+            if store.manuscript?.sections.first(where: { $0.id == id })?.sectionKind == .abstract {
+                AbstractView()
+            } else {
+                SectionEditorView(sectionID: id)
+            }
         case .figures:              FiguresView()
         case .tables:               TablesView()
         case .bibliography:         BibliographyView()

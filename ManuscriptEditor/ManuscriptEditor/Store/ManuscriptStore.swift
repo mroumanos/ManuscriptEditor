@@ -232,6 +232,10 @@ final class ManuscriptStore {
         var m = m
         migrateLetter(&m)
         for i in m.versions.indices { migrateLetter(&m.versions[i].content) }
+        // One id for the abstract section everywhere, as any section has.
+        let abstractID = UUID()
+        m.migrateAbstract(id: abstractID)
+        for i in m.versions.indices { m.versions[i].content.migrateAbstract(id: abstractID) }
         m.sections = normalizedSections(m.sections)
         for i in m.versions.indices {
             m.versions[i].content.sections = normalizedSections(m.versions[i].content.sections)
@@ -502,6 +506,7 @@ final class ManuscriptStore {
         let fallback: String
         switch kind {
         case .questions: fallback = "Submission Questions"
+        case .abstract:  fallback = "Abstract"
         case .letter:    fallback = "Letter to the Editor"
         case .text:      fallback = type == .custom ? "New Section" : type.rawValue
         }
@@ -529,6 +534,12 @@ final class ManuscriptStore {
 
     /// The manuscript's letter section, if its pane has ever been opened.
     var letterSectionID: UUID? { manuscript?.letterSection?.id }
+
+    /// What Add Section offers this manuscript: a text box, a question
+    /// series — and the abstract, only while it has none.
+    var addableSectionKinds: [SectionKind] {
+        SectionKind.addable + (manuscript?.abstractSection == nil ? [.abstract] : [])
+    }
 
     /// The letter, made on first use.  Not undoable: opening a pane is not
     /// an edit, and ⌘Z taking the pane away would be a surprise.
@@ -1218,7 +1229,7 @@ final class ManuscriptStore {
         var out = section
         // First, none of the upstream's text.
         switch section.sectionKind {
-        case .text, .letter:
+        case .text, .letter, .abstract:
             out.content = RichText()
         case .questions:
             out.questions = section.orderedQuestions.map { var q = $0; q.response = RichText(); return q }
@@ -1226,7 +1237,7 @@ final class ManuscriptStore {
         // Then what the venue carries for it.
         guard let entry else { return out }
         switch entry.kind {
-        case .text, .letter:
+        case .text, .letter, .abstract:
             if entry.kind == .letter {
                 out.kind = .letter
                 if out.letter == nil { out.letter = LetterDetails() }
@@ -1263,9 +1274,13 @@ final class ManuscriptStore {
         let byKey = Dictionary((journal.structure?.journalEntries ?? []).map { ($0.key, $0) },
                                uniquingKeysWith: { first, _ in first })
         var out = content
-        out.sections = content.sections.map { Self.templated($0, entry: byKey[$0.title.lowercased()]) }
-        out.abstract = Self.templated(FastForwardIntent.abstractSection(content),
-                                      entry: journal.structure?.abstractEntry).content
+        // The abstract pairs with the venue's "Abstract" entry by kind, so a
+        // renamed abstract still finds it; everything else by title.
+        out.sections = content.sections.map { section in
+            Self.templated(section, entry: section.sectionKind == .abstract
+                           ? journal.structure?.abstractEntry
+                           : byKey[section.title.lowercased()])
+        }
         return out
     }
 
@@ -1837,10 +1852,12 @@ final class ManuscriptStore {
         // Journal content only: the letter is the author's, not the venue's.
         for section in content.journalSections.filter(\.active)
             .sorted(by: { $0.order < $1.order }) {
-            var entry = byTitle[section.title.lowercased()]
-                ?? StructureSection(title: section.title)
-            entry.title = section.title
-            entry.kind = section.sectionKind
+            // The abstract's entry is always "Abstract", whatever the section
+            // is called here: the entry describes the field, by name.
+            let entryTitle = section.sectionKind == .abstract ? "Abstract" : section.title
+            var entry = byTitle[entryTitle.lowercased()] ?? StructureSection(title: entryTitle)
+            entry.title = entryTitle
+            entry.kind = section.sectionKind == .abstract ? .text : section.sectionKind
             // **Boilerplate is not captured.**  It is the venue's default
             // content, authored while editing the template — taking whatever a
             // cut happens to contain is how one author's draft became
@@ -1848,7 +1865,7 @@ final class ManuscriptStore {
             // ambiguous: boilerplate to be replaced, or writing to be kept?
             // The existing entry's boilerplate is carried through untouched.
             switch section.sectionKind {
-            case .text, .letter:
+            case .text, .letter, .abstract:
                 entry.questions = nil
             case .questions:
                 // The QUESTIONS are the venue's and do belong to the template;
@@ -2587,7 +2604,7 @@ final class ManuscriptStore {
         for i in incoming.sections.indices {
             guard let mine = byTitle[incoming.sections[i].title.lowercased()] else { continue }
             switch incoming.sections[i].sectionKind {
-            case .text, .letter:
+            case .text, .letter, .abstract:
                 let kept = mine.content.plain
                 let arriving = incoming.sections[i].content.plain
                 guard !kept.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
@@ -2625,7 +2642,6 @@ final class ManuscriptStore {
     /// full override it always was.
     private func migrated(_ upstream: Manuscript, into head: Manuscript) -> Manuscript {
         var out = upstream
-        if upstream.abstract.isEmpty { out.abstract = head.abstract }
         let byID = Dictionary(head.sections.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         let byTitle = Dictionary(head.sections.map { ($0.title.lowercased(), $0) },
                                  uniquingKeysWith: { first, _ in first })
@@ -2648,9 +2664,6 @@ final class ManuscriptStore {
     /// reference in it.  `AIRefMarkers` has already rebuilt those links.
     private func applyAdaptation(_ adaptation: FastForwardIntent.Adaptation,
                                  to content: inout Manuscript) {
-        if let rich = adaptation.sections[FastForwardIntent.abstractID] {
-            content.abstract = rich
-        }
         for i in content.sections.indices {
             let id = content.sections[i].id
             if let rich = adaptation.sections[id] {

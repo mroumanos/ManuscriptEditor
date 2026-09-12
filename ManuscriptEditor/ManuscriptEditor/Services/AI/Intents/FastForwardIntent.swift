@@ -76,25 +76,15 @@ struct FastForwardIntent: AIIntent {
 
     // MARK: - What gets sent
 
-    /// The abstract's id in the payload — it is a field of the manuscript,
-    /// not a section, but it is a cut's prose like any section: a structured
-    /// abstract at one venue is a paragraph at another, and a fast-forward
-    /// that left it out could never satisfy the abstract checks it was sent.
-    static let abstractID = UUID(uuidString: "AB57AC70-0000-4000-8000-000000000001")!
-
-    /// The abstract as a section, so it travels and returns like one.
-    static func abstractSection(_ content: Manuscript) -> ManuscriptSection {
-        ManuscriptSection(id: abstractID, type: .custom, title: "Abstract",
-                          content: content.abstract, order: -1, active: true)
-    }
-
-    /// Everything that goes out for a manuscript: the abstract first, then
-    /// its active sections — all citing by the same legend.
+    /// Everything that goes out for a manuscript: its active journal
+    /// sections, the abstract among them (a section since Sep 2026 — a
+    /// structured abstract at one venue is a paragraph at another, and a
+    /// fast-forward that left it out could never satisfy the abstract checks
+    /// it was sent), all citing by the same legend.
     static func payloads(for content: Manuscript, target: Journal? = nil) -> [Payload] {
         let legend = AIRefMarkers.Legend(
             content: content, citationStyle: target?.requirements.citationStyle.cslID ?? "apa")
-        return payloads([abstractSection(content)], target: target, legend: legend)
-            + payloads(content.sections, target: target, legend: legend)
+        return payloads(content.sections, target: target, legend: legend)
     }
 
     /// One section as it goes out, and everything needed to put it back.
@@ -131,10 +121,13 @@ struct FastForwardIntent: AIIntent {
         // Journal content only: core content is the author's, never adapted.
         return sections.filter { $0.active && $0.isJournalContent }
             .sorted { $0.order < $1.order }.map { section in
-            let entry = entries[section.title.lowercased()]
+            // The abstract pairs with the venue's "Abstract" entry by kind.
+            let entry = section.sectionKind == .abstract
+                ? target?.structure?.abstractEntry
+                : entries[section.title.lowercased()]
             let sample = entry?.sample?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             switch section.sectionKind {
-            case .text, .letter:
+            case .text, .letter, .abstract:
                 var prepared = AIRefMarkers.prepare(section.content, legend: legend)
                 let holds = !sample.isEmpty
                     && section.content.plain.trimmingCharacters(in: .whitespacesAndNewlines) == sample
@@ -167,7 +160,7 @@ struct FastForwardIntent: AIIntent {
     /// reads the checkboxes.
     static func task(content: Manuscript, target: Journal) throws -> String {
         let payloads = payloads(for: content, target: target)
-        guard payloads.count > 1 else { throw FastForwardError.nothingToAdapt }
+        guard !payloads.isEmpty else { throw FastForwardError.nothingToAdapt }
 
         var sectionJSON: [[String: Any]] = []
         for payload in payloads {
@@ -184,7 +177,7 @@ struct FastForwardIntent: AIIntent {
                 if let note = template.note, !note.isEmpty { entry["notes"] = note }
             }
             switch payload.section.sectionKind {
-            case .text, .letter:
+            case .text, .letter, .abstract:
                 entry["kind"] = "prose"
                 entry["words"] = payload.holdsTemplate ? 0 : payload.section.wordCount
                 entry["text"] = payload.holdsTemplate ? "" : (payload.prepared?.text ?? "")
@@ -312,7 +305,7 @@ struct FastForwardIntent: AIIntent {
                 if let note = template.note, !note.isEmpty { entry["notes"] = note }
             }
             switch payload.section.sectionKind {
-            case .text, .letter:
+            case .text, .letter, .abstract:
                 entry["kind"] = "prose"
                 entry["text"] = payload.holdsTemplate ? "" : (payload.prepared?.text ?? "")
             case .questions:
@@ -485,7 +478,7 @@ struct FastForwardIntent: AIIntent {
         for scope in condition.scopes {
             switch scope.kind {
             case .body:
-                out.append(contentsOf: content.sections.filter(\.active))
+                out.append(contentsOf: content.bodySections.filter(\.active))
             case .section:
                 let name = (scope.name ?? "").lowercased()
                 out.append(contentsOf: content.sections.filter {

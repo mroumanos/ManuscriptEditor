@@ -65,7 +65,7 @@ struct TemplateSectionView: View {
                 identity(section)
                 Divider()
                 switch section.kind {
-                case .text, .letter: editor(section)
+                case .text, .letter, .abstract: editor(section)
                 case .questions:     questions(section)
                 }
             } else {

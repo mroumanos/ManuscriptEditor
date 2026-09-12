@@ -1029,14 +1029,17 @@ struct ExportDocumentCard: View {
         return ExportItem.Kind.coreKinds.filter { !present.contains($0) }
     }
 
-    private var missingAbstract: Bool { !document.items.contains { $0.kind == .abstract } }
+    private var missingAbstract: Bool {
+        content?.abstractSection != nil && !document.items.contains { $0.kind == .abstract }
+    }
 
-    /// The letter is never listed here: it is the fixed item above.
+    /// Neither the letter nor the abstract is listed here: each has a fixed
+    /// item of its own.
     private var missingSections: [ManuscriptSection] {
         let present = Set(document.items.compactMap(\.sectionID))
         return (content?.sections ?? [])
             .sorted { $0.order < $1.order }
-            .filter { !present.contains($0.id) && $0.isJournalContent }
+            .filter { !present.contains($0.id) && $0.isJournalContent && $0.sectionKind != .abstract }
     }
 
     private func append(_ item: ExportItem) {
