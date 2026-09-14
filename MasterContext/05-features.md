@@ -929,6 +929,14 @@ from a manuscript. Design and rationale:
   and which of the four parts have been edited.
 - AC: **No pass rate in a template's Tests.** There is no content to measure;
   the rate belongs to a cut, where the sidebar carries it — *Tests (86%)*.
+- AC: **The editor shows one base format** (Sep 2026): the editing face,
+  size and line spacing come from Settings → Editor and nowhere else; within
+  a section the only sizes are body and H1–H3 (any other size snaps to the
+  nearest), the only line height is the setting's (a super/subscript is drawn
+  compact, like a citation, so no line grows), and what shows beyond that is
+  exactly what the toolbar sets — bold, italic, underline, strikethrough,
+  left/center/right/justified, bullets. Alignment survives a reload; a
+  citation's raise never reaches the next word.
 - AC: **The two halves of the sidebar are consistent** (Sep 2026). Core rows
   (Title, Authors, Keywords, Figures, Tables, Bibliography, Letter) cannot be
   renamed, reordered or removed — the "Rename Pane" action is gone. Every

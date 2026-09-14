@@ -549,9 +549,17 @@ final class RichTextController {
     private func toggleSuperscript(_ value: Int) {
         guard let tv = textView, let storage = tv.textStorage else { return }
         let range = tv.selectedRange()
+        let base = (tv as? CitationTextView)?.defaultTypingAttributes[.font] as? NSFont
+            ?? tv.font ?? .systemFont(ofSize: NSFont.systemFontSize)
         if range.length == 0 {
+            // Typing attributes are drawn the way runs are: on, the text
+            // comes out shrunk and lifted; off, it comes out as body.
             let current = (tv.typingAttributes[.superscript] as? Int) ?? 0
-            tv.typingAttributes[.superscript] = (current == value) ? 0 : value
+            let next = (current == value) ? 0 : value
+            var attrs = tv.typingAttributes
+            attrs[.superscript] = next
+            CitationTextView.applyScriptStyle(&attrs, script: next, baseFont: base)
+            tv.typingAttributes = attrs
             return
         }
         var allMatch = true
@@ -560,14 +568,12 @@ final class RichTextController {
         }
         storage.beginEditing()
         storage.addAttribute(.superscript, value: allMatch ? 0 : value, range: range)
-        if allMatch, let base = (tv as? CitationTextView)?.defaultTypingAttributes[.font] as? NSFont {
-            // Off means off: prose that inherited a citation's lift and size
-            // loses them here too, or the button appears to do nothing.
-            let sub = storage.attributedSubstring(from: range)
-            let healed = NSTextStorage(attributedString: sub)
-            CitationTextView.normalizeRaise(in: healed, baseFont: base)
-            storage.replaceCharacters(in: range, with: healed)
-        }
+        // Redrawn either way: on, the runs shrink and lift; off, prose that
+        // inherited a citation's lift and size loses them too, or the button
+        // appears to do nothing.
+        let healed = NSTextStorage(attributedString: storage.attributedSubstring(from: range))
+        CitationTextView.normalizeRaise(in: healed, baseFont: base)
+        storage.replaceCharacters(in: range, with: healed)
         storage.endEditing()
         notifyChange()
     }
@@ -867,38 +873,9 @@ private struct RichTextRepresentable: NSViewRepresentable {
             appliedFontSize = baseFont.pointSize
             appliedLineHeight = lineHeightMultiple
             guard let storage = textView.textStorage else { return }
-            let full = NSRange(location: 0, length: storage.length)
-            let fm = NSFontManager.shared
-            // The dominant point size (by character count) is the body:
-            // runs normalize RELATIVE to it, so manual headers (and any
-            // intentionally-scaled run) keep their proportion across zoom,
-            // journal-typography, and reload — instead of being flattened.
-            var sizeWeights: [CGFloat: Int] = [:]
-            storage.enumerateAttribute(.font, in: full) { value, range, _ in
-                if let font = value as? NSFont { sizeWeights[font.pointSize, default: 0] += range.length }
-            }
-            let dominant = sizeWeights.max { $0.value < $1.value }?.key ?? baseFont.pointSize
             storage.beginEditing()
-            storage.enumerateAttribute(.font, in: full) { value, range, _ in
-                let old = value as? NSFont
-                let traits = old?.fontDescriptor.symbolicTraits ?? []
-                var ratio = dominant > 0 ? (old?.pointSize ?? dominant) / dominant : 1
-                // Only a citation run is legitimately SMALLER than the body.
-                // Prose that once inherited a citation's size (typed right
-                // after a token) came back at that size on every reload,
-                // because it read as an "intentionally scaled run"; a scaled
-                // run is a manual header, and headers are bigger.
-                if ratio < 1, !CitationTextView.isTokenRun(storage, at: range.location) { ratio = 1 }
-                var font = abs(ratio - 1) < 0.01
-                    ? baseFont
-                    : (NSFont(descriptor: baseFont.fontDescriptor,
-                              size: baseFont.pointSize * min(max(ratio, 0.5), 3)) ?? baseFont)
-                if traits.contains(.bold)   { font = fm.convert(font, toHaveTrait: .boldFontMask) }
-                if traits.contains(.italic) { font = fm.convert(font, toHaveTrait: .italicFontMask) }
-                storage.addAttribute(.font, value: font, range: range)
-            }
-            storage.addAttribute(.paragraphStyle, value: paragraphStyle(lineHeightMultiple), range: full)
-            CitationTextView.normalizeRaise(in: storage, baseFont: baseFont)
+            CitationTextView.normalizeTypography(in: storage, baseFont: baseFont,
+                                                 lineHeightMultiple: lineHeightMultiple)
             storage.endEditing()
             textView.typingAttributes = defaultAttributes(baseFont, lineHeightMultiple)
             (textView as? CitationTextView)?.defaultTypingAttributes = defaultAttributes(baseFont, lineHeightMultiple)
@@ -1370,20 +1347,114 @@ final class CitationTextView: NSTextView {
     }
 
     /// Whether attributes are a token's — its link, or the raise a citation
-    /// wears (a smaller font, a baseline offset) with no `.superscript` of
-    /// the user's own.  Typing must never continue in them: the raise is the
-    /// token's, and text typed right after one used to keep its size and
-    /// lift, with no button that could take them off again.
+    /// wears (a smaller font, a baseline offset).  Typing must never continue
+    /// in them: the raise is the token's, and text typed right after one used
+    /// to keep its size and lift, with no button that could take them off
+    /// again.  A user's own script (`.superscript`) is not a token's: typing
+    /// continues in it, as in any editor, and the button turns it off.
     static func carriesTokenStyle(_ attrs: [NSAttributedString.Key: Any], baseFont: NSFont?) -> Bool {
         if let url = attrs[.link] as? URL, RefEngine.Token.parse(url) != nil { return true }
+        if script(of: attrs) != 0 { return false }
         if let offset = (attrs[.baselineOffset] as? NSNumber)?.doubleValue, offset != 0 { return true }
-        // A user's superscript never changes the font size here (TextKit
-        // raises `.superscript` at the same size), so a citation-sized font
-        // is a leftover whatever script it carries.
         if let base = baseFont, let font = attrs[.font] as? NSFont, font.pointSize < base.pointSize * 0.9 {
             return true
         }
         return false
+    }
+
+    /// The user's script on a run: 1 superscript, -1 subscript, 0 none.
+    static func script(of attrs: [NSAttributedString.Key: Any]) -> Int {
+        (attrs[.superscript] as? Int) ?? 0
+    }
+
+    /// How a script is DRAWN in the editor: shrunk and lifted (or dropped)
+    /// exactly as a citation is, so it fits inside the line's normal ascent
+    /// and never grows the line box — TextKit's own rendering of
+    /// `.superscript` keeps the full size and does, which is where uneven
+    /// line spacing came from.  The `.superscript` attribute stays on the run:
+    /// it is what the RTF stores and what export materializes for Word.
+    static func applyScriptStyle(_ attrs: inout [NSAttributedString.Key: Any], script: Int, baseFont: NSFont) {
+        let traits = (attrs[.font] as? NSFont)?.fontDescriptor.symbolicTraits ?? []
+        var font = baseFont
+        if script != 0 {
+            font = NSFont(descriptor: baseFont.fontDescriptor,
+                          size: (baseFont.pointSize * 0.7).rounded()) ?? baseFont
+        }
+        let fm = NSFontManager.shared
+        if traits.contains(.bold)   { font = fm.convert(font, toHaveTrait: .boldFontMask) }
+        if traits.contains(.italic) { font = fm.convert(font, toHaveTrait: .italicFontMask) }
+        attrs[.font] = font
+        switch script {
+        case let s where s > 0: attrs[.baselineOffset] = baseFont.pointSize * 0.28
+        case let s where s < 0: attrs[.baselineOffset] = -(baseFont.pointSize * 0.12)
+        default:                attrs.removeValue(forKey: .baselineOffset)
+        }
+    }
+
+    /// The manual header sizes over the body, H1–H3 — the ONLY sizes a run
+    /// may have besides the body's (and the shrunk citation / script).  Any
+    /// other size — pasted, inherited, drifted — snaps to the nearest of
+    /// these or to the body, so a section never carries a size the editor
+    /// has no button for.
+    static let headingRatios: [CGFloat] = [16.0 / 12.0, 14.0 / 12.0, 13.0 / 12.0]
+
+    /// ONE base format.  Every run comes out in the editor's face and size,
+    /// keeping only what the toolbar can set — bold, italic, underline,
+    /// strikethrough, a header level, a script — and every paragraph gets
+    /// the one line height, keeping only its alignment.  Citations keep
+    /// their raise.  Runs from an older file, a paste, or a model's reply
+    /// carry whatever they carried; this is where it stops mattering.
+    static func normalizeTypography(in storage: NSTextStorage, baseFont: NSFont, lineHeightMultiple: Double) {
+        let full = NSRange(location: 0, length: storage.length)
+        let fm = NSFontManager.shared
+
+        // The body size is the dominant size by character count, so a
+        // header's ratio is read against the size the section is set in
+        // rather than against whatever size the file happened to store.
+        var sizeWeights: [CGFloat: Int] = [:]
+        storage.enumerateAttribute(.font, in: full) { value, range, _ in
+            if let font = value as? NSFont { sizeWeights[font.pointSize, default: 0] += range.length }
+        }
+        let dominant = sizeWeights.max { $0.value < $1.value }?.key ?? baseFont.pointSize
+
+        storage.enumerateAttributes(in: full) { attrs, range, _ in
+            let old = attrs[.font] as? NSFont
+            let traits = old?.fontDescriptor.symbolicTraits ?? []
+            var out = attrs
+
+            if isTokenRun(storage, at: range.location) {
+                // A citation: raised when it was raised, body-sized otherwise.
+                let lifted = ((attrs[.baselineOffset] as? NSNumber)?.doubleValue ?? 0) != 0
+                applyCitationRaise(&out, raised: lifted, baseFont: baseFont)
+            } else if script(of: attrs) != 0 {
+                applyScriptStyle(&out, script: script(of: attrs), baseFont: baseFont)
+            } else {
+                // Body, or a header: the nearest of the sizes there are
+                // buttons for.  Smaller than the body is never intended.
+                let ratio = dominant > 0 ? (old?.pointSize ?? dominant) / dominant : 1
+                var scale: CGFloat = 1
+                if ratio > 1.02 {
+                    scale = headingRatios.min { abs($0 - ratio) < abs($1 - ratio) } ?? 1
+                    if abs(scale - ratio) > abs(1 - ratio) { scale = 1 }
+                }
+                var font = scale == 1 ? baseFont
+                    : (NSFont(descriptor: baseFont.fontDescriptor, size: baseFont.pointSize * scale) ?? baseFont)
+                if traits.contains(.bold)   { font = fm.convert(font, toHaveTrait: .boldFontMask) }
+                if traits.contains(.italic) { font = fm.convert(font, toHaveTrait: .italicFontMask) }
+                out[.font] = font
+                out.removeValue(forKey: .baselineOffset)
+            }
+
+            // One line height for every paragraph; alignment is the one
+            // thing a paragraph keeps.  (The old pass wrote a single style
+            // over the whole text and took every centred title with it.)
+            let style = NSMutableParagraphStyle()
+            style.lineHeightMultiple = CGFloat(lineHeightMultiple)
+            style.alignment = (attrs[.paragraphStyle] as? NSParagraphStyle)?.alignment ?? .natural
+            out[.paragraphStyle] = style
+
+            storage.setAttributes(out, range: range)
+        }
     }
 
     /// True when the character at `location` belongs to a reference token.
@@ -1394,33 +1465,34 @@ final class CitationTextView: NSTextView {
         return url.flatMap(RefEngine.Token.parse) != nil
     }
 
-    /// The raise belongs to citation runs and to nothing else.  Token runs
-    /// re-derive their shrink and lift from the base font so they stay
-    /// proportional; any other run carrying a lift or a citation-sized font
-    /// is prose that inherited them, and goes back to the body font.
+    /// The raise belongs to citation runs and to scripts, and to nothing
+    /// else.  Token runs re-derive their shrink and lift from the base font;
+    /// a run with a script of the user's is drawn as one; any other run
+    /// carrying a lift or a citation-sized font is prose that inherited
+    /// them, and goes back to the body font.  (The header sizes are left
+    /// alone here: this runs on a selection the toggle just changed.)
     static func normalizeRaise(in storage: NSTextStorage, baseFont: NSFont) {
         let full = NSRange(location: 0, length: storage.length)
         let fm = NSFontManager.shared
         storage.enumerateAttributes(in: full) { attrs, range, _ in
             let lifted = ((attrs[.baselineOffset] as? NSNumber)?.doubleValue ?? 0) != 0
+            var out = attrs
             if isTokenRun(storage, at: range.location) {
                 guard lifted else { return }
-                var raised = attrs
-                applyCitationRaise(&raised, raised: true, baseFont: baseFont)
-                if let font = raised[.font] { storage.addAttribute(.font, value: font, range: range) }
-                if let raise = raised[.baselineOffset] {
-                    storage.addAttribute(.baselineOffset, value: raise, range: range)
-                }
-                return
+                applyCitationRaise(&out, raised: true, baseFont: baseFont)
+            } else if script(of: attrs) != 0 {
+                applyScriptStyle(&out, script: script(of: attrs), baseFont: baseFont)
+            } else {
+                let small = (attrs[.font] as? NSFont).map { $0.pointSize < baseFont.pointSize * 0.9 } ?? false
+                guard lifted || small else { return }
+                out.removeValue(forKey: .baselineOffset)
+                var font = baseFont
+                let traits = (attrs[.font] as? NSFont)?.fontDescriptor.symbolicTraits ?? []
+                if traits.contains(.bold)   { font = fm.convert(font, toHaveTrait: .boldFontMask) }
+                if traits.contains(.italic) { font = fm.convert(font, toHaveTrait: .italicFontMask) }
+                out[.font] = font
             }
-            let small = (attrs[.font] as? NSFont).map { $0.pointSize < baseFont.pointSize * 0.9 } ?? false
-            guard lifted || small else { return }      // a user's `.superscript` stays; only the size and lift go
-            storage.removeAttribute(.baselineOffset, range: range)
-            var font = baseFont
-            let traits = (attrs[.font] as? NSFont)?.fontDescriptor.symbolicTraits ?? []
-            if traits.contains(.bold)   { font = fm.convert(font, toHaveTrait: .boldFontMask) }
-            if traits.contains(.italic) { font = fm.convert(font, toHaveTrait: .italicFontMask) }
-            storage.addAttribute(.font, value: font, range: range)
+            storage.setAttributes(out, range: range)
         }
     }
 

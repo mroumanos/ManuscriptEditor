@@ -419,3 +419,19 @@ Requires: clean tree on main, the Developer ID cert, `gh` auth.
     on token runs and returns everything else to the body font; a user's own
     `.superscript` is left alone. A saved file with the leftovers heals on its
     next open. The harness builds the exact storage the bug produced.
+
+34. **The editor has one base format, and `normalizeTypography` is where
+    it is enforced.** Every run comes out in the editing face and size —
+    the app setting — keeping only what the toolbar can set: bold, italic,
+    underline, strikethrough, a header level, a script; every paragraph gets
+    the one line height and keeps only its alignment. Three things it
+    replaced: sizes were preserved *relative to the dominant size* (any
+    pasted or drifted size survived as an "intentional scale"; now a size
+    snaps to the nearest of body / H1 / H2 / H3, never smaller than body),
+    a single paragraph style was written over the whole text on every load
+    (which threw away every centred title), and a user's super/subscript
+    was drawn by TextKit at full size, which grows the line box — the
+    uneven spacing. Scripts are now drawn like citations (shrunk, lifted or
+    dropped) with the `.superscript` attribute kept for the RTF and for
+    export, which materializes it itself. If spacing or size looks uneven
+    in the editor, it is a run this pass is not covering.
