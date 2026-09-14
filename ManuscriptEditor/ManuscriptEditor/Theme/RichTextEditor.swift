@@ -497,35 +497,26 @@ final class RichTextController {
         notifyChange()
     }
 
-    /// Styles the current paragraph as a manual header: H1/H2/H3 scale the
-    /// base font up (16/14/13 over a 12-pt body) and bold it; level 0
-    /// ("Body") resets the paragraph to the base font.  The scale is
-    /// relative, so zoom and journal typography keep it proportional
-    /// (applyTypography preserves run scale around the dominant size).
+    /// Styles the current paragraph as a manual header — H1/H2/H3 scale the
+    /// EDITOR's base font up (16/14/13 over a 12-pt body) and bold it — or,
+    /// with level 0 ("Body"), back to the base font.
+    ///
+    /// Two things this used to get wrong, and both read as broken line
+    /// spacing: the size came from the caret's font, so "Body" on a header
+    /// paragraph kept the header's size; and the font was written over the
+    /// whole paragraph, citations included, which put a raised citation at
+    /// full size and grew every line it sat on.  Tokens and scripts keep
+    /// their own drawing here; the paragraph is re-normalized afterwards.
     func applyHeading(_ level: Int) {
-        guard let tv = textView, let storage = tv.textStorage else { return }
-        let base = (tv.typingAttributes[.font] as? NSFont).map {
-            // Strip any local traits back to the editor's base face.
-            NSFont(descriptor: $0.fontDescriptor.withSymbolicTraits([]), size: $0.pointSize) ?? $0
-        } ?? tv.font ?? .systemFont(ofSize: NSFont.systemFontSize)
-        let factor: CGFloat
-        switch level {
-        case 1:  factor = 16.0 / 12.0
-        case 2:  factor = 14.0 / 12.0
-        case 3:  factor = 13.0 / 12.0
-        default: factor = 1
-        }
-        var font = NSFont(descriptor: base.fontDescriptor, size: base.pointSize * factor) ?? base
-        if (1...3).contains(level) {
-            font = NSFontManager.shared.convert(font, toHaveTrait: .boldFontMask)
-        }
+        guard let tv = textView as? CitationTextView, let storage = tv.textStorage else { return }
+        let base = tv.defaultTypingAttributes[.font] as? NSFont ?? tv.font ?? .systemFont(ofSize: NSFont.systemFontSize)
         let range = (storage.string as NSString).paragraphRange(for: tv.selectedRange())
         guard range.length > 0 else {
-            tv.typingAttributes[.font] = font
+            tv.typingAttributes[.font] = CitationTextView.headingFont(level: level, over: nil, baseFont: base)
             return
         }
         storage.beginEditing()
-        storage.addAttribute(.font, value: font, range: range)
+        CitationTextView.applyHeadingLevel(in: storage, range: range, level: level, baseFont: base)
         storage.endEditing()
         notifyChange()
     }
@@ -1452,6 +1443,40 @@ final class CitationTextView: NSTextView {
 
     private static func isSuperscripted(_ token: RefEngine.Token, context: RefEngine.Context) -> Bool {
         RefEngine.isSuperscripted(token, context: context)
+    }
+
+    /// The font for a header level over a run's existing traits: H1–H3 are
+    /// scaled and bold (italic kept); Body is the base size with the
+    /// header's bold taken off (italic kept).
+    static func headingFont(level: Int, over old: NSFont?, baseFont: NSFont) -> NSFont {
+        let factor: CGFloat
+        switch level {
+        case 1:  factor = 16.0 / 12.0
+        case 2:  factor = 14.0 / 12.0
+        case 3:  factor = 13.0 / 12.0
+        default: factor = 1
+        }
+        let traits = old?.fontDescriptor.symbolicTraits ?? []
+        let fm = NSFontManager.shared
+        var font = NSFont(descriptor: baseFont.fontDescriptor, size: baseFont.pointSize * factor) ?? baseFont
+        if (1...3).contains(level)   { font = fm.convert(font, toHaveTrait: .boldFontMask) }
+        if traits.contains(.italic)  { font = fm.convert(font, toHaveTrait: .italicFontMask) }
+        return font
+    }
+
+    /// Sets a header level on every prose run in `range`; tokens and scripts
+    /// are left to `normalizeRaise`, which re-derives their drawing from the
+    /// base so a citation in a header (or back in body) stays compact and
+    /// the line box stays even.
+    static func applyHeadingLevel(in storage: NSTextStorage, range: NSRange, level: Int, baseFont: NSFont) {
+        storage.enumerateAttributes(in: range) { attrs, run, _ in
+            if isTokenRun(storage, at: run.location) || script(of: attrs) != 0 { return }
+            storage.addAttribute(.font, value: headingFont(level: level, over: attrs[.font] as? NSFont,
+                                                           baseFont: baseFont), range: run)
+        }
+        let healed = NSTextStorage(attributedString: storage.attributedSubstring(from: range))
+        normalizeRaise(in: healed, baseFont: baseFont)
+        storage.replaceCharacters(in: range, with: healed)
     }
 
     /// The manual header sizes over the body, H1–H3 — the ONLY sizes a run

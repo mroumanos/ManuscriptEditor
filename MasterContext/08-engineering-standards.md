@@ -439,4 +439,9 @@ Requires: clean tree on main, the Developer ID cert, `gh` auth.
     wore a citation's leftovers came back as a *subscript paragraph*, small
     and drawn low, with its citations lifted out of every line — and is
     read as body. If spacing or size looks uneven in the editor, it is a
-    run this pass is not covering.
+    run this pass is not covering. **Every operation that writes a font
+    over a range must leave tokens and scripts to `normalizeRaise`**: the
+    Body/H1–H3 menu wrote the font over the whole paragraph, citations
+    included, which put a raised citation at full size and grew every line
+    it sat on — and it took its base size from the caret's font, so "Body"
+    on a header kept the header's size (`applyHeadingLevel`).
