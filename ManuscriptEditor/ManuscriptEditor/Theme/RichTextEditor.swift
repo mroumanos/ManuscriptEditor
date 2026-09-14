@@ -359,6 +359,16 @@ private struct FormatBar: View {
                 .fixedSize()
                 .help("Paragraph style — make this paragraph a header (H1–H3) or body text")
 
+                Divider().frame(height: 18).padding(.horizontal, 4)
+
+                // Normal text: everything the buttons above can put on a
+                // selection comes off it — size, bold, italic, underline,
+                // strikethrough, script, alignment.  A citation goes back to
+                // its format rather than to nothing.
+                button("eraser", "Normal text — clear all formatting from the selection (a citation returns to its format)") {
+                    controller.clearFormatting()
+                }
+
                 // Font, size and spacing are NOT here: the editing typeface is
                 // a global reading preference (Settings → Editor), and the
                 // EXPORT typeface belongs to the component's settings gear.
@@ -517,6 +527,24 @@ final class RichTextController {
         storage.beginEditing()
         storage.addAttribute(.font, value: font, range: range)
         storage.endEditing()
+        notifyChange()
+    }
+
+    /// Normal text: the selection (or the paragraph at the caret) loses
+    /// every formatting the toolbar can put on it.  A citation is not
+    /// stripped but RESTORED — its raise follows its format, which manual
+    /// formatting may override until the format is chosen again.
+    func clearFormatting() {
+        guard let tv = textView as? CitationTextView, let storage = tv.textStorage else { return }
+        let selected = tv.selectedRange()
+        let range = selected.length == 0
+            ? (storage.string as NSString).paragraphRange(for: selected)
+            : selected
+        let base = tv.defaultTypingAttributes[.font] as? NSFont ?? tv.font ?? .systemFont(ofSize: NSFont.systemFontSize)
+        storage.beginEditing()
+        CitationTextView.clearFormatting(in: storage, range: range, baseFont: base, context: tv.refContext)
+        storage.endEditing()
+        tv.typingAttributes = tv.defaultTypingAttributes
         notifyChange()
     }
 
@@ -1389,6 +1417,41 @@ final class CitationTextView: NSTextView {
         case let s where s < 0: attrs[.baselineOffset] = -(baseFont.pointSize * 0.12)
         default:                attrs.removeValue(forKey: .baselineOffset)
         }
+    }
+
+    /// Strips `range` back to body text: the base font with no traits, no
+    /// underline, strikethrough, script, lift or colour, and every paragraph
+    /// it touches aligned naturally.  Tokens keep their link and tooltip
+    /// and are re-raised per the manuscript's citation format — "normal"
+    /// for a citation is its format, not a bare number sitting inline.
+    static func clearFormatting(in storage: NSTextStorage, range: NSRange,
+                                baseFont: NSFont, context: RefEngine.Context) {
+        storage.enumerateAttributes(in: range) { attrs, run, _ in
+            var out: [NSAttributedString.Key: Any] = [.font: baseFont, .foregroundColor: NSColor.labelColor]
+            if let style = attrs[.paragraphStyle] { out[.paragraphStyle] = style }
+            if let link = attrs[.link] as? URL, let token = RefEngine.Token.parse(link) {
+                out[.link] = link
+                if let tip = attrs[.toolTip] { out[.toolTip] = tip }
+                applyCitationRaise(&out, raised: isSuperscripted(token, context: context), baseFont: baseFont)
+            } else if let link = attrs[.link] {
+                out[.link] = link                      // a part token, a letter token: text with a link
+                if let tip = attrs[.toolTip] { out[.toolTip] = tip }
+            }
+            storage.setAttributes(out, range: run)
+        }
+        // Alignment is a paragraph's; the paragraphs the range touches go
+        // back to natural, keeping the one line height.
+        let paragraphs = (storage.string as NSString).paragraphRange(for: range)
+        storage.enumerateAttribute(.paragraphStyle, in: paragraphs) { value, run, _ in
+            let style = ((value as? NSParagraphStyle)?.mutableCopy() as? NSMutableParagraphStyle)
+                ?? NSMutableParagraphStyle()
+            style.alignment = .natural
+            storage.addAttribute(.paragraphStyle, value: style, range: run)
+        }
+    }
+
+    private static func isSuperscripted(_ token: RefEngine.Token, context: RefEngine.Context) -> Bool {
+        RefEngine.isSuperscripted(token, context: context)
     }
 
     /// The manual header sizes over the body, H1–H3 — the ONLY sizes a run

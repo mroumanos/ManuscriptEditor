@@ -937,6 +937,15 @@ from a manuscript. Design and rationale:
   exactly what the toolbar sets — bold, italic, underline, strikethrough,
   left/center/right/justified, bullets. Alignment survives a reload; a
   citation's raise never reaches the next word.
+- AC: **Normal text** (the eraser on the toolbar) takes every formatting off
+  the selection — or the paragraph at the caret — size, bold, italic,
+  underline, strikethrough, script, lift, alignment. A **citation** is not
+  stripped but returned to its **format**: the manuscript's citation format
+  (Overview → Settings → Citations, or a token's right-click menu, which sets
+  it for every reference) decides whether it is raised; manual formatting on
+  a token — bold, an underline — holds until the format is chosen again or
+  Normal text is pressed. Every formatting button applies to the **whole**
+  selection: on when any of it is off, off when all of it is on.
 - AC: **The two halves of the sidebar are consistent** (Sep 2026). Core rows
   (Title, Authors, Keywords, Figures, Tables, Bibliography, Letter) cannot be
   renamed, reordered or removed — the "Rename Pane" action is gone. Every
