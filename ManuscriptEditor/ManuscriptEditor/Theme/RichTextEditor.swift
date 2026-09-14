@@ -1398,6 +1398,10 @@ final class CitationTextView: NSTextView {
     /// has no button for.
     static let headingRatios: [CGFloat] = [16.0 / 12.0, 14.0 / 12.0, 13.0 / 12.0]
 
+    /// The longest run that can still be a script (a chemical formula, an
+    /// exponent with units); anything longer is prose wearing the attribute.
+    static let scriptRunLimit = 80
+
     /// ONE base format.  Every run comes out in the editor's face and size,
     /// keeping only what the toolbar can set — bold, italic, underline,
     /// strikethrough, a header level, a script — and every paragraph gets
@@ -1416,6 +1420,20 @@ final class CitationTextView: NSTextView {
             if let font = value as? NSFont { sizeWeights[font.pointSize, default: 0] += range.length }
         }
         let dominant = sizeWeights.max { $0.value < $1.value }?.key ?? baseFont.pointSize
+
+        // A script is a footnote mark, an ion, an exponent — a few characters
+        // inside a line.  One that spans a paragraph break, or runs on past
+        // any of those, is not a script but an artifact: a paragraph that
+        // was toggled while it wore a citation's leftovers (Sep 2026) came
+        // back as a subscript paragraph, small and drawn low, with its
+        // citations lifted out of the line.  Such a run is body text.
+        storage.enumerateAttribute(.superscript, in: full) { value, range, _ in
+            guard let level = value as? Int, level != 0 else { return }
+            let text = (storage.string as NSString).substring(with: range)
+            if text.contains("\n") || range.length > scriptRunLimit {
+                storage.removeAttribute(.superscript, range: range)
+            }
+        }
 
         storage.enumerateAttributes(in: full) { attrs, range, _ in
             let old = attrs[.font] as? NSFont

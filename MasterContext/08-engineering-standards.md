@@ -433,5 +433,10 @@ Requires: clean tree on main, the Developer ID cert, `gh` auth.
     was drawn by TextKit at full size, which grows the line box — the
     uneven spacing. Scripts are now drawn like citations (shrunk, lifted or
     dropped) with the `.superscript` attribute kept for the RTF and for
-    export, which materializes it itself. If spacing or size looks uneven
-    in the editor, it is a run this pass is not covering.
+    export, which materializes it itself. A script run that spans a
+    paragraph break or runs past `scriptRunLimit` (80 characters) is not a
+    script but the attribute left on prose — a paragraph toggled while it
+    wore a citation's leftovers came back as a *subscript paragraph*, small
+    and drawn low, with its citations lifted out of every line — and is
+    read as body. If spacing or size looks uneven in the editor, it is a
+    run this pass is not covering.
