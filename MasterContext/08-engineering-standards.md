@@ -405,3 +405,17 @@ Requires: clean tree on main, the Developer ID cert, `gh` auth.
     price of that key mapping: **every stored property must be listed**, or
     it silently stops being saved. `Manuscript.new()` and the migration both
     give the abstract section its place at order 0.
+
+33. **The citation raise belongs to the token, never to the next word.** A
+    citation is drawn raised as a smaller font plus a baseline offset (not
+    `.superscript`, which grows the line box). Text typed right after a
+    token inherited both, the load-time typography pass then re-applied the
+    raise to *every* lifted run and kept any smaller-than-body font as an
+    "intentionally scaled run", and the superscript button toggled a
+    different attribute — so a paragraph came out at citation size, raised,
+    with nothing that could take it off. Now `carriesTokenStyle` resets
+    typing attributes that carry a link, a lift, or a citation-sized font;
+    `normalizeRaise` (load, font change, and script-off) keeps the raise only
+    on token runs and returns everything else to the body font; a user's own
+    `.superscript` is left alone. A saved file with the leftovers heals on its
+    next open. The harness builds the exact storage the bug produced.

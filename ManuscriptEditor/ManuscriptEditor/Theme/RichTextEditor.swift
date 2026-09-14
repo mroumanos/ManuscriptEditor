@@ -560,6 +560,14 @@ final class RichTextController {
         }
         storage.beginEditing()
         storage.addAttribute(.superscript, value: allMatch ? 0 : value, range: range)
+        if allMatch, let base = (tv as? CitationTextView)?.defaultTypingAttributes[.font] as? NSFont {
+            // Off means off: prose that inherited a citation's lift and size
+            // loses them here too, or the button appears to do nothing.
+            let sub = storage.attributedSubstring(from: range)
+            let healed = NSTextStorage(attributedString: sub)
+            CitationTextView.normalizeRaise(in: healed, baseFont: base)
+            storage.replaceCharacters(in: range, with: healed)
+        }
         storage.endEditing()
         notifyChange()
     }
@@ -874,7 +882,13 @@ private struct RichTextRepresentable: NSViewRepresentable {
             storage.enumerateAttribute(.font, in: full) { value, range, _ in
                 let old = value as? NSFont
                 let traits = old?.fontDescriptor.symbolicTraits ?? []
-                let ratio = dominant > 0 ? (old?.pointSize ?? dominant) / dominant : 1
+                var ratio = dominant > 0 ? (old?.pointSize ?? dominant) / dominant : 1
+                // Only a citation run is legitimately SMALLER than the body.
+                // Prose that once inherited a citation's size (typed right
+                // after a token) came back at that size on every reload,
+                // because it read as an "intentionally scaled run"; a scaled
+                // run is a manual header, and headers are bigger.
+                if ratio < 1, !CitationTextView.isTokenRun(storage, at: range.location) { ratio = 1 }
                 var font = abs(ratio - 1) < 0.01
                     ? baseFont
                     : (NSFont(descriptor: baseFont.fontDescriptor,
@@ -884,17 +898,7 @@ private struct RichTextRepresentable: NSViewRepresentable {
                 storage.addAttribute(.font, value: font, range: range)
             }
             storage.addAttribute(.paragraphStyle, value: paragraphStyle(lineHeightMultiple), range: full)
-            // Raised citation runs re-derive their shrink + offset from the
-            // new base so superscripts stay proportional.
-            storage.enumerateAttribute(.baselineOffset, in: full) { value, range, _ in
-                guard let offset = (value as? NSNumber)?.doubleValue, offset != 0 else { return }
-                var attrs = storage.attributes(at: range.location, effectiveRange: nil)
-                CitationTextView.applyCitationRaise(&attrs, raised: offset > 0, baseFont: baseFont)
-                if let font = attrs[.font] { storage.addAttribute(.font, value: font, range: range) }
-                if let raise = attrs[.baselineOffset] {
-                    storage.addAttribute(.baselineOffset, value: raise, range: range)
-                }
-            }
+            CitationTextView.normalizeRaise(in: storage, baseFont: baseFont)
             storage.endEditing()
             textView.typingAttributes = defaultAttributes(baseFont, lineHeightMultiple)
             (textView as? CitationTextView)?.defaultTypingAttributes = defaultAttributes(baseFont, lineHeightMultiple)
@@ -1359,8 +1363,65 @@ final class CitationTextView: NSTextView {
     /// (link, tooltip, bold affordance) from the typing attributes whenever
     /// the caret moves.
     func sanitizeTypingAttributes() {
-        guard let url = typingAttributes[.link] as? URL, RefEngine.Token.parse(url) != nil else { return }
+        guard CitationTextView.carriesTokenStyle(typingAttributes,
+                                                 baseFont: defaultTypingAttributes[.font] as? NSFont)
+        else { return }
         typingAttributes = defaultTypingAttributes
+    }
+
+    /// Whether attributes are a token's — its link, or the raise a citation
+    /// wears (a smaller font, a baseline offset) with no `.superscript` of
+    /// the user's own.  Typing must never continue in them: the raise is the
+    /// token's, and text typed right after one used to keep its size and
+    /// lift, with no button that could take them off again.
+    static func carriesTokenStyle(_ attrs: [NSAttributedString.Key: Any], baseFont: NSFont?) -> Bool {
+        if let url = attrs[.link] as? URL, RefEngine.Token.parse(url) != nil { return true }
+        if let offset = (attrs[.baselineOffset] as? NSNumber)?.doubleValue, offset != 0 { return true }
+        // A user's superscript never changes the font size here (TextKit
+        // raises `.superscript` at the same size), so a citation-sized font
+        // is a leftover whatever script it carries.
+        if let base = baseFont, let font = attrs[.font] as? NSFont, font.pointSize < base.pointSize * 0.9 {
+            return true
+        }
+        return false
+    }
+
+    /// True when the character at `location` belongs to a reference token.
+    static func isTokenRun(_ storage: NSTextStorage, at location: Int) -> Bool {
+        guard location < storage.length,
+              let value = storage.attribute(.link, at: location, effectiveRange: nil) else { return false }
+        let url = (value as? URL) ?? (value as? String).flatMap { URL(string: $0) }
+        return url.flatMap(RefEngine.Token.parse) != nil
+    }
+
+    /// The raise belongs to citation runs and to nothing else.  Token runs
+    /// re-derive their shrink and lift from the base font so they stay
+    /// proportional; any other run carrying a lift or a citation-sized font
+    /// is prose that inherited them, and goes back to the body font.
+    static func normalizeRaise(in storage: NSTextStorage, baseFont: NSFont) {
+        let full = NSRange(location: 0, length: storage.length)
+        let fm = NSFontManager.shared
+        storage.enumerateAttributes(in: full) { attrs, range, _ in
+            let lifted = ((attrs[.baselineOffset] as? NSNumber)?.doubleValue ?? 0) != 0
+            if isTokenRun(storage, at: range.location) {
+                guard lifted else { return }
+                var raised = attrs
+                applyCitationRaise(&raised, raised: true, baseFont: baseFont)
+                if let font = raised[.font] { storage.addAttribute(.font, value: font, range: range) }
+                if let raise = raised[.baselineOffset] {
+                    storage.addAttribute(.baselineOffset, value: raise, range: range)
+                }
+                return
+            }
+            let small = (attrs[.font] as? NSFont).map { $0.pointSize < baseFont.pointSize * 0.9 } ?? false
+            guard lifted || small else { return }      // a user's `.superscript` stays; only the size and lift go
+            storage.removeAttribute(.baselineOffset, range: range)
+            var font = baseFont
+            let traits = (attrs[.font] as? NSFont)?.fontDescriptor.symbolicTraits ?? []
+            if traits.contains(.bold)   { font = fm.convert(font, toHaveTrait: .boldFontMask) }
+            if traits.contains(.italic) { font = fm.convert(font, toHaveTrait: .italicFontMask) }
+            storage.addAttribute(.font, value: font, range: range)
+        }
     }
 
     // MARK: Token details (shared by the hover card and the click menu)
