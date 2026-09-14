@@ -52,6 +52,11 @@ enum PartEngine {
         ("authors.corresponding_author.last_name", "Corresponding author — last name"),
         ("authors.corresponding_author.email", "Corresponding author — email"),
         ("authors.corresponding_author.details", "Corresponding author — details"),
+        // The journal a cut is for — resolved per journal at export, so one
+        // title page or letter serves every venue.  Empty in Source.
+        ("journal", "Journal — name"),
+        ("journal.name", "Journal — name"),
+        ("journal.type", "Journal — article type"),
     ]
 
     /// What the "/" picker offers — just the referencable sections; the
@@ -61,6 +66,7 @@ enum PartEngine {
         ("authors", "Authors"),
         ("keywords", "Keywords"),
         ("abstract", "Abstract"),
+        ("journal", "Journal"),
     ]
 
     /// Children shown in a clicked token's "Subsection" menu — picking one
@@ -81,6 +87,9 @@ enum PartEngine {
                     ("authors.corresponding_author.last_name", "Last name"),
                     ("authors.corresponding_author.email", "Email"),
                     ("authors.corresponding_author.details", "Details")]
+        case "journal":
+            return [("journal.name", "Name"),
+                    ("journal.type", "Article type")]
         default:
             return []
         }
@@ -135,7 +144,8 @@ enum PartEngine {
 
     /// The expansion as (text, isMarker) runs — markers render raised in
     /// the attributed form and inline in plain text.
-    private static func pieces(for part: Part, content m: Manuscript) -> [(text: String, marker: Bool)] {
+    private static func pieces(for part: Part, content m: Manuscript,
+                               journal: Journal? = nil) -> [(text: String, marker: Bool)] {
         let authors = m.authors.sorted { $0.order < $1.order }
         let corresponding = authors.filter(\.isCorresponding)
         let delim = delimiterText(part.delimiter)
@@ -171,6 +181,12 @@ enum PartEngine {
             return m.title.isEmpty ? [] : [(m.title, false)]
         case "keywords":
             return joined(m.keywords.filter { !$0.isEmpty })
+        case "journal", "journal.name":
+            let name = (journal?.name ?? "").trimmingCharacters(in: .whitespaces)
+            return name.isEmpty ? [] : [(name, false)]
+        case "journal.type":
+            let type = (journal?.articleType ?? "").trimmingCharacters(in: .whitespaces)
+            return type.isEmpty ? [] : [(type, false)]
         case "abstract":
             let text = m.abstract.plain.trimmingCharacters(in: .whitespacesAndNewlines)
             return text.isEmpty ? [] : [(text, false)]
@@ -248,8 +264,8 @@ enum PartEngine {
     }
 
     /// Plain-text expansion (LaTeX, plain mirrors); markers inline.
-    static func plainText(for part: Part, content m: Manuscript) -> String {
-        pieces(for: part, content: m).map(\.text).joined()
+    static func plainText(for part: Part, content m: Manuscript, journal: Journal? = nil) -> String {
+        pieces(for: part, content: m, journal: journal).map(\.text).joined()
     }
 
     /// Expands `[[path]]` markers in plain prose with default options —
@@ -296,13 +312,13 @@ enum PartEngine {
                         refs: [])
     }
 
-    static func expandPlainMarkers(_ text: String, content m: Manuscript) -> String {
+    static func expandPlainMarkers(_ text: String, content m: Manuscript, journal: Journal? = nil) -> String {
         var out = text
         for (path, _) in catalog {
             let marker = "[[\(path)]]"
             guard out.contains(marker) else { continue }
             out = out.replacingOccurrences(
-                of: marker, with: plainText(for: Part(path: path), content: m))
+                of: marker, with: plainText(for: Part(path: path), content: m, journal: journal))
         }
         return out
     }
@@ -310,7 +326,7 @@ enum PartEngine {
     /// Attributed expansion inheriting the token's own attributes — the
     /// injected text is "freetext in the section's formatting".  Markers
     /// get the materialized superscript raise off the token's font.
-    static func attributed(for part: Part, content m: Manuscript,
+    static func attributed(for part: Part, content m: Manuscript, journal: Journal? = nil,
                            tokenAttributes: [NSAttributedString.Key: Any]) -> NSAttributedString {
         var clean = tokenAttributes
         clean.removeValue(forKey: .link)
@@ -319,7 +335,7 @@ enum PartEngine {
         let markerFont = NSFont(descriptor: baseFont.fontDescriptor,
                                 size: (baseFont.pointSize * 0.65).rounded()) ?? baseFont
         let out = NSMutableAttributedString()
-        for piece in pieces(for: part, content: m) {
+        for piece in pieces(for: part, content: m, journal: journal) {
             var attrs = clean
             if piece.marker {
                 attrs[.font] = markerFont

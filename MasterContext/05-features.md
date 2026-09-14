@@ -937,6 +937,19 @@ from a manuscript. Design and rationale:
   exactly what the toolbar sets — bold, italic, underline, strikethrough,
   left/center/right/justified, bullets. Alignment survives a reload; a
   citation's raise never reaches the next word.
+- AC: **The letterhead's slots are top-aligned** (Sep 2026). A logo on the
+  left and an address on the right start on the same line: for DOCX/RTF the
+  letterhead is a one-row `NSTextTable` (cells top-align natively); for the
+  PDF, which CoreText paginates without table layout, a drawn block rendered
+  at 3× like the drawn data tables; LaTeX's minipages were already
+  top-aligned. It was tab-separated rows, and an inline logo made the first
+  row's box as tall as the logo, so the right slot's first line sat on the
+  logo's bottom edge.
+- AC: **`/journal`** is a part beside `/title`, `/authors`, `/keywords` and
+  `/abstract`: `[[journal.name]]` and `[[journal.type]]` (Name / Article
+  type in the token's menu) resolve at export against the journal the
+  document is for — so one title page or letter serves every venue — and to
+  nothing in Source.
 - AC: **Normal text** (the eraser on the toolbar) takes every formatting off
   the selection — or the paragraph at the caret — size, bold, italic,
   underline, strikethrough, script, lift, alignment. A **citation** is not

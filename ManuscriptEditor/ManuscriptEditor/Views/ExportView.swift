@@ -164,6 +164,7 @@ struct ExportView: View {
                     render: { document in
                         service.previewPDF(document: document, content: content,
                                            citationStyleDefault: style,
+                                           journal: journals.first { $0.id == journalID },
                                            figureURL: { store.figureURL(for: $0) },
                                            chartImage: { ExportRendering.chartImage(for: $0, store: store) },
                                            tableData: { ExportRendering.tableData(for: $0, store: store) })
@@ -280,6 +281,7 @@ struct ExportView: View {
                 content: content,
                 packageName: name,
                 citationStyleDefault: journalStyle,
+                journal: journals.first { $0.id == journalID },
                 figureURL: { store.figureURL(for: $0) },
                 chartImage: { ExportRendering.chartImage(for: $0, store: store) },
                 tableData: { ExportRendering.tableData(for: $0, store: store) },
@@ -514,6 +516,7 @@ struct SectionPreviewButton: View {
                     ExportService().previewPDF(
                         document: doc, content: content,
                         citationStyleDefault: style,
+                        journal: store.manuscript?.journals.first { $0.id == journalID },
                         figureURL: { store.figureURL(for: $0) },
                         chartImage: { ExportRendering.chartImage(for: $0, store: store) },
                         tableData: { ExportRendering.tableData(for: $0, store: store) })

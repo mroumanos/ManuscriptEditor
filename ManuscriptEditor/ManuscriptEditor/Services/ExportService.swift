@@ -47,52 +47,125 @@ private func exportSection(for item: ExportItem, in m: Manuscript) -> Manuscript
     }
 }
 
-private func letterheadBlock(_ letter: LetterDetails, font: NSFont, width: CGFloat) -> NSAttributedString? {
+/// The letterhead: three slots, left / centre / right, each an image or a
+/// few lines of type, **top-aligned**.
+///
+/// It was laid out as tab-separated rows, with the logo an inline attachment
+/// in row 0 beside the right slot's first line — so that line's box was as
+/// tall as the logo and its text sat on the baseline, at the logo's bottom,
+/// 40 pt below where it belonged.  Columns need a layout that is not a line:
+/// for the attributed writers a one-row `NSTextTable` (cells top-align by
+/// default, and Word gets a real table); for the PDF, which CoreText
+/// paginates without table layout, a drawn block rendered at 3× like the
+/// drawn data tables.  LaTeX has its own minipages, already top-aligned.
+private func letterheadBlock(_ letter: LetterDetails, font: NSFont, width: CGFloat,
+                             drawn: Bool) -> NSAttributedString? {
     guard letter.hasHeader else { return nil }
+    let slots = [letter.headerLeft, letter.headerCenter, letter.headerRight]
+    let alignments: [NSTextAlignment] = [.left, .center, .right]
+    guard slots.contains(where: { !$0.isEmpty }) else { return nil }
 
-    func cells(_ slot: LetterHeaderSlot) -> [NSAttributedString] {
-        var out: [NSAttributedString] = []
-        if let data = slot.imageData, let image = NSImage(data: data), image.size.height > 0 {
-            let attachment = NSTextAttachment()
-            attachment.image = image
-            let h = min(40, image.size.height)
-            attachment.bounds = CGRect(x: 0, y: 0, width: image.size.width * (h / image.size.height), height: h)
-            out.append(NSAttributedString(attachment: attachment))
-            // A slot is an image OR type: whichever it holds is all it prints.
-            return out
+    let out = NSMutableAttributedString()
+    if drawn {
+        let image = drawnLetterhead(slots: slots, alignments: alignments, font: font, width: width)
+        let attachment = NSTextAttachment()
+        attachment.image = image
+        attachment.bounds = CGRect(origin: .zero, size: image.size)
+        out.append(NSAttributedString(attachment: attachment))
+        out.append(NSAttributedString(string: "\n", attributes: [.font: font]))
+    } else {
+        let table = NSTextTable()
+        table.numberOfColumns = 3
+        table.setContentWidth(100, type: .percentageValueType)
+        for (column, slot) in slots.enumerated() {
+            let block = NSTextTableBlock(table: table, startingRow: 0, rowSpan: 1,
+                                         startingColumn: column, columnSpan: 1)
+            block.setValue(100.0 / 3.0, type: .percentageValueType, for: .width)
+            block.setWidth(0, type: .absoluteValueType, for: .border)
+            block.setWidth(0, type: .absoluteValueType, for: .padding)
+            block.verticalAlignment = .topAlignment
+            let style = NSMutableParagraphStyle()
+            style.alignment = alignments[column]
+            style.textBlocks = [block]
+            let cell = letterheadSlotText(slot, font: font)
+            let full = NSRange(location: 0, length: cell.length)
+            cell.addAttribute(.paragraphStyle, value: style, range: full)
+            out.append(cell)
         }
-        if !slot.text.isEmpty {
-            for line in slot.text.components(separatedBy: "\n") {
-                out.append(NSAttributedString(string: line,
-                                              attributes: [.font: font, .foregroundColor: NSColor.black]))
+    }
+    out.append(NSAttributedString(string: "\n", attributes: [.font: font]))
+    return out
+}
+
+/// One slot as paragraphs: the image (at most 40 pt tall) or its lines of
+/// type — whichever it holds is all it prints — ending in a newline so it
+/// can be a table cell.  An empty slot is an empty cell.
+private func letterheadSlotText(_ slot: LetterHeaderSlot, font: NSFont) -> NSMutableAttributedString {
+    let cell = NSMutableAttributedString()
+    if let data = slot.imageData, let image = NSImage(data: data), image.size.height > 0 {
+        let attachment = NSTextAttachment()
+        attachment.image = image
+        let h = min(40, image.size.height)
+        attachment.bounds = CGRect(x: 0, y: 0, width: image.size.width * (h / image.size.height), height: h)
+        cell.append(NSAttributedString(attachment: attachment))
+    } else if !slot.text.isEmpty {
+        cell.append(NSAttributedString(string: slot.text,
+                                       attributes: [.font: font, .foregroundColor: NSColor.black]))
+    }
+    cell.append(NSAttributedString(string: "\n", attributes: [.font: font]))
+    return cell
+}
+
+/// The letterhead as one image the PDF paginator can place: three columns
+/// of equal width, each slot drawn from the top of the block, so a logo on
+/// the left and an address on the right start on the same line.  Handler-
+/// backed, so `drawAttachments` renders it at 3× and the type stays crisp.
+private func drawnLetterhead(slots: [LetterHeaderSlot], alignments: [NSTextAlignment],
+                             font: NSFont, width: CGFloat) -> NSImage {
+    let columnWidth = width / 3
+    struct Column {
+        let image: NSImage?
+        let imageSize: CGSize
+        let text: NSAttributedString?
+        let height: CGFloat
+    }
+    let columns: [Column] = zip(slots, alignments).map { slot, alignment in
+        if let data = slot.imageData, let image = NSImage(data: data), image.size.height > 0 {
+            let h = min(40, image.size.height)
+            let size = CGSize(width: min(columnWidth, image.size.width * (h / image.size.height)), height: h)
+            return Column(image: image, imageSize: size, text: nil, height: h)
+        }
+        guard !slot.text.isEmpty else { return Column(image: nil, imageSize: .zero, text: nil, height: 0) }
+        let style = NSMutableParagraphStyle()
+        style.alignment = alignment
+        let text = NSAttributedString(string: slot.text, attributes: [
+            .font: font, .foregroundColor: NSColor.black, .paragraphStyle: style])
+        let bounds = text.boundingRect(with: CGSize(width: columnWidth, height: .greatestFiniteMagnitude),
+                                       options: [.usesLineFragmentOrigin, .usesFontLeading])
+        return Column(image: nil, imageSize: .zero, text: text, height: ceil(bounds.height))
+    }
+    let height = max(columns.map(\.height).max() ?? 0, 1)
+    let size = CGSize(width: width, height: height)
+    return NSImage(size: size, flipped: true) { _ in
+        for (i, column) in columns.enumerated() {
+            let x = CGFloat(i) * columnWidth
+            if let image = column.image {
+                // An image sits at the top of its column, on its column's side.
+                let dx: CGFloat
+                switch alignments[i] {
+                case .center: dx = (columnWidth - column.imageSize.width) / 2
+                case .right:  dx = columnWidth - column.imageSize.width
+                default:      dx = 0
+                }
+                image.draw(in: CGRect(x: x + dx, y: 0, width: column.imageSize.width, height: column.imageSize.height),
+                           from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
+            } else if let text = column.text {
+                text.draw(with: CGRect(x: x, y: 0, width: columnWidth, height: column.height),
+                          options: [.usesLineFragmentOrigin, .usesFontLeading])
             }
         }
-        return out
+        return true
     }
-
-    let left = cells(letter.headerLeft), center = cells(letter.headerCenter), right = cells(letter.headerRight)
-    let rows = max(left.count, center.count, right.count)
-    guard rows > 0 else { return nil }
-
-    let style = NSMutableParagraphStyle()
-    style.tabStops = [NSTextTab(textAlignment: .center, location: width / 2),
-                      NSTextTab(textAlignment: .right, location: width)]
-    style.paragraphSpacing = 2
-
-    let doc = NSMutableAttributedString()
-    for i in 0..<rows {
-        let row = NSMutableAttributedString()
-        if i < left.count { row.append(left[i]) }
-        row.append(NSAttributedString(string: "\t", attributes: [.font: font]))
-        if i < center.count { row.append(center[i]) }
-        row.append(NSAttributedString(string: "\t", attributes: [.font: font]))
-        if i < right.count { row.append(right[i]) }
-        row.append(NSAttributedString(string: "\n", attributes: [.font: font]))
-        row.addAttribute(.paragraphStyle, value: style, range: NSRange(location: 0, length: row.length))
-        doc.append(row)
-    }
-    doc.append(NSAttributedString(string: "\n", attributes: [.font: font]))
-    return doc
 }
 
 /// The hand-drawn signature as an inline attachment (max 48 pt tall),
@@ -250,6 +323,7 @@ struct ExportService {
         content: Manuscript,
         packageName: String,
         citationStyleDefault: String = "apa",
+        journal: Journal? = nil,
         figureURL: @escaping (Figure) -> URL?,
         chartImage: ((Figure) -> NSImage?)? = nil,
         tableData: ((ManuscriptTable) -> QueryResult?)? = nil,
@@ -275,11 +349,11 @@ struct ExportService {
             let url = folder.appendingPathComponent("\(name).\(document.fileType.ext)")
             switch document.fileType {
             case .pdf:
-                let sections = pageSegments(for: document, content: content, refContext: refContext, figureURL: figureURL, chartImage: chartImage, tableData: tableData, citationStyleDefault: citationStyleDefault)
+                let sections = pageSegments(for: document, content: content, refContext: refContext, figureURL: figureURL, chartImage: chartImage, tableData: tableData, citationStyleDefault: citationStyleDefault, journal: journal)
                 let data = PDFPaginator(format: document.format).render(sections: sections)
                 try data.write(to: url, options: .atomic)
             case .docx, .rtf:
-                let segments = pageSegments(for: document, content: content, refContext: refContext, figureURL: figureURL, chartImage: chartImage, tableData: tableData, citationStyleDefault: citationStyleDefault).map(\.text)
+                let segments = pageSegments(for: document, content: content, refContext: refContext, figureURL: figureURL, chartImage: chartImage, tableData: tableData, citationStyleDefault: citationStyleDefault, journal: journal).map(\.text)
                 // Form feed is the closest page-break the attributed writers offer.
                 let joined = NSMutableAttributedString()
                 for (i, seg) in segments.enumerated() {
@@ -301,7 +375,7 @@ struct ExportService {
                 try data.write(to: url, options: .atomic)
             case .latex:
                 let tex = latexDocument(document, content: content,
-                                        citationStyleDefault: citationStyleDefault)
+                                        citationStyleDefault: citationStyleDefault, journal: journal)
                 try Data(tex.utf8).write(to: url, options: .atomic)
             }
         }
@@ -318,6 +392,7 @@ struct ExportService {
     /// document's file type (a DOCX document previews its layout as PDF).
     func previewPDF(document: ExportDocument, content: Manuscript,
                     citationStyleDefault: String = "apa",
+                    journal: Journal? = nil,
                     figureURL: @escaping (Figure) -> URL?,
                     chartImage: ((Figure) -> NSImage?)? = nil,
                     tableData: ((ManuscriptTable) -> QueryResult?)? = nil) -> Data {
@@ -330,7 +405,7 @@ struct ExportService {
         let sections = pageSegments(for: document, content: content, refContext: refContext,
                                     figureURL: figureURL, chartImage: chartImage,
                                     tableData: tableData,
-                                    citationStyleDefault: citationStyleDefault)
+                                    citationStyleDefault: citationStyleDefault, journal: journal)
         return PDFPaginator(format: document.format).render(sections: sections)
     }
 
@@ -353,11 +428,12 @@ struct ExportService {
                               figureURL: ((Figure) -> URL?)? = nil,
                               chartImage: ((Figure) -> NSImage?)? = nil,
                               tableData: ((ManuscriptTable) -> QueryResult?)? = nil,
-                              citationStyleDefault: String = "apa") -> [PageSection] {
+                              citationStyleDefault: String = "apa",
+                              journal: Journal? = nil) -> [PageSection] {
         var builder = OutlineBuilder(format: document.format, refContext: refContext,
                                      fileType: document.fileType,
                                      figureURL: figureURL, chartImage: chartImage, tableData: tableData,
-                                     citationStyleDefault: citationStyleDefault)
+                                     citationStyleDefault: citationStyleDefault, journal: journal)
         var sections: [PageSection] = []
         var current = NSMutableAttributedString()
         // The document's own format is the first section's geometry; each
@@ -407,7 +483,8 @@ struct ExportService {
     /// exported as escaped plain text (styling is not translated in v1);
     /// two-column and line numbering map to `twocolumn` and the `lineno` package.
     private func latexDocument(_ document: ExportDocument, content m: Manuscript,
-                               citationStyleDefault: String = "apa") -> String {
+                               citationStyleDefault: String = "apa",
+                               journal: Journal? = nil) -> String {
         let f = document.format
         let pt = Int(f.fontSize.rounded()).clamped(to: 10...12)
         var options = ["\(pt)pt"]
@@ -535,7 +612,7 @@ struct ExportService {
                     if item.headingShown(in: m) {
                         out += "\\section{\(tex(latexHeading(item.customTitle ?? section.title)))}\n"
                     }
-                    var text = PartEngine.expandPlainMarkers(section.plainText, content: m)
+                    var text = PartEngine.expandPlainMarkers(section.plainText, content: m, journal: journal)
                     if section.sectionKind == .letter {
                         // Letter tokens: the date resolves to text; the drawn
                         // signature is image-only and can't ride in bare LaTeX.
@@ -641,7 +718,7 @@ struct ExportService {
                 // the drawn signature — and no printed label.
                 let letter = section.letter ?? LetterDetails()
                 // 468 pt = US Letter inside the writer's default 1" margins.
-                if let head = letterheadBlock(letter, font: bodyFont, width: 468) {
+                if let head = letterheadBlock(letter, font: bodyFont, width: 468, drawn: true) {
                     doc.append(head)
                 }
                 let body = NSMutableAttributedString(attributedString: rich(section.content, refContext))
@@ -892,6 +969,9 @@ private struct OutlineBuilder {
     /// CSL style for the reference list when its item doesn't pick one
     /// (the journal's required style, resolved at the export call).
     var citationStyleDefault: String = "apa"
+    /// The journal this document is for — what `[[journal.name]]` and
+    /// `[[journal.type]]` resolve to.  nil for Source, where they are empty.
+    var journal: Journal? = nil
 
     /// Renders `item`, honoring its format override and custom title, and
     /// stamps the line-number attribute when its effective format asks for it.
@@ -905,7 +985,7 @@ private struct OutlineBuilder {
         let builder = OutlineBuilder(format: effective, refContext: refContext, fileType: fileType,
                                      figureURL: figureURL, chartImage: chartImage, tableData: tableData,
                                      titleExactSize: item.format?.fontSize != nil,
-                                     citationStyleDefault: citationStyleDefault)
+                                     citationStyleDefault: citationStyleDefault, journal: journal)
         guard let rendered = builder.renderBlock(item, content: m) else { return nil }
         guard effective.lineNumbers else { return rendered }
         let out = NSMutableAttributedString(attributedString: rendered)
@@ -1151,7 +1231,7 @@ private struct OutlineBuilder {
             let doc = NSMutableAttributedString()
             if section.sectionKind == .letter,
                let head = letterheadBlock(section.letter ?? LetterDetails(), font: base,
-                                          width: 612 - format.marginInches * 144) {
+                                          width: 612 - format.marginInches * 144, drawn: fileType == .pdf) {
                 doc.append(head)         // the letterhead sits above everything, like on paper
             }
             if item.headingShown(in: m) {
@@ -1505,7 +1585,7 @@ private struct OutlineBuilder {
         for (range, part) in tokens.sorted(by: { $0.0.location > $1.0.location }) {
             let attrs = s.attributes(at: range.location, effectiveRange: nil)
             s.replaceCharacters(in: range,
-                                with: PartEngine.attributed(for: part, content: m,
+                                with: PartEngine.attributed(for: part, content: m, journal: journal,
                                                             tokenAttributes: attrs))
         }
     }

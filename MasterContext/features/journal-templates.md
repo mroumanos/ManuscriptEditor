@@ -117,7 +117,9 @@ the split [`02-domain-model.md`](02-domain-model.md) defines once, in
 
 The core parts stay **referenceable**: `[[title]]`, `[[authors.names]]`,
 `[[authors.institutes]]` in a template's title page are how the venue's layout
-is expressed, and they resolve against whatever manuscript adopts it.
+is expressed, and they resolve against whatever manuscript adopts it — as do
+`[[journal.name]]` and `[[journal.type]]`, which resolve to the journal the
+export is for, so a template's letter can address the venue by name.
 
 **The letter is the author's, not the venue's (Sep 2026).** For a week it
 was a section kind a template could carry, added and removed like any other.
