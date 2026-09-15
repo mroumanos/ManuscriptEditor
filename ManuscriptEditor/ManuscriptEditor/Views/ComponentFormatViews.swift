@@ -63,7 +63,12 @@ struct ComponentSettingsForm: View {
             // Every component's heading configures HERE (one place, one
             // look); each kind adds its own settings on top.
             switch item.kind {
-            case .abstract, .section, .coverLetter:
+            case .coverLetter:
+                typographySection
+                letterheadTypographySection
+                Divider()
+                headingSection()
+            case .abstract, .section:
                 typographySection
                 Divider()
                 headingSection()
@@ -95,16 +100,41 @@ struct ComponentSettingsForm: View {
         .frame(width: 440)
     }
 
+    /// The letterhead's typography writes go to the letter item's own
+    /// `headerFormat`, seeded from the letter's typography — and, like
+    /// every override here, a write that leaves it equal to what it would
+    /// inherit creates none.
+    private func mutateHeaderFormat(_ change: @escaping (inout ExportDocumentFormat) -> Void) {
+        let base = item.format ?? inherited
+        var format = item.headerFormat ?? base
+        change(&format)
+        if item.headerFormat == nil, format == base { return }
+        mutateItem { $0.headerFormat = format }
+    }
+
+    @ViewBuilder
+    private var letterheadTypographySection: some View {
+        typographyRows(title: "Letterhead export typography",
+                       format: item.headerFormat ?? item.format ?? inherited,
+                       mutate: mutateHeaderFormat)
+    }
+
     @ViewBuilder
     private var typographySection: some View {
-        let format = item.format ?? inherited
-        Text("Export typography")
+        typographyRows(title: "Export typography", format: item.format ?? inherited, mutate: mutateFormat)
+    }
+
+    /// One typography row — face, size, spacing — writing through `mutate`.
+    @ViewBuilder
+    private func typographyRows(title: String, format: ExportDocumentFormat,
+                                mutate: @escaping (@escaping (inout ExportDocumentFormat) -> Void) -> Void) -> some View {
+        Text(title)
             .font(.caption.weight(.semibold))
             .foregroundStyle(.secondary)
         HStack(spacing: 8) {
             Picker("", selection: Binding(
                 get: { format.fontFamily },
-                set: { family in mutateFormat { $0.fontFamily = family } }
+                set: { family in mutate { $0.fontFamily = family } }
             )) {
                 ForEach(ExportFontFamily.allCases) { family in
                     Text(family.shortLabel).tag(family)
@@ -114,20 +144,20 @@ struct ComponentSettingsForm: View {
             HStack(spacing: 1) {
                 TextField("", value: Binding(
                     get: { Int(format.fontSize.rounded()) },
-                    set: { value in mutateFormat { $0.fontSize = Double(min(max(value, 6), 99)) } }
+                    set: { value in mutate { $0.fontSize = Double(min(max(value, 6), 99)) } }
                 ), format: .number)
                 .textFieldStyle(.roundedBorder).controlSize(.mini)
                 .multilineTextAlignment(.trailing).frame(width: 30)
                 Stepper("", value: Binding(
                     get: { Int(format.fontSize.rounded()) },
-                    set: { value in mutateFormat { $0.fontSize = Double(min(max(value, 6), 99)) } }
+                    set: { value in mutate { $0.fontSize = Double(min(max(value, 6), 99)) } }
                 ), in: 6...99)
                 .labelsHidden().controlSize(.mini)
             }
             .help("Font size (pt)")
             Picker("", selection: Binding(
                 get: { format.lineSpacing },
-                set: { spacing in mutateFormat { $0.lineSpacing = spacing } }
+                set: { spacing in mutate { $0.lineSpacing = spacing } }
             )) {
                 Text("1×").tag(1.0)
                 Text("1.15").tag(1.15)

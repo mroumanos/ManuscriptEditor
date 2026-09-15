@@ -262,18 +262,11 @@ private struct HeaderSlotEditor: View {
                     .frame(maxWidth: .infinity, alignment: .center)
                 }
             case .text:
-                PlainTextEditor(text: $slot.editableText, alignment: textAlignment)
-                    .frame(minHeight: 54, maxHeight: 72)
-                    .overlay(alignment: .topLeading) {
-                        if slot.text.isEmpty {
-                            Text("Text…")
-                                .font(.callout)
-                                .foregroundStyle(.quaternary)
-                                .padding(.top, 1)
-                                .padding(.leading, 5)
-                                .allowsHitTesting(false)
-                        }
-                    }
+                // The same rich box a caption is written in: bold, italic,
+                // underline, and an alignment of its own (left when it says
+                // nothing — the column's side decides at export).
+                CaptionRichBox(value: $slot.editableContent, showsHotkeys: false)
+                    .frame(minHeight: 72)
             }
         }
         .frame(maxWidth: .infinity)

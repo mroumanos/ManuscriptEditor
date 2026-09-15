@@ -19,6 +19,9 @@ import AppKit
 /// buttons over the rich text area.
 struct CaptionRichBox: View {
     @Binding var value: RichText
+    /// The hotkey legend on the toolbar's right — off in a box too narrow
+    /// to keep it on one line (a letterhead slot).
+    var showsHotkeys: Bool = true
 
     @State private var controller = MiniRichController()
 
@@ -33,9 +36,11 @@ struct CaptionRichBox: View {
                 button("text.aligncenter", "Center (⌘E)") { controller.align(.center) }
                 button("text.alignright", "Align right") { controller.align(.right) }
                 Spacer()
-                Text("⌘B ⌘I ⌘U · ⌘E center")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                if showsHotkeys {
+                    Text("⌘B ⌘I ⌘U · ⌘E center")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
             }
             MiniRichEditor(value: $value, controller: controller)
                 .frame(minHeight: 56)

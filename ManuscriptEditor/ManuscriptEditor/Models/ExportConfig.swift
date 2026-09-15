@@ -524,6 +524,12 @@ struct ExportItem: Codable, Identifiable, Sendable, Equatable {
     /// geometry and always come from the document.
     var format: ExportDocumentFormat? = nil
 
+    /// The letterhead's typography — font, size, spacing — for the letter
+    /// item, when it differs from the letter's own.  nil = the same as the
+    /// component.  An address block set smaller than the body, or in the
+    /// institution's face, is set here.
+    var headerFormat: ExportDocumentFormat? = nil
+
     /// The heading actually printed for this item.
     func effectiveTitle(in content: Manuscript?) -> String {
         customTitle ?? title(in: content)

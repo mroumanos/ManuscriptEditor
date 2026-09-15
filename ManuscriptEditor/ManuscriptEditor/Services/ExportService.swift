@@ -58,8 +58,8 @@ private func exportSection(for item: ExportItem, in m: Manuscript) -> Manuscript
 /// default, and Word gets a real table); for the PDF, which CoreText
 /// paginates without table layout, a drawn block rendered at 3× like the
 /// drawn data tables.  LaTeX has its own minipages, already top-aligned.
-private func letterheadBlock(_ letter: LetterDetails, font: NSFont, width: CGFloat,
-                             drawn: Bool) -> NSAttributedString? {
+private func letterheadBlock(_ letter: LetterDetails, font: NSFont, lineSpacing: Double = 1.0,
+                             width: CGFloat, drawn: Bool) -> NSAttributedString? {
     guard letter.hasHeader else { return nil }
     let slots = [letter.headerLeft, letter.headerCenter, letter.headerRight]
     let alignments: [NSTextAlignment] = [.left, .center, .right]
@@ -67,7 +67,8 @@ private func letterheadBlock(_ letter: LetterDetails, font: NSFont, width: CGFlo
 
     let out = NSMutableAttributedString()
     if drawn {
-        let image = drawnLetterhead(slots: slots, alignments: alignments, font: font, width: width)
+        let image = drawnLetterhead(slots: slots, alignments: alignments, font: font,
+                                    lineSpacing: lineSpacing, width: width)
         let attachment = NSTextAttachment()
         attachment.image = image
         attachment.bounds = CGRect(origin: .zero, size: image.size)
@@ -84,12 +85,15 @@ private func letterheadBlock(_ letter: LetterDetails, font: NSFont, width: CGFlo
             block.setWidth(0, type: .absoluteValueType, for: .border)
             block.setWidth(0, type: .absoluteValueType, for: .padding)
             block.verticalAlignment = .topAlignment
-            let style = NSMutableParagraphStyle()
-            style.alignment = alignments[column]
-            style.textBlocks = [block]
-            let cell = letterheadSlotText(slot, font: font)
-            let full = NSRange(location: 0, length: cell.length)
-            cell.addAttribute(.paragraphStyle, value: style, range: full)
+            let cell = letterheadSlotText(slot, font: font, lineSpacing: lineSpacing,
+                                          alignment: alignments[column])
+            // Every paragraph of the cell belongs to the cell's block.
+            cell.enumerateAttribute(.paragraphStyle, in: NSRange(location: 0, length: cell.length)) { value, range, _ in
+                let style = ((value as? NSParagraphStyle)?.mutableCopy() as? NSMutableParagraphStyle)
+                    ?? NSMutableParagraphStyle()
+                style.textBlocks = [block]
+                cell.addAttribute(.paragraphStyle, value: style, range: range)
+            }
             out.append(cell)
         }
     }
@@ -97,20 +101,48 @@ private func letterheadBlock(_ letter: LetterDetails, font: NSFont, width: CGFlo
     return out
 }
 
-/// One slot as paragraphs: the image (at most 40 pt tall) or its lines of
-/// type — whichever it holds is all it prints — ending in a newline so it
-/// can be a table cell.  An empty slot is an empty cell.
-private func letterheadSlotText(_ slot: LetterHeaderSlot, font: NSFont) -> NSMutableAttributedString {
+/// One slot as paragraphs: the image (at most 40 pt tall) or its type —
+/// whichever it holds is all it prints — ending in a newline so it can be a
+/// table cell.  The type is the slot's rich text set in the letterhead's
+/// font and spacing, keeping bold, italic and underline; a paragraph that
+/// says nothing about alignment takes its column's side.
+private func letterheadSlotText(_ slot: LetterHeaderSlot, font: NSFont, lineSpacing: Double,
+                                alignment: NSTextAlignment) -> NSMutableAttributedString {
     let cell = NSMutableAttributedString()
+    let fm = NSFontManager.shared
     if let data = slot.imageData, let image = NSImage(data: data), image.size.height > 0 {
         let attachment = NSTextAttachment()
         attachment.image = image
         let h = min(40, image.size.height)
         attachment.bounds = CGRect(x: 0, y: 0, width: image.size.width * (h / image.size.height), height: h)
         cell.append(NSAttributedString(attachment: attachment))
-    } else if !slot.text.isEmpty {
-        cell.append(NSAttributedString(string: slot.text,
-                                       attributes: [.font: font, .foregroundColor: NSColor.black]))
+        let style = NSMutableParagraphStyle()
+        style.alignment = alignment
+        cell.addAttribute(.paragraphStyle, value: style, range: NSRange(location: 0, length: cell.length))
+    } else if !slot.content.isEmpty {
+        let source = slot.content.rtf.flatMap { NSAttributedString(rtf: $0, documentAttributes: nil) }
+            ?? NSAttributedString(string: slot.text)
+        let typed = NSMutableAttributedString(attributedString: source)
+        let full = NSRange(location: 0, length: typed.length)
+        typed.enumerateAttribute(.font, in: full) { value, range, _ in
+            let traits = (value as? NSFont)?.fontDescriptor.symbolicTraits ?? []
+            var run = font
+            if traits.contains(.bold)   { run = fm.convert(run, toHaveTrait: .boldFontMask) }
+            if traits.contains(.italic) { run = fm.convert(run, toHaveTrait: .italicFontMask) }
+            typed.addAttribute(.font, value: run, range: range)
+        }
+        typed.addAttribute(.foregroundColor, value: NSColor.black, range: full)
+        typed.removeAttribute(.link, range: full)
+        typed.removeAttribute(.toolTip, range: full)
+        typed.enumerateAttribute(.paragraphStyle, in: full) { value, range, _ in
+            let style = ((value as? NSParagraphStyle)?.mutableCopy() as? NSMutableParagraphStyle)
+                ?? NSMutableParagraphStyle()
+            if style.alignment == .natural { style.alignment = alignment }
+            style.lineHeightMultiple = CGFloat(lineSpacing)
+            style.paragraphSpacing = 0
+            typed.addAttribute(.paragraphStyle, value: style, range: range)
+        }
+        cell.append(typed)
     }
     cell.append(NSAttributedString(string: "\n", attributes: [.font: font]))
     return cell
@@ -121,7 +153,7 @@ private func letterheadSlotText(_ slot: LetterHeaderSlot, font: NSFont) -> NSMut
 /// the left and an address on the right start on the same line.  Handler-
 /// backed, so `drawAttachments` renders it at 3× and the type stays crisp.
 private func drawnLetterhead(slots: [LetterHeaderSlot], alignments: [NSTextAlignment],
-                             font: NSFont, width: CGFloat) -> NSImage {
+                             font: NSFont, lineSpacing: Double, width: CGFloat) -> NSImage {
     let columnWidth = width / 3
     struct Column {
         let image: NSImage?
@@ -135,11 +167,10 @@ private func drawnLetterhead(slots: [LetterHeaderSlot], alignments: [NSTextAlign
             let size = CGSize(width: min(columnWidth, image.size.width * (h / image.size.height)), height: h)
             return Column(image: image, imageSize: size, text: nil, height: h)
         }
-        guard !slot.text.isEmpty else { return Column(image: nil, imageSize: .zero, text: nil, height: 0) }
-        let style = NSMutableParagraphStyle()
-        style.alignment = alignment
-        let text = NSAttributedString(string: slot.text, attributes: [
-            .font: font, .foregroundColor: NSColor.black, .paragraphStyle: style])
+        guard !slot.content.isEmpty else { return Column(image: nil, imageSize: .zero, text: nil, height: 0) }
+        let cell = letterheadSlotText(slot, font: font, lineSpacing: lineSpacing, alignment: alignment)
+        // Without the cell's trailing newline, which would be a blank line.
+        let text = cell.attributedSubstring(from: NSRange(location: 0, length: max(cell.length - 1, 0)))
         let bounds = text.boundingRect(with: CGSize(width: columnWidth, height: .greatestFiniteMagnitude),
                                        options: [.usesLineFragmentOrigin, .usesFontLeading])
         return Column(image: nil, imageSize: .zero, text: text, height: ceil(bounds.height))
@@ -1009,6 +1040,15 @@ private struct OutlineBuilder {
            let font = NSFont(name: name, size: format.fontSize) { return font }
         return .systemFont(ofSize: format.fontSize)
     }
+
+    /// The letterhead's face and size: the letter item's own
+    /// `headerFormat`, or the letter's typography when it has none.
+    private func letterheadFont(for item: ExportItem) -> NSFont {
+        guard let header = item.headerFormat else { return base }
+        if let name = header.fontFamily.familyName,
+           let font = NSFont(name: name, size: header.fontSize) { return font }
+        return .systemFont(ofSize: header.fontSize)
+    }
     private var title: NSFont   { scaled(+8, bold: true) }
     private var heading: NSFont { scaled(+2, bold: true) }
     private var meta: NSFont    { scaled(-1, bold: false) }
@@ -1230,7 +1270,9 @@ private struct OutlineBuilder {
                   section.active, !section.isEmptyContent else { return nil }
             let doc = NSMutableAttributedString()
             if section.sectionKind == .letter,
-               let head = letterheadBlock(section.letter ?? LetterDetails(), font: base,
+               let head = letterheadBlock(section.letter ?? LetterDetails(),
+                                          font: letterheadFont(for: item),
+                                          lineSpacing: (item.headerFormat ?? format).lineSpacing,
                                           width: 612 - format.marginInches * 144, drawn: fileType == .pdf) {
                 doc.append(head)         // the letterhead sits above everything, like on paper
             }

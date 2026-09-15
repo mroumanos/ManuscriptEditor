@@ -945,6 +945,15 @@ from a manuscript. Design and rationale:
   top-aligned. It was tab-separated rows, and an inline logo made the first
   row's box as tall as the logo, so the right slot's first line sat on the
   logo's bottom edge.
+- AC: **A letterhead slot is a text box like any other** (Sep 2026):
+  `LetterHeaderSlot.content` is `RichText`, edited in the same rich box a
+  caption uses (bold, italic, underline, alignment; `text` stays as the
+  plain mirror, read from older files and still written for older readers).
+  The letter's export gear carries a **Letterhead export typography** row —
+  face, size, spacing — stored as `ExportItem.headerFormat` (nil = the
+  letter's own); the PDF block and the DOCX/RTF cells set every slot in it,
+  keeping the slot's emphasis, and a paragraph that says nothing about
+  alignment takes its column's side.
 - AC: **`/journal`** is a part beside `/title`, `/authors`, `/keywords` and
   `/abstract`: `[[journal.name]]` and `[[journal.type]]` (Name / Article
   type in the token's menu) resolve at export against the journal the

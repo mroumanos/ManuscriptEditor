@@ -30,29 +30,42 @@ import Foundation
 /// one thing.
 struct LetterHeaderSlot: Codable, Sendable, Equatable {
 
-    private(set) var text: String = ""
+    /// The type in the slot — rich, like a caption or a section: bold,
+    /// italic, underline and an alignment of its own.  Written in the same
+    /// box the rest of the manuscript is written in (Sep 2026; it was a
+    /// plain field before, and its look was whatever the body had).
+    private(set) var content: RichText = RichText()
     private(set) var imageData: Data? = nil
 
-    var isEmpty: Bool { text.isEmpty && imageData == nil }
+    /// The type, plain — for checks, LaTeX, and older readers.
+    var text: String { content.plain }
+
+    var isEmpty: Bool { content.isEmpty && imageData == nil }
 
     /// True when this slot is showing an image rather than type.
     var isImage: Bool { imageData != nil }
 
     init(text: String = "", imageData: Data? = nil) {
+        self.init(content: RichText(plain: text), imageData: imageData)
+    }
+
+    init(content: RichText, imageData: Data? = nil) {
         // A slot decoded from a file written when both could coexist keeps
         // the image: it is the deliberate choice of the two.
         self.imageData = imageData
-        self.text = imageData == nil ? text : ""
+        self.content = imageData == nil ? content : RichText()
     }
 
-    mutating func setText(_ value: String) {
-        text = value
+    mutating func setText(_ value: String) { setContent(RichText(plain: value)) }
+
+    mutating func setContent(_ value: RichText) {
+        content = value
         if !value.isEmpty { imageData = nil }
     }
 
     mutating func setImage(_ data: Data?) {
         imageData = data
-        if data != nil { text = "" }
+        if data != nil { content = RichText() }
     }
 
     /// Editing binding for the text side — writing non-empty text clears any
@@ -60,6 +73,31 @@ struct LetterHeaderSlot: Codable, Sendable, Equatable {
     var editableText: String {
         get { text }
         set { setText(newValue) }
+    }
+
+    var editableContent: RichText {
+        get { content }
+        set { setContent(newValue) }
+    }
+
+    // MARK: Codable — `content` since Sep 2026; `text` read from older
+    // files and still written, as the plain mirror, for older readers.
+
+    private enum CodingKeys: String, CodingKey { case content, imageData, text }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let image = try c.decodeIfPresent(Data.self, forKey: .imageData)
+        let rich = try c.decodeIfPresent(RichText.self, forKey: .content)
+            ?? RichText(plain: (try? c.decodeIfPresent(String.self, forKey: .text)) ?? "")
+        self.init(content: rich, imageData: image)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(content, forKey: .content)
+        try c.encodeIfPresent(imageData, forKey: .imageData)
+        try c.encode(text, forKey: .text)
     }
 }
 
