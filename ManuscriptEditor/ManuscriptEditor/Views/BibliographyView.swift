@@ -623,10 +623,10 @@ struct BibEntryEditor: View {
 
                 Section("Publication Details") {
                     TextField("Title", text: $draft.title)
-                    LabeledContent("Year") {
-                        TextField("Year", value: $draft.year, format: .number.grouping(.never))
-                            .multilineTextAlignment(.trailing)
-                    }
+                    // A plain titled field like its neighbours: in a grouped
+                    // Form the title IS the row's label, so wrapping it in
+                    // LabeledContent("Year") printed "Year" twice.
+                    TextField("Year", value: $draft.year, format: .number.grouping(.never))
                     TextField("Journal / Publisher",   text: optionalBinding(\.journal))
                     TextField("Volume",                text: optionalBinding(\.volume))
                     TextField("Issue / Number",        text: optionalBinding(\.issue))
