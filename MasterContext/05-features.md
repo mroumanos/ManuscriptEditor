@@ -1348,11 +1348,16 @@ things; neither is needed for Phase I (manual, local) editing.
   (Manuscript menu; ⇧⌘S for save). A GitHub backend account carries a
   repository ("owner/name") + branch (default `main`); its **personal access
   token lives in the Keychain** (`KeychainService`, keyed by account id) —
-  never in app.json. *Save* pushes the manuscript folder (manuscript.json,
-  figures/, data/) as **one commit** via the Git Data API on top of the branch
+  never in app.json. *Save* pushes the manuscript folder (manuscript.json and
+  everything under figures/, data/, attachments/, context/, ai/, journals/)
+  as **one commit** via the Git Data API on top of the branch
   head, leaving unrelated repo files (README, LICENSE) untouched; *Load* pulls
   those managed paths back after a **destructive-action confirmation**,
   replacing local content but keeping the local manuscript id/folder mapping.
+  **What a save sends is what a load takes**: both read
+  `GitHubBackendService.managedFolders`, so a collaborator who loads the
+  manuscript gets its uploaded export files, AI context, prompt log and
+  journal templates along with the text (`scripts/harness/remote_files.sh`).
   Success shows quietly in the sidebar subtitle; failures alert with an
   actionable message (bad token / missing repo / unconfigured backend). Other
   providers remain honest stubs.

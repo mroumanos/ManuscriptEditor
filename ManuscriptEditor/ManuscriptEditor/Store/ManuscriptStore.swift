@@ -3488,31 +3488,36 @@ final class ManuscriptStore {
     }
 
     /// Every file that belongs to the manuscript on the remote, with paths
-    /// relative to the manuscript folder.
-    private func gatherRemoteFiles() throws -> [GitHubBackendService.File] {
+    /// relative to the manuscript folder.  (Internal, not private, so
+    /// `scripts/harness/remote_files.sh` can check it against what a load
+    /// takes.)
+    func gatherRemoteFiles() throws -> [GitHubBackendService.File] {
         guard let m = manuscript else { return [] }
         let dir = persistence.manuscriptDirectory(for: m.id)
         var files: [GitHubBackendService.File] = []
         let manuscriptJSON = dir.appendingPathComponent("manuscript.json")
         files.append(.init(path: "manuscript.json", data: try Data(contentsOf: manuscriptJSON)))
-        // `ai/` is listed with its two children: the walk is deliberately
-        // one level deep, and the prompt log ships with the manuscript.
-        // A journal template that was modified here, or invented here, has to
-        // travel: whoever opens this manuscript must get the rules it was
-        // written against, not whatever their own library happens to hold.
-        var journalFolders: [String] = []
-        let journalsDir = dir.appendingPathComponent("journals", isDirectory: true)
-        if let slugs = try? FileManager.default.contentsOfDirectory(atPath: journalsDir.path) {
-            journalFolders = slugs.filter { !$0.hasPrefix(".") }.sorted().map { "journals/\($0)" }
-        }
-        for sub in ["figures", "data", "attachments", "context",
-                    "ai", "ai/prompts", "ai/responses"] + journalFolders {
+        // Everything under the folders the remote manages — the same list the
+        // load reads (`GitHubBackendService.managedFolders`), walked to any
+        // depth, so `ai/prompts/…` and `journals/<slug>/…` need no special
+        // mention and a folder added there travels in both directions.
+        for sub in GitHubBackendService.managedFolders {
             let subdir = dir.appendingPathComponent(sub, isDirectory: true)
-            guard let names = try? FileManager.default.contentsOfDirectory(atPath: subdir.path) else { continue }
-            for name in names.sorted() where !name.hasPrefix(".") {
-                let url = subdir.appendingPathComponent(name)
-                if let data = try? Data(contentsOf: url) {
-                    files.append(.init(path: "\(sub)/\(name)", data: data))
+            guard let walker = FileManager.default.enumerator(
+                at: subdir, includingPropertiesForKeys: [.isRegularFileKey],
+                options: [.skipsHiddenFiles]) else { continue }
+            var found: [(path: String, url: URL)] = []
+            for case let url as URL in walker {
+                guard (try? url.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true
+                else { continue }
+                let relative = url.standardizedFileURL.path
+                    .dropFirst(subdir.standardizedFileURL.path.count)
+                    .drop { $0 == "/" }
+                found.append(("\(sub)/\(relative)", url))
+            }
+            for item in found.sorted(by: { $0.path < $1.path }) {
+                if let data = try? Data(contentsOf: item.url) {
+                    files.append(.init(path: item.path, data: data))
                 }
             }
         }
@@ -3951,8 +3956,8 @@ final class ManuscriptStore {
         }
     }
 
-    /// Moves the manuscript's folder: copies manuscript.json, figures/, and
-    /// data/ into `newFolder`, repoints the folder mapping + security bookmark,
+    /// Moves the manuscript's folder: copies everything in it into
+    /// `newFolder`, repoints the folder mapping + security bookmark,
     /// then deletes the previous folder.  Returns an error message, or nil.
     func moveManuscriptFolder(to newFolder: URL) -> String? {
         guard var m = manuscript else { return "No manuscript is open." }

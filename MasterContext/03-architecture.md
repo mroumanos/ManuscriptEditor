@@ -39,7 +39,16 @@ across launches (sandbox-compliant).
   data/
     {assetID}.sqlite     ← imported CSVs as SQLite (table "data")
     {assetID}.{ext}      ← imported images
+  attachments/
+    {uuid}.{ext}         ← files uploaded as export documents
+  context/               ← files attached as AI context
+  ai/                    ← the AI request log (prompts/, responses/)
+  journals/
+    {slug}/              ← each journal's template files
 ```
+
+Everything above travels to and from the remote. The folder names are one
+list, `GitHubBackendService.managedFolders`, read by the save and by the load.
 
 Fallback when no folder is chosen: `~/Library/Application Support/ManuscriptEditor/
 manuscripts/{id}/`. The UUID→folder mapping and known-manuscript index live in

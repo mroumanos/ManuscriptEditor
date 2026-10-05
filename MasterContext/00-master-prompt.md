@@ -68,7 +68,8 @@ this model — see [`09-roadmap.md`](09-roadmap.md).
 5. **Professional, modern, trustworthy UI.** Clean typography, light/dark/system
    theming, generous spacing, no clutter. See [`06-design-system.md`](06-design-system.md).
 6. **Local-first, folder-based storage.** Each manuscript lives in a user-chosen
-   folder (`manuscript.json`, `figures/`, `data/`). See [`03-architecture.md`](03-architecture.md).
+   folder (`manuscript.json`, `figures/`, `data/`, and the folders listed in
+   [`03-architecture.md`](03-architecture.md)).
 
 ## Architecture quick facts
 

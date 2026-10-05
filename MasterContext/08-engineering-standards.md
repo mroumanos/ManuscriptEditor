@@ -261,6 +261,17 @@ xcodebuild -scheme ManuscriptEditor -destination 'platform=macOS' build
     dylib, run with `MANUSCRIPT_EDITOR_NO_SIGNING=1`, check real output,
     exit non-zero on failure.
 
+38. **The remote's save and load read ONE list of folders
+    (`GitHubBackendService.managedFolders`).** They were two. The save grew
+    `attachments/`, `context/`, `ai/` and `journals/` as each feature
+    arrived; the load went on taking `manuscript.json`, `figures/` and
+    `data/`. Nothing failed: a collaborator loaded the manuscript, the export
+    outline named an uploaded file, and the pane said "File missing" for a
+    file that was on GitHub the whole time. A new folder in the manuscript
+    directory goes in that list and nowhere else — the save walks it to any
+    depth, the load filters by it. `scripts/harness/remote_files.sh` checks
+    that everything a save sends, a load takes.
+
 ## Releasing
 
 `scripts/release.sh <version> [notes-file]` runs the whole pipeline: bump

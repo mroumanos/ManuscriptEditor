@@ -14,8 +14,8 @@
 //   5. PATCH (or POST, first push) the branch ref to the commit
 //
 // PULL — GET the branch's tree recursively, download the blobs this app
-// manages (manuscript.json, figures/, data/), and hand them to the caller to
-// write into the manuscript folder.
+// manages (`manuscript.json` and everything under `managedFolders`), and hand
+// them to the caller to write into the manuscript folder.
 //
 // The service is deliberately synchronous-per-call (async/await, no state):
 // the store decides when to push/pull and owns status reporting.
@@ -204,8 +204,25 @@ struct GitHubBackendService {
 
     // MARK: - Pull
 
+    /// The folders of a manuscript that travel to and from the remote.
+    ///
+    /// ONE list, read by both directions.  They were two: the save gathered
+    /// `attachments/`, `context/`, `ai/` and `journals/` as each was added,
+    /// and the load went on downloading only `figures/` and `data/` — so a
+    /// collaborator who loaded a manuscript got an export outline naming an
+    /// uploaded file that was never written to their disk ("File missing"),
+    /// and lost the AI context, the prompt log and the journals' template
+    /// files with it, all without an error.
+    static let managedFolders = ["figures", "data", "attachments", "context", "ai", "journals"]
+
     /// Paths (exact or directory prefixes) this app owns in the repository.
-    private static let managedPrefixes = ["manuscript.json", "figures/", "data/"]
+    private static let managedPrefixes = ["manuscript.json"] + managedFolders.map { $0 + "/" }
+
+    /// Whether a repository path is one of the manuscript's own — what a
+    /// load downloads and leaves a README or LICENSE alone by.
+    static func isManaged(_ path: String) -> Bool {
+        managedPrefixes.contains { path == $0 || path.hasPrefix($0) }
+    }
 
     /// Downloads the manuscript files from the branch head.
     struct Commit: Identifiable, Sendable {
@@ -263,7 +280,7 @@ struct GitHubBackendService {
             guard let path = entry["path"] as? String,
                   let type = entry["type"] as? String, type == "blob",
                   let sha = entry["sha"] as? String,
-                  Self.managedPrefixes.contains(where: { path == $0 || path.hasPrefix($0) })
+                  Self.isManaged(path)
             else { continue }
             let blob: [String: Any] = try await get("git/blobs/\(sha)", config: config)
             guard let b64 = blob["content"] as? String,
