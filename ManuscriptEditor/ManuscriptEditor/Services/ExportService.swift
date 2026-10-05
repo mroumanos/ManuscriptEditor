@@ -383,9 +383,27 @@ struct ExportService {
                 let sections = pageSegments(for: document, content: content, refContext: refContext, figureURL: figureURL, chartImage: chartImage, tableData: tableData, citationStyleDefault: citationStyleDefault, journal: journal)
                 let data = PDFPaginator(format: document.format).render(sections: sections)
                 try data.write(to: url, options: .atomic)
-            case .docx, .rtf:
+            case .docx:
+                // Written by the app's own Word writer: Cocoa's emits no
+                // tables, no images and no paragraph properties, and cannot
+                // express sections or line numbering at all (DocxWriter.swift).
+                // It takes the same page sections the PDF paginator does, so
+                // margins, columns, numbering and page numbers mean the same
+                // thing in both outputs.
+                let sections = pageSegments(for: document, content: content, refContext: refContext, figureURL: figureURL, chartImage: chartImage, tableData: tableData, citationStyleDefault: citationStyleDefault, journal: journal)
+                let data = DocxWriter.data(
+                    sections: sections.map {
+                        DocxWriter.Section(text: $0.text, marginInches: $0.marginInches,
+                                           twoColumn: $0.twoColumn, pageNumbers: $0.pageNumbers)
+                    },
+                    lineNumberKey: ExportAttr.lineNumbers,
+                    tableAlignKey: ExportAttr.tableAlign,
+                    baseFont: Self.documentFont(document.format),
+                    lineSpacing: document.format.lineSpacing)
+                try data.write(to: url, options: .atomic)
+            case .rtf:
                 let segments = pageSegments(for: document, content: content, refContext: refContext, figureURL: figureURL, chartImage: chartImage, tableData: tableData, citationStyleDefault: citationStyleDefault, journal: journal).map(\.text)
-                // Form feed is the closest page-break the attributed writers offer.
+                // Form feed is the closest page-break the RTF writer offers.
                 let joined = NSMutableAttributedString()
                 for (i, seg) in segments.enumerated() {
                     if i > 0 { joined.append(NSAttributedString(string: "\u{0C}")) }
@@ -395,9 +413,7 @@ struct ExportService {
                 let data = try joined.data(
                     from: NSRange(location: 0, length: joined.length),
                     documentAttributes: [
-                        .documentType: document.fileType == .docx
-                            ? NSAttributedString.DocumentType.officeOpenXML
-                            : NSAttributedString.DocumentType.rtf,
+                        .documentType: NSAttributedString.DocumentType.rtf,
                         .paperSize: NSSize(width: 612, height: 792),
                         .leftMargin: margin, .rightMargin: margin,
                         .topMargin: margin, .bottomMargin: margin,
@@ -832,11 +848,24 @@ struct ExportService {
 
     private func write(_ attr: NSAttributedString, name: String, format: Format, into folder: URL) throws {
         let url = folder.appendingPathComponent("\(name).\(format.ext)")
+        // Word goes through the app's own writer here too (see DocxWriter).
+        if format.documentType == .officeOpenXML {
+            try DocxWriter.data(sections: [DocxWriter.Section(text: attr)], baseFont: bodyFont)
+                .write(to: url, options: .atomic)
+            return
+        }
         let data = try attr.data(
             from: NSRange(location: 0, length: attr.length),
             documentAttributes: [.documentType: format.documentType]
         )
         try data.write(to: url, options: .atomic)
+    }
+
+    /// A document format's face and size, as a font.
+    static func documentFont(_ format: ExportDocumentFormat) -> NSFont {
+        if let name = format.fontFamily.familyName,
+           let font = NSFont(name: name, size: format.fontSize) { return font }
+        return .systemFont(ofSize: format.fontSize)
     }
 
     private func copyFigureImages(_ m: Manuscript, figureURL: (Figure) -> URL?,
@@ -953,6 +982,11 @@ private enum ExportAttr {
     /// paginator can rebuild that table once it knows how much room is left
     /// on the page the table is about to start on.
     static let tableRechunk = NSAttributedString.Key("METableRechunk")
+    /// A native table's alignment on the page ("center" | "right"), carried
+    /// on its cells for the Word writer.  A table is not a paragraph: its
+    /// alignment used to be applied by centring every paragraph in it, which
+    /// for a real table centres each cell's text rather than the table.
+    static let tableAlign = NSAttributedString.Key("METableAlign")
 }
 
 /// Lets the paginator re-cut a drawn table's first chunk to the space
@@ -1794,7 +1828,14 @@ private struct OutlineBuilder {
         if grid.rows.count > 200 {
             out.append(line("… \(grid.rows.count - 200) more rows (see data)", font: meta, color: .darkGray, after: 4))
         }
-        applyBlockAlignment(t.tableAlign, to: out)
+        if fileType == .pdf {
+            // A drawn table is an image on a line of its own: aligning the
+            // line aligns the table.
+            applyBlockAlignment(t.tableAlign, to: out)
+        } else if let align = t.tableAlign, align == "center" || align == "right", out.length > 0 {
+            out.addAttribute(ExportAttr.tableAlign, value: align,
+                             range: NSRange(location: 0, length: out.length))
+        }
         return out
     }
 

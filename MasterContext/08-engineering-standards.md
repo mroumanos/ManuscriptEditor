@@ -228,6 +228,39 @@ xcodebuild -scheme ManuscriptEditor -destination 'platform=macOS' build
     user is never harmed. Any new store with the same load/save shape needs the
     same guard.
 
+35. **Word documents are written by the app (`Services/DocxWriter.swift`),
+    not by Cocoa.** `NSAttributedString.data(…officeOpenXML)` was measured on
+    macOS 26 with a probe (a table, an image, a double-spaced paragraph,
+    read back as XML): it emits **no tables** — every `NSTextTable` cell is
+    a paragraph of its own, a table as one column of values — **no images**
+    (attachments are dropped: figures, a letterhead's logo) and **empty
+    paragraph properties** (line spacing lost), and an attributed string
+    cannot express sections, columns, page numbers or line numbering at
+    all. Only the font survived. `DocxWriter` takes the same
+    `PageSection`s the PDF paginator does, so geometry means one thing in
+    both outputs, and writes WordprocessingML by hand: a Word section per
+    outline section (margins, columns, `w:lnNumType`, a `PAGE` footer),
+    paragraph spacing and alignment, runs with a real `w:vertAlign`, `w:tbl`
+    from consecutive paragraphs sharing an `NSTextTable` (spans, borders,
+    shading, padding, **absolute** widths — readers disagree about
+    percentages), inline PNGs, and a store-only ZIP. Element order inside
+    `pPr`/`rPr`/`tcPr`/`sectPr` follows the schema; Word is not forgiving
+    about it. RTF still goes through Cocoa's writer (tables yes, images no).
+
+36. **A table's alignment on the page is a table property, not its
+    paragraphs'.** It was applied by centring every paragraph in the table
+    block — right for the PDF, where the table is one drawn image on a line,
+    and wrong for a native table, where it centres each cell's text. For
+    Word the alignment rides on the cells as `ExportAttr.tableAlign` and
+    becomes `w:tblPr/w:jc`.
+
+37. **Verification harnesses live in `scripts/harness/`, not in a temp
+    directory.** Every harness from Sep 2026 lived in a session scratchpad
+    and was gone after a reboot — 160-odd assertions with it.
+    `scripts/harness/docx_e2e.sh` is the pattern: compile against the Debug
+    dylib, run with `MANUSCRIPT_EDITOR_NO_SIGNING=1`, check real output,
+    exit non-zero on failure.
+
 ## Releasing
 
 `scripts/release.sh <version> [notes-file]` runs the whole pipeline: bump

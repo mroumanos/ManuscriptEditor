@@ -945,6 +945,15 @@ from a manuscript. Design and rationale:
   top-aligned. It was tab-separated rows, and an inline logo made the first
   row's box as tall as the logo, so the right slot's first line sat on the
   logo's bottom edge.
+- AC: **A Word export matches its preview** (Oct 2026). `.docx` is written
+  by the app's own writer (`DocxWriter`): tables are real Word tables
+  (merged title row, header shading, borders, column widths, the table's own
+  left/centre/right placement), figures and a letterhead's logo are embedded,
+  and each outline section is a Word section carrying its margins, one or two
+  columns, **continuous line numbering** and a page-number footer; paragraphs
+  keep their line spacing and alignment, runs their face, size, emphasis and
+  super/subscripts. Verified by `scripts/harness/docx_e2e.sh`, which exports
+  through the real path and reads the files back.
 - AC: **A letterhead slot is a text box like any other** (Sep 2026):
   `LetterHeaderSlot.content` is `RichText`, edited in the same rich box a
   caption uses (bold, italic, underline, alignment; `text` stays as the
