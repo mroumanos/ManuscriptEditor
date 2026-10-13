@@ -52,27 +52,31 @@ struct JournalLibraryView: View {
                     .padding(10)
 
                 List(selection: $selectedID) {
-                    ForEach(profiles) { profile in
-                        HStack {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(profile.name).fontWeight(.medium)
-                                Text([profile.articleType,
-                                      profile.publisher ?? registry(for: profile)?.publisher,
-                                      profile.country ?? registry(for: profile)?.country]
-                                    .compactMap { $0?.isEmpty == false ? $0 : nil }
-                                    .joined(separator: " · "))
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                    // One section per venue, its article types under it.
+                    ForEach(JournalProfile.byJournal(profiles), id: \.name) { group in
+                        Section(group.name) {
+                            ForEach(group.profiles) { profile in
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(profile.articleType ?? profile.name).fontWeight(.medium)
+                                        Text([profile.publisher ?? registry(for: profile)?.publisher,
+                                              profile.country ?? registry(for: profile)?.country]
+                                            .compactMap { $0?.isEmpty == false ? $0 : nil }
+                                            .joined(separator: " · "))
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    Spacer()
+                                    Text("\(profile.checks.count) tests")
+                                        .font(.caption2.monospacedDigit())
+                                        .foregroundStyle(.tertiary)
+                                }
+                                .padding(.vertical, 2)
+                                .tag(profile.id)
+                                .contextMenu {
+                                    Button("Delete Profile", role: .destructive) { delete(profile) }
+                                }
                             }
-                            Spacer()
-                            Text("\(profile.checks.count) tests")
-                                .font(.caption2.monospacedDigit())
-                                .foregroundStyle(.tertiary)
-                        }
-                        .padding(.vertical, 2)
-                        .tag(profile.id)
-                        .contextMenu {
-                            Button("Delete Profile", role: .destructive) { delete(profile) }
                         }
                     }
                 }

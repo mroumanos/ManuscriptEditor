@@ -1,0 +1,21 @@
+{
+ "id": "913702C1-FC71-582A-837B-54814E5D55EF",
+ "journal": "JAMA Neurology",
+ "sections": [
+  {
+   "note": "This article type has no abstract.",
+   "required": false,
+   "title": "Abstract"
+  },
+  {
+   "note": "Case presentation with question and 4 one-sentence answer options (<=250 words)",
+   "required": true,
+   "title": "Case Presentation"
+  },
+  {
+   "note": "<=600 words; <=500 if it includes a figure",
+   "required": true,
+   "title": "Diagnosis and Discussion"
+  }
+ ]
+}

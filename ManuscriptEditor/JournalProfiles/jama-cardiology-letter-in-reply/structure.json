@@ -1,0 +1,16 @@
+{
+ "id": "20B82C76-47B9-5A88-8E52-936D2F521EE1",
+ "journal": "JAMA Cardiology",
+ "sections": [
+  {
+   "note": "This article type has no abstract.",
+   "required": false,
+   "title": "Abstract"
+  },
+  {
+   "note": "The venue names no sections for this article type.",
+   "required": true,
+   "title": "Reply"
+  }
+ ]
+}

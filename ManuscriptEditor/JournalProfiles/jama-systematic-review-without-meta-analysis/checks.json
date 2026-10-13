@@ -1,0 +1,407 @@
+{
+ "checks": [
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "metric": "LENGTH_WORDS",
+     "number": 3000,
+     "scopes": [
+      {
+       "kind": "body"
+      }
+     ]
+    }
+   ],
+   "name": "Body ≤ 3,000 words",
+   "note": "Not including abstract, tables, figures, acknowledgments, references, and online-only material. Counts every active section, Key Points included; the venue counts those separately."
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "metric": "LENGTH_WORDS",
+     "number": 350,
+     "scopes": [
+      {
+       "kind": "abstract"
+      }
+     ]
+    }
+   ],
+   "name": "Abstract ≤ 350 words"
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "metric": "CONTAINS",
+     "scopes": [
+      {
+       "kind": "abstract"
+      }
+     ],
+     "text": "Importance"
+    },
+    {
+     "metric": "CONTAINS",
+     "scopes": [
+      {
+       "kind": "abstract"
+      }
+     ],
+     "text": "Objective"
+    },
+    {
+     "metric": "CONTAINS",
+     "scopes": [
+      {
+       "kind": "abstract"
+      }
+     ],
+     "text": "Evidence Review"
+    },
+    {
+     "metric": "CONTAINS",
+     "scopes": [
+      {
+       "kind": "abstract"
+      }
+     ],
+     "text": "Findings"
+    },
+    {
+     "metric": "CONTAINS",
+     "scopes": [
+      {
+       "kind": "abstract"
+      }
+     ],
+     "text": "Conclusions and Relevance"
+    }
+   ],
+   "name": "Structured abstract headings",
+   "note": "Importance; Objective; Evidence Review; Findings; Conclusions and Relevance"
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "metric": "LENGTH_WORDS",
+     "number": 100,
+     "scopes": [
+      {
+       "kind": "section",
+       "name": "Key Points"
+      }
+     ]
+    }
+   ],
+   "name": "Key Points ≤ 100 words",
+   "note": "Question (1 sentence), Findings (1–2 sentences, design and primary outcomes, significance without test statistics), Meaning (1 sentence)."
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "metric": "CONTAINS",
+     "scopes": [
+      {
+       "kind": "section",
+       "name": "Key Points"
+      }
+     ],
+     "text": "Question"
+    },
+    {
+     "metric": "CONTAINS",
+     "scopes": [
+      {
+       "kind": "section",
+       "name": "Key Points"
+      }
+     ],
+     "text": "Findings"
+    },
+    {
+     "metric": "CONTAINS",
+     "scopes": [
+      {
+       "kind": "section",
+       "name": "Key Points"
+      }
+     ],
+     "text": "Meaning"
+    }
+   ],
+   "name": "Key Points: Question, Findings, Meaning"
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "metric": "COUNT",
+     "number": 75,
+     "scopes": [
+      {
+       "kind": "references"
+      }
+     ]
+    }
+   ],
+   "name": "References ≤ 75",
+   "note": "The venue expects 50–75."
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "metric": "COUNT",
+     "number": 5,
+     "scopes": [
+      {
+       "kind": "figures"
+      },
+      {
+       "kind": "tables"
+      }
+     ]
+    }
+   ],
+   "name": "Tables + figures ≤ 5"
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "metric": "LENGTH_CHARS",
+     "number": 100,
+     "scopes": [
+      {
+       "kind": "title"
+      }
+     ]
+    }
+   ],
+   "name": "Title ≤ 100 characters",
+   "note": "Including spaces. Research reports and major articles 100; shorter article types 60."
+  },
+  {
+   "combinator": "ANY",
+   "conditions": [
+    {
+     "metric": "CONTAINS",
+     "scopes": [
+      {
+       "kind": "subtitle"
+      }
+     ],
+     "text": "A Systematic Review"
+    }
+   ],
+   "name": "Subtitle names the study type",
+   "note": "Expected: “A Systematic Review”"
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": ">=",
+     "metric": "FONT_SIZE",
+     "number": 10.0,
+     "scopes": [
+      {
+       "kind": "export"
+      }
+     ]
+    },
+    {
+     "comparator": "<=",
+     "metric": "FONT_SIZE",
+     "number": 12.0,
+     "scopes": [
+      {
+       "kind": "export"
+      }
+     ]
+    }
+   ],
+   "name": "Export font 10–12 pt"
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": ">=",
+     "metric": "LINE_SPACING",
+     "number": 2.0,
+     "scopes": [
+      {
+       "kind": "export"
+      }
+     ]
+    }
+   ],
+   "name": "Export double-spaced"
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "==",
+     "metric": "STRUCTURE",
+     "number": 1,
+     "scopes": []
+    }
+   ],
+   "name": "Sections match the journal's structure",
+   "note": "Every section marked required in the structure file must be present and non-empty"
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "metric": "EXISTS",
+     "number": 0,
+     "scopes": [
+      {
+       "kind": "coverLetter"
+      }
+     ]
+    }
+   ],
+   "name": "Cover letter present",
+   "note": "Complete contact information for the corresponding author and whether the authors have published, posted, or submitted any related papers from the same study."
+  },
+  {
+   "conditions": [],
+   "manual": true,
+   "name": "PRISMA (or MOOSE) followed; flow diagram in the online supplement",
+   "note": "Tick once verified by hand"
+  },
+  {
+   "conditions": [],
+   "manual": true,
+   "name": "A table rates the quality of the studies and evidence",
+   "note": "Tick once verified by hand"
+  },
+  {
+   "conditions": [],
+   "manual": true,
+   "name": "Presubmission inquiry sent and encouraged by the editors",
+   "note": "This article type requires a presubmission inquiry."
+  },
+  {
+   "conditions": [],
+   "manual": true,
+   "name": "Acknowledgment complete: contributions, data access statement, disclosures, funding and its role",
+   "note": "Tick once verified by hand"
+  },
+  {
+   "conditions": [],
+   "manual": true,
+   "name": "Conflict of interest disclosures for every author",
+   "note": "Complete disclosure of all relevant financial relationships; authors with none say so."
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "metric": "EXISTS",
+     "number": 0,
+     "scopes": [
+      {
+       "kind": "section",
+       "name": "Introduction"
+      }
+     ]
+    }
+   ],
+   "name": "Introduction section present",
+   "note": "Required by this journal's structure."
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "metric": "EXISTS",
+     "number": 0,
+     "scopes": [
+      {
+       "kind": "section",
+       "name": "Methods"
+      }
+     ]
+    }
+   ],
+   "name": "Methods section present",
+   "note": "Required by this journal's structure."
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "metric": "EXISTS",
+     "number": 0,
+     "scopes": [
+      {
+       "kind": "section",
+       "name": "Results"
+      }
+     ]
+    }
+   ],
+   "name": "Results section present",
+   "note": "Required by this journal's structure."
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "metric": "EXISTS",
+     "number": 0,
+     "scopes": [
+      {
+       "kind": "section",
+       "name": "Discussion"
+      }
+     ]
+    }
+   ],
+   "name": "Discussion section present",
+   "note": "Required by this journal's structure."
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "metric": "EXISTS",
+     "number": 0,
+     "scopes": [
+      {
+       "kind": "section",
+       "name": "Conclusions"
+      }
+     ]
+    }
+   ],
+   "name": "Conclusions section present",
+   "note": "Required by this journal's structure."
+  }
+ ],
+ "id": "467E98B2-7F6E-5948-903F-9DB94FE44247",
+ "journal": "JAMA",
+ "updatedAt": "2026-10-13T12:00:00Z"
+}

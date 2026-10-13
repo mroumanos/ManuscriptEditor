@@ -1,0 +1,16 @@
+{
+ "id": "428E9829-281B-5198-97FA-20C377D7C35D",
+ "journal": "JAMA Oncology",
+ "sections": [
+  {
+   "note": "This article type has no abstract.",
+   "required": false,
+   "title": "Abstract"
+  },
+  {
+   "note": "The venue names no sections for this article type.",
+   "required": true,
+   "title": "Letter"
+  }
+ ]
+}

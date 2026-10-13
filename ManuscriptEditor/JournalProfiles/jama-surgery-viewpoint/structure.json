@@ -1,0 +1,16 @@
+{
+ "id": "E1FC3494-D7C7-59CD-BFF1-66DC701086C5",
+ "journal": "JAMA Surgery",
+ "sections": [
+  {
+   "note": "This article type has no abstract.",
+   "required": false,
+   "title": "Abstract"
+  },
+  {
+   "note": "The venue names no sections for this article type.",
+   "required": true,
+   "title": "Viewpoint"
+  }
+ ]
+}

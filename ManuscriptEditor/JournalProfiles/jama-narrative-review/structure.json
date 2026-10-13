@@ -1,0 +1,38 @@
+{
+ "id": "790ED4EE-940E-5329-8311-AC72916B5AF7",
+ "journal": "JAMA",
+ "sections": [
+  {
+   "boilerplate": "Importance: \nObservations: \nConclusions and Relevance: ",
+   "formatNote": "Structured, no more than 400 words, under the headings Importance; Observations; Conclusions and Relevance.",
+   "required": true,
+   "title": "Abstract"
+  },
+  {
+   "required": true,
+   "title": "Introduction"
+  },
+  {
+   "note": "State ethics approval (or its waiver) and informed consent; name the statistical software with its version and manufacturer at the end.",
+   "required": true,
+   "title": "Methods"
+  },
+  {
+   "note": "Place the results in context with the published literature and address the study's limitations.",
+   "required": true,
+   "title": "Discussion"
+  },
+  {
+   "required": true,
+   "title": "Practical Considerations"
+  },
+  {
+   "required": true,
+   "title": "Limitations"
+  },
+  {
+   "required": true,
+   "title": "Conclusions"
+  }
+ ]
+}

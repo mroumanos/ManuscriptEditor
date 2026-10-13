@@ -1,0 +1,16 @@
+{
+ "id": "5E2CD7EE-C498-50C6-B27A-1D780F101BEE",
+ "journal": "JAMA Dermatology",
+ "sections": [
+  {
+   "note": "This article type has no abstract.",
+   "required": false,
+   "title": "Abstract"
+  },
+  {
+   "note": "The venue names no sections for this article type.",
+   "required": true,
+   "title": "Letter"
+  }
+ ]
+}

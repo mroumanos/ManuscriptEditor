@@ -1,0 +1,39 @@
+{
+ "id": "E2FAD09C-99C4-5636-B626-F52EE121C267",
+ "journal": "JAMA",
+ "sections": [
+  {
+   "note": "This article type has no abstract.",
+   "required": false,
+   "title": "Abstract"
+  },
+  {
+   "required": true,
+   "title": "Case Presentation"
+  },
+  {
+   "required": true,
+   "title": "How Do You Interpret These Test Results?"
+  },
+  {
+   "required": true,
+   "title": "Test Characteristics"
+  },
+  {
+   "required": true,
+   "title": "Application of Test Result to This Patient"
+  },
+  {
+   "required": true,
+   "title": "What Are Alternative Diagnostic Testing Approaches?"
+  },
+  {
+   "required": true,
+   "title": "Patient Outcome"
+  },
+  {
+   "required": true,
+   "title": "Clinical Bottom Line"
+  }
+ ]
+}

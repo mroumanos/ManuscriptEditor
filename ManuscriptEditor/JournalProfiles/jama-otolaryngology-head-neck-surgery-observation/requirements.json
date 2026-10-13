@@ -1,0 +1,33 @@
+{
+ "articleType": "Observation",
+ "bullets": [
+  "description: Short reports of 1 or 2 complicated or unique cases.",
+  "limits: body up to 600 words (should not exceed 600 words of text (not including acknowledgment, tables, figures, acknowledgments, and references))",
+  "limits: no abstract and no Key Points",
+  "limits: up to 6 references",
+  "limits: up to 2 tables and figures combined",
+  "limits: up to 7 authors",
+  "limits: title up to 60 characters including spaces",
+  "components: required sections: Observation",
+  "components: signed JAMA Network Patient Permission form for any identifiable patient",
+  "components: cover letter — complete contact information for the corresponding author and whether the authors have published, posted, or submitted any related papers from the same study",
+  "format: submit a Word document (not PDF); 10-, 11-, or 12-point font, double-spaced, right margins unjustified (ragged).",
+  "format: title page, abstract, text, references, figure legends and tables each start on a new page, numbered consecutively from the title page.",
+  "format: title page carries the title, every author's full name, highest academic degrees and affiliations, the corresponding author's complete contact information, and the manuscript word count (not including title, abstract, acknowledgment, references, tables, and figure legends).",
+  "format: AMA Manual of Style, 11th edition — references numbered in order of first citation, cited with superscript Arabic numerals; up to 6 authors listed, otherwise the first 3 and et al.; journal names abbreviated per PubMed.",
+  "format: tables at the end of the manuscript file, numbered in citation order, titles of 10–15 words, 10- or 12-point single-spaced, never as images.",
+  "format: each figure a separate file of at most 1 MB; photographs and illustrations at least 350 ppi, line drawings at least 600 ppi; no pie charts, 3-D graphs or stacked bar charts; avoid more than 4 panels.",
+  "format: individual files should stay under 500 kB and must not exceed 1 MB; the whole submission under 5 MB (video excluded).",
+  "extra: Online supplementary material is not allowed.",
+  "extra: Omitting data or making data less specific to deidentify patients is acceptable, but changing any such data is not acceptable.",
+  "extra: The page's Brief Report section says 'It is very rare for this journal to publish case reports'; Observation is the page's short-case-report type.",
+  "extra: No online-only material.",
+  "extra: this summary is the app's distillation — open the author instructions above to confirm against the journal's current text."
+ ],
+ "country": "United States",
+ "id": "BE5805CC-5929-527F-B585-3D6B47FD981D",
+ "journal": "JAMA Otolaryngology–Head & Neck Surgery",
+ "publisher": "American Medical Association",
+ "updatedAt": "2026-10-13T12:00:00Z",
+ "url": "https://jamanetwork.com/journals/jamaotolaryngology/pages/instructions-for-authors"
+}

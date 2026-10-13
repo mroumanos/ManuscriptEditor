@@ -1,0 +1,15 @@
+{
+ "id": "DBC23DB2-18C8-5B70-863F-6E2D0CD55A70",
+ "journal": "JAMA",
+ "sections": [
+  {
+   "note": "This article type has no abstract.",
+   "required": false,
+   "title": "Abstract"
+  },
+  {
+   "required": true,
+   "title": "Viewpoint"
+  }
+ ]
+}

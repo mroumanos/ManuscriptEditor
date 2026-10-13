@@ -1,0 +1,16 @@
+{
+ "id": "6C791F0A-6F9E-505C-8B06-E8B1BF1A7487",
+ "journal": "JAMA Dermatology",
+ "sections": [
+  {
+   "formatNote": "Structured; the venue does not fix the headings for this type.",
+   "required": true,
+   "title": "Abstract"
+  },
+  {
+   "note": "The venue names no sections for this article type.",
+   "required": true,
+   "title": "Consensus Statement"
+  }
+ ]
+}

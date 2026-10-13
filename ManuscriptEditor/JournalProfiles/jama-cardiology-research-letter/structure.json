@@ -1,0 +1,29 @@
+{
+ "id": "E3E40530-836C-532E-8942-152ECBFDDFC3",
+ "journal": "JAMA Cardiology",
+ "sections": [
+  {
+   "note": "This article type has no abstract.",
+   "required": false,
+   "title": "Abstract"
+  },
+  {
+   "required": true,
+   "title": "Introduction"
+  },
+  {
+   "note": "State ethics approval (or its waiver) and informed consent; name the statistical software with its version and manufacturer at the end.",
+   "required": true,
+   "title": "Methods"
+  },
+  {
+   "required": true,
+   "title": "Results"
+  },
+  {
+   "note": "Place the results in context with the published literature and address the study's limitations.",
+   "required": true,
+   "title": "Discussion"
+  }
+ ]
+}

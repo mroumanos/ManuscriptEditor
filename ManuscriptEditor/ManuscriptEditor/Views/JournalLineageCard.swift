@@ -616,22 +616,27 @@ struct AddJournalSheet: View {
                         // an overlay card at its edge.
                         FitScrollView(maxScreenFraction: 0.3) {
                             VStack(alignment: .leading, spacing: 0) {
-                                SearchSectionHeader(title: journalQuery.isEmpty ? "Templates" : "Matches",
-                                                    count: browsable.count)
-                                ForEach(browsable) { profile in
-                                    let entry = registryEntry(for: profile)
-                                    let inUse = journalsUsing(profile)
-                                    SearchResultRow(
-                                        icon: "plus.circle",
-                                        title: profile.displayName,
-                                        subtitle: [entry?.publisher ?? "", entry?.country ?? "",
-                                                   "\(profile.checks.count) tests",
-                                                   inUse.isEmpty ? ""
-                                                       : "in use by \(inUse.map(\.name).joined(separator: ", "))"]
-                                            .filter { !$0.isEmpty }.joined(separator: " · ")
-                                    ) {
-                                        libraryChoice = profile.id
-                                        journalQuery = ""
+                                // One header per venue, its formats under it:
+                                // a journal that ships a profile per article
+                                // type is read as one journal, not a dozen.
+                                ForEach(JournalProfile.byJournal(browsable), id: \.name) { group in
+                                    SearchSectionHeader(title: group.name, count: group.profiles.count)
+                                    ForEach(group.profiles) { profile in
+                                        let entry = registryEntry(for: profile)
+                                        let inUse = journalsUsing(profile)
+                                        SearchResultRow(
+                                            icon: "plus.circle",
+                                            title: profile.articleType ?? profile.name,
+                                            subtitle: [profile.publisher ?? entry?.publisher ?? "",
+                                                       profile.country ?? entry?.country ?? "",
+                                                       "\(profile.checks.count) tests",
+                                                       inUse.isEmpty ? ""
+                                                           : "in use by \(inUse.map(\.name).joined(separator: ", "))"]
+                                                .filter { !$0.isEmpty }.joined(separator: " · ")
+                                        ) {
+                                            libraryChoice = profile.id
+                                            journalQuery = ""
+                                        }
                                     }
                                 }
                             }

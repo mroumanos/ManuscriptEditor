@@ -223,10 +223,15 @@ enum JournalPresets {
 
     /// JAMA — Journal of the American Medical Association.
     /// Original Investigation: ~3,000-word body, 350-word structured abstract.
+    /// The JAMA Network ships one profile per article type and per journal
+    /// (`scripts/corpus/build_jama.py`); this preset is the registry entry
+    /// behind the flagship's research format.
     static let jama = JournalPreset(
         name: "JAMA",
         publisher: "American Medical Association",
         country: "United States",
+        articleType: "Original Investigation",
+        submissionURL: "https://jamanetwork.com/journals/jama/pages/instructions-for-authors",
         requirements: JournalRequirements(
             maxBodyWords: 3000,
             maxAbstractWords: 350,

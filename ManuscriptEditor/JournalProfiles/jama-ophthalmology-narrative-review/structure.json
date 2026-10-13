@@ -1,0 +1,32 @@
+{
+ "id": "F10B9A7B-168F-5AF9-AF46-0C21AE40ED70",
+ "journal": "JAMA Ophthalmology",
+ "sections": [
+  {
+   "boilerplate": "Importance: \nObservations: \nConclusions and Relevance: ",
+   "formatNote": "Structured, no more than 300 words, under the headings Importance; Observations; Conclusions and Relevance.",
+   "required": true,
+   "title": "Abstract"
+  },
+  {
+   "note": "150-250 words",
+   "required": true,
+   "title": "Introduction"
+  },
+  {
+   "note": "Optional; 150-250 words",
+   "required": false,
+   "title": "Methods"
+  },
+  {
+   "note": "Discussion/Observations (1000-1250 words)",
+   "required": true,
+   "title": "Discussion"
+  },
+  {
+   "note": "2-3 sentences",
+   "required": true,
+   "title": "Conclusions"
+  }
+ ]
+}

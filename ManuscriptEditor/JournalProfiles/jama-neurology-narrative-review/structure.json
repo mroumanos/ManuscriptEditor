@@ -1,0 +1,32 @@
+{
+ "id": "DC796605-9107-55FA-ADB1-F78FDB880E99",
+ "journal": "JAMA Neurology",
+ "sections": [
+  {
+   "boilerplate": "Importance: \nObservations: \nConclusions and Relevance: ",
+   "formatNote": "Structured, no more than 300 words, under the headings Importance; Observations; Conclusions and Relevance.",
+   "required": true,
+   "title": "Abstract"
+  },
+  {
+   "note": "150-250 words",
+   "required": true,
+   "title": "Introduction"
+  },
+  {
+   "note": "Methods, if included (150-250 words)",
+   "required": true,
+   "title": "Methods"
+  },
+  {
+   "note": "Discussion/Observations (1000-1250 words; subsections if appropriate: Pathophysiology 150-250, Clinical Presentation 150-250, Assessment and Diagnosis 250-300, Treatment 250-500, Prognosis 100-150)",
+   "required": true,
+   "title": "Discussion"
+  },
+  {
+   "note": "2-3 sentences",
+   "required": true,
+   "title": "Conclusions"
+  }
+ ]
+}

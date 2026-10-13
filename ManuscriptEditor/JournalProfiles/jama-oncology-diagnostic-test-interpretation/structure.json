@@ -1,0 +1,46 @@
+{
+ "id": "B605E48A-A3E0-518A-8176-C5881C543D02",
+ "journal": "JAMA Oncology",
+ "sections": [
+  {
+   "note": "This article type has no abstract.",
+   "required": false,
+   "title": "Abstract"
+  },
+  {
+   "note": "Case presentation with pertinent diagnostic test results and reference ranges (200 words)",
+   "required": true,
+   "title": "Case Presentation"
+  },
+  {
+   "note": "Question: 'How Do You Interpret These Test Results? (or What would you do next?)' with 4 plausible responses (about 50 words; similar length; arranged alphabetically; single correct or best answer; options should not describe treatments)",
+   "required": true,
+   "title": "Question"
+  },
+  {
+   "note": "Test characteristics / brief review of the diagnostic test (approximately 200 words; use likelihood ratios where possible)",
+   "required": true,
+   "title": "Test Characteristics"
+  },
+  {
+   "note": "Application of test result to this patient, addressing the correct answer (200 words)",
+   "required": true,
+   "title": "Application of Test Result to This Patient"
+  },
+  {
+   "note": "Page gives an approximate length; see notes",
+   "required": true,
+   "title": "Alternative Diagnostic Testing Approaches"
+  },
+  {
+   "note": "Patient outcome with long-term follow-up (page gives an approximate length; see notes)",
+   "required": true,
+   "title": "Patient Outcome"
+  },
+  {
+   "note": "Clinical Bottom Line: bulleted list of 3-5 items",
+   "required": true,
+   "title": "Clinical Bottom Line"
+  }
+ ]
+}

@@ -1,0 +1,37 @@
+{
+ "id": "A81896C9-9335-5BDB-BD9B-8DBD911B48D8",
+ "journal": "JAMA Network Open",
+ "sections": [
+  {
+   "boilerplate": "Importance: \nObjective: \nEvidence Review: \nFindings: \nConclusions and Relevance: ",
+   "formatNote": "Structured, no more than 350 words, under the headings Importance; Objective; Evidence Review; Findings; Conclusions and Relevance.",
+   "required": true,
+   "title": "Abstract"
+  },
+  {
+   "note": "150-250 words",
+   "required": true,
+   "title": "Introduction"
+  },
+  {
+   "note": "Methods including description of the consensus process and participants (150-250 words)",
+   "required": true,
+   "title": "Methods"
+  },
+  {
+   "note": "1000-1250 words; including ratings of the quality of the evidence",
+   "required": true,
+   "title": "Results"
+  },
+  {
+   "note": "1000 words",
+   "required": true,
+   "title": "Discussion"
+  },
+  {
+   "note": "2-3 sentences",
+   "required": true,
+   "title": "Conclusions"
+  }
+ ]
+}

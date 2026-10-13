@@ -1,0 +1,16 @@
+{
+ "id": "93E3B647-E5F1-551C-8B92-AAAB61E54A12",
+ "journal": "JAMA Psychiatry",
+ "sections": [
+  {
+   "note": "This article type has no abstract.",
+   "required": false,
+   "title": "Abstract"
+  },
+  {
+   "note": "The venue names no sections for this article type.",
+   "required": true,
+   "title": "Viewpoint"
+  }
+ ]
+}

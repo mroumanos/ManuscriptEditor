@@ -1,0 +1,36 @@
+{
+ "id": "CC16A240-868E-594B-AF7B-138A062979B5",
+ "journal": "JAMA Neurology",
+ "sections": [
+  {
+   "boilerplate": "Question: \nFindings: \nMeaning: ",
+   "formatNote": "Three labelled parts before the abstract, 100 words or fewer in all: Question (1 sentence), Findings (1–2 sentences — the design and primary outcomes, significance stated without statistical test results), Meaning (1 sentence).",
+   "note": "The venue's structured summary of the study, read before the abstract.",
+   "required": true,
+   "title": "Key Points"
+  },
+  {
+   "formatNote": "Structured; the venue does not fix the headings for this type.",
+   "required": true,
+   "title": "Abstract"
+  },
+  {
+   "required": true,
+   "title": "Introduction"
+  },
+  {
+   "note": "State ethics approval (or its waiver) and informed consent; name the statistical software with its version and manufacturer at the end.",
+   "required": true,
+   "title": "Methods"
+  },
+  {
+   "required": true,
+   "title": "Results"
+  },
+  {
+   "note": "Place the results in context with the published literature and address the study's limitations.",
+   "required": true,
+   "title": "Discussion"
+  }
+ ]
+}

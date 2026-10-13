@@ -1,0 +1,29 @@
+{
+ "id": "43B3FE43-725D-5B2C-9FCB-84B8186DB6CE",
+ "journal": "JAMA Neurology",
+ "sections": [
+  {
+   "note": "This article type has no abstract.",
+   "required": false,
+   "title": "Abstract"
+  },
+  {
+   "required": true,
+   "title": "Introduction"
+  },
+  {
+   "note": "State ethics approval (or its waiver) and informed consent; name the statistical software with its version and manufacturer at the end.",
+   "required": true,
+   "title": "Methods"
+  },
+  {
+   "required": true,
+   "title": "Results"
+  },
+  {
+   "note": "Place the results in context with the published literature and address the study's limitations.",
+   "required": true,
+   "title": "Discussion"
+  }
+ ]
+}

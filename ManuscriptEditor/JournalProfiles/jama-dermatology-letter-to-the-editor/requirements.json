@@ -1,0 +1,33 @@
+{
+ "articleType": "Letter to the Editor",
+ "bullets": [
+  "description: Correspondence discussing a recent article in the journal; must be submitted within 4 weeks of the article's online publication.",
+  "limits: body up to 400 words (Not more than 400 words of text)",
+  "limits: no abstract and no Key Points",
+  "limits: up to 5 references",
+  "limits: up to 3 authors",
+  "limits: title up to 60 characters including spaces",
+  "components: required sections: Letter",
+  "components: Submitted within 4 weeks of the article it responds to",
+  "components: cover letter — complete contact information for the corresponding author and whether the authors have published, posted, or submitted any related papers from the same study",
+  "format: submit a Word document (not PDF); 10-, 11-, or 12-point font, double-spaced, right margins unjustified (ragged).",
+  "format: title page, abstract, text, references, figure legends and tables each start on a new page, numbered consecutively from the title page.",
+  "format: title page carries the title, every author's full name, highest academic degrees and affiliations, the corresponding author's complete contact information, and the manuscript word count (not including title, abstract, acknowledgment, references, tables, and figure legends).",
+  "format: AMA Manual of Style, 11th edition — references numbered in order of first citation, cited with superscript Arabic numerals; up to 6 authors listed, otherwise the first 3 and et al.; journal names abbreviated per PubMed.",
+  "format: tables at the end of the manuscript file, numbered in citation order, titles of 10–15 words, 10- or 12-point single-spaced, never as images.",
+  "format: each figure a separate file of at most 1 MB; photographs and illustrations at least 350 ppi, line drawings at least 600 ppi; no pie charts, 3-D graphs or stacked bar charts; avoid more than 4 panels.",
+  "format: individual files should stay under 500 kB and must not exceed 1 MB; the whole submission under 5 MB (video excluded).",
+  "extra: Title limit for Letters is 60 characters.",
+  "extra: Letters not meeting these specifications are generally not considered.",
+  "extra: Single institutional affiliation per author and email address for the corresponding author.",
+  "extra: Must not duplicate other published or submitted material and must not include unpublished data.",
+  "extra: Use of AI, LLM, and chatbots to draft Letters to the Editor is not permitted.",
+  "extra: this summary is the app's distillation — open the author instructions above to confirm against the journal's current text."
+ ],
+ "country": "United States",
+ "id": "5E2CD7EE-C498-50C6-B27A-1D780F101BEE",
+ "journal": "JAMA Dermatology",
+ "publisher": "American Medical Association",
+ "updatedAt": "2026-10-13T12:00:00Z",
+ "url": "https://jamanetwork.com/journals/jamadermatology/pages/instructions-for-authors"
+}

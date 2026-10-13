@@ -1,0 +1,29 @@
+{
+ "id": "E34C28B0-F61C-5E3C-B9C0-7E2632B16D2A",
+ "journal": "JAMA Surgery",
+ "sections": [
+  {
+   "note": "This article type has no abstract.",
+   "required": false,
+   "title": "Abstract"
+  },
+  {
+   "required": true,
+   "title": "Introduction"
+  },
+  {
+   "note": "State ethics approval (or its waiver) and informed consent; name the statistical software with its version and manufacturer at the end.",
+   "required": true,
+   "title": "Methods"
+  },
+  {
+   "required": true,
+   "title": "Results"
+  },
+  {
+   "note": "Place the results in context with the published literature and address the study's limitations.",
+   "required": true,
+   "title": "Discussion"
+  }
+ ]
+}

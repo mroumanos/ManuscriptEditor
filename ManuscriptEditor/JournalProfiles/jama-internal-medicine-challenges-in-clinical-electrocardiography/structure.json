@@ -1,0 +1,35 @@
+{
+ "id": "5E99A96E-3D14-58B1-A766-C09628BF583D",
+ "journal": "JAMA Internal Medicine",
+ "sections": [
+  {
+   "note": "This article type has no abstract.",
+   "required": false,
+   "title": "Abstract"
+  },
+  {
+   "required": true,
+   "title": "Introduction"
+  },
+  {
+   "note": "≤200 words",
+   "required": true,
+   "title": "Case Presentation"
+  },
+  {
+   "note": "1 or 2",
+   "required": true,
+   "title": "Question"
+  },
+  {
+   "note": "≤800 words",
+   "required": true,
+   "title": "Discussion and Patient Course"
+  },
+  {
+   "note": "5 bulleted summary points",
+   "required": true,
+   "title": "Summary Points"
+  }
+ ]
+}

@@ -519,6 +519,16 @@ propagate by explicit, individual fast-forwards.
   library".
   The Checks pane **links to whichever copy is in force**, so "where did
   this rule come from?" is one click.
+  **The JAMA Network ships per article type** (Oct 2026): each of its
+  thirteen journals has a bundled profile for every article type its
+  Instructions for Authors give limits for — Original Investigation,
+  Research Letter, Systematic Review, Viewpoint, … — with the type's word,
+  abstract, Key Points, reference, table/figure, author and title limits
+  as automatic tests, the venue's structured-abstract headings and Key
+  Points as structure entries with boilerplate, and its checklists,
+  registration and permission requirements as manual tests. The profiles
+  are generated from per-journal specs (`scripts/corpus/`); the template
+  lists group a venue's formats under its name.
   **Every journal ships a real profile** (Aug 2026): all 17 presets have a
   hand-written `JournalProfiles/<slug>.json` whose **source requirements**
   are a distilled summary plus a link to that journal's author-instruction

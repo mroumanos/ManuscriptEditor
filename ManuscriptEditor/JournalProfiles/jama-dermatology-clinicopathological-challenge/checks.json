@@ -1,0 +1,226 @@
+{
+ "checks": [
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "metric": "LENGTH_WORDS",
+     "number": 850,
+     "scopes": [
+      {
+       "kind": "body"
+      }
+     ]
+    }
+   ],
+   "name": "Body ≤ 850 words",
+   "note": "Maximum 850 words total: no more than 250 words for the case presentation, question, and 4 one-sentence answers, followed by no more than 600 words for the diagnosis and discussion (no more than 500 words if the discussion includes a figure)."
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "metric": "LENGTH_WORDS",
+     "number": 0,
+     "scopes": [
+      {
+       "kind": "abstract"
+      }
+     ]
+    }
+   ],
+   "name": "No abstract",
+   "note": "This article type carries no abstract — leave the Abstract empty or deactivate it."
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "metric": "COUNT",
+     "number": 10,
+     "scopes": [
+      {
+       "kind": "references"
+      }
+     ]
+    }
+   ],
+   "name": "References ≤ 10"
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "metric": "COUNT",
+     "number": 2,
+     "scopes": [
+      {
+       "kind": "figures"
+      }
+     ]
+    }
+   ],
+   "name": "Figures ≤ 2"
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "metric": "COUNT",
+     "number": 3,
+     "scopes": [
+      {
+       "kind": "authors"
+      }
+     ]
+    }
+   ],
+   "name": "Authors ≤ 3"
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "metric": "LENGTH_CHARS",
+     "number": 60,
+     "scopes": [
+      {
+       "kind": "title"
+      }
+     ]
+    }
+   ],
+   "name": "Title ≤ 60 characters",
+   "note": "Including spaces. Research reports and major articles 100; shorter article types 60."
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": ">=",
+     "metric": "FONT_SIZE",
+     "number": 10.0,
+     "scopes": [
+      {
+       "kind": "export"
+      }
+     ]
+    },
+    {
+     "comparator": "<=",
+     "metric": "FONT_SIZE",
+     "number": 12.0,
+     "scopes": [
+      {
+       "kind": "export"
+      }
+     ]
+    }
+   ],
+   "name": "Export font 10–12 pt"
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": ">=",
+     "metric": "LINE_SPACING",
+     "number": 2.0,
+     "scopes": [
+      {
+       "kind": "export"
+      }
+     ]
+    }
+   ],
+   "name": "Export double-spaced"
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "==",
+     "metric": "STRUCTURE",
+     "number": 1,
+     "scopes": []
+    }
+   ],
+   "name": "Sections match the journal's structure",
+   "note": "Every section marked required in the structure file must be present and non-empty"
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "metric": "EXISTS",
+     "number": 0,
+     "scopes": [
+      {
+       "kind": "coverLetter"
+      }
+     ]
+    }
+   ],
+   "name": "Cover letter present",
+   "note": "Complete contact information for the corresponding author and whether the authors have published, posted, or submitted any related papers from the same study."
+  },
+  {
+   "conditions": [],
+   "manual": true,
+   "name": "Patient permission form signed and submitted",
+   "note": "The JAMA Network Patient Permission form, for any identifiable patient."
+  },
+  {
+   "conditions": [],
+   "manual": true,
+   "name": "Conflict of interest disclosures for every author",
+   "note": "Complete disclosure of all relevant financial relationships; authors with none say so."
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "metric": "EXISTS",
+     "number": 0,
+     "scopes": [
+      {
+       "kind": "section",
+       "name": "Case Presentation"
+      }
+     ]
+    }
+   ],
+   "name": "Case Presentation section present",
+   "note": "Required by this journal's structure."
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "metric": "EXISTS",
+     "number": 0,
+     "scopes": [
+      {
+       "kind": "section",
+       "name": "Diagnosis and Discussion"
+      }
+     ]
+    }
+   ],
+   "name": "Diagnosis and Discussion section present",
+   "note": "Required by this journal's structure."
+  }
+ ],
+ "id": "2BB5C513-0FF2-5182-BDAF-2451494CBA45",
+ "journal": "JAMA Dermatology",
+ "updatedAt": "2026-10-13T12:00:00Z"
+}

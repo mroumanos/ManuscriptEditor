@@ -1,0 +1,16 @@
+{
+ "id": "40D7C96E-9FAC-5626-B8D0-9DD7A778B8F1",
+ "journal": "JAMA Ophthalmology",
+ "sections": [
+  {
+   "note": "This article type has no abstract.",
+   "required": false,
+   "title": "Abstract"
+  },
+  {
+   "note": "The venue names no sections for this article type.",
+   "required": true,
+   "title": "Viewpoint"
+  }
+ ]
+}

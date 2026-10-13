@@ -1,0 +1,33 @@
+{
+ "articleType": "Special Communication",
+ "bullets": [
+  "description: Manuscripts that describe an important issue in clinical medicine, public health, health policy, or medical research in a scholarly, thorough, well-referenced, systematic, and evidence-based manner.",
+  "limits: body up to 3,000 words (Not including tables, figures, or references)",
+  "limits: structured abstract",
+  "limits: up to 50 references",
+  "limits: up to 4 tables and figures combined",
+  "limits: title up to 100 characters including spaces",
+  "components: required sections: Special Communication",
+  "components: presubmission inquiry required before submitting",
+  "components: Acknowledgment section — author contributions; a data access statement by 1 or 2 named authors who had full access to all the data; conflict of interest disclosures for every author; funding and the funder's role; any AI tool used, with name, version, manufacturer and how it was used.",
+  "components: cover letter — complete contact information for the corresponding author and whether the authors have published, posted, or submitted any related papers from the same study",
+  "format: submit a Word document (not PDF); 10-, 11-, or 12-point font, double-spaced, right margins unjustified (ragged).",
+  "format: title page, abstract, text, references, figure legends and tables each start on a new page, numbered consecutively from the title page.",
+  "format: title page carries the title, every author's full name, highest academic degrees and affiliations, the corresponding author's complete contact information, and the manuscript word count (not including title, abstract, acknowledgment, references, tables, and figure legends).",
+  "format: AMA Manual of Style, 11th edition — references numbered in order of first citation, cited with superscript Arabic numerals; up to 6 authors listed, otherwise the first 3 and et al.; journal names abbreviated per PubMed.",
+  "format: tables at the end of the manuscript file, numbered in citation order, titles of 10–15 words, 10- or 12-point single-spaced, never as images.",
+  "format: each figure a separate file of at most 1 MB; photographs and illustrations at least 350 ppi, line drawings at least 600 ppi; no pie charts, 3-D graphs or stacked bar charts; avoid more than 4 panels.",
+  "format: individual files should stay under 500 kB and must not exceed 1 MB; the whole submission under 5 MB (video excluded).",
+  "extra: This journal publishes very few of these types of articles.",
+  "extra: Abstract format is not pinned down: the page lists Special Communications under both 'Abstracts for Systematic Reviews or Special Communications' (≤350 words; Importance, Objective, Evidence Review, Findings, Conclusions and Relevance) and 'Abstracts for Narrative Reviews or Special Communications' (≤300 words; Importance, Observations, Conclusions and Relevance).",
+  "extra: Key Points are not listed in the Special Communication table row; the Key Points section says they are 'required only for research and review manuscripts'.",
+  "extra: Presubmission inquiry goes to the editorial email address printed (obfuscated) on the page.",
+  "extra: this summary is the app's distillation — open the author instructions above to confirm against the journal's current text."
+ ],
+ "country": "United States",
+ "id": "142E7922-DB1F-5674-A186-5A45A8A4F9FD",
+ "journal": "JAMA Oncology",
+ "publisher": "American Medical Association",
+ "updatedAt": "2026-10-13T12:00:00Z",
+ "url": "https://jamanetwork.com/journals/jamaoncology/pages/instructions-for-authors"
+}

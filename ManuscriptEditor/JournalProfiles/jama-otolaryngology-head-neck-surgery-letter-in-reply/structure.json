@@ -1,0 +1,16 @@
+{
+ "id": "1EB2140F-19BC-5582-A777-493BD2B10473",
+ "journal": "JAMA Otolaryngology–Head & Neck Surgery",
+ "sections": [
+  {
+   "note": "This article type has no abstract.",
+   "required": false,
+   "title": "Abstract"
+  },
+  {
+   "note": "The venue names no sections for this article type.",
+   "required": true,
+   "title": "Reply"
+  }
+ ]
+}

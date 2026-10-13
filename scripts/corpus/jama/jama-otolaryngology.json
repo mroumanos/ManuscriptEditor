@@ -1,0 +1,818 @@
+{
+  "journal": "JAMA Otolaryngology–Head & Neck Surgery",
+  "url": "https://jamanetwork.com/journals/jamaotolaryngology/pages/instructions-for-authors",
+  "fetched": "2026-10-13",
+  "formatting": {
+    "fileFormat": "Submit the manuscript as a Word document; do not submit in PDF format. Figures as separate files (1 file per figure), not in the manuscript text. Recommended individual file sizes of no more than 500 kB and not exceeding 1 MB; total for all files not exceeding 5 MB (not including video).",
+    "font": "10-, 11-, or 12-point font size",
+    "spacing": "Double-space text",
+    "margins": "Leave right margins unjustified (ragged); no numeric margin width is stated",
+    "pageNumbers": "Start each section (title page, abstract, text, references, and as appropriate figure legends and tables) on a new page, numbered consecutively, beginning with the title page",
+    "lineNumbers": null,
+    "titleLimitChars": 100,
+    "subtitleLimitChars": 60,
+    "referenceStyle": "AMA Manual of Style, 11th edition. Number references in the order they appear in the text; do not alphabetize. In text, tables, and legends identify references with superscript arabic numerals. List all authors and/or editors up to 6; if more than 6, list the first 3 followed by 'et al.' Journal references include the issue number in parentheses after the volume number. AI, LLM, and chatbots must not be used to generate or format references.",
+    "coverLetter": "Required: 'Include a cover letter and complete contact information for the corresponding author' and state 'whether the authors have published, posted, or submitted any related papers from the same study'.",
+    "supplement": "Online-Only Supplements: 'Authors may submit supporting material to accompany their article for online-only publication when there is insufficient space to include the material in the print article.' 'The amount of online-only material should be limited and justified.' Submit as a single Word document with pages numbered consecutively; each element cited in the main text and numbered in order of citation (eTable 1, eFigure 1, eMethods). Formatting printed on the page: Arial 10-point single-spaced text; main heading 12-point bold, subheadings 10-point bold; table titles Arial 12-point bold, table footnotes 8-point; figure titles Arial 12-point bold, figure legends 8-point; photographs as .jpg or .tif at 300 dpi, 3-5 inches wide. Note: the page's visible CMS notes label the detailed formatting block for JNO/JHF, but the text is rendered on this journal's page.",
+    "titlePage": "First page of the manuscript file. Include the manuscript title; the full names, highest academic degrees, and affiliations of all authors; corresponding author contact information; and the manuscript word count (not including title, abstract, acknowledgment, references, tables, and figure legends)."
+  },
+  "abstracts": {
+    "original": {
+      "words": 350,
+      "headings": [
+        "Importance",
+        "Objective",
+        "Design",
+        "Setting",
+        "Participants",
+        "Intervention(s) or Exposure(s)",
+        "Main Outcome(s) and Measure(s)",
+        "Results",
+        "Conclusions and Relevance",
+        "Trial Registration (clinical trials only)"
+      ]
+    },
+    "systematicReview": {
+      "words": 350,
+      "headings": [
+        "Importance",
+        "Objective",
+        "Evidence Review",
+        "Findings",
+        "Conclusions and Relevance"
+      ]
+    },
+    "narrativeReview": {
+      "words": 300,
+      "headings": [
+        "Importance",
+        "Observations",
+        "Conclusions and Relevance"
+      ]
+    },
+    "other": "Meta-analyses: 'Manuscripts reporting the results of meta-analyses should include an abstract of no more than 350 words' with headings Importance, Objective, Data Sources, Study Selection, Data Extraction and Synthesis, Main Outcome(s) and Measure(s), Results, Conclusions and Relevance. Original data: 'Reports of original data should include an abstract of no more than 350 words using the headings listed below'; Design, Setting, and Participants are kept as separate headings at submission; for clinical trials only, the registry name, ID, and URL go under Trial Registration. 'Abstracts are not required for Editorials, Viewpoints, and special features.' 'No information should be reported in the abstract that does not appear in the text of the manuscript.' Special Communications: the page lists them under two headings, 'Abstracts for Systematic Reviews or Special Communications' (no more than 350 words; Importance, Objective, Evidence Review, Findings, Conclusions and Relevance) and 'Abstracts for Narrative Reviews or Special Communications' (3-part, no more than 300 words; Importance, Observations, Conclusions and Relevance), so the format for a Special Communication is not pinned down by the page."
+  },
+  "keyPoints": {
+    "words": 100,
+    "parts": [
+      "Question",
+      "Findings",
+      "Meaning"
+    ],
+    "rules": "'In the manuscript, include a separate section called \"Key Points\" before the Abstract.' 'Limit this section to 75-100 words or less.' Described as 'required only for research and review manuscripts'. Question: focused question based on the study hypothesis or goal/purpose, 'Limit to 1 sentence.' Findings: results of the study/review including the design and basic numbers, significance stated without test statistics, 'Can include 1 to 2 sentences.' Meaning: key conclusion and implication based on the primary finding(s), 'Limit to 1 sentence.' Per article type: Original Investigation, Brief Report, Clinical Trial, Meta-analysis and Systematic Review require 'A list of 3 Key Points'; Narrative Review: 'No Key Points'; Research Letter: 'should not include an abstract or key points'."
+  },
+  "articleTypes": [
+    {
+      "name": "Original Investigation",
+      "description": "Reports of original research: clinical trial, meta-analysis, intervention study, cohort study, case-control study, epidemiologic assessment, survey with high response rate, cost-effectiveness analysis, decision analysis, study of screening and diagnostic tests, other observational study.",
+      "words": 3000,
+      "wordsIsRecommended": false,
+      "wordsNote": "Not including abstract, tables, figures, acknowledgments, references, and online-only material",
+      "abstract": "structured",
+      "abstractWords": 350,
+      "abstractHeadings": [
+        "Importance",
+        "Objective",
+        "Design",
+        "Setting",
+        "Participants",
+        "Intervention(s) or Exposure(s)",
+        "Main Outcome(s) and Measure(s)",
+        "Results",
+        "Conclusions and Relevance",
+        "Trial Registration (clinical trials only)"
+      ],
+      "keyPoints": true,
+      "referencesMax": 75,
+      "referencesMin": 50,
+      "referencesNote": "The Original Investigation table row states no reference limit; the study-type sections that make up Original Investigations (Clinical Trial, Meta-analysis, Other Observational Studies) each say 'no more than 50-75 references'.",
+      "tablesFiguresCombined": 5,
+      "tablesMax": null,
+      "figuresMax": null,
+      "authorsMax": null,
+      "subtitle": "For clinical trials, meta-analyses, and systematic reviews include the type of study as a subtitle (eg, 'A Randomized Clinical Trial'); 'For reports of other types of research, do not include study type or design in the title or subtitle.'",
+      "presubmissionInquiry": false,
+      "patientPermission": false,
+      "sections": null,
+      "requirements": [
+        "Structured abstract",
+        "A list of 3 Key Points",
+        "Data Sharing Statement",
+        "Study Type (a study type is required)",
+        "Follow EQUATOR Reporting Guidelines",
+        "Title limited to 100 characters (including spaces)",
+        "Data access statement by 1-2 named authors who 'had full access to all the data in the study'",
+        "IRB/ethics approval or waiver described in Methods"
+      ],
+      "notes": [
+        "Each manuscript should clearly state an objective or hypothesis; the design and methods (including study type, setting and dates, participants with inclusion/exclusion criteria and/or response rates, or data sources, and how these were selected); the essential features of any interventions; the main outcome measures; the main results; a discussion placing the results in context with the published literature and addressing study limitations; and the conclusions and relevant implications for clinical practice or health policy.",
+        "Timeliness: cohort studies' final follow-up and case-control/cross-sectional data should be no more than 5 years before submission; randomized trials ideally within 1 year after follow-up is completed."
+      ],
+      "quotes": [
+        "Maximum length: 3000 words of text",
+        "with no more than a total of 5 tables and/or figures.",
+        "A structured abstract is required",
+        "A list of 3 Key Points is required.",
+        "A study type is required.",
+        "Follow EQUATOR Reporting Guidelines",
+        "Table row: 3000 words; ≤5 tables and/or figures; Structured abstract; Key Points; Data Sharing Statement; Study Type; Follow EQUATOR Reporting Guidelines",
+        "Reports of original data should include an abstract of no more than 350 words using the headings listed below.",
+        "no more than 50-75 references (Clinical Trial, Meta-analysis, and Other Observational Studies sections)"
+      ]
+    },
+    {
+      "name": "Clinical Trial (Randomized or Nonrandomized; Original Investigation)",
+      "description": "Reports of Randomized Clinical Trials, Parallel-Design Double-blind Trials, Crossover Trials, Equivalence and Noninferiority Trials, Cluster Trials, and Nonrandomized Clinical Trials, including secondary exploratory or post hoc analyses of trials.",
+      "words": 3000,
+      "wordsIsRecommended": false,
+      "wordsNote": "Not including abstract, tables, figures, acknowledgments, references, and online-only material",
+      "abstract": "structured",
+      "abstractWords": 350,
+      "abstractHeadings": [
+        "Importance",
+        "Objective",
+        "Design",
+        "Setting",
+        "Participants",
+        "Intervention(s) or Exposure(s)",
+        "Main Outcome(s) and Measure(s)",
+        "Results",
+        "Conclusions and Relevance",
+        "Trial Registration (clinical trials only)"
+      ],
+      "keyPoints": true,
+      "referencesMax": 75,
+      "referencesMin": 50,
+      "referencesNote": null,
+      "tablesFiguresCombined": 5,
+      "tablesMax": null,
+      "figuresMax": null,
+      "authorsMax": null,
+      "subtitle": "'A Randomized Clinical Trial' or, for Nonrandomized Clinical Trials, 'A Nonrandomized Clinical Trial'",
+      "presubmissionInquiry": false,
+      "patientPermission": false,
+      "sections": null,
+      "requirements": [
+        "Structured abstract with trial registration information (registry name, trial ID, and URL) at the end of the abstract",
+        "A list of 3 Key Points",
+        "Indicate in the Methods section how the report follows the CONSORT Reporting Guidelines",
+        "CONSORT flow diagram (counts toward the ≤5 tables/figures)",
+        "Completed CONSORT checklist (TREND checklist for nonrandomized trials)",
+        "Copy of the original trial protocol, including the complete statistical analysis plan and any amendments",
+        "Trial registration at an appropriate online public clinical trial registry before submission",
+        "Data Sharing Statement",
+        "Statement of power or sample size calculation",
+        "Intention-to-treat analysis reported"
+      ],
+      "notes": [
+        "Equivalence/noninferiority trials must prespecify a margin of noninferiority; crossover trials need a prespecified washout period; cluster trials randomize groups rather than individuals.",
+        "The journal recommends SPIRIT reporting guidelines when preparing original protocols.",
+        "Secondary data analyses of primary (parent) clinical trials should not be registered as separate clinical trials.",
+        "Causal language (effect, efficacy) is reserved for randomized clinical trials.",
+        "Results should be reported ideally within 1 year after follow-up has been completed."
+      ],
+      "quotes": [
+        "Maximum length: 3000 words of text",
+        "no more than 50-75 references",
+        "≤5 tables and/or figures, including a trial flow diagram",
+        "The subtitle should include the phrase \"A Randomized Clinical Trial\"",
+        "for Nonrandomized Clinical Trials, \"A Nonrandomized Clinical Trial.\"",
+        "Indicate in the Methods section how the report follows the CONSORT Reporting Guidelines.",
+        "Copy of the original trial protocol, including the complete statistical analysis plan and any amendments.",
+        "trial registration information (registry name, trial ID, and URL) must be listed at the end of the abstract",
+        "must be registered before submission of a manuscript based on the trial.",
+        "A Data Sharing Statement to indicate if data will be shared or not.",
+        "TREND checklist",
+        "For randomized trials, a statement of the power or sample size calculation is required."
+      ]
+    },
+    {
+      "name": "Meta-analysis (Original Investigation)",
+      "description": "A systematic review that includes a statistical technique for quantitatively combining the results of multiple studies; published as an Original Investigation.",
+      "words": 3000,
+      "wordsIsRecommended": false,
+      "wordsNote": "Not including abstract, tables, figures, acknowledgments, references, and online-only material",
+      "abstract": "structured",
+      "abstractWords": 350,
+      "abstractHeadings": [
+        "Importance",
+        "Objective",
+        "Data Sources",
+        "Study Selection",
+        "Data Extraction and Synthesis",
+        "Main Outcome(s) and Measure(s)",
+        "Results",
+        "Conclusions and Relevance"
+      ],
+      "keyPoints": true,
+      "referencesMax": 75,
+      "referencesMin": 50,
+      "referencesNote": null,
+      "tablesFiguresCombined": 5,
+      "tablesMax": null,
+      "figuresMax": null,
+      "authorsMax": null,
+      "subtitle": "'A Meta-analysis'",
+      "presubmissionInquiry": false,
+      "patientPermission": false,
+      "sections": null,
+      "requirements": [
+        "Structured abstract",
+        "A list of 3 Key Points",
+        "PRISMA flow diagram and checklist (meta-analyses of clinical trials)",
+        "MOOSE checklist (meta-analyses of observational studies)",
+        "Methods section describing data sources, study selection, data extraction, and synthesis",
+        "Data Sharing Statement"
+      ],
+      "notes": [
+        "Search should be as current as possible, ideally conducted within several months of manuscript submission.",
+        "State whether data were pooled using a fixed-effect or random-effects model; state major pooled outcomes with odds ratios or effect sizes.",
+        "Meta-analyses of trials should use association, not causal, language."
+      ],
+      "quotes": [
+        "Maximum length: 3000 words of text",
+        "with no more than a total of 5 tables and/or figures and no more than 50-75 references.",
+        "The subtitle should include the phrase \"A Meta-analysis.\"",
+        "Authors of reports of meta-analyses of clinical trials should submit the PRISMA flow diagram and checklist.",
+        "Authors of meta-analyses of observational studies should submit the MOOSE checklist.",
+        "Manuscripts reporting the results of meta-analyses should include an abstract of no more than 350 words",
+        "A structured abstract is required.",
+        "A list of 3 Key Points is required."
+      ]
+    },
+    {
+      "name": "Other Observational Study (Original Investigation)",
+      "description": "Cohort, case-control, cross-sectional, case series, economic evaluation, decision analytical model, comparative effectiveness, genetic association, diagnostic/prognostic, quality improvement, survey, and qualitative studies, reported as Original Investigations.",
+      "words": 3000,
+      "wordsIsRecommended": false,
+      "wordsNote": "Not including abstract, tables, figures, acknowledgments, references, and online-only material",
+      "abstract": "structured",
+      "abstractWords": 350,
+      "abstractHeadings": [
+        "Importance",
+        "Objective",
+        "Design",
+        "Setting",
+        "Participants",
+        "Intervention(s) or Exposure(s)",
+        "Main Outcome(s) and Measure(s)",
+        "Results",
+        "Conclusions and Relevance",
+        "Trial Registration (clinical trials only)"
+      ],
+      "keyPoints": true,
+      "referencesMax": 75,
+      "referencesMin": 50,
+      "referencesNote": null,
+      "tablesFiguresCombined": 5,
+      "tablesMax": null,
+      "figuresMax": null,
+      "authorsMax": null,
+      "subtitle": null,
+      "presubmissionInquiry": false,
+      "patientPermission": false,
+      "sections": null,
+      "requirements": [
+        "Structured abstract",
+        "A list of 3 Key Points",
+        "Data Sharing Statement",
+        "Study-type-specific EQUATOR guideline: STROBE (cohort, case-control, cross-sectional), CHEERS (economic evaluation), STARD or TRIPOD (diagnostic/prognostic), SQUIRE (quality improvement), AAPOR best practices (survey), SRQR or COREQ (qualitative)"
+      ],
+      "notes": [
+        "Survey studies should have sufficient response rates (generally ≥60%).",
+        "The Decision Analytical Model bullets list no reference limit (unlike the other study types)."
+      ],
+      "quotes": [
+        "Maximum length: 3000 words of text",
+        "no more than a total of 5 tables and/or figures and no more than 50-75 references.",
+        "Survey studies should have sufficient response rates (generally ≥60%)",
+        "Follow STROBE Reporting Guidelines",
+        "Follow CHEERS Reporting Guidelines",
+        "Follow STARD Reporting Guidelines or TRIPOD Reporting Guidelines",
+        "Follow SQUIRE Reporting Guidelines",
+        "Follow AAPOR Best Practices for Survey Research",
+        "Follow SRQR Reporting Guidelines or COREQ Reporting Guidelines"
+      ]
+    },
+    {
+      "name": "Brief Report",
+      "description": "Short reports of original studies or evaluations or unique, first-time reports of clinical case series.",
+      "words": 1200,
+      "wordsIsRecommended": true,
+      "wordsNote": "'Recommended length: 1200 words' (not including abstract, tables, figures, acknowledgments, references, and online-only material)",
+      "abstract": "structured",
+      "abstractWords": 350,
+      "abstractHeadings": [
+        "Importance",
+        "Objective",
+        "Design",
+        "Setting",
+        "Participants",
+        "Intervention(s) or Exposure(s)",
+        "Main Outcome(s) and Measure(s)",
+        "Results",
+        "Conclusions and Relevance",
+        "Trial Registration (clinical trials only)"
+      ],
+      "keyPoints": true,
+      "referencesMax": 15,
+      "referencesMin": null,
+      "referencesNote": null,
+      "tablesFiguresCombined": 3,
+      "tablesMax": null,
+      "figuresMax": null,
+      "authorsMax": null,
+      "subtitle": null,
+      "presubmissionInquiry": false,
+      "patientPermission": false,
+      "sections": null,
+      "requirements": [
+        "Structured abstract",
+        "A list of 3 Key Points",
+        "Study Type",
+        "Data Sharing Statement",
+        "Follow EQUATOR Reporting Guidelines"
+      ],
+      "notes": [
+        "'It is very rare for this journal to publish case reports.' (The page also offers Observation for short case reports.)",
+        "The abstract word limit is not stated in the Brief Report section; 350 words comes from 'Reports of original data should include an abstract of no more than 350 words'.",
+        "The Brief Report row and paragraph render on this journal's page, although the page's visible CMS notes beside the Brief Report blocks list other journals; treat the type as offered because the page shows it."
+      ],
+      "quotes": [
+        "Recommended length: 1200 words (not including abstract, tables, figures, acknowledgments, references, and online-only material)",
+        "with no more than a total of 3 tables and/or figures and no more than 15 references.",
+        "A structured abstract is required",
+        "A list of 3 Key Points is required.",
+        "Table row: 1200 words; 15 references; ≤3 tables and/or figures; Structured abstract; Key Points; Study Type; Data Sharing Statement; Follow EQUATOR Reporting Guidelines",
+        "It is very rare for this journal to publish case reports."
+      ]
+    },
+    {
+      "name": "Research Letter",
+      "description": "Concise, focused reports of original research; can include any of the study types listed under Original Investigation.",
+      "words": 800,
+      "wordsIsRecommended": false,
+      "wordsNote": "'should not exceed 800 words of text'",
+      "abstract": "none",
+      "abstractWords": null,
+      "abstractHeadings": null,
+      "keyPoints": false,
+      "referencesMax": 10,
+      "referencesMin": null,
+      "referencesNote": null,
+      "tablesFiguresCombined": 2,
+      "tablesMax": null,
+      "figuresMax": null,
+      "authorsMax": null,
+      "subtitle": null,
+      "presubmissionInquiry": false,
+      "patientPermission": false,
+      "sections": [
+        "Introduction",
+        "Methods",
+        "Results",
+        "Discussion"
+      ],
+      "requirements": [
+        "Study Type",
+        "Data Sharing Statement",
+        "Follow EQUATOR Reporting Guidelines",
+        "No abstract or Key Points",
+        "Supplement allowed only for brief additional Methods"
+      ],
+      "notes": [
+        "'Online supplementary material is only allowed for brief additional and absolutely necessary methods'.",
+        "Must not duplicate other material published or submitted for publication.",
+        "'Letters not meeting these specifications are generally not considered.'"
+      ],
+      "quotes": [
+        "These should not exceed 800 words of text and 10 references and may include up to 2 small tables or figures.",
+        "They should not include an abstract or key points",
+        "Online supplementary material is only allowed for brief additional and absolutely necessary methods",
+        "In general, Research Letters should be divided into the following sections: Introduction, Methods, Results, and Discussion.",
+        "Table row: 800 words; ≤10 references; ≤2 small tables and/or figures; Study Type; No Abstract or Key Points; Supplement allowed only for brief additional Methods; Data Sharing Statement; Follow EQUATOR Reporting Guidelines"
+      ]
+    },
+    {
+      "name": "Systematic Review (without meta-analysis)",
+      "description": "Critical assessments of the literature and data sources pertaining to clinical topics, emphasizing factors such as cause, diagnosis, prognosis, therapy, or prevention; published as a Review.",
+      "words": 3000,
+      "wordsIsRecommended": false,
+      "wordsNote": "Not including abstract, tables, figures, acknowledgments, references, and online-only material",
+      "abstract": "structured",
+      "abstractWords": 350,
+      "abstractHeadings": [
+        "Importance",
+        "Objective",
+        "Evidence Review",
+        "Findings",
+        "Conclusions and Relevance"
+      ],
+      "keyPoints": true,
+      "referencesMax": 75,
+      "referencesMin": 50,
+      "referencesNote": null,
+      "tablesFiguresCombined": 5,
+      "tablesMax": null,
+      "figuresMax": null,
+      "authorsMax": null,
+      "subtitle": "'A Systematic Review'",
+      "presubmissionInquiry": false,
+      "patientPermission": false,
+      "sections": [
+        "Introduction (150-250 words)",
+        "Methods/Literature Search (150-250 words)",
+        "Results (1000-1250 words, with subsections as appropriate)",
+        "Discussion (1000 words)",
+        "Conclusions (2-3 sentences)"
+      ],
+      "requirements": [
+        "Structured abstract (no more than 350 words)",
+        "Key Points (75-100 words; no more than 100 words)",
+        "PRISMA-style flow diagram as an online supplement",
+        "Completed PRISMA checklist submitted (used in review, not published)",
+        "Table with ratings of the quality of the studies/evidence (1-5 scale)",
+        "Complete systematic search of the literature using multiple databases",
+        "Follow EQUATOR Reporting Guidelines"
+      ],
+      "notes": [
+        "Systematic Reviews without meta-analysis are published as Reviews; those with meta-analysis are published as Original Investigations."
+      ],
+      "quotes": [
+        "Maximum length: 3000 words of text",
+        "no more than a total of 5 tables and/or figures and no more than 50-75 references.",
+        "Systematic Review articles should include a structured abstract of no more than 350 words",
+        "Key Points (75-100 words)",
+        "Limit to no more than 100 words.",
+        "Introduction (150-250 words)",
+        "Methods/Literature Search (150-250 words)",
+        "Results (1000-1250 words",
+        "Discussion (1000 words); and Conclusions (2-3 sentences).",
+        "Subtitle should be \"A Systematic Review\"",
+        "A PRISMA-style flow diagram should be included as an online supplement",
+        "a completed PRISMA checklist should be submitted",
+        "Include a table with ratings of the quality of the studies/evidence",
+        "Systematic Reviews without meta-analysis are published as Reviews"
+      ]
+    },
+    {
+      "name": "Narrative Review (Review)",
+      "description": "Up-to-date review for clinicians on a topic of general common interest from the perspective of internationally recognized experts; focus on current understanding of physiology, diagnostic considerations, and treatment, addressing a specific question relevant to clinical practice.",
+      "words": 3500,
+      "wordsIsRecommended": false,
+      "wordsNote": "'Typical length: 2000-3500 words (maximum)'; not including tables, figures, and references per the table row's separate limits",
+      "abstract": "structured",
+      "abstractWords": 300,
+      "abstractHeadings": [
+        "Importance",
+        "Observations",
+        "Conclusions and Relevance"
+      ],
+      "keyPoints": false,
+      "referencesMax": 75,
+      "referencesMin": 50,
+      "referencesNote": null,
+      "tablesFiguresCombined": 5,
+      "tablesMax": null,
+      "figuresMax": null,
+      "authorsMax": null,
+      "subtitle": "'A Review' (the word 'narrative' is not included in the subtitle)",
+      "presubmissionInquiry": false,
+      "patientPermission": false,
+      "sections": [
+        "Introduction (150-250 words)",
+        "Methods (optional; 150-250 words)",
+        "Discussion/Observations (1000-1250 words)",
+        "Conclusions (2-3 sentences)"
+      ],
+      "requirements": [
+        "3-part structured abstract (no more than 300 words)",
+        "No Key Points"
+      ],
+      "notes": [
+        "Narrative Reviews do not require (but may include) a systematic review of the literature search; a Methods section is not required but may be included.",
+        "Suggested tables: epidemiology, diagnostic tools, therapies, and a comparison of findings with current recommendations/controversies.",
+        "Treatment recommendations should in general be supported by a systematic review or a high-quality guideline."
+      ],
+      "quotes": [
+        "Typical length: 2000-3500 words (maximum)",
+        "with no more than a total of 5 tables and/or figures, and no more than 50-75 references.",
+        "Narrative Review articles should include a 3-part structured abstract of no more than 300 words",
+        "No Key Points.",
+        "Subtitle should be \"A Review\"",
+        "note: the word \"narrative\" is not included in the subtitle",
+        "A Methods section is not required for Narrative Reviews, but may be included",
+        "Discussion/Observations (1000-1250 words)",
+        "Include a 2- to 3-sentence summary of the major conclusions of the review.",
+        "Table row: 2000-3500 words; 50-75 references; ≤5 tables and/or figures; 3-part structured abstract; No Key Points; Subtitle should be \"A Review\""
+      ]
+    },
+    {
+      "name": "Special Communication",
+      "description": "Manuscripts that describe an important issue in clinical medicine, public health, health policy, or medical research in a scholarly, thorough, well-referenced, systematic, and evidence-based manner.",
+      "words": 3000,
+      "wordsIsRecommended": false,
+      "wordsNote": "Not including tables, figures, or references",
+      "abstract": "structured",
+      "abstractWords": null,
+      "abstractHeadings": null,
+      "keyPoints": null,
+      "referencesMax": 50,
+      "referencesMin": null,
+      "referencesNote": null,
+      "tablesFiguresCombined": 4,
+      "tablesMax": null,
+      "figuresMax": null,
+      "authorsMax": null,
+      "subtitle": null,
+      "presubmissionInquiry": false,
+      "patientPermission": false,
+      "sections": null,
+      "requirements": [
+        "Structured abstract"
+      ],
+      "notes": [
+        "'This journal publishes very few of these types of articles.'",
+        "Abstract format is not pinned down: the page lists Special Communications under both 'Abstracts for Systematic Reviews or Special Communications' (≤350 words; Importance, Objective, Evidence Review, Findings, Conclusions and Relevance) and 'Abstracts for Narrative Reviews or Special Communications' (≤300 words; Importance, Observations, Conclusions and Relevance).",
+        "Key Points are not listed in the Special Communication table row; the Key Points section says they are 'required only for research and review manuscripts'.",
+        "Neither the table row nor the paragraph on this journal's page mentions a presubmission inquiry."
+      ],
+      "quotes": [
+        "Maximum length: 3000 words of text (not including tables, figures, or references)",
+        "with no more than a total of 4 tables and/or figures and no more than 50 references.",
+        "A structured abstract is required.",
+        "Note: This journal publishes very few of these types of articles.",
+        "Table row: 3000 words; 50 references; ≤4 tables and/or figures; Structured abstract"
+      ]
+    },
+    {
+      "name": "Viewpoint",
+      "description": "Short opinion-based articles that address an important topic in medicine, public health, research, discovery, prevention, ethics, health policy, or health law and generally are not linked to a specific article.",
+      "words": 1200,
+      "wordsIsRecommended": false,
+      "wordsNote": "'up to 1200 words of text—or 1000 words of text with 1 small table or figure'",
+      "abstract": "none",
+      "abstractWords": null,
+      "abstractHeadings": null,
+      "keyPoints": false,
+      "referencesMax": 7,
+      "referencesMin": null,
+      "referencesNote": null,
+      "tablesFiguresCombined": 1,
+      "tablesMax": null,
+      "figuresMax": null,
+      "authorsMax": 4,
+      "subtitle": null,
+      "presubmissionInquiry": false,
+      "patientPermission": false,
+      "sections": null,
+      "requirements": [
+        "No more than 2 institutional affiliations for each author",
+        "References 'should be as current as possible' (≤7 at submission)",
+        "First author should have sufficient expertise and experience with the topic to provide an authoritative opinion",
+        "Title limited to 60 characters (shorter article types such as opinion articles)"
+      ],
+      "notes": [
+        "The 1 small table or figure is permitted only with the 1000-word version; with 1200 words no table or figure is allowed.",
+        "'Use of AI, LLM, and chatbots to draft opinion manuscripts is not permitted.'",
+        "Should not include the findings of new research or data that have not been previously published.",
+        "'Viewpoints not meeting these guidelines will not be considered.'",
+        "'Abstracts are not required for Editorials, Viewpoints, and special features.'"
+      ],
+      "quotes": [
+        "Maximum length: up to 1200 words of text—or 1000 words of text with 1 small table or figure—and no more than 7 references",
+        "Viewpoints must have no more than 4 authors.",
+        "no more than 2 institutional affiliations for each author.",
+        "Use of AI, LLM, and chatbots to draft opinion manuscripts is not permitted.",
+        "Table row: 1200 words (or 1000 words with 1 small table or figure); ≤7 references at submission; ≤4 authors, with no more than 2 affiliations per author",
+        "Abstracts are not required for Editorials, Viewpoints, and special features."
+      ]
+    },
+    {
+      "name": "Clinical Challenge",
+      "description": "Presents an actual patient case with a specific disease or condition with an accompanying clinical image, followed by a multiple-choice question ('What Is Your Diagnosis?' with 4 single-phrase plausible diagnosis options) and a brief discussion.",
+      "words": 850,
+      "wordsIsRecommended": false,
+      "wordsNote": "Total: no more than 250 words for the case presentation, question, and 4 one-sentence answers, followed by no more than 600 words for the diagnosis and discussion (no more than 500 words if the discussion includes a Figure)",
+      "abstract": "none",
+      "abstractWords": null,
+      "abstractHeadings": null,
+      "keyPoints": false,
+      "referencesMax": 10,
+      "referencesMin": null,
+      "referencesNote": null,
+      "tablesFiguresCombined": null,
+      "tablesMax": null,
+      "figuresMax": 2,
+      "authorsMax": 3,
+      "subtitle": null,
+      "presubmissionInquiry": false,
+      "patientPermission": true,
+      "sections": [
+        "Case presentation, question, and 4 one-sentence answers (≤250 words)",
+        "Diagnosis and discussion (≤600 words; ≤500 if it includes a Figure)"
+      ],
+      "requirements": [
+        "Signed JAMA Network Patient Permission form (by the patient, or a family member if the patient has died, is a minor, or lacks decisional capacity) at submission",
+        "4 single-phrase plausible options with 1 being preferred",
+        "No more than 2 small figures totaling 3 image components (Figure 1 ≤2 components for the case presentation; Figure 2 ≤1 component for the diagnosis and discussion)",
+        "Short title that describes the disease entity or case presentation and does not include the diagnosis",
+        "Image and case presentation from the same patient and not previously published",
+        "Original image file minimum resolution 350 dpi at a width of about 5 inches",
+        "At least 1 author, ideally the corresponding author, with sufficient expertise and experience with the topic"
+      ],
+      "notes": [
+        "Do not include the patient's race, ethnicity, or country of origin in the title or the first line of the article.",
+        "The journal wants 'common problems presenting uncommonly, rather than unusual or rare conditions (ie, \"zebras\")'.",
+        "'Manuscripts not meeting these guidelines will not be considered.'",
+        "Table row gives 'Discussion: 500-600 words' and '1-2 small figures'.",
+        "'The journal considers Clinical Challenges in 3 areas: endoscopy, pathology, and radiology.'",
+        "A recently published example from JAMA Otolaryngology-Head & Neck Surgery is cited on the page."
+      ],
+      "quotes": [
+        "The text should have a maximum length of 850 words, consisting of no more than 250 words for the case presentation,",
+        "question, and 4 one-sentence answers, followed by no more than 600 words that include the diagnosis and a brief discussion.",
+        "Please note: If the discussion includes a Figure, the word count for the discussion should be no more than 500 words.",
+        "There should be no more than 3 authors.",
+        "There should be no more than 10 references, and no more than 2 small figures totaling 3 image components",
+        "(Figure 1, with no more than 2 components, for the case presentation; and Figure 2, with no more than 1 component, for the diagnosis and discussion).",
+        "Provide a short title that briefly describes the disease entity or case presentation and does not include the diagnosis.",
+        "Do not include the patient's race, ethnicity, or country of origin in the title or the first line of the article.",
+        "In general, the original image file should have a minimum resolution of 350 dpi at a width of about 5 inches.",
+        "Table row: Case presentation: 250 words; Discussion: 500-600 words; ≤10 references; ≤3 authors; 1-2 small figures; Patient permission required",
+        "\"What Is Your Diagnosis?\" with 4 single-phrase plausible diagnosis options with 1 being preferred",
+        "Authors should provide 4 single-phrase plausible diagnosis options with one of these being the most correct response",
+        "The journal considers Clinical Challenges in 3 areas: endoscopy, pathology, and radiology."
+      ]
+    },
+    {
+      "name": "Reflections",
+      "description": "Personal vignettes (eg, exploring the dynamics of the patient-physician relationship) taken from wide-ranging experiences in medicine; occasional pieces express views and opinions on the myriad issues that affect the profession.",
+      "words": 1600,
+      "wordsIsRecommended": false,
+      "wordsNote": "'Length limit: 1600 words.'",
+      "abstract": "none",
+      "abstractWords": null,
+      "abstractHeadings": null,
+      "keyPoints": false,
+      "referencesMax": null,
+      "referencesMin": null,
+      "referencesNote": null,
+      "tablesFiguresCombined": null,
+      "tablesMax": null,
+      "figuresMax": null,
+      "authorsMax": 3,
+      "subtitle": null,
+      "presubmissionInquiry": false,
+      "patientPermission": true,
+      "sections": null,
+      "requirements": [
+        "Signed Patient Permission form if a patient is identifiable (table row: 'Patient permission may be needed'); manuscripts describing identifiable patients without a signed form will not be reviewed"
+      ],
+      "notes": [
+        "'Fictional or composite accounts are not permitted.'",
+        "'Manuscripts are not published anonymously or pseudonymously and must have no more than 3 authors.'",
+        "Omitting data or making data less specific to deidentify patients is acceptable, but changing any such data is not acceptable.",
+        "'Use of AI, LLM, and chatbots to draft this manuscript type is not permitted.'",
+        "No references or tables/figures limit is stated."
+      ],
+      "quotes": [
+        "Length limit: 1600 words.",
+        "Manuscripts are not published anonymously or pseudonymously and must have no more than 3 authors.",
+        "Fictional or composite accounts are not permitted.",
+        "Use of AI, LLM, and chatbots to draft this manuscript type is not permitted.",
+        "Manuscripts that describe identifiable patients that do not have a signed form will not be reviewed.",
+        "Table row: ≤1600 words; ≤3 authors; Patient permission may be needed"
+      ]
+    },
+    {
+      "name": "Observation",
+      "description": "Short reports of 1 or 2 complicated or unique cases.",
+      "words": 600,
+      "wordsIsRecommended": false,
+      "wordsNote": "'should not exceed 600 words of text (not including acknowledgment, tables, figures, acknowledgments, and references)'",
+      "abstract": "none",
+      "abstractWords": null,
+      "abstractHeadings": null,
+      "keyPoints": false,
+      "referencesMax": 6,
+      "referencesMin": null,
+      "referencesNote": null,
+      "tablesFiguresCombined": 2,
+      "tablesMax": null,
+      "figuresMax": null,
+      "authorsMax": 7,
+      "subtitle": null,
+      "presubmissionInquiry": false,
+      "patientPermission": true,
+      "sections": null,
+      "requirements": [
+        "Patient Permission form completed and signed by the patient(s) if identifiable (table row: 'Patient permission may be needed')",
+        "No online-only material"
+      ],
+      "notes": [
+        "'Online supplementary material is not allowed.'",
+        "Omitting data or making data less specific to deidentify patients is acceptable, but changing any such data is not acceptable.",
+        "The page's Brief Report section says 'It is very rare for this journal to publish case reports'; Observation is the page's short-case-report type."
+      ],
+      "quotes": [
+        "Observations consisting of short reports of 1 or 2 complicated, unique cases should not exceed 600 words of text",
+        "(not including acknowledgment, tables, figures, acknowledgments, and references) and 6 references",
+        "and may include up to 2 tables or figures.",
+        "Online supplementary material is not allowed.",
+        "Observations may have no more than 7 authors.",
+        "Table row: 600 words; No more than 7 authors; ≤6 references; ≤2 small tables and/or figures; No online-only material; Patient permission may be needed"
+      ]
+    },
+    {
+      "name": "Letter to the Editor",
+      "description": "Letters discussing a recent article in this journal, submitted within 4 weeks of publication of the article in print.",
+      "words": 400,
+      "wordsIsRecommended": false,
+      "wordsNote": "'should not exceed 400 words of text'",
+      "abstract": "none",
+      "abstractWords": null,
+      "abstractHeadings": null,
+      "keyPoints": false,
+      "referencesMax": 5,
+      "referencesMin": null,
+      "referencesNote": "1 of the references should be to the recent article",
+      "tablesFiguresCombined": null,
+      "tablesMax": null,
+      "figuresMax": null,
+      "authorsMax": 3,
+      "subtitle": null,
+      "presubmissionInquiry": false,
+      "patientPermission": false,
+      "sections": null,
+      "requirements": [
+        "Submit within 4 weeks of publication of the article in print ('Letters received after 4 weeks will rarely be considered')",
+        "Full name, academic degrees, and a single institutional affiliation for each author; email address for the corresponding author",
+        "Title limited to 60 characters (shorter article types such as Letters)"
+      ],
+      "notes": [
+        "'Use of AI, LLM, and chatbots to draft Letters to the Editor is not permitted.'",
+        "Must not duplicate other material published or submitted for publication and should not include unpublished data.",
+        "Letters are published at the discretion of the editors and are ordinarily sent to the authors of the original article for reply.",
+        "No tables/figures limit is stated in the table row."
+      ],
+      "quotes": [
+        "Letters should not exceed 400 words of text and 5 references, 1 of which should be to the recent article.",
+        "Letters may have no more than 3 authors.",
+        "Letters discussing a recent article in this journal should be submitted within 4 weeks of publication of the article in print.",
+        "Letters received after 4 weeks will rarely be considered.",
+        "Use of AI, LLM, and chatbots to draft Letters to the Editor is not permitted.",
+        "Table row: 400 words; ≤5 references (1 of which should be to the recent article); ≤3 authors"
+      ]
+    },
+    {
+      "name": "Letter in Reply",
+      "description": "Replies by authors of original articles to letters from readers.",
+      "words": 500,
+      "wordsIsRecommended": false,
+      "wordsNote": "'should not exceed 500 words of text'",
+      "abstract": "none",
+      "abstractWords": null,
+      "abstractHeadings": null,
+      "keyPoints": false,
+      "referencesMax": 6,
+      "referencesMin": null,
+      "referencesNote": null,
+      "tablesFiguresCombined": null,
+      "tablesMax": null,
+      "figuresMax": null,
+      "authorsMax": 3,
+      "subtitle": null,
+      "presubmissionInquiry": false,
+      "patientPermission": false,
+      "sections": null,
+      "requirements": [],
+      "notes": [
+        "No tables/figures limit is stated in the table row."
+      ],
+      "quotes": [
+        "Replies by authors should not exceed 500 words of text and 6 references.",
+        "They should have no more than 3 authors.",
+        "Table row: 500 words; ≤6 references; ≤3 authors"
+      ]
+    }
+  ],
+  "journalNotes": [
+    "Journal-specific features on this page: Reflections (personal essays, 1600 words) and Observation (case reports). 'Diagnostic Test Interpretation', 'Cancer Care Chronicles', 'Poetry' and 'Ophthalmic Images' are not offered (their paragraphs do not render on this page).",
+    "Journal-specific reporting standards section ('Reporting Standards for Facial Nerve Function, Cochlear Implant, and Comorbidity Among Cancer Patients'): 'When reporting facial function, it is recommended that authors use the House Brackman grading system.'; 'When reporting results after cochlear implantation, it is recommended that authors use the Minimum Reporting Standards for Adult Cochlear Implantation as a guide.'; 'When reporting results of diagnostic, prognostic, or therapeutic studies in cancer, it is recommended' that authors 'incorporate measures of overall severity of cancer patient comorbidity using a validated measure of comorbidity.'",
+    "Clinical Challenge format: 'What Is Your Diagnosis?'; 'The journal considers Clinical Challenges in 3 areas: endoscopy, pathology, and radiology.'",
+    "Letters to the Editor must be submitted within 4 weeks of publication of the article in print (the Oncology and Ophthalmology pages say 'publication online').",
+    "Special Communication: no presubmission inquiry is mentioned on this journal's page.",
+    "Editor named on the page: Jay F. Piccirillo, MD (Washington University School of Medicine).",
+    "The page is the shared JAMA Network instructions template rendered for this journal; visible CMS notes ('Include: ...', 'Exclude: ...', 'Comments: ...') appear beside blocks and are sometimes stale, so applicability was taken from what the page actually renders (table rows and paragraphs present), cross-checked against the three sibling pages.",
+    "No 'Editorial', 'Invited Commentary', 'Comment & Response', 'Patient Page' or 'Guide to Statistics and Methods' heading or limits appear on the page.",
+    "Use of AI, LLM, and chatbots to draft Opinion manuscripts, Letters to the Editor, and Online Comments is not permitted; any other AI use must be disclosed in the Acknowledgment section; AI must not be used to generate or format references.",
+    "All research reports need a Data Sharing Statement; research articles should follow EQUATOR reporting guidelines; a Patient Permission form is required for identifiable patients.",
+    "Reporting conventions: P values as 'P<.001' below .001 and 'P>.99' above .99; frequency data as 'No. (%)'; conventional units with SI conversions in parentheses at first mention; no abbreviations in the title or abstract.",
+    "Tables: titles preferably no longer than 10 to 15 words, single-spaced 10- or 12-point font, placed at the end of the manuscript file, not embedded as images. Figures: titles preferably 10 to 15 words, no more than 4 panels unless justified, each figure no larger than 1 MB, minimum resolution ≥350 ppi (photographs/illustrations) or ≥600 ppi (line drawings), no pie charts or 3-D graphs.",
+    "Multimedia: video ≤25 MB at submission, preferably ≤5 minutes, title ≤100 characters with spaces; audio ≤25 MB, ≤5 minutes.",
+    "Up to 2 co-corresponding authors on a limited basis; all authors must meet the four ICMJE criteria and complete the Authorship Form; conflict-of-interest disclosures cover the 3 years before submission.",
+    "Page footer: 'Last Updated: September 8, 2026'."
+  ],
+  "unread": "All three 100,000-character chunks of the page were fetched (offsets 0, 100000, 200000) and the page ends inside the third chunk. The fetch tool summarizes each chunk with a reader model that reported '[Content truncated due to length...]' markers inside some chunks (the reader may not have examined every middle passage), so the article-type table, every article-type paragraph, Key Points, Abstracts, References, Tables, Figures, Supplements, and Cover Letter sections were re-queried with targeted verbatim-quote requests; values here come from those quotes. Not independently seen: the raw HTML (Cloudflare blocks direct download)."
+}

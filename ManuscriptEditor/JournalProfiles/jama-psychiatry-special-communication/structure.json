@@ -1,0 +1,17 @@
+{
+ "id": "208D0C45-E7ED-539A-8C75-7415A14CAC64",
+ "journal": "JAMA Psychiatry",
+ "sections": [
+  {
+   "boilerplate": "Importance: \nObjective: \nEvidence Review: \nFindings: \nConclusions and Relevance: ",
+   "formatNote": "Structured, no more than 350 words, under the headings Importance; Objective; Evidence Review; Findings; Conclusions and Relevance.",
+   "required": true,
+   "title": "Abstract"
+  },
+  {
+   "note": "The venue names no sections for this article type.",
+   "required": true,
+   "title": "Special Communication"
+  }
+ ]
+}

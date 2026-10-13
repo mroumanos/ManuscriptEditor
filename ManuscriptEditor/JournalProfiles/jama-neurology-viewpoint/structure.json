@@ -1,0 +1,16 @@
+{
+ "id": "F9AA33F8-E0F9-5680-B602-3EDD22524CF2",
+ "journal": "JAMA Neurology",
+ "sections": [
+  {
+   "note": "This article type has no abstract.",
+   "required": false,
+   "title": "Abstract"
+  },
+  {
+   "note": "The venue names no sections for this article type.",
+   "required": true,
+   "title": "Viewpoint"
+  }
+ ]
+}

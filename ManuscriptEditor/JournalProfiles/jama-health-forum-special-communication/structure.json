@@ -1,0 +1,17 @@
+{
+ "id": "E2883155-90A3-52BA-B833-BAA1A8B1DE07",
+ "journal": "JAMA Health Forum",
+ "sections": [
+  {
+   "boilerplate": "Importance: \nObjective: \nEvidence Review: \nFindings: \nConclusions and Relevance: ",
+   "formatNote": "Structured, no more than 350 words, under the headings Importance; Objective; Evidence Review; Findings; Conclusions and Relevance.",
+   "required": true,
+   "title": "Abstract"
+  },
+  {
+   "note": "The venue names no sections for this article type.",
+   "required": true,
+   "title": "Special Communication"
+  }
+ ]
+}

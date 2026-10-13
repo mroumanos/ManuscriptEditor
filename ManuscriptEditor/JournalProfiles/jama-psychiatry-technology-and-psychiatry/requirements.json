@@ -1,0 +1,32 @@
+{
+ "articleType": "Technology and Psychiatry",
+ "bullets": [
+  "description: Succinct evidence-based comments on emerging technologies (eg, artificial intelligence, digital phenotyping and therapeutics, machine learning, telehealth) with direct relevance to psychiatry. JAMA Psychiatry only.",
+  "limits: body up to 1,200 words (up to 1200 words of text - or 1000 words of text with 1 small table or figure)",
+  "limits: no abstract and no Key Points",
+  "limits: up to 7 references",
+  "limits: 1 table or figure at most",
+  "limits: up to 3 authors",
+  "limits: title up to 60 characters including spaces",
+  "components: required sections: Technology and Psychiatry",
+  "components: cover letter — complete contact information for the corresponding author and whether the authors have published, posted, or submitted any related papers from the same study",
+  "format: submit a Word document (not PDF); 10-, 11-, or 12-point font, double-spaced, right margins unjustified (ragged).",
+  "format: title page, abstract, text, references, figure legends and tables each start on a new page, numbered consecutively from the title page.",
+  "format: title page carries the title, every author's full name, highest academic degrees and affiliations, the corresponding author's complete contact information, and the manuscript word count (not including title, abstract, acknowledgment, references, tables, and figure legends).",
+  "format: AMA Manual of Style, 11th edition — references numbered in order of first citation, cited with superscript Arabic numerals; up to 6 authors listed, otherwise the first 3 and et al.; journal names abbreviated per PubMed.",
+  "format: tables at the end of the manuscript file, numbered in citation order, titles of 10–15 words, 10- or 12-point single-spaced, never as images.",
+  "format: each figure a separate file of at most 1 MB; photographs and illustrations at least 350 ppi, line drawings at least 600 ppi; no pie charts, 3-D graphs or stacked bar charts; avoid more than 4 panels.",
+  "format: individual files should stay under 500 kB and must not exceed 1 MB; the whole submission under 5 MB (video excluded).",
+  "extra: The single small table or figure is allowed only with the 1000-word version.",
+  "extra: No abstract requirement is stated; Key Points are 'required only for research and review manuscripts', so none here.",
+  "extra: Table row: 1200 words (or 1000 words with 1 small table or figure); <=7 references at submission; <=3 authors, with no more than 2 affiliations per author.",
+  "extra: No more than 2 institutional affiliations per author.",
+  "extra: this summary is the app's distillation — open the author instructions above to confirm against the journal's current text."
+ ],
+ "country": "United States",
+ "id": "10CA1569-02DE-5564-AED7-C2B41D7FFB03",
+ "journal": "JAMA Psychiatry",
+ "publisher": "American Medical Association",
+ "updatedAt": "2026-10-13T12:00:00Z",
+ "url": "https://jamanetwork.com/journals/jamapsychiatry/pages/instructions-for-authors"
+}

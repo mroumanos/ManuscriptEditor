@@ -1,0 +1,15 @@
+{
+ "id": "7B09DE8F-37CD-5F8A-8D93-B220A02F5D3A",
+ "journal": "JAMA",
+ "sections": [
+  {
+   "note": "This article type has no abstract.",
+   "required": false,
+   "title": "Abstract"
+  },
+  {
+   "required": true,
+   "title": "Reply"
+  }
+ ]
+}

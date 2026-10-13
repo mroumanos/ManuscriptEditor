@@ -1,0 +1,16 @@
+{
+ "id": "D5D1712C-3CFF-52C0-953C-F4A755B0173F",
+ "journal": "JAMA Internal Medicine",
+ "sections": [
+  {
+   "note": "This article type has no abstract.",
+   "required": false,
+   "title": "Abstract"
+  },
+  {
+   "note": "The venue names no sections for this article type.",
+   "required": true,
+   "title": "Inside Story"
+  }
+ ]
+}

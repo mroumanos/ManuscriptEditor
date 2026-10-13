@@ -1,0 +1,19 @@
+{
+ "id": "4D230465-BD2E-5B40-A11A-5098C9BAC87C",
+ "journal": "JAMA Internal Medicine",
+ "sections": [
+  {
+   "note": "This article type has no abstract.",
+   "required": false,
+   "title": "Abstract"
+  },
+  {
+   "required": true,
+   "title": "Story From the Front Lines"
+  },
+  {
+   "required": true,
+   "title": "Teachable Moment"
+  }
+ ]
+}

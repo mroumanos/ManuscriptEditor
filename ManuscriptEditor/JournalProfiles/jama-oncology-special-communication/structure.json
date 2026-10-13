@@ -1,0 +1,16 @@
+{
+ "id": "142E7922-DB1F-5674-A186-5A45A8A4F9FD",
+ "journal": "JAMA Oncology",
+ "sections": [
+  {
+   "formatNote": "Structured; the venue does not fix the headings for this type.",
+   "required": true,
+   "title": "Abstract"
+  },
+  {
+   "note": "The venue names no sections for this article type.",
+   "required": true,
+   "title": "Special Communication"
+  }
+ ]
+}

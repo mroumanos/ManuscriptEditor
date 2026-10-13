@@ -1,0 +1,21 @@
+{
+ "id": "2C3D3B41-22D8-5EE1-AF3D-D1074FC9214A",
+ "journal": "JAMA Otolaryngology–Head & Neck Surgery",
+ "sections": [
+  {
+   "note": "This article type has no abstract.",
+   "required": false,
+   "title": "Abstract"
+  },
+  {
+   "note": "Case presentation, question, and 4 one-sentence answers (≤250 words)",
+   "required": true,
+   "title": "Case Presentation"
+  },
+  {
+   "note": "≤600 words; ≤500 if it includes a Figure",
+   "required": true,
+   "title": "Diagnosis and Discussion"
+  }
+ ]
+}

@@ -272,6 +272,20 @@ xcodebuild -scheme ManuscriptEditor -destination 'platform=macOS' build
     depth, the load filters by it. `scripts/harness/remote_files.sh` checks
     that everything a save sends, a load takes.
 
+## Generated journal profiles
+
+- The JAMA Network profiles under `ManuscriptEditor/JournalProfiles/jama-*`
+  are **generated** from `scripts/corpus/jama/*.json` by
+  `scripts/corpus/build_jama.py`. Change the spec, run the script, commit
+  both; never hand-edit a generated folder. `build_jama.py --check` reports
+  a stale one.
+- A spec states only what the journal's page states: every number is backed
+  by the page's own sentence in `quotes`, and an unstated value is `null`,
+  which the generator turns into no test — not a guessed one.
+- `scripts/harness/corpus_profiles.sh` runs against the Debug build and
+  fails if a bundled profile decodes with fewer rules or sections than its
+  file holds, or under a GUID other than `bundledID(slug)`.
+
 ## Releasing
 
 `scripts/release.sh <version> [notes-file]` runs the whole pipeline: bump

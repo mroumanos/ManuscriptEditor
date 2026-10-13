@@ -1,0 +1,37 @@
+{
+ "id": "5D8BF775-35C3-55FE-8612-2798E2EE53F5",
+ "journal": "JAMA Cardiology",
+ "sections": [
+  {
+   "boilerplate": "Question: \nFindings: \nMeaning: ",
+   "formatNote": "Three labelled parts before the abstract, 100 words or fewer in all: Question (1 sentence), Findings (1–2 sentences — the design and primary outcomes, significance stated without statistical test results), Meaning (1 sentence).",
+   "note": "The venue's structured summary of the study, read before the abstract.",
+   "required": true,
+   "title": "Key Points"
+  },
+  {
+   "boilerplate": "Importance: \nObjective: \nDesign: \nSetting: \nParticipants: \nIntervention(s): \nMain Outcome(s) and Measure(s): \nResults: \nConclusions and Relevance: \nTrial Registration: ",
+   "formatNote": "Structured, no more than 350 words, under the headings Importance; Objective; Design; Setting; Participants; Intervention(s); Main Outcome(s) and Measure(s); Results; Conclusions and Relevance; Trial Registration.",
+   "required": true,
+   "title": "Abstract"
+  },
+  {
+   "required": true,
+   "title": "Introduction"
+  },
+  {
+   "note": "State ethics approval (or its waiver) and informed consent; name the statistical software with its version and manufacturer at the end.",
+   "required": true,
+   "title": "Methods"
+  },
+  {
+   "required": true,
+   "title": "Results"
+  },
+  {
+   "note": "Place the results in context with the published literature and address the study's limitations.",
+   "required": true,
+   "title": "Discussion"
+  }
+ ]
+}

@@ -1,0 +1,16 @@
+{
+ "id": "9BD44970-B55F-5787-B522-0056FA6EB61C",
+ "journal": "JAMA Oncology",
+ "sections": [
+  {
+   "note": "This article type has no abstract.",
+   "required": false,
+   "title": "Abstract"
+  },
+  {
+   "note": "The venue names no sections for this article type.",
+   "required": true,
+   "title": "Cancer Care Chronicles"
+  }
+ ]
+}

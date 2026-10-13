@@ -28,6 +28,25 @@ The files are hand-editable — `id` is the only field a check needs, and rules
 may omit their own ids. A profile is loaded whole: `requirements.json` carries
 the identity, so it is the one file a profile cannot do without.
 
+## Generated profiles: the JAMA Network
+
+The thirteen JAMA Network journals (JAMA, JAMA Network Open, JAMA Health
+Forum, and the specialty journals) ship **one profile per article type** —
+`jama-research-letter`, `jama-dermatology-original-investigation`, and so on
+— because the limits differ by type far more than by journal. Those folders
+are **generated**: `scripts/corpus/jama/<journal>.json` holds each journal's
+article types with the limits its Instructions for Authors state and, for
+every number, the page's own sentence; `scripts/corpus/build_jama.py` turns
+them into the three files here. Edit the spec and re-run the script; a
+hand-edit to a generated folder is undone by the next run
+(`build_jama.py --check` says whether any is stale).
+
+Article types the instructions describe without author limits — Editorials,
+Invited Commentaries and the commissioned Clinical Review & Education
+features — have no profile, and neither does Poetry (a poem is not a
+manuscript this app writes). A journal's own formats appear under its name in Settings →
+Journals and in Add Journal.
+
 ## A note on the summaries
 
 Each `requirements.json` is the app's distillation of that journal's published

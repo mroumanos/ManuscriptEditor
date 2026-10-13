@@ -1,0 +1,16 @@
+{
+ "id": "5F10040C-C26C-554F-BA79-C5475DB06035",
+ "journal": "JAMA Surgery",
+ "sections": [
+  {
+   "note": "This article type has no abstract.",
+   "required": false,
+   "title": "Abstract"
+  },
+  {
+   "note": "The venue names no sections for this article type.",
+   "required": true,
+   "title": "Letter"
+  }
+ ]
+}

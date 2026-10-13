@@ -1,0 +1,16 @@
+{
+ "id": "48C90627-0F1F-5C61-A5B6-E34CDBE82B90",
+ "journal": "JAMA Pediatrics",
+ "sections": [
+  {
+   "note": "This article type has no abstract.",
+   "required": false,
+   "title": "Abstract"
+  },
+  {
+   "note": "The venue names no sections for this article type.",
+   "required": true,
+   "title": "Viewpoint"
+  }
+ ]
+}

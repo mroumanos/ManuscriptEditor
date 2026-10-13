@@ -660,6 +660,24 @@ struct JournalProfile: Codable, Identifiable, Sendable, Equatable {
     /// and on disk.  Identity is the GUID; this is only the address.
     var slug: String { JournalProfile.slug(name: name, articleType: articleType) }
 
+    /// Profiles by journal, each venue's article types in order under it.
+    ///
+    /// How a template list reads once a venue ships a profile per format:
+    /// the JAMA Network alone is thirteen journals at a dozen types each, and
+    /// a flat list of "JAMA Cardiology — Research Letter" rows buried the
+    /// seventeen other journals under it.
+    static func byJournal(_ profiles: some Sequence<JournalProfile>)
+        -> [(name: String, profiles: [JournalProfile])] {
+        let groups = Dictionary(grouping: profiles, by: \.name)
+        return groups.keys
+            .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+            .map { name in
+                (name, groups[name]!.sorted {
+                    ($0.articleType ?? "").localizedCaseInsensitiveCompare($1.articleType ?? "") == .orderedAscending
+                })
+            }
+    }
+
     init(id: UUID, name: String, articleType: String? = nil,
          lineage: [UUID] = [],
          requirements: SourceRequirements = SourceRequirements(),

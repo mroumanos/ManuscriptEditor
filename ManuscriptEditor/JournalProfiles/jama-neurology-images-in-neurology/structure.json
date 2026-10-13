@@ -1,0 +1,16 @@
+{
+ "id": "E7304E0A-38D4-56EF-B233-7F7C29A8E0BD",
+ "journal": "JAMA Neurology",
+ "sections": [
+  {
+   "note": "This article type has no abstract.",
+   "required": false,
+   "title": "Abstract"
+  },
+  {
+   "note": "The venue names no sections for this article type.",
+   "required": true,
+   "title": "Images in Neurology"
+  }
+ ]
+}

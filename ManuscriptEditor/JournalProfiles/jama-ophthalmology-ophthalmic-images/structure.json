@@ -1,0 +1,16 @@
+{
+ "id": "4766FA5A-CE36-5C84-A954-EB64EDB11D25",
+ "journal": "JAMA Ophthalmology",
+ "sections": [
+  {
+   "note": "This article type has no abstract.",
+   "required": false,
+   "title": "Abstract"
+  },
+  {
+   "note": "The venue names no sections for this article type.",
+   "required": true,
+   "title": "Ophthalmic Images"
+  }
+ ]
+}

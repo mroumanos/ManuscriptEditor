@@ -1,0 +1,32 @@
+{
+ "articleType": "Images in Neurology",
+ "bullets": [
+  "description: A visual image of an interesting and unique neurological observation (patient images, photomicrographs, or diagnostic imaging) with a 500-word description of the clinical issue, the patient's neurological findings, and the image.",
+  "limits: body up to 500 words (A 500-word description)",
+  "limits: no abstract and no Key Points",
+  "limits: up to 4 references",
+  "limits: up to 2 figures",
+  "limits: up to 3 authors",
+  "limits: title up to 60 characters including spaces",
+  "components: required sections: Images in Neurology",
+  "components: signed JAMA Network Patient Permission form for any identifiable patient",
+  "components: cover letter — complete contact information for the corresponding author and whether the authors have published, posted, or submitted any related papers from the same study",
+  "format: submit a Word document (not PDF); 10-, 11-, or 12-point font, double-spaced, right margins unjustified (ragged).",
+  "format: title page, abstract, text, references, figure legends and tables each start on a new page, numbered consecutively from the title page.",
+  "format: title page carries the title, every author's full name, highest academic degrees and affiliations, the corresponding author's complete contact information, and the manuscript word count (not including title, abstract, acknowledgment, references, tables, and figure legends).",
+  "format: AMA Manual of Style, 11th edition — references numbered in order of first citation, cited with superscript Arabic numerals; up to 6 authors listed, otherwise the first 3 and et al.; journal names abbreviated per PubMed.",
+  "format: tables at the end of the manuscript file, numbered in citation order, titles of 10–15 words, 10- or 12-point single-spaced, never as images.",
+  "format: each figure a separate file of at most 1 MB; photographs and illustrations at least 350 ppi, line drawings at least 600 ppi; no pie charts, 3-D graphs or stacked bar charts; avoid more than 4 panels.",
+  "format: individual files should stay under 500 kB and must not exceed 1 MB; the whole submission under 5 MB (video excluded).",
+  "extra: Categories table row: '1-2 images (figures)', '500 words', 'No online-only material', '<=4 references', '<=3 authors', 'Patient permission may be needed'.",
+  "extra: Coded 'Include: NEU'.",
+  "extra: Online supplementary material is not allowed.",
+  "extra: this summary is the app's distillation — open the author instructions above to confirm against the journal's current text."
+ ],
+ "country": "United States",
+ "id": "E7304E0A-38D4-56EF-B233-7F7C29A8E0BD",
+ "journal": "JAMA Neurology",
+ "publisher": "American Medical Association",
+ "updatedAt": "2026-10-13T12:00:00Z",
+ "url": "https://jamanetwork.com/journals/jamaneurology/pages/instructions-for-authors"
+}

@@ -1,0 +1,550 @@
+{
+  "journal": "JAMA",
+  "url": "https://jamanetwork.com/journals/jama/pages/instructions-for-authors",
+  "fetched": "2026-10-13",
+  "formatting": {
+    "coverLetter": "Complete contact information for the corresponding author (affiliation, postal address, email, telephone) and whether the authors have published, posted, or submitted any related papers from the same study."
+  },
+  "articleTypes": [
+    {
+      "name": "Original Investigation",
+      "description": "Reports of original research: randomized clinical trials, other trials, meta-analyses, and observational studies (cohort, case-control, cross-sectional, case series, economic evaluations, decision models, qualitative studies). Each manuscript states an objective or hypothesis, the design and methods, the main outcome measures, the main results, and a discussion placing the results in context with the published literature and addressing study limitations.",
+      "words": 3000,
+      "wordsIsRecommended": false,
+      "wordsNote": "not including abstract, tables, figures, acknowledgments, references, and online-only material",
+      "abstract": "structured",
+      "abstractWords": 350,
+      "abstractHeadings": "original",
+      "keyPoints": true,
+      "referencesMax": 75,
+      "referencesMin": 50,
+      "tablesFiguresCombined": 5,
+      "authorsMax": null,
+      "subtitle": null,
+      "titleChars": 100,
+      "presubmissionInquiry": false,
+      "patientPermission": false,
+      "sections": "imrad",
+      "requirements": [
+        "Data Sharing Statement",
+        "EQUATOR"
+      ],
+      "notes": [
+        "Clinical trials, meta-analyses and systematic reviews carry a subtitle naming the study type (see those article types)."
+      ],
+      "quotes": [
+        "Maximum length: 3000 words of text (not including abstract, tables, figures, acknowledgments, references, and online-only material) with no more than a total of 5 tables and/or figures and no more than 50-75 references.",
+        "A list of 3 Key Points is required.",
+        "Reports of original data should include an abstract of no more than 350 words"
+      ]
+    },
+    {
+      "name": "Clinical Trial",
+      "description": "Reports of randomized or nonrandomized clinical trials, published as Original Investigations. Trial registration (registry name, trial ID, URL) is listed at the end of the abstract; the Methods section states how the report follows the CONSORT reporting guidelines; a CONSORT flow diagram, the completed trial checklist, and the original protocol with its statistical analysis plan accompany the submission.",
+      "words": 3000,
+      "wordsIsRecommended": false,
+      "wordsNote": "not including abstract, tables, figures, acknowledgments, references, and supplemental material",
+      "abstract": "structured",
+      "abstractWords": 350,
+      "abstractHeadings": "trial",
+      "keyPoints": true,
+      "referencesMax": 75,
+      "referencesMin": 50,
+      "tablesFiguresCombined": 5,
+      "authorsMax": null,
+      "subtitle": [
+        "A Randomized Clinical Trial",
+        "A Nonrandomized Clinical Trial"
+      ],
+      "titleChars": 100,
+      "presubmissionInquiry": false,
+      "patientPermission": false,
+      "sections": "imrad",
+      "requirements": [
+        "Data Sharing Statement",
+        "CONSORT",
+        "trial registration",
+        "trial protocol"
+      ],
+      "notes": [
+        "The 5 tables and/or figures include the CONSORT flow diagram."
+      ],
+      "quotes": [
+        "3000 words of text (not including abstract, tables, figures, acknowledgments, references, and supplemental material)",
+        "no more than a total of 5 tables and/or figures and no more than 50-75 references",
+        "The subtitle should include the phrase \"A Randomized Clinical Trial\"",
+        "trial registration information (registry name, trial ID, and URL) must be listed at the end of the abstract"
+      ]
+    },
+    {
+      "name": "Meta-analysis",
+      "description": "A systematic review that includes a statistical technique for quantitatively combining the results of multiple studies; published as an Original Investigation. Follows the PRISMA or MOOSE reporting guidelines.",
+      "words": 3000,
+      "wordsIsRecommended": false,
+      "wordsNote": "not including abstract, tables, figures, acknowledgments, references, and online-only material",
+      "abstract": "structured",
+      "abstractWords": 350,
+      "abstractHeadings": "metaAnalysis",
+      "keyPoints": true,
+      "referencesMax": 75,
+      "referencesMin": 50,
+      "tablesFiguresCombined": 5,
+      "authorsMax": null,
+      "subtitle": [
+        "A Meta-analysis"
+      ],
+      "titleChars": 100,
+      "presubmissionInquiry": false,
+      "patientPermission": false,
+      "sections": "imrad",
+      "requirements": [
+        "Data Sharing Statement",
+        "PRISMA"
+      ],
+      "notes": [],
+      "quotes": [
+        "Maximum length: 3000 words of text",
+        "with no more than a total of 5 tables and/or figures and no more than 50-75 references",
+        "The subtitle should include the phrase \"A Meta-analysis.\""
+      ]
+    },
+    {
+      "name": "Systematic Review (without meta-analysis)",
+      "description": "A critical assessment of the literature and data sources on a clinical topic, with a reproducible search, explicit inclusion criteria, and a table rating the quality of the studies and evidence; a PRISMA-style flow diagram goes in an online supplement. Requires a presubmission inquiry.",
+      "words": 3000,
+      "wordsIsRecommended": false,
+      "wordsNote": "not including abstract, tables, figures, acknowledgments, references, and online-only material",
+      "abstract": "structured",
+      "abstractWords": 350,
+      "abstractHeadings": "systematicReview",
+      "keyPoints": true,
+      "referencesMax": 75,
+      "referencesMin": 50,
+      "tablesFiguresCombined": 5,
+      "authorsMax": null,
+      "subtitle": [
+        "A Systematic Review"
+      ],
+      "titleChars": 100,
+      "presubmissionInquiry": true,
+      "patientPermission": false,
+      "sections": [
+        "Introduction",
+        "Methods",
+        "Results",
+        "Discussion",
+        "Conclusions"
+      ],
+      "requirements": [
+        "PRISMA",
+        "evidence quality table"
+      ],
+      "notes": [
+        "Key Points are limited to 100 words."
+      ],
+      "quotes": [
+        "a structured abstract of no more than 350 words",
+        "with no more than a total of 5 tables and/or figures and no more than 50-75 references",
+        "Subtitle should be \"A Systematic Review\"",
+        "A PRISMA-style flow diagram should be included as an online supplement",
+        "Include a table with ratings of the quality of the studies/evidence",
+        "This article type requires a presubmission inquiry."
+      ]
+    },
+    {
+      "name": "Narrative Review",
+      "description": "A clinical review for the generalist reader on a topic of broad interest, with a described literature search, a Discussion/Observations section, practical considerations, limitations, and conclusions. Requires a presubmission inquiry with a detailed outline.",
+      "words": 4200,
+      "wordsIsRecommended": false,
+      "wordsNote": "not including abstract, tables, figures, acknowledgments, references, and online-only material",
+      "abstract": "structured",
+      "abstractWords": 400,
+      "abstractHeadings": "narrativeReview",
+      "keyPoints": false,
+      "referencesMax": 125,
+      "referencesMin": null,
+      "tablesFiguresCombined": 5,
+      "authorsMax": null,
+      "subtitle": [
+        "A Review"
+      ],
+      "titleChars": 100,
+      "presubmissionInquiry": true,
+      "patientPermission": false,
+      "sections": [
+        "Introduction",
+        "Methods",
+        "Discussion",
+        "Practical Considerations",
+        "Limitations",
+        "Conclusions"
+      ],
+      "requirements": [],
+      "notes": [
+        "The page gives two abstract limits for reviews — \"3-part structured abstract of no more than 400 words\" in the Narrative Review entry and \"no more than 300 words\" in the general abstract rules; the type's own entry is used here."
+      ],
+      "quotes": [
+        "no more than 4200 words (maximum)",
+        "no more than 125 references",
+        "no more than a total of 5 tables and/or figures",
+        "a 3-part structured abstract of no more than 400 words",
+        "Subtitle should be \"A Review\"",
+        "This article type requires a presubmission inquiry."
+      ]
+    },
+    {
+      "name": "Special Communication",
+      "description": "Important issues in clinical medicine, public health, health policy, or medical research, in a scholarly, thorough, well-referenced treatment. Requires a presubmission inquiry.",
+      "words": 3000,
+      "wordsIsRecommended": false,
+      "wordsNote": "not including tables, figures, or references",
+      "abstract": "structured",
+      "abstractWords": null,
+      "abstractHeadings": null,
+      "keyPoints": false,
+      "referencesMax": 50,
+      "referencesMin": null,
+      "tablesFiguresCombined": 4,
+      "authorsMax": null,
+      "subtitle": null,
+      "titleChars": 100,
+      "presubmissionInquiry": true,
+      "patientPermission": false,
+      "sections": null,
+      "requirements": [],
+      "notes": [
+        "The page lists Special Communications under both abstract formats (systematic review, ≤350 words; narrative review, 3-part, ≤300 words) and fixes neither for them."
+      ],
+      "quotes": [
+        "Maximum length: 3000 words of text (not including tables, figures, or references)",
+        "no more than a total of 4 tables and/or figures and no more than 50 references",
+        "A structured abstract is required.",
+        "This article type requires a presubmission inquiry"
+      ]
+    },
+    {
+      "name": "Caring for the Critically Ill Patient",
+      "description": "Reports of original data or systematic reviews on the care of critically ill patients; the same shape as an Original Investigation.",
+      "words": 3000,
+      "wordsIsRecommended": false,
+      "wordsNote": "not including abstract, tables, figures, acknowledgments, references, and online-only material",
+      "abstract": "structured",
+      "abstractWords": 350,
+      "abstractHeadings": "original",
+      "keyPoints": true,
+      "referencesMax": 75,
+      "referencesMin": 50,
+      "tablesFiguresCombined": 5,
+      "authorsMax": null,
+      "subtitle": null,
+      "titleChars": 100,
+      "presubmissionInquiry": false,
+      "patientPermission": false,
+      "sections": "imrad",
+      "requirements": [
+        "Data Sharing Statement",
+        "EQUATOR"
+      ],
+      "notes": [],
+      "quotes": [
+        "Maximum length: 3000 words of text",
+        "with no more than a total of 5 tables and/or figures",
+        "A list of 3 Key Points is required"
+      ]
+    },
+    {
+      "name": "Brief Report",
+      "description": "Short reports of original studies, evaluations, or unique first-time reports of clinical case series. The journal very rarely publishes case reports.",
+      "words": 1200,
+      "wordsIsRecommended": true,
+      "wordsNote": "not including abstract, tables, figures, acknowledgments, references, and online-only material",
+      "abstract": "structured",
+      "abstractWords": 350,
+      "abstractHeadings": "original",
+      "keyPoints": true,
+      "referencesMax": 15,
+      "referencesMin": null,
+      "tablesFiguresCombined": 3,
+      "authorsMax": null,
+      "subtitle": null,
+      "titleChars": 100,
+      "presubmissionInquiry": false,
+      "patientPermission": false,
+      "sections": "imrad",
+      "requirements": [
+        "Data Sharing Statement",
+        "EQUATOR"
+      ],
+      "notes": [
+        "It is very rare for this journal to publish case reports."
+      ],
+      "quotes": [
+        "Recommended length: 1200 words (not including abstract, tables, figures, acknowledgments, references, and online-only material)",
+        "no more than a total of 3 tables and/or figures and no more than 15 references"
+      ]
+    },
+    {
+      "name": "Research Letter",
+      "description": "Concise, focused reports of original research, divided into Introduction, Methods, Results, and Discussion. No abstract or Key Points; a supplement only for brief additional methods.",
+      "words": 800,
+      "wordsIsRecommended": false,
+      "wordsNote": "of text",
+      "abstract": "none",
+      "abstractWords": null,
+      "abstractHeadings": null,
+      "keyPoints": false,
+      "referencesMax": 10,
+      "referencesMin": null,
+      "tablesFiguresCombined": 2,
+      "authorsMax": null,
+      "subtitle": null,
+      "titleChars": 100,
+      "presubmissionInquiry": false,
+      "patientPermission": false,
+      "sections": "imrad",
+      "requirements": [
+        "Data Sharing Statement",
+        "EQUATOR"
+      ],
+      "notes": [
+        "Tables and figures must be small."
+      ],
+      "quotes": [
+        "These should not exceed 800 words of text and 10 references",
+        "may include up to 2 small tables or figures",
+        "They should not include an abstract or key points",
+        "Research Letters should be divided into the following sections: Introduction, Methods, Results, and Discussion."
+      ]
+    },
+    {
+      "name": "Viewpoint",
+      "description": "An opinion piece on a topic of broad interest in medicine, health care, or health policy. Drafting opinion manuscripts with AI, LLMs or chatbots is not permitted.",
+      "words": 1200,
+      "wordsIsRecommended": false,
+      "wordsNote": "of text; 1000 words with 1 small table or figure",
+      "abstract": "none",
+      "abstractWords": null,
+      "abstractHeadings": null,
+      "keyPoints": false,
+      "referencesMax": 7,
+      "referencesMin": null,
+      "tablesFiguresCombined": 1,
+      "authorsMax": 4,
+      "subtitle": null,
+      "titleChars": 60,
+      "presubmissionInquiry": false,
+      "patientPermission": false,
+      "sections": [
+        "Viewpoint"
+      ],
+      "requirements": [],
+      "notes": [],
+      "quotes": [
+        "Maximum length: up to 1200 words of text",
+        "no more than 7 references",
+        "Viewpoints must have no more than 4 authors.",
+        "Use of AI, LLM, and chatbots to draft opinion manuscripts is not permitted."
+      ]
+    },
+    {
+      "name": "Perspective",
+      "description": "A longer, more fully developed essay than a Viewpoint on a topic of interest to a general medical readership. Drafting opinion manuscripts with AI, LLMs or chatbots is not permitted.",
+      "words": 2000,
+      "wordsIsRecommended": false,
+      "wordsNote": "of text",
+      "abstract": "none",
+      "abstractWords": null,
+      "abstractHeadings": null,
+      "keyPoints": false,
+      "referencesMax": 25,
+      "referencesMin": 10,
+      "tablesFiguresCombined": 2,
+      "authorsMax": 4,
+      "subtitle": null,
+      "titleChars": 60,
+      "presubmissionInquiry": false,
+      "patientPermission": false,
+      "sections": [
+        "Perspective"
+      ],
+      "requirements": [],
+      "notes": [],
+      "quotes": [
+        "Maximum length: up to 2000 words of text",
+        "1-2 small tables or figures if needed",
+        "no more than 25 references",
+        "Perspective manuscripts may have no more than 4 authors."
+      ]
+    },
+    {
+      "name": "A Piece of My Mind",
+      "description": "A personal essay on the experience of medicine. Fictional or composite accounts are not permitted; an identifiable patient must sign the patient permission form.",
+      "words": 1600,
+      "wordsIsRecommended": false,
+      "wordsNote": "of text",
+      "abstract": "none",
+      "abstractWords": null,
+      "abstractHeadings": null,
+      "keyPoints": false,
+      "referencesMax": null,
+      "referencesMin": null,
+      "tablesFiguresCombined": null,
+      "authorsMax": 3,
+      "subtitle": null,
+      "titleChars": 60,
+      "presubmissionInquiry": false,
+      "patientPermission": true,
+      "sections": [
+        "Essay"
+      ],
+      "requirements": [],
+      "notes": [
+        "Fictional or composite accounts are not permitted."
+      ],
+      "quotes": [
+        "Length limit: 1600 words.",
+        "must have no more than 3 authors",
+        "Fictional or composite accounts are not permitted."
+      ]
+    },
+    {
+      "name": "Clinical Challenge",
+      "description": "A brief case presentation with a question and 4 one-sentence answers, followed by the diagnosis and a discussion. Requires the patient's written permission.",
+      "words": 850,
+      "wordsIsRecommended": false,
+      "wordsNote": "total; no more than 250 words for the case presentation, question, and 4 one-sentence answers, and no more than 600 for the diagnosis and discussion",
+      "abstract": "none",
+      "abstractWords": null,
+      "abstractHeadings": null,
+      "keyPoints": false,
+      "referencesMax": 10,
+      "referencesMin": null,
+      "tablesFiguresCombined": null,
+      "figuresMax": 2,
+      "authorsMax": 3,
+      "subtitle": null,
+      "titleChars": 60,
+      "presubmissionInquiry": false,
+      "patientPermission": true,
+      "sections": [
+        "Case Presentation",
+        "What Would You Do Next?",
+        "Diagnosis",
+        "Discussion"
+      ],
+      "requirements": [],
+      "notes": [
+        "The 2 small figures may total 3 image components."
+      ],
+      "quotes": [
+        "a maximum length of 850 words",
+        "no more than 10 references",
+        "no more than 2 small figures totaling 3 image components",
+        "no more than 3 authors",
+        "Patient permission required"
+      ]
+    },
+    {
+      "name": "Diagnostic Test Interpretation",
+      "description": "A case in which a diagnostic test result must be interpreted: the case, a question with 4 plausible responses, the test characteristics, the interpretation, and a Clinical Bottom Line of 3–5 items. Requires a presubmission inquiry and the patient's written permission.",
+      "words": 850,
+      "wordsIsRecommended": false,
+      "wordsNote": "total",
+      "abstract": "none",
+      "abstractWords": null,
+      "abstractHeadings": null,
+      "keyPoints": false,
+      "referencesMax": 10,
+      "referencesMin": null,
+      "tablesFiguresCombined": null,
+      "tablesMax": 1,
+      "authorsMax": 3,
+      "subtitle": null,
+      "titleChars": 60,
+      "presubmissionInquiry": true,
+      "patientPermission": true,
+      "sections": [
+        "Case Presentation",
+        "How Do You Interpret These Test Results?",
+        "Test Characteristics",
+        "Application of Test Result to This Patient",
+        "What Are Alternative Diagnostic Testing Approaches?",
+        "Patient Outcome",
+        "Clinical Bottom Line"
+      ],
+      "requirements": [],
+      "notes": [],
+      "quotes": [
+        "a maximum of 850 words",
+        "no more than 10 references",
+        "no more than 3 authors",
+        "This article requires a presubmission inquiry."
+      ]
+    },
+    {
+      "name": "Letter to the Editor",
+      "description": "A comment on a recent JAMA article, submitted within 4 weeks of the article's publication; subject to abridgement and sent to the original authors for reply.",
+      "words": 400,
+      "wordsIsRecommended": false,
+      "wordsNote": "of text",
+      "abstract": "none",
+      "abstractWords": null,
+      "abstractHeadings": null,
+      "keyPoints": false,
+      "referencesMax": 5,
+      "referencesMin": null,
+      "tablesFiguresCombined": null,
+      "authorsMax": 3,
+      "subtitle": null,
+      "titleChars": 60,
+      "presubmissionInquiry": false,
+      "patientPermission": false,
+      "sections": [
+        "Letter"
+      ],
+      "requirements": [
+        "within 4 weeks"
+      ],
+      "notes": [
+        "1 of the references should be to the recent article."
+      ],
+      "quotes": [
+        "should not exceed 400 words of text",
+        "5 references, 1 of which should be to the recent article",
+        "Letters may have no more than 3 authors.",
+        "within 4 weeks of publication of the article"
+      ]
+    },
+    {
+      "name": "Letter in Reply",
+      "description": "The original authors' reply to a Letter to the Editor about their article.",
+      "words": 500,
+      "wordsIsRecommended": false,
+      "wordsNote": "of text",
+      "abstract": "none",
+      "abstractWords": null,
+      "abstractHeadings": null,
+      "keyPoints": false,
+      "referencesMax": 6,
+      "referencesMin": null,
+      "tablesFiguresCombined": null,
+      "authorsMax": 3,
+      "subtitle": null,
+      "titleChars": 60,
+      "presubmissionInquiry": false,
+      "patientPermission": false,
+      "sections": [
+        "Reply"
+      ],
+      "requirements": [],
+      "notes": [],
+      "quotes": [
+        "should not exceed 500 words of text",
+        "6 references",
+        "no more than 3 authors"
+      ]
+    }
+  ],
+  "journalNotes": [],
+  "unread": null
+}

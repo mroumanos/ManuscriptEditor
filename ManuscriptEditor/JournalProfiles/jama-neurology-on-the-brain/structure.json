@@ -1,0 +1,16 @@
+{
+ "id": "08A8D287-4F02-5109-8722-4C7F285D430E",
+ "journal": "JAMA Neurology",
+ "sections": [
+  {
+   "note": "This article type has no abstract.",
+   "required": false,
+   "title": "Abstract"
+  },
+  {
+   "note": "The venue names no sections for this article type.",
+   "required": true,
+   "title": "On the Brain"
+  }
+ ]
+}

@@ -1,0 +1,32 @@
+{
+ "id": "8D0447A2-A9AB-50CE-841A-DFEF0FC41077",
+ "journal": "JAMA Pediatrics",
+ "sections": [
+  {
+   "boilerplate": "Importance: \nObservations: \nConclusions and Relevance: ",
+   "formatNote": "Structured, no more than 300 words, under the headings Importance; Observations; Conclusions and Relevance.",
+   "required": true,
+   "title": "Abstract"
+  },
+  {
+   "note": "150-250 words",
+   "required": true,
+   "title": "Introduction"
+  },
+  {
+   "note": "150-250 words; optional",
+   "required": false,
+   "title": "Methods"
+  },
+  {
+   "note": "Discussion/Observations (1000-1250 words; subsections as applicable: Pathophysiology 150-250, Clinical Presentation 150-250, Assessment and Diagnosis 250-300, Treatment 250-500, Prognosis 100-150)",
+   "required": true,
+   "title": "Discussion"
+  },
+  {
+   "note": "2-3 sentences",
+   "required": true,
+   "title": "Conclusions"
+  }
+ ]
+}

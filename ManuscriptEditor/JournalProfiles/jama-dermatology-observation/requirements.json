@@ -1,0 +1,33 @@
+{
+ "articleType": "Observation",
+ "bullets": [
+  "description: Short reports of 1 or 2 complicated, unique cases; reports of novel therapies or previously unreported associations are prioritized for publication. Submissions should include high-quality clinical skin and/or histopathologic images.",
+  "limits: body up to 600 words (Not more than 600 words of text)",
+  "limits: no abstract and no Key Points",
+  "limits: up to 6 references",
+  "limits: up to 2 tables and figures combined",
+  "limits: up to 7 authors",
+  "limits: title up to 60 characters including spaces",
+  "components: required sections: Observation",
+  "components: signed JAMA Network Patient Permission form for any identifiable patient",
+  "components: cover letter — complete contact information for the corresponding author and whether the authors have published, posted, or submitted any related papers from the same study",
+  "format: submit a Word document (not PDF); 10-, 11-, or 12-point font, double-spaced, right margins unjustified (ragged).",
+  "format: title page, abstract, text, references, figure legends and tables each start on a new page, numbered consecutively from the title page.",
+  "format: title page carries the title, every author's full name, highest academic degrees and affiliations, the corresponding author's complete contact information, and the manuscript word count (not including title, abstract, acknowledgment, references, tables, and figure legends).",
+  "format: AMA Manual of Style, 11th edition — references numbered in order of first citation, cited with superscript Arabic numerals; up to 6 authors listed, otherwise the first 3 and et al.; journal names abbreviated per PubMed.",
+  "format: tables at the end of the manuscript file, numbered in citation order, titles of 10–15 words, 10- or 12-point single-spaced, never as images.",
+  "format: each figure a separate file of at most 1 MB; photographs and illustrations at least 350 ppi, line drawings at least 600 ppi; no pie charts, 3-D graphs or stacked bar charts; avoid more than 4 panels.",
+  "format: individual files should stay under 500 kB and must not exceed 1 MB; the whole submission under 5 MB (video excluded).",
+  "extra: Categories table row: '600 words', 'No more than 7 authors', '<=6 references', '<=2 small tables and/or figures', 'No online-only material', 'Patient permission may be needed'.",
+  "extra: Coded 'Include: DER, OPH, OTO'.",
+  "extra: Online supplementary material is not allowed.",
+  "extra: High-quality clinical skin and/or histopathologic images.",
+  "extra: this summary is the app's distillation — open the author instructions above to confirm against the journal's current text."
+ ],
+ "country": "United States",
+ "id": "AC80AAD8-D210-516D-A168-CFF015777A1B",
+ "journal": "JAMA Dermatology",
+ "publisher": "American Medical Association",
+ "updatedAt": "2026-10-13T12:00:00Z",
+ "url": "https://jamanetwork.com/journals/jamadermatology/pages/instructions-for-authors"
+}
