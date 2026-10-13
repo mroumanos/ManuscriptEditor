@@ -67,7 +67,8 @@ struct OverviewView: View {
     }
     @State private var pendingLoad: PendingLoad?
 
-    private func saveLine(_ label: String, lastSaved: String, action: @escaping () -> Void) -> some View {
+    private func saveLine(_ label: String, lastSaved: String, warning: String? = nil,
+                          action: @escaping () -> Void) -> some View {
         HStack(spacing: 6) {
             Text(label)
                 .font(.caption)
@@ -85,7 +86,19 @@ struct OverviewView: View {
             Text("(last saved \(lastSaved))")
                 .font(.caption)
                 .foregroundStyle(.tertiary)
+            if let warning { warningIcon(warning) }
         }
+    }
+
+    /// A problem worth knowing about, as an icon at the end of its line with
+    /// the words on hover — a sentence of orange text under a row read as a
+    /// second row, and pushed everything below it about.
+    private func warningIcon(_ text: String) -> some View {
+        Image(systemName: "exclamationmark.triangle.fill")
+            .font(.caption)
+            .foregroundStyle(.orange)
+            .help(text)
+            .accessibilityLabel(text)
     }
 
     /// What the AI row can point at: nothing, a model from a connector, or a
@@ -327,15 +340,13 @@ struct OverviewView: View {
                                 .truncationMode(.middle)
                         }
                     } else {
-                        saveLine("Remote", lastSaved: m.lastSyncedAt?.formatted(date: .abbreviated, time: .shortened) ?? "never") {
+                        saveLine("Remote",
+                                 lastSaved: m.lastSyncedAt?.formatted(date: .abbreviated, time: .shortened) ?? "never",
+                                 warning: {
+                                     if case .unreachable(let reason) = store.remoteRepoStatus { return reason }
+                                     return nil
+                                 }()) {
                             store.saveToRemote(appStore: appStore)
-                        }
-                        if case .unreachable(let reason) = store.remoteRepoStatus {
-                            Label(reason, systemImage: "exclamationmark.triangle.fill")
-                                .font(.caption)
-                                .foregroundStyle(.orange)
-                                .lineLimit(2)
-                                .padding(.leading, 82)
                         }
                     }
                     HStack(spacing: 6) {
@@ -403,22 +414,20 @@ struct OverviewView: View {
                             .font(.callout)
                     } else {
                         ForEach(editors) { editor in
-                            if editor.keyCount > 1 {
-                                Label("\(editor.name) has signed with \(editor.keyCount) different keys on this machine — earlier stamps stay valid under the key that made them.",
-                                      systemImage: "exclamationmark.triangle")
-                                    .font(.caption)
-                                    .foregroundStyle(.orange)
-                                    .help("The app used to generate a new signing key whenever it couldn't read the stored one. It no longer does.")
+                            HStack(spacing: 6) {
+                                SignatureBadge(
+                                    signerName: editor.name,
+                                    signerKey: editor.key,
+                                    signerType: editor.type,
+                                    signerSource: editor.source,
+                                    message: editor.message,
+                                    signature: editor.signature
+                                )
+                                .font(.subheadline)
+                                if editor.keyCount > 1 {
+                                    warningIcon("\(editor.name) has signed with \(editor.keyCount) different keys on this machine — earlier stamps stay valid under the key that made them. The app used to generate a new signing key whenever it couldn't read the stored one; it no longer does.")
+                                }
                             }
-                            SignatureBadge(
-                                signerName: editor.name,
-                                signerKey: editor.key,
-                                signerType: editor.type,
-                                signerSource: editor.source,
-                                message: editor.message,
-                                signature: editor.signature
-                            )
-                            .font(.subheadline)
                         }
                     }
                 }
