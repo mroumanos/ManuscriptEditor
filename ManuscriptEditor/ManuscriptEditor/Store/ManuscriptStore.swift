@@ -3531,36 +3531,60 @@ final class ManuscriptStore {
     enum RemoteRepoStatus: Equatable {
         case unknown      // nothing configured, not yet checked, or offline
         case checking
-        case valid        // repo exists and its content branch loads
-        case missing      // repo (or the content branch) not reachable
+        case valid        // the repository exists (empty, or with commits)
+        /// Nothing entered, or the entered name is **absent from the
+        /// account's own namespace** — the only state that offers Create.
+        case missing
+        /// Entered, but not something Create may touch: another owner's
+        /// name this token can't see, a rejected token, a rate limit, a
+        /// GitHub error.  Save|Load stay, with the reason beside them.
+        case unreachable(String)
     }
     var remoteRepoStatus: RemoteRepoStatus = .unknown
 
-    /// Verifies the configured repository exists and its content branch is
-    /// loadable — one commits fetch covers both.  Runs when a manuscript
-    /// loads and after the repo name is edited; Overview swaps Save|Load
-    /// for Create while the status is `.missing`.  Note GitHub 404s both
-    /// "missing" and "no access" — either way Save couldn't work.
+    /// Verifies the configured repository.  Runs when a manuscript loads and
+    /// after the repo name is edited; Overview swaps Save|Load for Create
+    /// only while the status is `.missing`.
+    ///
+    /// `.missing` used to mean "the probe failed" — any failure.  A rejected
+    /// token, a rate limit, an empty repository (409) and a GitHub hiccup all
+    /// put Create over a repository that existed, and Create, finding the
+    /// name taken, pushed into it.  Now the probe asks for the repository
+    /// itself, and only a 404 under the account's own login is `.missing`.
     func validateRemoteRepository(appStore: AppStore) {
         guard manuscript?.settings.remoteRepository?.isEmpty == false else {
             remoteRepoStatus = .missing   // nothing entered — offer Create
             return
         }
-        guard let (_, raw) = try? remoteConfig(appStore) else {
+        guard let (account, raw) = try? remoteConfig(appStore) else {
             remoteRepoStatus = .unknown   // no usable account — leave Save|Load
             return
         }
         let config = raw.with(branch: manuscript?.settings.remoteBranch ?? "source")
         remoteRepoStatus = .checking
         Task {
-            do {
-                _ = try await gitHubService.commits(config: config, limit: 1)
-                remoteRepoStatus = .valid
-            } catch is URLError {
-                remoteRepoStatus = .unknown   // offline — don't flip the UI
-            } catch {
-                remoteRepoStatus = .missing
-            }
+            let state: Result<GitHubBackendService.RepositoryState, Error>
+            do { state = .success(try await gitHubService.repositoryState(config: config)) }
+            catch { state = .failure(error) }
+            remoteRepoStatus = Self.remoteStatus(for: state, owner: config.owner, login: account.username)
+        }
+    }
+
+    /// The Overview state for a probe's outcome — pure, so the harness can
+    /// hold it to its word.  `login` is the account's GitHub user; only a
+    /// repository absent from THAT namespace is Create's to make.
+    nonisolated static func remoteStatus(for state: Result<GitHubBackendService.RepositoryState, Error>,
+                                         owner: String, login: String) -> RemoteRepoStatus {
+        switch state {
+        case .success(.absent):
+            if owner.caseInsensitiveCompare(login) == .orderedSame { return .missing }
+            return .unreachable("\(owner) isn't this account's namespace and the repository isn't visible to its token (404).")
+        case .success(.empty), .success(.present):
+            return .valid
+        case .failure(is URLError):
+            return .unknown   // offline — don't flip the UI
+        case .failure(let error):
+            return .unreachable(error.localizedDescription)
         }
     }
 
@@ -3828,6 +3852,19 @@ final class ManuscriptStore {
 
             Task {
                 do {
+                    // Create makes a repository.  It never writes into one
+                    // that has content: if the bound name already holds
+                    // commits — someone's manuscript — Save (Remote) is the
+                    // way to it, and this stops before the first blob.
+                    if let bound = manuscript?.settings.remoteRepository, !bound.isEmpty {
+                        let probe = try GitHubBackendService.Config.from(
+                            account: account, repository: bound, branch: manuscript?.settings.remoteBranch)
+                        let state = try await gitHubService.repositoryState(config: probe)
+                        guard state != .present else {
+                            throw GitHubBackendError.notConfigured(
+                                "\(bound) already exists and has content. Use Save (Remote) to push to it; Create is for a repository that doesn't exist yet.")
+                        }
+                    }
                     var htmlURL: URL?
                     do {
                         let repo = try await gitHubService.createRepository(named: name, token: token)
@@ -3838,7 +3875,8 @@ final class ManuscriptStore {
                         // The repo may exist from a previous attempt whose
                         // push failed (it once pushed content straight to
                         // `source`, which an empty repo rejects) — resume
-                        // into the bound repository instead of dead-ending
+                        // into the bound repository, which the probe above
+                        // has just shown to be EMPTY, instead of dead-ending
                         // on "name already exists".
                         guard manuscript?.settings.remoteRepository?.isEmpty == false else { throw error }
                     }

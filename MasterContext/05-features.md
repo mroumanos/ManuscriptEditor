@@ -390,9 +390,16 @@ propagate by explicit, individual fast-forwards.
   (Aug 2026): the configured repository is verified on manuscript load and
   after repo edits (one commits fetch proves the repo exists and its content
   branch loads; offline keeps the previous state). A verified repo shows
-  **Save | Load**; a missing or blank one swaps them for **Create**, which
-  creates + pushes — using the entered name, else
-  `manuscript-editor-<title-slug>-<id8>` (`suggestedRepoName`). The
+  **Save | Load**; a blank name, or one **absent from the account's own
+  namespace** (404 on the repository itself, owner = the token's login),
+  swaps them for **Create**, which creates + pushes — using the entered
+  name, else `manuscript-editor-<title-slug>-<id8>` (`suggestedRepoName`).
+  **Nothing else ever shows Create** (Oct 2026): a rejected token, a rate
+  limit, an empty repository, a GitHub error or another owner's name keeps
+  Save | Load with the reason beside them, and `createRemoteRepository`
+  itself refuses when the bound repository already has commits — Create
+  makes repositories; Save (Remote) writes to them
+  (`scripts/harness/remote_status.sh`). The
   repository entry is **owner/name only** — the branch layout (main /
   source / journal-*) is fixed, nothing to type. The top-right shows the **save
   status**: last local save time and last remote push ("N/A" when no backend

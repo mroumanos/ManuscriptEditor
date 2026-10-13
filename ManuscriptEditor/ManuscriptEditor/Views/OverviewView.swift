@@ -292,8 +292,12 @@ struct OverviewView: View {
                         }
                     }
                     // Remote controls follow the repo-existence check: a
-                    // verified repo gets Save|Load; a missing (or blank) one
-                    // gets Create, which makes + pushes the repository.
+                    // verified repo gets Save|Load; a blank name, or one
+                    // absent from the account's own namespace, gets Create,
+                    // which makes + pushes the repository.  Anything else
+                    // that failed the check keeps Save|Load and says why —
+                    // Create over an unreachable repository could write into
+                    // somebody's content.
                     if store.remoteRepoStatus == .missing {
                         HStack(spacing: 6) {
                             Text("Remote")
@@ -316,7 +320,7 @@ struct OverviewView: View {
                             if store.isRemoteBusy { ProgressView().controlSize(.small) }
                             Text((m.settings.remoteRepository ?? "").isEmpty
                                  ? "(creates \(store.suggestedRepoName))"
-                                 : "(repository not found — Create makes it and pushes)")
+                                 : "(not on this account yet — Create makes it and pushes)")
                                 .font(.caption)
                                 .foregroundStyle(.tertiary)
                                 .lineLimit(1)
@@ -325,6 +329,13 @@ struct OverviewView: View {
                     } else {
                         saveLine("Remote", lastSaved: m.lastSyncedAt?.formatted(date: .abbreviated, time: .shortened) ?? "never") {
                             store.saveToRemote(appStore: appStore)
+                        }
+                        if case .unreachable(let reason) = store.remoteRepoStatus {
+                            Label(reason, systemImage: "exclamationmark.triangle.fill")
+                                .font(.caption)
+                                .foregroundStyle(.orange)
+                                .lineLimit(2)
+                                .padding(.leading, 82)
                         }
                     }
                     HStack(spacing: 6) {

@@ -272,6 +272,18 @@ xcodebuild -scheme ManuscriptEditor -destination 'platform=macOS' build
     depth, the load filters by it. `scripts/harness/remote_files.sh` checks
     that everything a save sends, a load takes.
 
+39. **Create is for a repository that does not exist; it never writes into
+    one that does.** The Overview probe used to mark `.missing` on any
+    failure — a rejected token, a rate limit, an empty repository's 409, a
+    GitHub hiccup — and show **Create** over a repository that existed;
+    Create, finding the name taken, then pushed into it. Now the probe asks
+    for the repository itself, only a 404 under the account's own login is
+    `.missing`, everything else is `.unreachable(reason)` with Save|Load
+    kept, and `createRemoteRepository` checks the bound repository's state
+    before the first blob and refuses `.present`. The decision is a pure
+    function (`ManuscriptStore.remoteStatus`) so
+    `scripts/harness/remote_status.sh` can hold it to its word.
+
 ## Generated journal profiles
 
 - The JAMA Network profiles under `ManuscriptEditor/JournalProfiles/jama-*`

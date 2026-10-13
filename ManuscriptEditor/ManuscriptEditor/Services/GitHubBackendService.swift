@@ -120,6 +120,28 @@ struct GitHubBackendService {
         let data: Data
     }
 
+    // MARK: - Repository state
+
+    /// What is at `owner/repo` for this token.
+    enum RepositoryState: Equatable, Sendable {
+        case absent     // 404: no such repository, or none this token can see
+        case empty      // exists, no commits at all — safe to initialise
+        case present    // exists with commits (whether or not our branch does)
+    }
+
+    /// Looks before anything writes: the repository itself (not just a
+    /// branch of it), then whether it has any commit.  Create may only ever
+    /// act on `.absent` or `.empty`; everything else is somebody's content.
+    func repositoryState(config: Config) async throws -> RepositoryState {
+        do {
+            _ = try await rawRequest("GET", url: "https://api.github.com/repos/\(config.owner)/\(config.repo)",
+                                     token: config.token, body: nil)
+        } catch GitHubBackendError.http(let code, _) where code == 404 {
+            return .absent
+        }
+        return try await branchState(config: config).repoEmpty ? .empty : .present
+    }
+
     // MARK: - Push
 
     /// Pushes `files` as a single commit; returns the new commit's short SHA.
