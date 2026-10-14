@@ -50,6 +50,11 @@ struct ChecksView: View {
                 if store.manuscript(for: versionRef) == nil {
                     ContentUnavailableView("No manuscript open", systemImage: "doc")
                 } else if let journal = paneJournal {
+                    JournalPartHeader(
+                        journal: journal, part: .checks,
+                        subtitle: "What the app enforces of the journal's instructions — automatic tests and the ones you tick by hand.",
+                        edited: store.partDiffersFromTemplate(.checks, journal: journal),
+                        padded: false)
                     header(journal)
                     checklist(journal)
                 } else {
@@ -139,21 +144,9 @@ struct ChecksView: View {
                 .padding(14)
             }
             Spacer()
-            // What this journal is linked to, and a way into it — the same
-            // shape Settings uses, so "which template is this?" is answered
-            // in the one place you are already looking.
-            if let template = linkedTemplate {
-                Button {
-                    NotificationCenter.default.post(name: .manageTemplate, object: nil,
-                                                    userInfo: ["template": template.id])
-                } label: {
-                    Label("Manage \(template.displayName)", systemImage: TemplateStyle.symbol)
-                        .font(.caption)
-                }
-                .buttonStyle(.link)
-                .foregroundStyle(TemplateStyle.accent(scheme))
-                .help("Open this template in its own tab — where a template is edited")
-            } else {
+            // The template row above has Manage; what is left here is the
+            // way to a link when there is none, and the way into the library.
+            if linkedTemplate == nil {
                 Button {
                     linkingTemplate = true
                 } label: {

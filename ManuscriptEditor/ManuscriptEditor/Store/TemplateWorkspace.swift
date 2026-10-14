@@ -213,6 +213,13 @@ final class TemplateWorkspace {
             || draft.articleType != stored.articleType
     }
 
+    /// The other template that already holds this draft's name and type —
+    /// what blocks a save until one of them is renamed.
+    func nameHolder(_ id: UUID) -> JournalTemplate? {
+        guard let draft = drafts[id] else { return nil }
+        return library.holder(ofName: draft.name, articleType: draft.articleType, excluding: id)
+    }
+
     /// Which parts differ from the library's copy — what the sidebar marks.
     func editedParts(_ id: UUID) -> Set<ProfilePart> {
         guard let draft = drafts[id], let stored = library.profile(id: id) else { return [] }
@@ -254,6 +261,19 @@ final class TemplateWorkspace {
     func delete(_ id: UUID) {
         library.remove(id: id)
         close(id)
+    }
+
+    /// A copy of a library template — "<name> - copy" — saved and opened, so
+    /// Add from any journal page starts you editing a template of your own
+    /// rather than the one every other manuscript follows.
+    @discardableResult
+    func openCopy(of id: UUID) -> UUID? {
+        guard let source = template(id),
+              let made = library.clone(source, named: library.copyName(for: source))
+        else { return nil }
+        drafts[made.id] = made
+        if !openIDs.contains(made.id) { openIDs.append(made.id) }
+        return made.id
     }
 
     // MARK: - Creating

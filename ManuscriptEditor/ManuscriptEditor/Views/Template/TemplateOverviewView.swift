@@ -18,7 +18,14 @@
 //   Delete              gone from your library.  Manuscripts already using it
 //                       keep their own copy and travel with it.
 //
-// See MasterContext/features/journal-templates.md §3.2 and §3.6.
+// And the shared repository (`TemplatePublishing`), on the Remote row:
+//
+//   Save (Remote)       proposes this template — its files on a branch and a
+//                       pull request, never a merge — under the GitHub
+//                       account you pick.
+//   Load (Remote)       takes the published copy into the draft.
+//
+// See MasterContext/features/journal-templates.md §3.2, §3.6 and §3.7.
 
 import SwiftUI
 import AppKit
@@ -26,6 +33,7 @@ import AppKit
 struct TemplateOverviewView: View {
     @Environment(TemplateWorkspace.self) private var templates
     @Environment(ManuscriptStore.self) private var store
+    @Environment(AppStore.self) private var appStore
     @Environment(\.colorScheme) private var scheme
 
     let templateID: UUID
@@ -35,10 +43,24 @@ struct TemplateOverviewView: View {
     @State private var confirmingSave = false
     @State private var confirmingDelete = false
     @State private var confirmingRevert = false
+    @State private var confirmingPropose = false
+    @State private var confirmingLoadRemote = false
+    @State private var accountID: UUID?
+    @State private var remoteBusy = false
+    @State private var proposedURL: URL?
 
     private var template: JournalTemplate? { templates.template(templateID) }
     private var isDirty: Bool { templates.isDirty(templateID) }
     private var editedParts: Set<ProfilePart> { templates.editedParts(templateID) }
+    /// Another template already called this — what blocks Save.
+    private var nameHolder: JournalTemplate? { templates.nameHolder(templateID) }
+    private var publishing: TemplatePublishing { .shared }
+    private var published: TemplatePublishing.Status {
+        template.map { publishing.status(for: $0) } ?? .unknown
+    }
+    /// The GitHub accounts a proposal can go out under.
+    private var accounts: [BackendAccount] { appStore.backends.filter { $0.provider == .github } }
+    private var account: BackendAccount? { accounts.first { $0.id == accountID } }
 
     /// Journals in the open manuscript that follow this template — who a save
     /// actually reaches.  Their own copy is what they evaluate against, so a
@@ -66,6 +88,28 @@ struct TemplateOverviewView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .onAppear {
+            // The manuscript's account when it is a GitHub one, else the first.
+            let manuscripts = store.manuscript?.settings.activeBackendID
+            accountID = accounts.first { $0.id == manuscripts }?.id ?? accounts.first?.id
+        }
+        .task(id: template?.checksum) {
+            if let template { publishing.refresh(template) }
+        }
+        .confirmationDialog("Propose “\(template?.displayName ?? "")” to the shared repository?",
+                            isPresented: $confirmingPropose, titleVisibility: .visible) {
+            Button("Open Pull Request") { propose() }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Writes this template's files to a branch under \(account?.displayName ?? "the account") — in the repository if that account may push to it, in a fork of it otherwise — and opens a pull request for review. Nothing is merged by this.")
+        }
+        .confirmationDialog("Replace this draft with the published “\(template?.displayName ?? "")”?",
+                            isPresented: $confirmingLoadRemote, titleVisibility: .visible) {
+            Button("Load", role: .destructive) { loadRemote() }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Takes the shared repository's copy of every part into this draft. Save it afterwards to keep it in your library.")
+        }
         .alert("Save as a New Template", isPresented: $savingAsNew) {
             TextField("Name", text: $newName)
             Button("Save as New") {
@@ -108,9 +152,20 @@ struct TemplateOverviewView: View {
         // values, which reads as a settings sheet and sets a three-line
         // description ragged against the wrong edge.
         VStack(alignment: .leading, spacing: 10) {
-            field("Name", "The journal's name", Binding(
-                get: { template.name },
-                set: { value in templates.edit(templateID) { $0.name = value } }))
+            HStack(alignment: .bottom, spacing: 8) {
+                field("Name", "The journal's name", Binding(
+                    get: { template.name },
+                    set: { value in templates.edit(templateID) { $0.name = value } }))
+                if let holder = nameHolder {
+                    // Names are unique per type: the shared repository files
+                    // templates by name and type, and two under one label
+                    // would be two sets of rules nobody could tell apart.
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                        .padding(.bottom, 6)
+                        .help("“\(holder.displayName)” already has this name and type — Save is disabled until one of them is renamed.")
+                }
+            }
             field("Type", "Research Article, Research Brief…", Binding(
                 get: { template.articleType ?? "" },
                 set: { value in
@@ -222,36 +277,77 @@ struct TemplateOverviewView: View {
 
     // MARK: - Actions
 
+    /// Local and Remote, each with Save | Load — the shape a manuscript's
+    /// Overview has, because the question is the same: where does this copy
+    /// go, and where does it come from.
     @ViewBuilder
     private func actions(_ template: JournalTemplate) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 10) {
-                Button {
-                    confirmingSave = true
-                } label: {
-                    Label("Save", systemImage: "square.and.arrow.down")
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(!isDirty)
-                .help(isDirty
-                      ? "Overwrite this template in your library: same identity, next version"
-                      : "Nothing to save — this matches your library")
-
-                Button {
-                    newName = "\(template.name) copy"
+            HStack(spacing: 6) {
+                rowLabel("Local")
+                Button("Save") { confirmingSave = true }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(!isDirty || nameHolder != nil)
+                    .help(nameHolder != nil ? "Another template holds this name and type"
+                          : isDirty ? "Overwrite this template in your library: same identity, next version"
+                                    : "Nothing to save — this matches your library")
+                Button("Load") { confirmingRevert = true }
+                    .disabled(!isDirty)
+                    .help("Take your library's copy back, discarding the edits held here")
+                Text("(last saved \(template.updatedAt?.formatted(date: .abbreviated, time: .shortened) ?? "never"))")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                Spacer()
+                Button("Save as New…") {
+                    newName = JournalProfileLibrary.shared.copyName(for: template)
                     savingAsNew = true
-                } label: {
-                    Label("Save as New…", systemImage: "doc.on.doc")
                 }
                 .help("A separate template with its own identity, starting at version 1")
-
-                Button("Discard Changes") { confirmingRevert = true }
-                    .disabled(!isDirty)
-
-                Spacer()
-
                 Button(role: .destructive) { confirmingDelete = true } label: {
                     Label("Delete", systemImage: "trash").foregroundStyle(.red)
+                }
+            }
+            .controlSize(.small)
+
+            HStack(spacing: 6) {
+                rowLabel("Remote")
+                Button("Save") { confirmingPropose = true }
+                    .disabled(account == nil || isDirty || remoteBusy)
+                    .help(account == nil ? "Add a GitHub account in Settings → Accounts to propose templates"
+                          : isDirty ? "Save locally first — a proposal sends what your library holds"
+                                    : "Propose this template to the shared repository as a pull request")
+                Button("Load") { confirmingLoadRemote = true }
+                    .disabled(remoteBusy || !{ if case .differs = published { return true }; return published == .matches }())
+                    .help("Take the published copy into this draft")
+                if remoteBusy { ProgressView().controlSize(.small) }
+                Text(remoteCaption)
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(1)
+                if let warning = published.warning {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                        .help(warning)
+                }
+                if let url = TemplatePublishing.url(forSlug: template.slug) {
+                    Link(destination: url) { Image(systemName: "globe").font(.caption) }
+                        .help(url.absoluteString)
+                }
+                Spacer()
+                Picker("", selection: $accountID) {
+                    if accounts.isEmpty { Text("No GitHub account").tag(UUID?.none) }
+                    ForEach(accounts) { Text($0.displayName).tag(Optional($0.id)) }
+                }
+                .labelsHidden()
+                .frame(width: 170)
+                .help("The GitHub account a proposal goes out under — any of the accounts in Settings")
+            }
+            .controlSize(.small)
+            if let proposedURL {
+                Link(destination: proposedURL) {
+                    Label("Pull request opened — \(proposedURL.absoluteString)", systemImage: "arrow.triangle.pull")
+                        .font(.caption)
                 }
             }
             if !usedBy.isEmpty {
@@ -260,6 +356,82 @@ struct TemplateOverviewView: View {
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
+        }
+    }
+
+    private func rowLabel(_ text: String) -> some View {
+        Text(text)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .frame(width: 56, alignment: .leading)
+    }
+
+    private var remoteCaption: String {
+        switch published {
+        case .unknown:          return "(not checked)"
+        case .checking:         return "(checking…)"
+        case .absent:           return "(not published)"
+        case .matches:          return "(published copy matches)"
+        case .differs(let p):   return "(published copy differs: \(ProfilePart.displayOrder.filter(p.contains).map(\.label).joined(separator: ", ")))"
+        case .differentIdentity: return "(another template is published under this name)"
+        }
+    }
+
+    // MARK: - The shared repository
+
+    private func propose() {
+        guard let template, let account else { return }
+        guard let token = KeychainService.secret(for: account.id), !token.isEmpty else {
+            store.showBanner(.error, "No personal access token stored for “\(account.displayName)”. Add one in Settings → Accounts.")
+            return
+        }
+        remoteBusy = true
+        Task {
+            do {
+                let login = account.username.isEmpty
+                    ? try await GitHubBackendService().authenticatedLogin(token: token)
+                    : account.username
+                let url = try await publishing.propose(template, token: token, login: login)
+                proposedURL = url
+                publishing.invalidate(template.id)
+                store.showBanner(.success, "Pull request opened for “\(template.displayName)”.")
+                NSWorkspace.shared.open(url)
+            } catch {
+                store.showBanner(.error, "Couldn't propose the template: \(error.localizedDescription)")
+            }
+            remoteBusy = false
+        }
+    }
+
+    private func loadRemote() {
+        guard let template else { return }
+        remoteBusy = true
+        Task {
+            do {
+                guard let copy = try await publishing.published(slug: template.slug, token: nil) else {
+                    store.showBanner(.error, "“\(template.displayName)” is not published.")
+                    remoteBusy = false
+                    return
+                }
+                guard copy.id == template.id else {
+                    store.showBanner(.error, "A different template is published under this name and type — rename this one first.")
+                    remoteBusy = false
+                    return
+                }
+                templates.edit(templateID) { draft in
+                    draft.requirements = copy.requirements
+                    draft.checks = copy.checks
+                    draft.structure = copy.structure
+                    draft.export = copy.export
+                    draft.publisher = copy.publisher ?? draft.publisher
+                    draft.country = copy.country ?? draft.country
+                }
+                publishing.invalidate(template.id)
+                store.showBanner(.success, "Loaded the published “\(template.displayName)” — Save to keep it.")
+            } catch {
+                store.showBanner(.error, "Couldn't load the published template: \(error.localizedDescription)")
+            }
+            remoteBusy = false
         }
     }
 

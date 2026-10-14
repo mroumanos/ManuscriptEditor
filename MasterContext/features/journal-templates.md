@@ -344,25 +344,42 @@ every template change also a decision about somebody's paper, and left "which
 manuscript is the good one" a real question. The pane says where editing
 happens and links to it.
 
-### 3.7 Sharing: a template travels with the manuscript
+### 3.7 Sharing: a template travels with the manuscript, and has a shared home
 
-**There is no export file and no contribution path.** Both were built — one
-file per template, resolved by GUID on import; a folder export for a pull
-request against `ManuscriptEditor/JournalProfiles/` — and then taken back out,
-because a feature nobody can explain is worse than one that isn't there.
+A manuscript carries **the whole of every template it uses** — the four
+files under `journals/<slug>/`, written on every profile edit — and each
+journal names its template by **GUID** (`Journal.profileID`). So a
+collaborator opens the manuscript with the rules the author used, whatever
+their own library holds.
 
-What remains is the thing that was always true and is worth stating plainly,
-in the template's own Overview:
+Templates also have a shared home: the app's own repository, under
+`ManuscriptEditor/JournalProfiles/<slug>/` — the bundled corpus, reviewed on
+GitHub, shipped with every release (`TemplatePublishing`, Oct 2026).
 
-> This template travels with every manuscript that uses it. Each journal
-> writes its rules into the manuscript on every save — modified or not — so
-> anyone you publish or share the manuscript with opens it with the rules you
-> used.
-
-That covers collaboration and publication. A public repository of templates is
-still the natural home for sharing between people who don't share a
-manuscript; when it exists, a single-file export is the unit it would trade
-in, and this is the section to rewrite.
+- **The check.** A journal's copy is compared against the published one by
+  slug (the folder a name and type derive — which is why a name and type are
+  unique in a library), then by GUID, then part by part. The outcome is one
+  warning icon beside the template's name on Summary, Structure, Tests and
+  Export, and on the template's own panes: *not published*, *differs:
+  Tests, Export*, or *a different template is published under this name*. A
+  check that cannot reach GitHub says nothing — no warning beats a false
+  one. Reads need no token (the repository is public); a changed copy is
+  checked again at once, an unchanged one every ten minutes.
+- **Remote Save = a pull request, never a merge.** The template's Overview
+  has the rows a manuscript's has — **Local: Save | Load**, **Remote: Save |
+  Load** — with a picker for which of the app's GitHub accounts a proposal
+  goes out under. Remote Save writes the template's files to a branch
+  (`template/<slug>`) in the repository when the token may push to it, in a
+  fork otherwise, and opens a pull request; the review decides what every
+  install seeds from. Remote Load takes the published copy into the draft
+  (same GUID only — a different template under the name must be renamed
+  first). Remote Save needs the draft saved locally first: a proposal sends
+  what your library holds.
+- **One row on every part page.** Summary, Structure, Tests and Export share
+  the same template row: name — type, the instructions link, the warning
+  icon, and **Manage** (the template's tab), **Add** (a copy, "<name> -
+  copy", opened for editing — a template of your own that starts from this
+  one) and **Load** (this part, from the template).
 
 ### 3.8 What it cost, and where it lives
 

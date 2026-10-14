@@ -782,11 +782,22 @@ struct JournalProfile: Codable, Identifiable, Sendable, Equatable {
     // MARK: Reading and writing a folder
 
     static func read(from folder: URL, origin: Origin, originURL: String? = nil) -> JournalProfile? {
+        var files: [ProfilePart: Data] = [:]
+        for part in ProfilePart.allCases {
+            if let data = try? Data(contentsOf: folder.appendingPathComponent(part.fileName)) {
+                files[part] = data
+            }
+        }
+        return decode(files: files, origin: origin, originURL: originURL)
+    }
+
+    /// A profile from its files' bytes — a folder on disk, or the same four
+    /// files fetched from the shared repository.
+    static func decode(files: [ProfilePart: Data], origin: Origin, originURL: String? = nil) -> JournalProfile? {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         func load<T: Decodable>(_ part: ProfilePart, as type: T.Type) -> T? {
-            guard let data = try? Data(contentsOf: folder.appendingPathComponent(part.fileName))
-            else { return nil }
+            guard let data = files[part] else { return nil }
             return try? decoder.decode(type, from: data)
         }
         // Requirements carries the identity, so it is the one file a profile
@@ -821,27 +832,34 @@ struct JournalProfile: Codable, Identifiable, Sendable, Equatable {
     /// reads as "differs from your library".
     @discardableResult
     func write(to folder: URL) -> Bool {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        encoder.dateEncodingStrategy = .iso8601
         do {
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-            try encoder.encode(requirementsDocForWriting)
-                .write(to: folder.appendingPathComponent(ProfilePart.requirements.fileName), options: .atomic)
-            try encoder.encode(checksDoc)
-                .write(to: folder.appendingPathComponent(ProfilePart.checks.fileName), options: .atomic)
-            try encoder.encode(structureDoc)
-                .write(to: folder.appendingPathComponent(ProfilePart.structure.fileName), options: .atomic)
-            let exportURL = folder.appendingPathComponent(ProfilePart.export.fileName)
-            if let export {
-                try encoder.encode(export).write(to: exportURL, options: .atomic)
-            } else {
-                try? FileManager.default.removeItem(at: exportURL)
+            let files = try fileData()
+            for (part, data) in files {
+                try data.write(to: folder.appendingPathComponent(part.fileName), options: .atomic)
+            }
+            if files[.export] == nil {
+                try? FileManager.default.removeItem(at: folder.appendingPathComponent(ProfilePart.export.fileName))
             }
             return true
         } catch {
             return false
         }
+    }
+
+    /// The profile's files as the bytes `write(to:)` puts on disk — and what
+    /// a publish sends, so the two can never differ.
+    func fileData() throws -> [ProfilePart: Data] {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        encoder.dateEncodingStrategy = .iso8601
+        var files: [ProfilePart: Data] = [
+            .requirements: try encoder.encode(requirementsDocForWriting),
+            .checks: try encoder.encode(checksDoc),
+            .structure: try encoder.encode(structureDoc),
+        ]
+        if let export { files[.export] = try encoder.encode(export) }
+        return files
     }
 
     // MARK: Bundled defaults

@@ -32,6 +32,14 @@ final class JournalProfileLibrary {
     // MARK: - Location
 
     var root: URL {
+        // A harness points the library at a scratch folder, so it can save,
+        // clone and delete without touching the user's own templates.
+        if let override = ProcessInfo.processInfo.environment["MANUSCRIPT_EDITOR_LIBRARY_ROOT"],
+           !override.isEmpty {
+            let dir = URL(fileURLWithPath: override, isDirectory: true)
+            try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            return dir
+        }
         let support = FileManager.default
             .urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
         let dir = support
@@ -100,9 +108,32 @@ final class JournalProfileLibrary {
         return profiles.values.first { $0.slug == wanted }
     }
 
+    // MARK: - Names
+
+    /// The library entry, other than `excluding`, that already answers to
+    /// this name and type.  Two templates called "JAMA — Research Letter"
+    /// are two sets of rules behind one label, and the shared repository
+    /// files them by that label; so a name and type belong to one GUID.
+    func holder(ofName name: String, articleType: String?, excluding: UUID? = nil) -> JournalProfile? {
+        let wanted = JournalProfile.slug(name: name, articleType: articleType)
+        guard !wanted.isEmpty else { return nil }
+        return profiles.values.first { $0.id != excluding && $0.slug == wanted }
+    }
+
+    /// "<name> - copy", or "- copy 2", "- copy 3"… — the first free one.
+    func copyName(for profile: JournalProfile) -> String {
+        var attempt = 1
+        while true {
+            let candidate = attempt == 1 ? "\(profile.name) - copy" : "\(profile.name) - copy \(attempt)"
+            if holder(ofName: candidate, articleType: profile.articleType) == nil { return candidate }
+            attempt += 1
+        }
+    }
+
     // MARK: - Saving
 
     /// Writes a profile into the library, replacing whatever shared its GUID.
+    /// Refused when another template already holds its name and type.
     ///
     /// An **overwrite** keeps the GUID and takes the next version; the file
     /// records that version, when it was saved, and each part's checksum.
@@ -111,6 +142,8 @@ final class JournalProfileLibrary {
     /// stay different questions.
     @discardableResult
     func save(_ profile: JournalProfile) -> Bool {
+        guard holder(ofName: profile.name, articleType: profile.articleType, excluding: profile.id) == nil
+        else { return false }
         var stored = profile
         stored.origin = .library
         stored.updatedAt = Date()
@@ -144,6 +177,7 @@ final class JournalProfileLibrary {
         var copy = profile
         copy.id = UUID()
         copy.name = name
+        copy.partChecksums = nil
         copy.lineage = [profile.id] + profile.lineage
         copy.origin = .library
         copy.version = 1

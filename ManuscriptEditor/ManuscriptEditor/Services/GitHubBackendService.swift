@@ -120,6 +120,80 @@ struct GitHubBackendService {
         let data: Data
     }
 
+    // MARK: - Any repository (templates are published to the app's own)
+
+    /// A file's bytes at `path` on `ref`, or nil when there is none.
+    func fileContent(owner: String, repo: String, path: String, ref: String,
+                     token: String?) async throws -> Data? {
+        do {
+            let json = try await rawRequest(
+                "GET", url: "https://api.github.com/repos/\(owner)/\(repo)/contents/\(path)?ref=\(ref)",
+                token: token, body: nil)
+            guard let b64 = json["content"] as? String,
+                  let data = Data(base64Encoded: b64, options: .ignoreUnknownCharacters)
+            else { throw GitHubBackendError.badResponse("\(path) not decodable") }
+            return data
+        } catch GitHubBackendError.http(let code, _) where code == 404 {
+            return nil
+        }
+    }
+
+    /// Whether the token may push to the repository — the difference between
+    /// a branch there and a fork of it.
+    func canPush(owner: String, repo: String, token: String) async throws -> Bool {
+        let json = try await rawRequest("GET", url: "https://api.github.com/repos/\(owner)/\(repo)",
+                                        token: token, body: nil)
+        return ((json["permissions"] as? [String: Any])?["push"] as? Bool) ?? false
+    }
+
+    /// Forks the repository under the token's account; returns "login/name".
+    /// GitHub makes the fork asynchronously, so the caller waits for it.
+    func fork(owner: String, repo: String, token: String) async throws -> String {
+        let json = try await rawRequest("POST", url: "https://api.github.com/repos/\(owner)/\(repo)/forks",
+                                        token: token, body: ["default_branch_only": true])
+        guard let name = json["full_name"] as? String else {
+            throw GitHubBackendError.badResponse("fork returned no name")
+        }
+        return name
+    }
+
+    /// The commit a branch points at.
+    func headSHA(owner: String, repo: String, branch: String, token: String?) async throws -> String {
+        let json = try await rawRequest(
+            "GET", url: "https://api.github.com/repos/\(owner)/\(repo)/git/ref/heads/\(branch)",
+            token: token, body: nil)
+        guard let sha = (json["object"] as? [String: Any])?["sha"] as? String else {
+            throw GitHubBackendError.badResponse("ref missing object sha")
+        }
+        return sha
+    }
+
+    /// A new branch at `sha`.  One that already exists (a second proposal of
+    /// the same template) is reused.
+    func createBranch(owner: String, repo: String, name: String, sha: String, token: String) async throws {
+        do {
+            _ = try await rawRequest("POST", url: "https://api.github.com/repos/\(owner)/\(repo)/git/refs",
+                                     token: token, body: ["ref": "refs/heads/\(name)", "sha": sha])
+        } catch GitHubBackendError.http(let code, _) where code == 422 {
+            _ = try await rawRequest("PATCH", url: "https://api.github.com/repos/\(owner)/\(repo)/git/refs/heads/\(name)",
+                                     token: token, body: ["sha": sha, "force": true])
+        }
+    }
+
+    /// Opens a pull request; returns its web URL.  `head` is "login:branch"
+    /// for a fork, the bare branch name otherwise.
+    func createPullRequest(owner: String, repo: String, title: String, body: String,
+                           head: String, base: String, token: String) async throws -> URL {
+        let json = try await rawRequest("POST", url: "https://api.github.com/repos/\(owner)/\(repo)/pulls",
+                                        token: token,
+                                        body: ["title": title, "body": body, "head": head, "base": base,
+                                               "maintainer_can_modify": true])
+        guard let html = json["html_url"] as? String, let url = URL(string: html) else {
+            throw GitHubBackendError.badResponse("pull request returned no url")
+        }
+        return url
+    }
+
     // MARK: - Repository state
 
     /// What is at `owner/repo` for this token.
@@ -366,11 +440,13 @@ struct GitHubBackendService {
     }
 
     @discardableResult
-    private func rawRequest(_ method: String, url: String, token: String,
+    private func rawRequest(_ method: String, url: String, token: String?,
                             body: [String: Any]?) async throws -> [String: Any] {
         var req = URLRequest(url: URL(string: url)!)
         req.httpMethod = method
-        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        // A public repository answers reads without a token; one lifts the
+        // rate limit and reaches private ones.
+        if let token { req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
         req.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         req.setValue("2022-11-28", forHTTPHeaderField: "X-GitHub-Api-Version")
         if let body {

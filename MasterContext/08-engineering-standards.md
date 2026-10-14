@@ -284,6 +284,23 @@ xcodebuild -scheme ManuscriptEditor -destination 'platform=macOS' build
     function (`ManuscriptStore.remoteStatus`) so
     `scripts/harness/remote_status.sh` can hold it to its word.
 
+40. **A template proposal never merges, and a check that can't reach
+    GitHub never warns.** `TemplatePublishing.propose` writes to a branch
+    (or a fork) and opens a pull request — the corpus every install seeds
+    from changes only by review. The published-copy check compares the
+    manuscript's own copy by slug, then GUID, then part; a network failure
+    is `.unknown` and shows nothing, because a false "not published" on
+    every page would teach people to ignore the icon. Reads send no token
+    (public repository); only a proposal reads the chosen account's token.
+    Harness: `scripts/harness/template_divergence.sh`.
+
+41. **A template's name and type are unique in a library.** The shared
+    repository files templates by slug (name + type), so two templates under
+    one label would be two sets of rules nobody could tell apart.
+    `JournalProfileLibrary.save` refuses a taken name; copies are
+    "<name> - copy", "- copy 2"…  A harness points the library at a scratch
+    folder with `MANUSCRIPT_EDITOR_LIBRARY_ROOT`.
+
 ## Generated journal profiles
 
 - The JAMA Network and Health Affairs Scholar profiles

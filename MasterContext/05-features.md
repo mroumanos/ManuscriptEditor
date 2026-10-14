@@ -535,7 +535,21 @@ propagate by explicit, individual fast-forwards.
   Points as structure entries with boilerplate, and its checklists,
   registration and permission requirements as manual tests. The profiles
   are generated from per-journal specs (`scripts/corpus/`); the template
-  lists group a venue's formats under its name. **Health Affairs Scholar**
+  lists group a venue's formats under its name.
+- AC (implemented, Oct 2026): **Template management.** Summary, Structure,
+  Tests and Export show the same template row — name — type, instructions
+  link, one warning icon, **Manage** / **Add** (a "<name> - copy" opened
+  for editing) / **Load**. A template's **name and type are unique** in a
+  library (Save refuses a taken one and says who holds it). The template's
+  Overview has **Local: Save | Load** and **Remote: Save | Load** with a
+  GitHub-account picker: Remote Save proposes the template to the shared
+  repository as a **pull request** (branch, or fork when the account can't
+  push) — never a merge; Remote Load takes the published copy. The
+  manuscript's copy of every template is checked against the published one
+  by slug and GUID, part by part, and the warning icon says *not
+  published*, *differs: …* or *another template under this name*; an
+  unreachable GitHub says nothing. See
+  [features/journal-templates.md §3.7](features/journal-templates.md). **Health Affairs Scholar**
   (Oct 2026) ships the same way — Research Article, Review Article, Policy
   Inquiry, Brief Report, Commentary, Research Letter, Letter to the Editor,
   Non-standard Article — with its key-takeaway bullets as a structure entry

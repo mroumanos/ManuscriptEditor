@@ -355,6 +355,13 @@ struct TemplatePaneHeader: View {
                             .font(.caption)
                             .foregroundStyle(TemplateStyle.accent(scheme))
                             .lineLimit(1)
+                        if let warning = TemplatePublishing.shared.status(for: template).warning {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.caption)
+                                .foregroundStyle(.orange)
+                                .help(warning)
+                                .accessibilityLabel(warning)
+                        }
                     }
                 }
                 Text(subtitle)

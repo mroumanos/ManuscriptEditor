@@ -28,6 +28,7 @@ import SwiftUI
 /// copy back.
 struct JournalPartHeader: View {
     @Environment(ManuscriptStore.self) private var store
+    @Environment(TemplateWorkspace.self) private var templates
     @Environment(\.colorScheme) private var scheme
 
     let journal: Journal
@@ -45,31 +46,74 @@ struct JournalPartHeader: View {
         journal.profileID.flatMap { JournalProfileLibrary.shared.profile(id: $0) }
     }
 
+    /// The journal's own instructions page, else its template's.
+    private var instructionsURL: URL? {
+        let own = journal.sourceRequirements?.url ?? ""
+        let fallback = template?.requirements.url ?? journal.submissionURL
+        return URL(string: own.isEmpty ? fallback : own)
+    }
+
+    /// Everything wrong with this journal's copy, for one icon: this part
+    /// moved away from the template it came from, and/or the copy the
+    /// manuscript carries is not what the shared repository publishes.
+    private var warnings: [String] {
+        var out: [String] = []
+        if edited {
+            out.append("This \(part.label.lowercased()) differs from the template it came from — Load takes the template's copy.")
+        }
+        if let text = TemplatePublishing.shared.status(for: journal.profile).warning {
+            out.append(text)
+        }
+        return out
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
+            Text(part.label).font(.headline)
+            // The same row on Summary, Structure, Tests and Export: the
+            // template this journal follows, its instructions, one warning
+            // icon for whatever is wrong, and the three ways in.
             HStack(spacing: 8) {
-                Text(part.label).font(.headline)
-                if edited {
-                    Image(systemName: "pencil.circle.fill")
-                        .foregroundStyle(.orange)
+                Image(systemName: TemplateStyle.symbol)
+                    .font(.caption)
+                    .foregroundStyle(TemplateStyle.accent(scheme))
+                Text(journal.displayName)
+                    .font(.caption.weight(.medium))
+                    .lineLimit(1)
+                if let url = instructionsURL {
+                    Link(destination: url) {
+                        Image(systemName: "globe").font(.caption)
+                    }
+                    .help(url.absoluteString)
+                }
+                if !warnings.isEmpty {
+                    Image(systemName: "exclamationmark.triangle.fill")
                         .font(.caption)
-                        .help("Differs from the template it came from — its checksum for this part doesn't match")
+                        .foregroundStyle(.orange)
+                        .help(warnings.joined(separator: "\n\n"))
+                        .accessibilityLabel(warnings.joined(separator: " "))
                 }
                 Spacer()
                 if let template {
-                    Button {
+                    Button("Manage") {
                         NotificationCenter.default.post(
                             name: .manageTemplate, object: nil,
                             userInfo: ["template": template.id])
-                    } label: {
-                        Label("Manage \(template.displayName)", systemImage: TemplateStyle.symbol)
-                            .font(.caption)
                     }
-                    .buttonStyle(.link)
-                    .foregroundStyle(TemplateStyle.accent(scheme))
-                    .help("Open the template itself, in its own tab")
+                    .help("Open “\(template.displayName)” in its own tab — where a template is edited")
+                    Button("Add") {
+                        // A copy of the template, opened for editing: the
+                        // way to a template of your own that starts from
+                        // this one, without touching what others follow.
+                        if let made = templates.openCopy(of: template.id) {
+                            NotificationCenter.default.post(
+                                name: .manageTemplate, object: nil, userInfo: ["template": made])
+                        } else {
+                            store.showBanner(.error, "Couldn't copy “\(template.displayName)”.")
+                        }
+                    }
+                    .help("A copy of “\(template.displayName)”, named “\(JournalProfileLibrary.shared.copyName(for: template))”, opened for editing")
                     Button("Load") { loading = true }
-                        .controlSize(.small)
                         .help("Replace this journal's \(part.label.lowercased()) with the template's copy")
                 } else {
                     Text("Not linked to a template")
@@ -78,6 +122,7 @@ struct JournalPartHeader: View {
                         .help("This journal's configuration exists only here — link it in Tests.")
                 }
             }
+            .controlSize(.small)
             Text(subtitle)
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -86,6 +131,11 @@ struct JournalPartHeader: View {
         .padding(.horizontal, padded ? 20 : 0)
         .padding(.vertical, padded ? 10 : 0)
         .frame(maxWidth: .infinity, alignment: .leading)
+        // The manuscript's own copy against the shared repository's — a
+        // changed copy is checked again, an unchanged one every ten minutes.
+        .task(id: journal.profile.checksum) {
+            TemplatePublishing.shared.refresh(journal.profile)
+        }
         .confirmationDialog("Replace this journal's \(part.label.lowercased()) with the template's?",
                             isPresented: $loading, titleVisibility: .visible) {
             Button("Load", role: .destructive) {
@@ -123,16 +173,6 @@ struct JournalSummaryView: View {
                     edited: store.partDiffersFromTemplate(.requirements, journal: journal))
 
                 HStack(spacing: 8) {
-                    if !editing {
-                        let link = requirements.url.isEmpty ? journal.submissionURL : requirements.url
-                        if !link.isEmpty, let url = URL(string: link) {
-                            Link(destination: url) {
-                                Label("Author instructions", systemImage: "arrow.up.right.square")
-                                    .font(.caption)
-                            }
-                            .help(link)
-                        }
-                    }
                     Spacer()
                     Button(editing ? "Save" : "Edit") {
                         if editing {
