@@ -535,7 +535,11 @@ propagate by explicit, individual fast-forwards.
   Points as structure entries with boilerplate, and its checklists,
   registration and permission requirements as manual tests. The profiles
   are generated from per-journal specs (`scripts/corpus/`); the template
-  lists group a venue's formats under its name.
+  lists group a venue's formats under its name. **Health Affairs Scholar**
+  (Oct 2026) ships the same way — Research Article, Review Article, Policy
+  Inquiry, Brief Report, Commentary, Research Letter, Letter to the Editor,
+  Non-standard Article — with its key-takeaway bullets as a structure entry
+  and its keyword range as a test.
   **Every journal ships a real profile** (Aug 2026): all 17 presets have a
   hand-written `JournalProfiles/<slug>.json` whose **source requirements**
   are a distilled summary plus a link to that journal's author-instruction

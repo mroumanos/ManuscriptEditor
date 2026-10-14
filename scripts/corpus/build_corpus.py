@@ -1,18 +1,23 @@
 #!/usr/bin/env python3
-"""Builds the JAMA Network journal profiles from the specs in `jama/`.
+"""Builds generated journal profiles from the specs under `scripts/corpus/`.
 
-One spec file per journal (JAMA, JAMA Cardiology, …), each listing the
-journal's article types with the limits its Instructions for Authors state —
-and, for every number, the page's own sentence in `quotes`.  This script turns
-each article type into one profile folder under
-`ManuscriptEditor/JournalProfiles/<slug>/` with the three files the app reads
-(`requirements.json`, `checks.json`, `structure.json`).
+One folder per publisher network (`jama/`, `health-affairs-scholar/`), one
+spec file per journal, each listing the journal's article types with the
+limits its Instructions for Authors state — and, for every number, the
+page's own sentence in `quotes`.  This script turns each article type into
+one profile folder under `ManuscriptEditor/JournalProfiles/<slug>/` with the
+three files the app reads (`requirements.json`, `checks.json`,
+`structure.json`).
+
+What a network shares — publisher, abstract layouts, the key-points box,
+formatting rules, export tests — lives in `NETWORKS` below, keyed by the
+folder name; a spec may name another network with `"network"`.
 
 The specs are the source; the profiles are what ships.  Edit a spec and
 re-run — never hand-edit a generated profile, the next run would undo it.
 
-    scripts/corpus/build_jama.py            # write every profile
-    scripts/corpus/build_jama.py --check    # exit 1 if a profile is stale
+    scripts/corpus/build_corpus.py            # write every profile
+    scripts/corpus/build_corpus.py --check    # exit 1 if a profile is stale
 
 A spec is written two ways: by hand, in this script's terms (an abstract
 layout by name, sections as titles), or as extracted from a page (headings
@@ -34,14 +39,10 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
-SPECS = HERE / "jama"
 OUT = ROOT / "ManuscriptEditor" / "JournalProfiles"
 STAMP = "2026-10-13T12:00:00Z"
 
-PUBLISHER = "American Medical Association"
-COUNTRY = "United States"
-
-# ── Network-wide rules (the same on every JAMA Network instructions page) ──
+# ── The JAMA Network's shared rules (the same on every instructions page) ──
 
 # The needles a structured abstract is checked for (CONTAINS, case-insensitive);
 # a list inside the list is "either of these".
@@ -69,12 +70,11 @@ ABSTRACT_LABELS = {
     "systematicReview": ["Importance", "Objective", "Evidence Review", "Findings", "Conclusions and Relevance"],
     "narrativeReview": ["Importance", "Observations", "Conclusions and Relevance"],
 }
-KEY_POINTS_WORDS = 100
 IMRAD = ["Introduction", "Methods", "Results", "Discussion"]
 
-COVER_LETTER = ("complete contact information for the corresponding author and whether the authors have "
-                "published, posted, or submitted any related papers from the same study")
-FORMAT_BULLETS = [
+JAMA_COVER_LETTER = ("complete contact information for the corresponding author and whether the authors have "
+                     "published, posted, or submitted any related papers from the same study")
+JAMA_FORMAT_BULLETS = [
     "format: submit a Word document (not PDF); 10-, 11-, or 12-point font, double-spaced, right margins unjustified (ragged).",
     "format: title page, abstract, text, references, figure legends and tables each start on a new page, numbered consecutively from the title page.",
     "format: title page carries the title, every author's full name, highest academic degrees and affiliations, the corresponding author's complete contact information, and the manuscript word count (not including title, abstract, acknowledgment, references, tables, and figure legends).",
@@ -83,12 +83,9 @@ FORMAT_BULLETS = [
     "format: each figure a separate file of at most 1 MB; photographs and illustrations at least 350 ppi, line drawings at least 600 ppi; no pie charts, 3-D graphs or stacked bar charts; avoid more than 4 panels.",
     "format: individual files should stay under 500 kB and must not exceed 1 MB; the whole submission under 5 MB (video excluded).",
 ]
-ACKNOWLEDGMENT_BULLET = ("components: Acknowledgment section — author contributions; a data access statement by 1 or 2 named "
+JAMA_ACKNOWLEDGMENT = ("components: Acknowledgment section — author contributions; a data access statement by 1 or 2 named "
                          "authors who had full access to all the data; conflict of interest disclosures for every author; "
                          "funding and the funder's role; any AI tool used, with name, version, manufacturer and how it was used.")
-METHODS_NOTE = ("State ethics approval (or its waiver) and informed consent; name the statistical software with its version "
-                "and manufacturer at the end.")
-DISCUSSION_NOTE = "Place the results in context with the published literature and address the study's limitations."
 DISCLAIMER = "extra: this summary is the app's distillation — open the author instructions above to confirm against the journal's current text."
 
 # A requirement the page states → the manual test it becomes.  Matched by
@@ -113,6 +110,75 @@ REQUIREMENT_ALIASES = {
 # Page phrases that restate a limit the generator already tests — not a test.
 REQUIREMENT_RESTATEMENTS = ("structured abstract", "3-part structured abstract", "a list of 3 key points",
                             "no abstract", "no key points", "key points", "study type", "title limited")
+
+NETWORKS = {
+    "jama": {
+        "publisher": "American Medical Association",
+        "country": "United States",
+        "abstractHeadings": ABSTRACT_HEADINGS,
+        "abstractLabels": ABSTRACT_LABELS,
+        # The venue's summary box: a section every type that asks for it
+        # gets, with its checks.
+        "keyPoints": {
+            "title": "Key Points",
+            "words": 100,
+            "parts": ["Question", "Findings", "Meaning"],
+            "formatNote": "Three labelled parts before the abstract, 100 words or fewer in all: Question (1 sentence), Findings (1–2 sentences — the design and primary outcomes, significance stated without statistical test results), Meaning (1 sentence).",
+            "note": "The venue's structured summary of the study, read before the abstract.",
+            "boilerplate": "Question: \nFindings: \nMeaning: ",
+            "bullet": "components: Key Points — Question (1 sentence), Findings (1–2 sentences), Meaning (1 sentence) — placed before the abstract",
+        },
+        "sectionNotes": {
+            "Methods": "State ethics approval (or its waiver) and informed consent; name the statistical software with its version and manufacturer at the end.",
+            "Discussion": "Place the results in context with the published literature and address the study's limitations.",
+        },
+        "coverLetter": JAMA_COVER_LETTER,
+        "formatBullets": JAMA_FORMAT_BULLETS,
+        "acknowledgmentBullet": JAMA_ACKNOWLEDGMENT,
+        "acknowledgmentCheck": ("Acknowledgment complete: contributions, data access statement, disclosures, funding and its role", None),
+        "patientPermission": "The JAMA Network Patient Permission form, for any identifiable patient.",
+        "titleNote": "Including spaces. Research reports and major articles 100; shorter article types 60.",
+        "shortTitleChars": 60,
+        # Export tests the instructions justify.
+        "exportChecks": [
+            ("Export font 10–12 pt", [("FONT_SIZE", ">=", 10.0), ("FONT_SIZE", "<=", 12.0)]),
+            ("Export double-spaced", [("LINE_SPACING", ">=", 2.0)]),
+        ],
+    },
+    "health-affairs-scholar": {
+        "publisher": "Project HOPE / Oxford University Press",
+        "country": "United States",
+        "abstractHeadings": {},
+        "abstractLabels": {},
+        "keyPoints": {
+            "title": "Key Takeaways",
+            "words": None,
+            "parts": [],
+            "formatNote": "1 to 3 key-takeaway bullets, each a sentence a policymaker could act on.",
+            "note": "The venue's bulleted summary, submitted with the abstract.",
+            "boilerplate": "• \n• \n• ",
+            "bullet": "components: 1–3 key-takeaway bullets",
+            "manual": ("1–3 key-takeaway bullets supplied", "Each a sentence; the journal publishes them with the abstract."),
+        },
+        "sectionNotes": {},
+        "coverLetter": ("an explanation of how the submission differs from any related preprint, dissertation or "
+                        "paper, any use of AI tools, and any reviewers to exclude with a brief reason"),
+        "formatBullets": [
+            "format: titles up to 100 characters including spaces.",
+            "format: 1 to 15 keywords.",
+            "format: related published papers are cited as endnotes; the journal's own page gives the reference style — confirm there.",
+            "format: every author's conflicts of interest are declared on the cover page; a signed ICMJE disclosure form for each author by the latest revision.",
+            "format: the Methods state ethics approval (or that it was not required) and written informed consent; identifying information is anonymised.",
+        ],
+        "acknowledgmentBullet": ("components: disclosures — a concise summary of every author's declared conflicts in the manuscript; "
+                                 "any AI use disclosed in the Methods or Acknowledgements; data and code sources cited in the reference list."),
+        "acknowledgmentCheck": ("Conflicts summarised in the manuscript; a signed ICMJE form for every author", "Every author declares on the cover page at submission; the forms by the latest revision — one per author even with nothing to disclose."),
+        "patientPermission": "Written informed consent from every participant; identifying details removed.",
+        "titleNote": "Including spaces.",
+        "shortTitleChars": 100,
+        "exportChecks": [],
+    },
+}
 
 # Page names for a type that fold into the profile's name.
 TYPE_RENAMES = {
@@ -262,7 +328,7 @@ def cover_letter(j):
     return "recommended" if "recommend" in text.lower() else "required"
 
 
-def normalize(t):
+def normalize(net, t):
     t = dict(t)
     t["name"] = TYPE_RENAMES.get(t["name"], t["name"])
     t["abstractHeadings"] = abstract_layout(t)
@@ -279,9 +345,9 @@ def normalize(t):
         t["figuresMax"] = None      # the combined limit already says it
     t["description"] = unquote(t.get("description"))
     if t.get("titleChars") is None:
-        # "100 characters for research reports and major articles; 60 for
-        # shorter article types such as opinion articles and Letters."
-        t["titleChars"] = 60 if t.get("abstract") == "none" else 100
+        # JAMA: "100 characters for research reports and major articles; 60
+        # for shorter article types such as opinion articles and Letters."
+        t["titleChars"] = net["shortTitleChars"] if t.get("abstract") == "none" else 100
 
     sections = t.get("sections")
     if sections == "imrad":
@@ -349,17 +415,18 @@ def fmt(n):
     return f"{n:,}"
 
 
-def layout_text(key):
-    return "; ".join(ABSTRACT_LABELS[key]) if key in ABSTRACT_LABELS else "; ".join(key)
+def layout_text(net, key):
+    labels = net["abstractLabels"]
+    return "; ".join(labels[key]) if key in labels else "; ".join(key)
 
 
-def heading_rules(key):
+def heading_rules(net, key):
     """One ALL rule over the headings a structured abstract must carry, plus an
     ANY rule for each heading the venue words two ways."""
-    headings = ABSTRACT_HEADINGS[key] if key in ABSTRACT_HEADINGS else key
+    headings = net["abstractHeadings"].get(key, key)
     rules = [rule("Structured abstract headings",
                   [cond("CONTAINS", [scope("abstract")], text=h) for h in headings if isinstance(h, str)],
-                  note=layout_text(key))]
+                  note=layout_text(net, key))]
     for alternatives in (h for h in headings if isinstance(h, list)):
         rules.append(rule("Abstract names the " + " or ".join(a.lower() for a in alternatives),
                           [cond("CONTAINS", [scope("abstract")], text=a) for a in alternatives],
@@ -367,8 +434,9 @@ def heading_rules(key):
     return rules
 
 
-def build_checks(j, t):
+def build_checks(net, j, t):
     checks = []
+    kp = net["keyPoints"]
     words = t.get("words")
     if words:
         note = "Not including abstract, tables, figures, acknowledgments, references, and online-only material."
@@ -378,7 +446,7 @@ def build_checks(j, t):
         elif wn and wn.lower().startswith("not including"):
             note = wn[0].upper() + wn[1:].rstrip(".") + "."
         if t.get("keyPoints"):
-            note += " Counts every active section, Key Points included; the venue counts those separately."
+            note += f" Counts every active section, {kp['title']} included; the venue counts those separately."
         name = f"Body ≤ {fmt(words)} words" + (" (recommended)" if t.get("wordsIsRecommended") else "")
         checks.append(rule(name, [cond("LENGTH_WORDS", [scope("body")], "<=", words)], note=note))
 
@@ -390,15 +458,24 @@ def build_checks(j, t):
         checks.append(rule(f"Abstract ≤ {t['abstractWords']} words",
                            [cond("LENGTH_WORDS", [scope("abstract")], "<=", t["abstractWords"])]))
     if abstract == "structured" and t.get("abstractHeadings"):
-        checks += heading_rules(t["abstractHeadings"])
+        checks += heading_rules(net, t["abstractHeadings"])
 
     if t.get("keyPoints"):
-        kp = scope("section", "Key Points")
-        checks.append(rule(f"Key Points ≤ {KEY_POINTS_WORDS} words",
-                           [cond("LENGTH_WORDS", [kp], "<=", KEY_POINTS_WORDS)],
-                           note="Question (1 sentence), Findings (1–2 sentences, design and primary outcomes, significance without test statistics), Meaning (1 sentence)."))
-        checks.append(rule("Key Points: Question, Findings, Meaning",
-                           [cond("CONTAINS", [kp], text=x) for x in ("Question", "Findings", "Meaning")]))
+        box = scope("section", kp["title"])
+        if kp.get("words"):
+            checks.append(rule(f"{kp['title']} ≤ {kp['words']} words",
+                               [cond("LENGTH_WORDS", [box], "<=", kp["words"])], note=kp["formatNote"]))
+        if kp.get("parts"):
+            checks.append(rule(f"{kp['title']}: " + ", ".join(kp["parts"]),
+                               [cond("CONTAINS", [box], text=x) for x in kp["parts"]]))
+        if kp.get("manual"):
+            checks.append(manual(*kp["manual"]))
+    if t.get("keywordsMax"):
+        conditions = [cond("COUNT", [scope("keywords")], "<=", t["keywordsMax"])]
+        if t.get("keywordsMin"):
+            conditions.insert(0, cond("COUNT", [scope("keywords")], ">=", t["keywordsMin"]))
+        checks.append(rule(f"Keywords {t['keywordsMin']}–{t['keywordsMax']}" if t.get("keywordsMin")
+                           else f"Keywords ≤ {t['keywordsMax']}", conditions))
 
     if t.get("referencesMax"):
         checks.append(rule(f"References ≤ {t['referencesMax']}",
@@ -417,25 +494,25 @@ def build_checks(j, t):
     title_chars = t["titleChars"]
     checks.append(rule(f"Title ≤ {title_chars} characters",
                        [cond("LENGTH_CHARS", [scope("title")], "<=", title_chars)],
-                       note="Including spaces. Research reports and major articles 100; shorter article types 60."))
+                       note=net["titleNote"]))
     if t.get("subtitle"):
         checks.append(rule("Subtitle names the study type",
                            [cond("CONTAINS", [scope("subtitle")], text=s) for s in t["subtitle"]],
                            note="Expected: " + " or ".join(f"“{s}”" for s in t["subtitle"]),
                            combinator="ANY"))
 
-    checks.append(rule("Export font 10–12 pt",
-                       [cond("FONT_SIZE", [scope("export")], ">=", 10.0),
-                        cond("FONT_SIZE", [scope("export")], "<=", 12.0)]))
-    checks.append(rule("Export double-spaced", [cond("LINE_SPACING", [scope("export")], ">=", 2.0)]))
+    for name, conditions in net["exportChecks"]:
+        checks.append(rule(name, [cond(metric, [scope("export")], comparator, number)
+                                  for metric, comparator, number in conditions]))
 
     checks.append(rule("Sections match the journal's structure",
                        [cond("STRUCTURE", [], "==", 1)],
                        note="Every section marked required in the structure file must be present and non-empty"))
 
     if cover_letter(j) == "required":
+        text = net["coverLetter"]
         checks.append(rule("Cover letter present", [cond("EXISTS", [scope("coverLetter")], "<=", 0)],
-                           note=COVER_LETTER[0].upper() + COVER_LETTER[1:] + "."))
+                           note=text[0].upper() + text[1:] + "."))
 
     for key in t["requirements"]:
         name, note = REQUIREMENT_CHECKS[key]
@@ -444,10 +521,9 @@ def build_checks(j, t):
         checks.append(manual("Presubmission inquiry sent and encouraged by the editors",
                              "This article type requires a presubmission inquiry."))
     if t.get("patientPermission"):
-        checks.append(manual("Patient permission form signed and submitted",
-                             "The JAMA Network Patient Permission form, for any identifiable patient."))
+        checks.append(manual("Patient permission form signed and submitted", net["patientPermission"]))
     if abstract and abstract != "none":
-        checks.append(manual("Acknowledgment complete: contributions, data access statement, disclosures, funding and its role"))
+        checks.append(manual(*net["acknowledgmentCheck"]))
     checks.append(manual("Conflict of interest disclosures for every author",
                          "Complete disclosure of all relevant financial relationships; authors with none say so."))
 
@@ -461,15 +537,12 @@ def build_checks(j, t):
 
 # ── Structure ──
 
-def build_structure(j, t):
+def build_structure(net, j, t):
     sections = []
     if t.get("keyPoints"):
-        sections.append({
-            "title": "Key Points", "required": True,
-            "formatNote": f"Three labelled parts before the abstract, {KEY_POINTS_WORDS} words or fewer in all: Question (1 sentence), Findings (1–2 sentences — the design and primary outcomes, significance stated without statistical test results), Meaning (1 sentence).",
-            "note": "The venue's structured summary of the study, read before the abstract.",
-            "boilerplate": "Question: \nFindings: \nMeaning: ",
-        })
+        kp = net["keyPoints"]
+        sections.append({"title": kp["title"], "required": True, "formatNote": kp["formatNote"],
+                         "note": kp["note"], "boilerplate": kp["boilerplate"]})
     abstract = t.get("abstract")
     if abstract == "none":
         sections.append({"title": "Abstract", "required": False,
@@ -479,7 +552,7 @@ def build_structure(j, t):
         entry = {"title": "Abstract", "required": True}
         words = f"no more than {t['abstractWords']} words" if t.get("abstractWords") else None
         if key:
-            labels = ABSTRACT_LABELS[key] if key in ABSTRACT_LABELS else key
+            labels = net["abstractLabels"].get(key, key)
             entry["formatNote"] = "Structured" + (f", {words}" if words else "") + ", under the headings " + "; ".join(labels) + "."
             entry["boilerplate"] = "\n".join(label + ": " for label in labels)
         else:
@@ -491,7 +564,7 @@ def build_structure(j, t):
             entry["formatNote"] = f"Unstructured, no more than {t['abstractWords']} words."
         sections.append(entry)
 
-    notes = {"Methods": METHODS_NOTE, "Discussion": DISCUSSION_NOTE}
+    notes = net["sectionNotes"]
     for s in t["sections"]:
         entry = {"title": s["title"], "required": s.get("required", True)}
         note = s.get("note") or notes.get(s["title"])
@@ -503,7 +576,8 @@ def build_structure(j, t):
 
 # ── Requirements bullets ──
 
-def build_bullets(j, t):
+def build_bullets(net, j, t):
+    kp = net["keyPoints"]
     b = ["description: " + t["description"].rstrip(".") + "."]
     if t.get("words"):
         label = "recommended length" if t.get("wordsIsRecommended") else "body up to"
@@ -517,8 +591,8 @@ def build_bullets(j, t):
         b.append(f"limits: {abstract} abstract up to {t['abstractWords']} words")
     elif abstract:
         b.append(f"limits: {abstract} abstract")
-    if t.get("keyPoints"):
-        b.append(f"limits: Key Points up to {KEY_POINTS_WORDS} words")
+    if t.get("keyPoints") and kp.get("words"):
+        b.append(f"limits: {kp['title']} up to {kp['words']} words")
     if t.get("referencesMax"):
         b.append(f"limits: {t['referencesMin']}–{t['referencesMax']} references" if t.get("referencesMin")
                  else f"limits: up to {t['referencesMax']} references")
@@ -531,13 +605,16 @@ def build_bullets(j, t):
         b.append(f"limits: up to {t['tablesMax']} table{'s' if t['tablesMax'] != 1 else ''}")
     if t.get("authorsMax"):
         b.append(f"limits: up to {t['authorsMax']} author{'s' if t['authorsMax'] != 1 else ''}")
+    if t.get("keywordsMax"):
+        b.append(f"limits: {t['keywordsMin']}–{t['keywordsMax']} keywords" if t.get("keywordsMin")
+                 else f"limits: up to {t['keywordsMax']} keywords")
     b.append(f"limits: title up to {t['titleChars']} characters including spaces")
 
     b.append("components: required sections: " + ", ".join(s["title"] for s in t["sections"] if s.get("required", True)))
     if abstract == "structured" and t.get("abstractHeadings"):
-        b.append("components: structured abstract under " + layout_text(t["abstractHeadings"]))
+        b.append("components: structured abstract under " + layout_text(net, t["abstractHeadings"]))
     if t.get("keyPoints"):
-        b.append("components: Key Points — Question (1 sentence), Findings (1–2 sentences), Meaning (1 sentence) — placed before the abstract")
+        b.append(kp["bullet"])
     if t.get("subtitle"):
         b.append("components: subtitle " + " or ".join(f"“{s}”" for s in t["subtitle"]))
     for key in t["requirements"]:
@@ -547,16 +624,16 @@ def build_bullets(j, t):
     if t.get("patientPermission"):
         b.append("components: signed JAMA Network Patient Permission form for any identifiable patient")
     if abstract and abstract != "none":
-        b.append(ACKNOWLEDGMENT_BULLET)
+        b.append(net["acknowledgmentBullet"])
     status = cover_letter(j)
     if status == "required":
-        b.append("components: cover letter — " + COVER_LETTER)
+        b.append("components: cover letter — " + net["coverLetter"])
     elif status == "recommended":
-        b.append("components: cover letter recommended, not required — " + COVER_LETTER)
+        b.append("components: cover letter recommended, not required — " + net["coverLetter"])
     else:
         b.append("components: no cover letter — the submission form asks for its contents")
 
-    b += FORMAT_BULLETS
+    b += net["formatBullets"]
     for extra in j.get("formatBullets", []):
         b.append("format: " + extra)
     for n in t["notes"]:
@@ -571,27 +648,29 @@ def dump(obj):
     return json.dumps(obj, indent=1, sort_keys=True, ensure_ascii=False) + "\n"
 
 
-def profile_files(j, t):
+def profile_files(net, j, t):
     slug = slugify(j["journal"], t["name"])
     pid = bundled_id(slug)
     requirements = {
-        "articleType": t["name"], "bullets": build_bullets(j, t), "country": COUNTRY,
-        "id": pid, "journal": j["journal"], "publisher": PUBLISHER,
+        "articleType": t["name"], "bullets": build_bullets(net, j, t), "country": net["country"],
+        "id": pid, "journal": j["journal"], "publisher": net["publisher"],
         "updatedAt": STAMP, "url": j["url"],
     }
-    checks = {"checks": build_checks(j, t), "id": pid, "journal": j["journal"], "updatedAt": STAMP}
-    structure = {"id": pid, "journal": j["journal"], "sections": build_structure(j, t)}
+    checks = {"checks": build_checks(net, j, t), "id": pid, "journal": j["journal"], "updatedAt": STAMP}
+    structure = {"id": pid, "journal": j["journal"], "sections": build_structure(net, j, t)}
     return slug, {"requirements.json": dump(requirements), "checks.json": dump(checks),
                   "structure.json": dump(structure)}
 
 
 def main(check_only=False):
-    stale, written, total, produced = [], 0, 0, set()
-    for spec_path in sorted(SPECS.glob("*.json")):
+    stale, written, total, produced, owned = [], 0, 0, set(), set()
+    for spec_path in sorted(HERE.glob("*/*.json")):
         j = json.loads(spec_path.read_text())
+        net = NETWORKS[j.get("network", spec_path.parent.name)]
+        owned.add(slugify(j["journal"], None) + "-")
         types = [t for t in j["articleTypes"] if not is_dropped(t)]
         for t in types:
-            slug, files = profile_files(j, normalize(t))
+            slug, files = profile_files(net, j, normalize(net, t))
             produced.add(slug)
             folder = OUT / slug
             for name, text in files.items():
@@ -607,10 +686,10 @@ def main(check_only=False):
         total += len(types)
         print(f"{j['journal']}: {len(types)} article types")
     print(f"{total} profiles")
-    # The generator owns the `jama-*` folders: one a spec no longer yields
-    # is a stale profile, not a hand-made one.
-    for folder in sorted(OUT.glob("jama-*")):
-        if folder.is_dir() and folder.name not in produced:
+    # The generator owns every folder under a journal it builds: one a spec
+    # no longer yields is a stale profile, not a hand-made one.
+    for folder in sorted(OUT.iterdir()):
+        if folder.is_dir() and folder.name.startswith(tuple(owned)) and folder.name not in produced:
             if check_only:
                 stale.append(str(folder.relative_to(ROOT)) + " (no spec yields it)")
             else:

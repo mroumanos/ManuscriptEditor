@@ -152,7 +152,7 @@
     }
    ],
    "name": "Key Points ≤ 100 words",
-   "note": "Question (1 sentence), Findings (1–2 sentences, design and primary outcomes, significance without test statistics), Meaning (1 sentence)."
+   "note": "Three labelled parts before the abstract, 100 words or fewer in all: Question (1 sentence), Findings (1–2 sentences — the design and primary outcomes, significance stated without statistical test results), Meaning (1 sentence)."
   },
   {
    "combinator": "ALL",

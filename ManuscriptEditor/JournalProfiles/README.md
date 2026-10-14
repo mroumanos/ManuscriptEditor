@@ -28,24 +28,33 @@ The files are hand-editable — `id` is the only field a check needs, and rules
 may omit their own ids. A profile is loaded whole: `requirements.json` carries
 the identity, so it is the one file a profile cannot do without.
 
-## Generated profiles: the JAMA Network
+## Generated profiles: the JAMA Network and Health Affairs Scholar
 
 The thirteen JAMA Network journals (JAMA, JAMA Network Open, JAMA Health
-Forum, and the specialty journals) ship **one profile per article type** —
-`jama-research-letter`, `jama-dermatology-original-investigation`, and so on
-— because the limits differ by type far more than by journal. Those folders
-are **generated**: `scripts/corpus/jama/<journal>.json` holds each journal's
-article types with the limits its Instructions for Authors state and, for
-every number, the page's own sentence; `scripts/corpus/build_jama.py` turns
-them into the three files here. Edit the spec and re-run the script; a
-hand-edit to a generated folder is undone by the next run
-(`build_jama.py --check` says whether any is stale).
+Forum, and the specialty journals) and Health Affairs Scholar ship **one
+profile per article type** — `jama-research-letter`,
+`jama-dermatology-original-investigation`,
+`health-affairs-scholar-policy-inquiry`, and so on — because the limits
+differ by type far more than by journal. Those folders are **generated**:
+`scripts/corpus/<network>/<journal>.json` holds each journal's article
+types with the limits its Instructions for Authors state and, for every
+number, the page's own sentence; what a publisher's journals share
+(abstract layouts, the key-points box, formatting, export tests) is the
+`NETWORKS` table in `scripts/corpus/build_corpus.py`, which turns the specs
+into the three files here. Edit the spec and re-run the script; a hand-edit
+to a generated folder is undone by the next run (`build_corpus.py --check`
+says whether any is stale).
 
 Article types the instructions describe without author limits — Editorials,
 Invited Commentaries and the commissioned Clinical Review & Education
 features — have no profile, and neither does Poetry (a poem is not a
-manuscript this app writes). A journal's own formats appear under its name in Settings →
-Journals and in Add Journal.
+manuscript this app writes). A journal's own formats appear under its name
+in Settings → Journals and in Add Journal.
+
+Health Affairs Scholar's site blocks automated reading of its instructions,
+so that spec's limits come from search-indexed excerpts of the official
+page; its `unread` field and each type's `notes` say what could not be
+retrieved (manuscript formatting, the Letters' limits).
 
 ## A note on the summaries
 

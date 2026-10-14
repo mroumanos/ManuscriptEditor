@@ -1,0 +1,29 @@
+{
+ "articleType": "Review Article",
+ "bullets": [
+  "description: Systematic and literature reviews and meta-analyses on a health policy question, with a structured abstract and 1–3 key-takeaway bullets.",
+  "limits: body up to 4,000 words (The word count limitation does not include references)",
+  "limits: structured abstract up to 200 words",
+  "limits: up to 4 tables and figures combined",
+  "limits: 1–15 keywords",
+  "limits: title up to 100 characters including spaces",
+  "components: required sections: Introduction, Methods, Findings, Discussion, Conclusion",
+  "components: 1–3 key-takeaway bullets",
+  "components: disclosures — a concise summary of every author's declared conflicts in the manuscript; any AI use disclosed in the Methods or Acknowledgements; data and code sources cited in the reference list.",
+  "components: cover letter — an explanation of how the submission differs from any related preprint, dissertation or paper, any use of AI tools, and any reviewers to exclude with a brief reason",
+  "format: titles up to 100 characters including spaces.",
+  "format: 1 to 15 keywords.",
+  "format: related published papers are cited as endnotes; the journal's own page gives the reference style — confirm there.",
+  "format: every author's conflicts of interest are declared on the cover page; a signed ICMJE disclosure form for each author by the latest revision.",
+  "format: the Methods state ethics approval (or that it was not required) and written informed consent; identifying information is anonymised.",
+  "extra: References are not limited.",
+  "extra: The section names here are the generator's; the retrieved text names none for this type.",
+  "extra: this summary is the app's distillation — open the author instructions above to confirm against the journal's current text."
+ ],
+ "country": "United States",
+ "id": "72AEE843-CA4A-5488-AD92-DCECB59FA6C0",
+ "journal": "Health Affairs Scholar",
+ "publisher": "Project HOPE / Oxford University Press",
+ "updatedAt": "2026-10-13T12:00:00Z",
+ "url": "https://academic.oup.com/healthaffairsscholar/pages/general-instructions"
+}

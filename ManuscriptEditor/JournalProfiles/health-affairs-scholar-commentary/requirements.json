@@ -1,0 +1,29 @@
+{
+ "articleType": "Commentary",
+ "bullets": [
+  "description: A short argued piece on a health policy issue, with an unstructured abstract and 1–3 key-takeaway bullets.",
+  "limits: body up to 1,200 words (The word count limitation does not include references)",
+  "limits: unstructured abstract up to 200 words",
+  "limits: up to 9 references",
+  "limits: 1 table or figure at most",
+  "limits: 1–15 keywords",
+  "limits: title up to 100 characters including spaces",
+  "components: required sections: Commentary",
+  "components: 1–3 key-takeaway bullets",
+  "components: disclosures — a concise summary of every author's declared conflicts in the manuscript; any AI use disclosed in the Methods or Acknowledgements; data and code sources cited in the reference list.",
+  "components: cover letter — an explanation of how the submission differs from any related preprint, dissertation or paper, any use of AI tools, and any reviewers to exclude with a brief reason",
+  "format: titles up to 100 characters including spaces.",
+  "format: 1 to 15 keywords.",
+  "format: related published papers are cited as endnotes; the journal's own page gives the reference style — confirm there.",
+  "format: every author's conflicts of interest are declared on the cover page; a signed ICMJE disclosure form for each author by the latest revision.",
+  "format: the Methods state ethics approval (or that it was not required) and written informed consent; identifying information is anonymised.",
+  "extra: The page says fewer than 10 references — 9 is the test here.",
+  "extra: this summary is the app's distillation — open the author instructions above to confirm against the journal's current text."
+ ],
+ "country": "United States",
+ "id": "6E1273A5-B1A1-584B-82B7-D3ED4A48B48B",
+ "journal": "Health Affairs Scholar",
+ "publisher": "Project HOPE / Oxford University Press",
+ "updatedAt": "2026-10-13T12:00:00Z",
+ "url": "https://academic.oup.com/healthaffairsscholar/pages/general-instructions"
+}

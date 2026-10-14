@@ -32,22 +32,26 @@ for folder in folders.sorted(by: { $0.lastPathComponent < $1.lastPathComponent }
     for rule in p.checks where !rule.isManual {
         check("\(slug): rule '\(rule.name)' has conditions", !rule.conditions.isEmpty)
     }
-    guard p.name.hasPrefix("JAMA") else { continue }
+    guard p.name.hasPrefix("JAMA") || p.name == "Health Affairs Scholar" else { continue }
     jamaCount += 1
-    check("\(slug): carries publisher and country", p.publisher == "American Medical Association" && p.country == "United States")
+    check("\(slug): carries publisher and country", p.publisher?.isEmpty == false && p.country?.isEmpty == false)
     check("\(slug): names its article type", p.articleType?.isEmpty == false)
     check("\(slug): the venue has its say about the abstract", p.structure.abstractEntry != nil)
-    if let kp = p.structure.sections.first(where: { $0.title == "Key Points" }) {
+    if let kp = p.structure.sections.first(where: { $0.title == "Key Points" || $0.title == "Key Takeaways" }) {
         keyPointsCount += 1
-        check("\(slug): Key Points carry boilerplate", kp.boilerplate?.contains("Question") == true)
-        check("\(slug): Key Points are checked", p.checks.contains { $0.name.hasPrefix("Key Points") })
+        check("\(slug): the key-points box carries boilerplate", kp.boilerplate?.isEmpty == false)
+        check("\(slug): the key-points box is checked", p.checks.contains { $0.name.hasPrefix(kp.title) || $0.name.contains("key-takeaway") })
     }
     if p.structure.abstractEntry?.required == false {
         check("\(slug): no-abstract type is checked", p.checks.contains { $0.name == "No abstract" })
     }
-    check("\(slug): a body limit", p.checks.contains { $0.name.hasPrefix("Body") })
+    if p.requirements.bullets.contains(where: { $0.hasPrefix("limits: body") || $0.hasPrefix("limits: recommended") }) {
+        check("\(slug): a body limit", p.checks.contains { $0.name.hasPrefix("Body") })
+    }
 }
-print("\(jamaCount) JAMA Network profiles, \(keyPointsCount) with Key Points")
-check("JAMA Network profiles present", jamaCount >= 16)
+print("\(jamaCount) generated profiles, \(keyPointsCount) with Key Points")
+check("generated profiles present", jamaCount >= 16)
+check("Health Affairs Scholar ships per article type",
+      bundled.values.filter { $0.name == "Health Affairs Scholar" }.count >= 8)
 print(failures == 0 ? "ALL PASS" : "\(failures) FAILURE(S)")
 exit(failures == 0 ? 0 : 1)

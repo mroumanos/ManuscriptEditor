@@ -1,0 +1,294 @@
+{
+  "journal": "Health Affairs Scholar",
+  "url": "https://academic.oup.com/healthaffairsscholar/pages/general-instructions",
+  "fetched": "2026-10-14",
+  "formatting": {
+    "coverLetter": "Required at submission: discloses any related preprint, dissertation or paper and how the submission differs; any use of AI tools; any reviewers to exclude, with a brief explanation."
+  },
+  "articleTypes": [
+    {
+      "name": "Research Article",
+      "description": "Original or secondary research — quantitative, qualitative or mixed methods — on health policy, with a structured abstract and 1–3 key-takeaway bullets.",
+      "words": 4000,
+      "wordsIsRecommended": false,
+      "wordsNote": "The word count limitation does not include references",
+      "abstract": "structured",
+      "abstractWords": 200,
+      "abstractHeadings": null,
+      "keyPoints": true,
+      "keywordsMin": 1,
+      "keywordsMax": 15,
+      "referencesMax": null,
+      "referencesMin": null,
+      "tablesFiguresCombined": 4,
+      "authorsMax": null,
+      "subtitle": null,
+      "titleChars": 100,
+      "presubmissionInquiry": false,
+      "patientPermission": false,
+      "sections": [
+        "Introduction",
+        "Data and Methods",
+        "Results",
+        "Discussion",
+        "Conclusion"
+      ],
+      "requirements": [],
+      "notes": [
+        "References are not limited.",
+        "The page does not fix the structured abstract's headings in the text that could be retrieved."
+      ],
+      "quotes": [
+        "Research Article—Word Count: 4,000",
+        "The word count limitation does not include references.",
+        "structured abstract of no more than 200 words",
+        "1 to 3 key-takeaway bullets",
+        "1 to 15 keywords",
+        "May include a maximum of 4 tables or figures",
+        "Introduction, Data and Methods, Results, Discussion, and Conclusion"
+      ]
+    },
+    {
+      "name": "Review Article",
+      "description": "Systematic and literature reviews and meta-analyses on a health policy question, with a structured abstract and 1–3 key-takeaway bullets.",
+      "words": 4000,
+      "wordsIsRecommended": false,
+      "wordsNote": "The word count limitation does not include references",
+      "abstract": "structured",
+      "abstractWords": 200,
+      "abstractHeadings": null,
+      "keyPoints": true,
+      "referencesMax": null,
+      "referencesMin": null,
+      "tablesFiguresCombined": 4,
+      "authorsMax": null,
+      "subtitle": null,
+      "titleChars": 100,
+      "presubmissionInquiry": false,
+      "patientPermission": false,
+      "sections": [
+        "Introduction",
+        "Methods",
+        "Findings",
+        "Discussion",
+        "Conclusion"
+      ],
+      "requirements": [],
+      "notes": [
+        "References are not limited.",
+        "The section names here are the generator's; the retrieved text names none for this type."
+      ],
+      "quotes": [
+        "Review Article—Word Count: 4,000",
+        "The word count limitation does not include references.",
+        "systematic and literature reviews and meta-analyses",
+        "structured abstract of up to 200 words",
+        "1 to 3 key takeaway bullets",
+        "no limit on references",
+        "up to 4 tables or figures"
+      ],
+      "keywordsMin": 1,
+      "keywordsMax": 15
+    },
+    {
+      "name": "Policy Inquiry",
+      "description": "A full-length paper grounded in original data or the literature that takes a policy position or proposes a new policy, with an unstructured abstract.",
+      "words": 4000,
+      "wordsIsRecommended": false,
+      "wordsNote": "The word count limitation does not include references",
+      "abstract": "unstructured",
+      "abstractWords": 200,
+      "abstractHeadings": null,
+      "keyPoints": null,
+      "referencesMax": null,
+      "referencesMin": null,
+      "tablesFiguresCombined": null,
+      "authorsMax": null,
+      "subtitle": null,
+      "titleChars": 100,
+      "presubmissionInquiry": false,
+      "patientPermission": false,
+      "sections": [
+        "Policy Inquiry"
+      ],
+      "requirements": [],
+      "notes": [
+        "Key-takeaway, keyword and exhibit rules for this type are on the journal's page but could not be retrieved — confirm them before submitting."
+      ],
+      "quotes": [
+        "Policy Inquiry—Word Count: 4,000",
+        "The word count limitation does not include references.",
+        "grounded in original data or the literature that take a policy position or propose a new policy",
+        "unstructured abstract, with a maximum of 200 words"
+      ]
+    },
+    {
+      "name": "Brief Report",
+      "description": "A short empirical paper with the same structure as a Research Article.",
+      "words": 2000,
+      "wordsIsRecommended": false,
+      "wordsNote": "The word count limitation does not include references",
+      "abstract": "structured",
+      "abstractWords": 200,
+      "abstractHeadings": null,
+      "keyPoints": true,
+      "keywordsMin": 1,
+      "keywordsMax": 15,
+      "referencesMax": null,
+      "referencesMin": null,
+      "tablesFiguresCombined": 2,
+      "authorsMax": null,
+      "subtitle": null,
+      "titleChars": 100,
+      "presubmissionInquiry": false,
+      "patientPermission": false,
+      "sections": [
+        "Introduction",
+        "Data and Methods",
+        "Results",
+        "Discussion",
+        "Conclusion"
+      ],
+      "requirements": [],
+      "notes": [
+        "References are not limited."
+      ],
+      "quotes": [
+        "Brief Report—Word Count: 2,000",
+        "May include a maximum of 2 tables or figures",
+        "structured abstract of no more than 200 words",
+        "1 to 3 key-takeaway bullets",
+        "1 to 15 keywords"
+      ]
+    },
+    {
+      "name": "Commentary",
+      "description": "A short argued piece on a health policy issue, with an unstructured abstract and 1–3 key-takeaway bullets.",
+      "words": 1200,
+      "wordsIsRecommended": false,
+      "wordsNote": "The word count limitation does not include references",
+      "abstract": "unstructured",
+      "abstractWords": 200,
+      "abstractHeadings": null,
+      "keyPoints": true,
+      "keywordsMin": 1,
+      "keywordsMax": 15,
+      "referencesMax": 9,
+      "referencesMin": null,
+      "tablesFiguresCombined": 1,
+      "authorsMax": null,
+      "subtitle": null,
+      "titleChars": 100,
+      "presubmissionInquiry": false,
+      "patientPermission": false,
+      "sections": [
+        "Commentary"
+      ],
+      "requirements": [],
+      "notes": [
+        "The page says fewer than 10 references — 9 is the test here."
+      ],
+      "quotes": [
+        "Commentary—Word Count: 1,200",
+        "unstructured abstract of up to 200 words",
+        "1 to 3 key-takeaway bullets",
+        "1 to 15 keywords",
+        "fewer than 10 references",
+        "a maximum of 1 table or figure"
+      ]
+    },
+    {
+      "name": "Research Letter",
+      "description": "A short report of research findings.",
+      "words": null,
+      "wordsIsRecommended": false,
+      "wordsNote": null,
+      "abstract": null,
+      "abstractWords": null,
+      "abstractHeadings": null,
+      "keyPoints": null,
+      "referencesMax": null,
+      "referencesMin": null,
+      "tablesFiguresCombined": null,
+      "authorsMax": null,
+      "subtitle": null,
+      "titleChars": 100,
+      "presubmissionInquiry": false,
+      "patientPermission": false,
+      "sections": [
+        "Introduction",
+        "Methods",
+        "Results",
+        "Discussion"
+      ],
+      "requirements": [],
+      "notes": [
+        "The journal lists this type; its word, abstract, reference and exhibit limits are on the journal's page but could not be retrieved — confirm them before submitting."
+      ],
+      "quotes": []
+    },
+    {
+      "name": "Letter to the Editor",
+      "description": "A letter discussing a recent article published in Health Affairs Scholar.",
+      "words": null,
+      "wordsIsRecommended": false,
+      "wordsNote": null,
+      "abstract": "none",
+      "abstractWords": null,
+      "abstractHeadings": null,
+      "keyPoints": false,
+      "referencesMax": null,
+      "referencesMin": null,
+      "tablesFiguresCombined": null,
+      "authorsMax": null,
+      "subtitle": null,
+      "titleChars": 100,
+      "presubmissionInquiry": false,
+      "patientPermission": false,
+      "sections": [
+        "Letter"
+      ],
+      "requirements": [],
+      "notes": [
+        "The journal lists this type; its word and reference limits are on the journal's page but could not be retrieved — confirm them before submitting."
+      ],
+      "quotes": [
+        "Letters to the Editor should discuss a recent article published in Health Affairs Scholar"
+      ]
+    },
+    {
+      "name": "Non-standard Article",
+      "description": "Formats outside the standard types: summaries from professional society meetings, manuscripts adapted from Congressional testimony, health policy briefs written for legislators, comments submitted to federal agencies, interviews with health care experts, and point/counterpoint manuscripts. A pre-submission inquiry — title, author list, a brief description or abstract, article type and word count, and why the journal should consider it — is suggested but not required.",
+      "words": null,
+      "wordsIsRecommended": false,
+      "wordsNote": null,
+      "abstract": null,
+      "abstractWords": null,
+      "abstractHeadings": null,
+      "keyPoints": null,
+      "referencesMax": null,
+      "referencesMin": null,
+      "tablesFiguresCombined": null,
+      "authorsMax": null,
+      "subtitle": null,
+      "titleChars": 100,
+      "presubmissionInquiry": false,
+      "patientPermission": false,
+      "sections": [
+        "Non-standard Article"
+      ],
+      "requirements": [],
+      "notes": [
+        "Pre-submission inquiries are suggested but not required."
+      ],
+      "quotes": [
+        "We will also consider publishing interviews with healthcare experts and point/counterpoint manuscripts",
+        "Article title, Author list, A brief description or abstract, Article type and word count"
+      ]
+    }
+  ],
+  "journalNotes": [
+    "Open access (CC BY or CC BY-NC); single-anonymised peer review, typically 2 reviewers; ICMJE authorship; ORCID encouraged; a signed ICMJE disclosure form for every author by the latest revision; data and code sharing strongly encouraged where ethically feasible."
+  ],
+  "unread": "academic.oup.com blocks automated download of this page (HTTP 403), and the page fetcher's text of it holds the policy sections but not the article-type and manuscript-preparation sections. Every limit above comes from search-indexed excerpts of the official page, cross-checked across several queries; manuscript formatting (file, font, spacing, line numbers, reference style) could not be retrieved at all."
+}

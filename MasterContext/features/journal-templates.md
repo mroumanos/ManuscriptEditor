@@ -406,10 +406,11 @@ Three places hold templates, in order of authority for a given manuscript:
 3. **manuscript** — the copy that travels with the manuscript, so a collaborator
    opens it with the rules the author used
 
-The JAMA Network's thirteen journals ship **one bundled profile per article
-type**, generated from `scripts/corpus/jama/<journal>.json` by
-`scripts/corpus/build_jama.py` — the specs carry the page's own sentence for
-every limit, and the generated folders are never hand-edited (see the corpus
+The JAMA Network's thirteen journals and Health Affairs Scholar ship **one
+bundled profile per article type**, generated from
+`scripts/corpus/<network>/<journal>.json` by `scripts/corpus/build_corpus.py`
+— the specs carry the page's own sentence for every limit, and the generated
+folders are never hand-edited (see the corpus
 [README](../../ManuscriptEditor/JournalProfiles/README.md)).
 `scripts/harness/corpus_profiles.sh` checks that every bundled profile decodes
 whole under the GUID its slug derives.

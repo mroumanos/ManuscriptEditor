@@ -1,0 +1,25 @@
+{
+ "articleType": "Policy Inquiry",
+ "bullets": [
+  "description: A full-length paper grounded in original data or the literature that takes a policy position or proposes a new policy, with an unstructured abstract.",
+  "limits: body up to 4,000 words (The word count limitation does not include references)",
+  "limits: unstructured abstract up to 200 words",
+  "limits: title up to 100 characters including spaces",
+  "components: required sections: Policy Inquiry",
+  "components: disclosures — a concise summary of every author's declared conflicts in the manuscript; any AI use disclosed in the Methods or Acknowledgements; data and code sources cited in the reference list.",
+  "components: cover letter — an explanation of how the submission differs from any related preprint, dissertation or paper, any use of AI tools, and any reviewers to exclude with a brief reason",
+  "format: titles up to 100 characters including spaces.",
+  "format: 1 to 15 keywords.",
+  "format: related published papers are cited as endnotes; the journal's own page gives the reference style — confirm there.",
+  "format: every author's conflicts of interest are declared on the cover page; a signed ICMJE disclosure form for each author by the latest revision.",
+  "format: the Methods state ethics approval (or that it was not required) and written informed consent; identifying information is anonymised.",
+  "extra: Key-takeaway, keyword and exhibit rules for this type are on the journal's page but could not be retrieved — confirm them before submitting.",
+  "extra: this summary is the app's distillation — open the author instructions above to confirm against the journal's current text."
+ ],
+ "country": "United States",
+ "id": "3CC5D9DD-03B1-54B8-8E41-702A279A242F",
+ "journal": "Health Affairs Scholar",
+ "publisher": "Project HOPE / Oxford University Press",
+ "updatedAt": "2026-10-13T12:00:00Z",
+ "url": "https://academic.oup.com/healthaffairsscholar/pages/general-instructions"
+}

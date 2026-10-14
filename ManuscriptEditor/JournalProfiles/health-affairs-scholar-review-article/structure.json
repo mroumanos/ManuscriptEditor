@@ -1,0 +1,38 @@
+{
+ "id": "72AEE843-CA4A-5488-AD92-DCECB59FA6C0",
+ "journal": "Health Affairs Scholar",
+ "sections": [
+  {
+   "boilerplate": "• \n• \n• ",
+   "formatNote": "1 to 3 key-takeaway bullets, each a sentence a policymaker could act on.",
+   "note": "The venue's bulleted summary, submitted with the abstract.",
+   "required": true,
+   "title": "Key Takeaways"
+  },
+  {
+   "formatNote": "Structured, no more than 200 words; the venue does not fix the headings for this type.",
+   "required": true,
+   "title": "Abstract"
+  },
+  {
+   "required": true,
+   "title": "Introduction"
+  },
+  {
+   "required": true,
+   "title": "Methods"
+  },
+  {
+   "required": true,
+   "title": "Findings"
+  },
+  {
+   "required": true,
+   "title": "Discussion"
+  },
+  {
+   "required": true,
+   "title": "Conclusion"
+  }
+ ]
+}

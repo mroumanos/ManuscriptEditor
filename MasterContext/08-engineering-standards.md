@@ -286,11 +286,13 @@ xcodebuild -scheme ManuscriptEditor -destination 'platform=macOS' build
 
 ## Generated journal profiles
 
-- The JAMA Network profiles under `ManuscriptEditor/JournalProfiles/jama-*`
-  are **generated** from `scripts/corpus/jama/*.json` by
-  `scripts/corpus/build_jama.py`. Change the spec, run the script, commit
-  both; never hand-edit a generated folder. `build_jama.py --check` reports
-  a stale one.
+- The JAMA Network and Health Affairs Scholar profiles
+  (`ManuscriptEditor/JournalProfiles/jama-*`, `health-affairs-scholar-*`)
+  are **generated** from `scripts/corpus/<network>/*.json` by
+  `scripts/corpus/build_corpus.py`, whose `NETWORKS` table holds what a
+  publisher's journals share. Change the spec, run the script, commit
+  both; never hand-edit a generated folder. `build_corpus.py --check`
+  reports a stale one.
 - A spec states only what the journal's page states: every number is backed
   by the page's own sentence in `quotes`, and an unstated value is `null`,
   which the generator turns into no test — not a guessed one.

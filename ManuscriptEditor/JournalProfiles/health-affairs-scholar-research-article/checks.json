@@ -1,0 +1,240 @@
+{
+ "checks": [
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "metric": "LENGTH_WORDS",
+     "number": 4000,
+     "scopes": [
+      {
+       "kind": "body"
+      }
+     ]
+    }
+   ],
+   "name": "Body ≤ 4,000 words",
+   "note": "The word count limitation does not include references. Counts every active section, Key Takeaways included; the venue counts those separately."
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "metric": "LENGTH_WORDS",
+     "number": 200,
+     "scopes": [
+      {
+       "kind": "abstract"
+      }
+     ]
+    }
+   ],
+   "name": "Abstract ≤ 200 words"
+  },
+  {
+   "conditions": [],
+   "manual": true,
+   "name": "1–3 key-takeaway bullets supplied",
+   "note": "Each a sentence; the journal publishes them with the abstract."
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": ">=",
+     "metric": "COUNT",
+     "number": 1,
+     "scopes": [
+      {
+       "kind": "keywords"
+      }
+     ]
+    },
+    {
+     "comparator": "<=",
+     "metric": "COUNT",
+     "number": 15,
+     "scopes": [
+      {
+       "kind": "keywords"
+      }
+     ]
+    }
+   ],
+   "name": "Keywords 1–15"
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "metric": "COUNT",
+     "number": 4,
+     "scopes": [
+      {
+       "kind": "figures"
+      },
+      {
+       "kind": "tables"
+      }
+     ]
+    }
+   ],
+   "name": "Tables + figures ≤ 4"
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "metric": "LENGTH_CHARS",
+     "number": 100,
+     "scopes": [
+      {
+       "kind": "title"
+      }
+     ]
+    }
+   ],
+   "name": "Title ≤ 100 characters",
+   "note": "Including spaces."
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "==",
+     "metric": "STRUCTURE",
+     "number": 1,
+     "scopes": []
+    }
+   ],
+   "name": "Sections match the journal's structure",
+   "note": "Every section marked required in the structure file must be present and non-empty"
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "metric": "EXISTS",
+     "number": 0,
+     "scopes": [
+      {
+       "kind": "coverLetter"
+      }
+     ]
+    }
+   ],
+   "name": "Cover letter present",
+   "note": "An explanation of how the submission differs from any related preprint, dissertation or paper, any use of AI tools, and any reviewers to exclude with a brief reason."
+  },
+  {
+   "conditions": [],
+   "manual": true,
+   "name": "Conflicts summarised in the manuscript; a signed ICMJE form for every author",
+   "note": "Every author declares on the cover page at submission; the forms by the latest revision — one per author even with nothing to disclose."
+  },
+  {
+   "conditions": [],
+   "manual": true,
+   "name": "Conflict of interest disclosures for every author",
+   "note": "Complete disclosure of all relevant financial relationships; authors with none say so."
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "metric": "EXISTS",
+     "number": 0,
+     "scopes": [
+      {
+       "kind": "section",
+       "name": "Introduction"
+      }
+     ]
+    }
+   ],
+   "name": "Introduction section present",
+   "note": "Required by this journal's structure."
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "metric": "EXISTS",
+     "number": 0,
+     "scopes": [
+      {
+       "kind": "section",
+       "name": "Data and Methods"
+      }
+     ]
+    }
+   ],
+   "name": "Data and Methods section present",
+   "note": "Required by this journal's structure."
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "metric": "EXISTS",
+     "number": 0,
+     "scopes": [
+      {
+       "kind": "section",
+       "name": "Results"
+      }
+     ]
+    }
+   ],
+   "name": "Results section present",
+   "note": "Required by this journal's structure."
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "metric": "EXISTS",
+     "number": 0,
+     "scopes": [
+      {
+       "kind": "section",
+       "name": "Discussion"
+      }
+     ]
+    }
+   ],
+   "name": "Discussion section present",
+   "note": "Required by this journal's structure."
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "metric": "EXISTS",
+     "number": 0,
+     "scopes": [
+      {
+       "kind": "section",
+       "name": "Conclusion"
+      }
+     ]
+    }
+   ],
+   "name": "Conclusion section present",
+   "note": "Required by this journal's structure."
+  }
+ ],
+ "id": "BAE326F5-6A5D-5FB1-94B5-13D769B90C72",
+ "journal": "Health Affairs Scholar",
+ "updatedAt": "2026-10-13T12:00:00Z"
+}

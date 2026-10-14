@@ -1,0 +1,95 @@
+{
+ "checks": [
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "metric": "LENGTH_WORDS",
+     "number": 0,
+     "scopes": [
+      {
+       "kind": "abstract"
+      }
+     ]
+    }
+   ],
+   "name": "No abstract",
+   "note": "This article type carries no abstract — leave the Abstract empty or deactivate it."
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "metric": "LENGTH_CHARS",
+     "number": 100,
+     "scopes": [
+      {
+       "kind": "title"
+      }
+     ]
+    }
+   ],
+   "name": "Title ≤ 100 characters",
+   "note": "Including spaces."
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "==",
+     "metric": "STRUCTURE",
+     "number": 1,
+     "scopes": []
+    }
+   ],
+   "name": "Sections match the journal's structure",
+   "note": "Every section marked required in the structure file must be present and non-empty"
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "metric": "EXISTS",
+     "number": 0,
+     "scopes": [
+      {
+       "kind": "coverLetter"
+      }
+     ]
+    }
+   ],
+   "name": "Cover letter present",
+   "note": "An explanation of how the submission differs from any related preprint, dissertation or paper, any use of AI tools, and any reviewers to exclude with a brief reason."
+  },
+  {
+   "conditions": [],
+   "manual": true,
+   "name": "Conflict of interest disclosures for every author",
+   "note": "Complete disclosure of all relevant financial relationships; authors with none say so."
+  },
+  {
+   "combinator": "ALL",
+   "conditions": [
+    {
+     "comparator": "<=",
+     "metric": "EXISTS",
+     "number": 0,
+     "scopes": [
+      {
+       "kind": "section",
+       "name": "Non-standard Article"
+      }
+     ]
+    }
+   ],
+   "name": "Non-standard Article section present",
+   "note": "Required by this journal's structure."
+  }
+ ],
+ "id": "044E42C9-0193-5A77-AECC-D727B35DD114",
+ "journal": "Health Affairs Scholar",
+ "updatedAt": "2026-10-13T12:00:00Z"
+}
