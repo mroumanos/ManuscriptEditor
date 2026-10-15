@@ -1,36 +1,43 @@
 {
- "sections": [
-  {
-   "boilerplate": "• \n• \n• ",
-   "formatNote": "1 to 3 key-takeaway bullets, each a sentence a policymaker could act on.",
-   "note": "The venue's bulleted summary, submitted with the abstract.",
-   "required": true,
-   "title": "Key Takeaways"
-  },
-  {
-   "formatNote": "Structured, no more than 200 words; the venue does not fix the headings for this type.",
-   "required": true,
-   "title": "Abstract"
-  },
-  {
-   "required": true,
-   "title": "Introduction"
-  },
-  {
-   "required": true,
-   "title": "Data and Methods"
-  },
-  {
-   "required": true,
-   "title": "Results"
-  },
-  {
-   "required": true,
-   "title": "Discussion"
-  },
-  {
-   "required": true,
-   "title": "Conclusion"
-  }
- ]
+  "sections" : [
+    {
+      "boilerplate" : "• \n• \n• ",
+      "formatNote" : "1 to 3 key-takeaway bullets, each a sentence a policymaker could act on.",
+      "id" : "FE10F13F-6619-5E5C-AFB6-584C2D338959",
+      "note" : "The venue's bulleted summary, submitted with the abstract.",
+      "required" : true,
+      "title" : "Key Takeaways"
+    },
+    {
+      "formatNote" : "Structured, no more than 200 words; the venue does not fix the headings for this type.",
+      "id" : "12694586-66F8-5AB4-A487-B3BCB0ACBCA7",
+      "required" : true,
+      "title" : "Abstract"
+    },
+    {
+      "id" : "A2595CAD-C47C-57C3-BEDA-BF45AEBEC32D",
+      "required" : true,
+      "title" : "Introduction"
+    },
+    {
+      "id" : "CA63AAC0-1E49-59B3-86B4-3877DE201827",
+      "required" : true,
+      "title" : "Data and Methods"
+    },
+    {
+      "id" : "72ECCC71-8249-58F5-A1B7-E7176DC86F5B",
+      "required" : true,
+      "title" : "Results"
+    },
+    {
+      "id" : "EB952E5F-C4BC-5661-AC44-9B3FD72FE376",
+      "required" : true,
+      "title" : "Discussion"
+    },
+    {
+      "id" : "1CF31535-0911-5802-9119-6157D0791A0F",
+      "required" : true,
+      "title" : "Conclusion"
+    }
+  ]
 }

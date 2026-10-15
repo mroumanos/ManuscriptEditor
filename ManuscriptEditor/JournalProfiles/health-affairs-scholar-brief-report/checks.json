@@ -1,237 +1,248 @@
 {
- "checks": [
-  {
-   "combinator": "ALL",
-   "conditions": [
+  "checks" : [
     {
-     "comparator": "<=",
-     "metric": "LENGTH_WORDS",
-     "number": 2000,
-     "scopes": [
-      {
-       "type": "body"
-      }
-     ]
-    }
-   ],
-   "name": "Body ≤ 2,000 words",
-   "note": "The word count limitation does not include references. Counts every active section, Key Takeaways included; the venue counts those separately."
-  },
-  {
-   "combinator": "ALL",
-   "conditions": [
-    {
-     "comparator": "<=",
-     "metric": "LENGTH_WORDS",
-     "number": 200,
-     "scopes": [
-      {
-       "type": "abstract"
-      }
-     ]
-    }
-   ],
-   "name": "Abstract ≤ 200 words"
-  },
-  {
-   "conditions": [],
-   "manual": true,
-   "name": "1–3 key-takeaway bullets supplied",
-   "note": "Each a sentence; the journal publishes them with the abstract."
-  },
-  {
-   "combinator": "ALL",
-   "conditions": [
-    {
-     "comparator": ">=",
-     "metric": "COUNT",
-     "number": 1,
-     "scopes": [
-      {
-       "type": "keywords"
-      }
-     ]
+      "combinator" : "ALL",
+      "conditions" : [
+        {
+          "comparator" : "<=",
+          "metric" : "LENGTH_WORDS",
+          "number" : 2000,
+          "scopes" : [
+            {
+              "type" : "body"
+            }
+          ]
+        }
+      ],
+      "name" : "Body ≤ 2,000 words",
+      "note" : "The word count limitation does not include references. Counts every active section, Key Takeaways included; the venue counts those separately."
     },
     {
-     "comparator": "<=",
-     "metric": "COUNT",
-     "number": 15,
-     "scopes": [
-      {
-       "type": "keywords"
-      }
-     ]
-    }
-   ],
-   "name": "Keywords 1–15"
-  },
-  {
-   "combinator": "ALL",
-   "conditions": [
+      "combinator" : "ALL",
+      "conditions" : [
+        {
+          "comparator" : "<=",
+          "metric" : "LENGTH_WORDS",
+          "number" : 200,
+          "scopes" : [
+            {
+              "type" : "abstract"
+            }
+          ]
+        }
+      ],
+      "name" : "Abstract ≤ 200 words"
+    },
     {
-     "comparator": "<=",
-     "metric": "COUNT",
-     "number": 2,
-     "scopes": [
-      {
-       "type": "figures"
-      },
-      {
-       "type": "tables"
-      }
-     ]
-    }
-   ],
-   "name": "Tables + figures ≤ 2"
-  },
-  {
-   "combinator": "ALL",
-   "conditions": [
+      "combinator" : "ALL",
+      "conditions" : [
+
+      ],
+      "manual" : true,
+      "name" : "1–3 key-takeaway bullets supplied",
+      "note" : "Each a sentence; the journal publishes them with the abstract."
+    },
     {
-     "comparator": "<=",
-     "metric": "LENGTH_CHARS",
-     "number": 100,
-     "scopes": [
-      {
-       "type": "title"
-      }
-     ]
-    }
-   ],
-   "name": "Title ≤ 100 characters",
-   "note": "Including spaces."
-  },
-  {
-   "combinator": "ALL",
-   "conditions": [
+      "combinator" : "ALL",
+      "conditions" : [
+        {
+          "comparator" : ">=",
+          "metric" : "COUNT",
+          "number" : 1,
+          "scopes" : [
+            {
+              "type" : "keywords"
+            }
+          ]
+        },
+        {
+          "comparator" : "<=",
+          "metric" : "COUNT",
+          "number" : 15,
+          "scopes" : [
+            {
+              "type" : "keywords"
+            }
+          ]
+        }
+      ],
+      "name" : "Keywords 1–15"
+    },
     {
-     "comparator": "==",
-     "metric": "STRUCTURE",
-     "number": 1,
-     "scopes": []
-    }
-   ],
-   "name": "Sections match the journal's structure",
-   "note": "Every section marked required in the structure file must be present and non-empty"
-  },
-  {
-   "combinator": "ALL",
-   "conditions": [
+      "combinator" : "ALL",
+      "conditions" : [
+        {
+          "comparator" : "<=",
+          "metric" : "COUNT",
+          "number" : 2,
+          "scopes" : [
+            {
+              "type" : "figures"
+            },
+            {
+              "type" : "tables"
+            }
+          ]
+        }
+      ],
+      "name" : "Tables + figures ≤ 2"
+    },
     {
-     "comparator": "<=",
-     "metric": "EXISTS",
-     "number": 0,
-     "scopes": [
-      {
-       "type": "coverLetter"
-      }
-     ]
-    }
-   ],
-   "name": "Cover letter present",
-   "note": "An explanation of how the submission differs from any related preprint, dissertation or paper, any use of AI tools, and any reviewers to exclude with a brief reason."
-  },
-  {
-   "conditions": [],
-   "manual": true,
-   "name": "Conflicts summarised in the manuscript; a signed ICMJE form for every author",
-   "note": "Every author declares on the cover page at submission; the forms by the latest revision — one per author even with nothing to disclose."
-  },
-  {
-   "conditions": [],
-   "manual": true,
-   "name": "Conflict of interest disclosures for every author",
-   "note": "Complete disclosure of all relevant financial relationships; authors with none say so."
-  },
-  {
-   "combinator": "ALL",
-   "conditions": [
+      "combinator" : "ALL",
+      "conditions" : [
+        {
+          "comparator" : "<=",
+          "metric" : "LENGTH_CHARS",
+          "number" : 100,
+          "scopes" : [
+            {
+              "type" : "title"
+            }
+          ]
+        }
+      ],
+      "name" : "Title ≤ 100 characters",
+      "note" : "Including spaces."
+    },
     {
-     "comparator": "<=",
-     "metric": "EXISTS",
-     "number": 0,
-     "scopes": [
-      {
-       "name": "Introduction",
-       "type": "section"
-      }
-     ]
-    }
-   ],
-   "name": "Introduction section present",
-   "note": "Required by this journal's structure."
-  },
-  {
-   "combinator": "ALL",
-   "conditions": [
+      "combinator" : "ALL",
+      "conditions" : [
+        {
+          "comparator" : "==",
+          "metric" : "STRUCTURE",
+          "number" : 1,
+          "scopes" : [
+
+          ]
+        }
+      ],
+      "name" : "Sections match the journal's structure",
+      "note" : "Every section marked required in the structure file must be present and non-empty"
+    },
     {
-     "comparator": "<=",
-     "metric": "EXISTS",
-     "number": 0,
-     "scopes": [
-      {
-       "name": "Data and Methods",
-       "type": "section"
-      }
-     ]
-    }
-   ],
-   "name": "Data and Methods section present",
-   "note": "Required by this journal's structure."
-  },
-  {
-   "combinator": "ALL",
-   "conditions": [
+      "combinator" : "ALL",
+      "conditions" : [
+        {
+          "comparator" : "<=",
+          "metric" : "EXISTS",
+          "number" : 0,
+          "scopes" : [
+            {
+              "type" : "coverLetter"
+            }
+          ]
+        }
+      ],
+      "name" : "Cover letter present",
+      "note" : "An explanation of how the submission differs from any related preprint, dissertation or paper, any use of AI tools, and any reviewers to exclude with a brief reason."
+    },
     {
-     "comparator": "<=",
-     "metric": "EXISTS",
-     "number": 0,
-     "scopes": [
-      {
-       "name": "Results",
-       "type": "section"
-      }
-     ]
-    }
-   ],
-   "name": "Results section present",
-   "note": "Required by this journal's structure."
-  },
-  {
-   "combinator": "ALL",
-   "conditions": [
+      "combinator" : "ALL",
+      "conditions" : [
+
+      ],
+      "manual" : true,
+      "name" : "Conflicts summarised in the manuscript; a signed ICMJE form for every author",
+      "note" : "Every author declares on the cover page at submission; the forms by the latest revision — one per author even with nothing to disclose."
+    },
     {
-     "comparator": "<=",
-     "metric": "EXISTS",
-     "number": 0,
-     "scopes": [
-      {
-       "name": "Discussion",
-       "type": "section"
-      }
-     ]
-    }
-   ],
-   "name": "Discussion section present",
-   "note": "Required by this journal's structure."
-  },
-  {
-   "combinator": "ALL",
-   "conditions": [
+      "combinator" : "ALL",
+      "conditions" : [
+
+      ],
+      "manual" : true,
+      "name" : "Conflict of interest disclosures for every author",
+      "note" : "Complete disclosure of all relevant financial relationships; authors with none say so."
+    },
     {
-     "comparator": "<=",
-     "metric": "EXISTS",
-     "number": 0,
-     "scopes": [
-      {
-       "name": "Conclusion",
-       "type": "section"
-      }
-     ]
+      "combinator" : "ALL",
+      "conditions" : [
+        {
+          "comparator" : "<=",
+          "metric" : "EXISTS",
+          "number" : 0,
+          "scopes" : [
+            {
+              "name" : "Introduction",
+              "type" : "section"
+            }
+          ]
+        }
+      ],
+      "name" : "Introduction section present",
+      "note" : "Required by this journal's structure."
+    },
+    {
+      "combinator" : "ALL",
+      "conditions" : [
+        {
+          "comparator" : "<=",
+          "metric" : "EXISTS",
+          "number" : 0,
+          "scopes" : [
+            {
+              "name" : "Data and Methods",
+              "type" : "section"
+            }
+          ]
+        }
+      ],
+      "name" : "Data and Methods section present",
+      "note" : "Required by this journal's structure."
+    },
+    {
+      "combinator" : "ALL",
+      "conditions" : [
+        {
+          "comparator" : "<=",
+          "metric" : "EXISTS",
+          "number" : 0,
+          "scopes" : [
+            {
+              "name" : "Results",
+              "type" : "section"
+            }
+          ]
+        }
+      ],
+      "name" : "Results section present",
+      "note" : "Required by this journal's structure."
+    },
+    {
+      "combinator" : "ALL",
+      "conditions" : [
+        {
+          "comparator" : "<=",
+          "metric" : "EXISTS",
+          "number" : 0,
+          "scopes" : [
+            {
+              "name" : "Discussion",
+              "type" : "section"
+            }
+          ]
+        }
+      ],
+      "name" : "Discussion section present",
+      "note" : "Required by this journal's structure."
+    },
+    {
+      "combinator" : "ALL",
+      "conditions" : [
+        {
+          "comparator" : "<=",
+          "metric" : "EXISTS",
+          "number" : 0,
+          "scopes" : [
+            {
+              "name" : "Conclusion",
+              "type" : "section"
+            }
+          ]
+        }
+      ],
+      "name" : "Conclusion section present",
+      "note" : "Required by this journal's structure."
     }
-   ],
-   "name": "Conclusion section present",
-   "note": "Required by this journal's structure."
-  }
- ]
+  ]
 }
