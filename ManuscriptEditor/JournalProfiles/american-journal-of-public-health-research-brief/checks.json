@@ -1,334 +1,277 @@
 {
- "checks": [
-  {
-   "combinator": "ALL",
-   "conditions": [
+  "checks" : [
     {
-     "comparator": "<=",
-     "metric": "LENGTH_WORDS",
-     "number": 1200,
-     "scopes": [
-      {
-       "type": "body"
-      }
-     ]
-    }
-   ],
-   "name": "Body ≤ 1,200 words"
-  },
-  {
-   "combinator": "ALL",
-   "conditions": [
-    {
-     "comparator": "<=",
-     "metric": "LENGTH_WORDS",
-     "number": 180,
-     "scopes": [
-      {
-       "type": "abstract"
-      }
-     ]
-    }
-   ],
-   "name": "Abstract ≤ 180 words"
-  },
-  {
-   "combinator": "ALL",
-   "conditions": [
-    {
-     "comparator": "<=",
-     "metric": "COUNT",
-     "number": 1,
-     "scopes": [
-      {
-       "type": "figures"
-      },
-      {
-       "type": "tables"
-      }
-     ]
-    }
-   ],
-   "name": "Figures + tables ≤ 1"
-  },
-  {
-   "combinator": "ALL",
-   "conditions": [
-    {
-     "comparator": "<=",
-     "metric": "COUNT",
-     "number": 12,
-     "scopes": [
-      {
-       "type": "references"
-      }
-     ]
-    }
-   ],
-   "name": "References ≤ 12"
-  },
-  {
-   "combinator": "ALL",
-   "conditions": [
-    {
-     "comparator": "<=",
-     "metric": "LENGTH_WORDS",
-     "number": 150,
-     "scopes": [
-      {
-       "type": "coverLetter"
-      }
-     ]
-    }
-   ],
-   "name": "Cover letter ≤ 150 words"
-  },
-  {
-   "combinator": "ALL",
-   "conditions": [
-    {
-     "comparator": "==",
-     "metric": "STRUCTURE",
-     "number": 1,
-     "scopes": []
-    }
-   ],
-   "name": "Sections match the journal's structure",
-   "note": "Every section marked required in the structure file must be present and non-empty"
-  },
-  {
-   "combinator": "ALL",
-   "conditions": [
-    {
-     "metric": "CONTAINS",
-     "scopes": [
-      {
-       "type": "abstract"
-      }
-     ],
-     "text": "Objectives"
+      "combinator" : "ALL",
+      "conditions" : [
+        {
+          "comparator" : "<=",
+          "metric" : "LENGTH_WORDS",
+          "number" : 1200,
+          "scopes" : [
+            {
+              "name" : "Introduction",
+              "type" : "section"
+            },
+            {
+              "name" : "Methods",
+              "type" : "section"
+            },
+            {
+              "name" : "Results",
+              "type" : "section"
+            },
+            {
+              "name" : "Discussion",
+              "type" : "section"
+            },
+            {
+              "name" : "Public Health Implications",
+              "type" : "section"
+            }
+          ]
+        }
+      ],
+      "name" : "Body ≤ 1,200 words"
     },
     {
-     "metric": "CONTAINS",
-     "scopes": [
-      {
-       "type": "abstract"
-      }
-     ],
-     "text": "Methods"
+      "combinator" : "ALL",
+      "conditions" : [
+        {
+          "comparator" : "<=",
+          "metric" : "LENGTH_WORDS",
+          "number" : 180,
+          "scopes" : [
+            {
+              "type" : "abstract"
+            }
+          ]
+        }
+      ],
+      "name" : "Abstract ≤ 180 words"
     },
     {
-     "metric": "CONTAINS",
-     "scopes": [
-      {
-       "type": "abstract"
-      }
-     ],
-     "text": "Results"
+      "combinator" : "ALL",
+      "conditions" : [
+        {
+          "comparator" : "<=",
+          "metric" : "COUNT",
+          "number" : 1,
+          "scopes" : [
+            {
+              "type" : "figures"
+            },
+            {
+              "type" : "tables"
+            }
+          ]
+        }
+      ],
+      "name" : "Figures + tables ≤ 1"
     },
     {
-     "metric": "CONTAINS",
-     "scopes": [
-      {
-       "type": "abstract"
-      }
-     ],
-     "text": "Conclusions"
-    }
-   ],
-   "name": "Structured abstract headings"
-  },
-  {
-   "combinator": "ALL",
-   "conditions": [
+      "combinator" : "ALL",
+      "conditions" : [
+        {
+          "comparator" : "<=",
+          "metric" : "COUNT",
+          "number" : 12,
+          "scopes" : [
+            {
+              "type" : "references"
+            }
+          ]
+        }
+      ],
+      "name" : "References ≤ 12"
+    },
     {
-     "comparator": "==",
-     "metric": "FONT_SIZE",
-     "number": 12.0,
-     "scopes": [
-      {
-       "type": "export"
-      }
-     ]
-    }
-   ],
-   "name": "Export font size 12 pt"
-  },
-  {
-   "combinator": "ALL",
-   "conditions": [
+      "combinator" : "ALL",
+      "conditions" : [
+        {
+          "comparator" : "<=",
+          "metric" : "LENGTH_WORDS",
+          "number" : 150,
+          "scopes" : [
+            {
+              "type" : "coverLetter"
+            }
+          ]
+        }
+      ],
+      "name" : "Cover letter ≤ 150 words"
+    },
     {
-     "comparator": ">=",
-     "metric": "LINE_SPACING",
-     "number": 1.5,
-     "scopes": [
-      {
-       "type": "export"
-      }
-     ]
-    }
-   ],
-   "name": "Export spacing ≥ 1.5×"
-  },
-  {
-   "combinator": "ALL",
-   "conditions": [
+      "combinator" : "ALL",
+      "conditions" : [
+        {
+          "comparator" : "==",
+          "metric" : "STRUCTURE",
+          "number" : 1,
+          "scopes" : [
+
+          ]
+        }
+      ],
+      "name" : "Sections match the journal's structure",
+      "note" : "Every section marked required in the structure file must be present and non-empty"
+    },
     {
-     "comparator": "==",
-     "metric": "LINE_NUMBERS",
-     "number": 1,
-     "scopes": [
-      {
-       "type": "export"
-      }
-     ]
-    }
-   ],
-   "name": "Continuous line numbers"
-  },
-  {
-   "combinator": "ALL",
-   "conditions": [
+      "combinator" : "ALL",
+      "conditions" : [
+        {
+          "comparator" : "<=",
+          "metric" : "CONTAINS",
+          "number" : 0,
+          "scopes" : [
+            {
+              "type" : "abstract"
+            }
+          ],
+          "text" : "Objectives"
+        },
+        {
+          "comparator" : "<=",
+          "metric" : "CONTAINS",
+          "number" : 0,
+          "scopes" : [
+            {
+              "type" : "abstract"
+            }
+          ],
+          "text" : "Methods"
+        },
+        {
+          "comparator" : "<=",
+          "metric" : "CONTAINS",
+          "number" : 0,
+          "scopes" : [
+            {
+              "type" : "abstract"
+            }
+          ],
+          "text" : "Results"
+        },
+        {
+          "comparator" : "<=",
+          "metric" : "CONTAINS",
+          "number" : 0,
+          "scopes" : [
+            {
+              "type" : "abstract"
+            }
+          ],
+          "text" : "Conclusions"
+        }
+      ],
+      "name" : "Structured abstract headings"
+    },
     {
-     "comparator": "<=",
-     "metric": "EXISTS",
-     "number": 0,
-     "scopes": [
-      {
-       "name": "Introduction",
-       "type": "section"
-      }
-     ]
-    }
-   ],
-   "name": "Introduction section present",
-   "note": "Required by this journal's structure."
-  },
-  {
-   "combinator": "ALL",
-   "conditions": [
+      "combinator" : "ALL",
+      "conditions" : [
+        {
+          "comparator" : "==",
+          "metric" : "FONT_SIZE",
+          "number" : 12,
+          "scopes" : [
+            {
+              "type" : "export"
+            }
+          ]
+        }
+      ],
+      "name" : "Export font size 12 pt"
+    },
     {
-     "comparator": "<=",
-     "metric": "EXISTS",
-     "number": 0,
-     "scopes": [
-      {
-       "name": "Methods",
-       "type": "section"
-      }
-     ]
-    }
-   ],
-   "name": "Methods section present",
-   "note": "Required by this journal's structure."
-  },
-  {
-   "combinator": "ALL",
-   "conditions": [
+      "combinator" : "ALL",
+      "conditions" : [
+        {
+          "comparator" : ">=",
+          "metric" : "LINE_SPACING",
+          "number" : 1.5,
+          "scopes" : [
+            {
+              "type" : "export"
+            }
+          ]
+        }
+      ],
+      "name" : "Export spacing ≥ 1.5×"
+    },
     {
-     "comparator": "<=",
-     "metric": "EXISTS",
-     "number": 0,
-     "scopes": [
-      {
-       "name": "Results",
-       "type": "section"
-      }
-     ]
-    }
-   ],
-   "name": "Results section present",
-   "note": "Required by this journal's structure."
-  },
-  {
-   "combinator": "ALL",
-   "conditions": [
+      "combinator" : "ALL",
+      "conditions" : [
+        {
+          "comparator" : "==",
+          "metric" : "LINE_NUMBERS",
+          "number" : 1,
+          "scopes" : [
+            {
+              "type" : "export"
+            }
+          ]
+        }
+      ],
+      "name" : "Continuous line numbers"
+    },
     {
-     "comparator": "<=",
-     "metric": "EXISTS",
-     "number": 0,
-     "scopes": [
-      {
-       "name": "Discussion",
-       "type": "section"
-      }
-     ]
-    }
-   ],
-   "name": "Discussion section present",
-   "note": "Required by this journal's structure."
-  },
-  {
-   "combinator": "ALL",
-   "conditions": [
+      "combinator" : "ALL",
+      "conditions" : [
+
+      ],
+      "manual" : true,
+      "name" : "Abstract must provide the date(s) and location(s) of the data used in the study."
+    },
     {
-     "comparator": "<=",
-     "metric": "EXISTS",
-     "number": 0,
-     "scopes": [
-      {
-       "name": "Public Health Implications",
-       "type": "section"
-      }
-     ]
-    }
-   ],
-   "name": "Public Health Implications section present",
-   "note": "Required by this journal's structure."
-  },
-  {
-   "combinator": "ALL",
-   "conditions": [
+      "combinator" : "ALL",
+      "conditions" : [
+        {
+          "comparator" : "<=",
+          "metric" : "EXISTS",
+          "number" : 250,
+          "scopes" : [
+            {
+              "type" : "abstract"
+            },
+            {
+              "type" : "title"
+            }
+          ]
+        }
+      ],
+      "name" : "Title and abstract exists"
+    },
     {
-     "comparator": "<=",
-     "metric": "CONTAINS",
-     "number": 0,
-     "scopes": [
-      {
-       "type": "abstract"
-      }
-     ],
-     "text": "Public Health Implications"
-    }
-   ],
-   "name": "Abstract names Public Health Implications",
-   "note": "Research Briefs use the fifth heading; AJPH also accepts Policy Implications."
-  },
-  {
-   "combinator": "ALL",
-   "conditions": [
+      "combinator" : "ALL",
+      "conditions" : [
+        {
+          "comparator" : ">=",
+          "metric" : "LINE_SPACING",
+          "number" : 1.5,
+          "scopes" : [
+            {
+              "type" : "abstract"
+            }
+          ]
+        }
+      ],
+      "name" : "1.5 or double line spacing"
+    },
     {
-     "comparator": "<=",
-     "metric": "EXISTS",
-     "number": 0,
-     "scopes": [
-      {
-       "type": "export"
-      }
-     ]
+      "combinator" : "ALL",
+      "conditions" : [
+        {
+          "comparator" : "<=",
+          "metric" : "EXISTS",
+          "number" : 250,
+          "scopes" : [
+            {
+              "name" : "Title Page",
+              "type" : "section"
+            }
+          ]
+        }
+      ],
+      "name" : "Title Page"
     }
-   ],
-   "manual": true,
-   "name": "Page numbers throughout",
-   "note": "AJPH requires page numbers as well as continuous line numbers."
-  },
-  {
-   "combinator": "ALL",
-   "conditions": [
-    {
-     "comparator": "<=",
-     "metric": "EXISTS",
-     "number": 0,
-     "scopes": [
-      {
-       "type": "export"
-      }
-     ]
-    }
-   ],
-   "manual": true,
-   "name": "Manuscript file is blinded",
-   "note": "No acknowledgements, author or affiliation details, conflicts, funding, IRB names or trial registration — in the file or its name."
-  }
- ]
+  ]
 }

@@ -1,159 +1,79 @@
 {
-  "documents": [
+  "documents" : [
     {
-      "name": "Title Page",
-      "type": "docx",
-      "sections": [
+      "name" : "Title Page",
+      "sections" : [
         {
-          "margin": 1.0,
-          "lineNumbers": false,
-          "pageNumbers": false,
-          "columns": 1,
-          "items": [
+          "columns" : 1,
+          "items" : [
             {
-              "type": "component",
-              "title": "Title Page",
-              "format": {
-                "fontFamily": "times",
-                "fontSize": 12,
-                "lineSpacing": 1.5
-              }
-            },
-            {
-              "type": "component",
-              "title": "Authors",
-              "format": {
-                "fontFamily": "times",
-                "fontSize": 12,
-                "lineSpacing": 1.5
-              }
-            },
-            {
-              "type": "component",
-              "title": "Abstract",
-              "format": {
-                "fontFamily": "times",
-                "fontSize": 12,
-                "lineSpacing": 1.5
-              }
+              "title" : "Title Page",
+              "type" : "component"
             }
-          ]
+          ],
+          "lineNumbers" : false,
+          "margin" : 1,
+          "pageNumbers" : false
         }
-      ]
+      ],
+      "type" : "docx"
     },
     {
-      "name": "Manuscript (blinded)",
-      "type": "docx",
-      "sections": [
+      "name" : "Cover Letter",
+      "sections" : [
         {
-          "margin": 1.0,
-          "lineNumbers": true,
-          "pageNumbers": true,
-          "columns": 1,
-          "items": [
-            {
-              "type": "component",
-              "title": "Title Page",
-              "format": {
-                "fontFamily": "times",
-                "fontSize": 12,
-                "lineSpacing": 1.5
-              }
-            },
-            {
-              "type": "component",
-              "title": "Abstract",
-              "format": {
-                "fontFamily": "times",
-                "fontSize": 12,
-                "lineSpacing": 1.5
-              }
-            }
-          ]
-        },
-        {
-          "items": [
-            {
-              "type": "component",
-              "title": "Introduction"
-            },
-            {
-              "type": "component",
-              "title": "Methods"
-            },
-            {
-              "type": "component",
-              "title": "Results"
-            },
-            {
-              "type": "component",
-              "title": "Discussion"
-            },
-            {
-              "type": "component",
-              "title": "Public Health Implications"
-            }
-          ]
-        },
-        {
-          "items": [
-            {
-              "type": "component",
-              "title": "References",
-              "format": {
-                "fontFamily": "times",
-                "fontSize": 12,
-                "lineSpacing": 1.5
-              }
-            }
-          ]
-        },
-        {
-          "items": [
-            {
-              "type": "component",
-              "title": "Tables",
-              "format": {
-                "fontFamily": "times",
-                "fontSize": 12,
-                "lineSpacing": 1.5
-              }
-            },
-            {
-              "type": "component",
-              "title": "Figures",
-              "format": {
-                "fontFamily": "times",
-                "fontSize": 12,
-                "lineSpacing": 1.5
-              }
-            }
-          ]
+          "columns" : 1,
+          "items" : [
+
+          ],
+          "lineNumbers" : false,
+          "margin" : 1,
+          "pageNumbers" : false
         }
-      ]
+      ],
+      "type" : "docx"
     },
     {
-      "name": "Cover Letter",
-      "type": "docx",
-      "sections": [
+      "name" : "Manuscript",
+      "sections" : [
         {
-          "margin": 1.0,
-          "lineNumbers": false,
-          "pageNumbers": false,
-          "columns": 1,
-          "items": [
+          "columns" : 1,
+          "items" : [
             {
-              "type": "component",
-              "title": "Cover Letter",
-              "format": {
-                "fontFamily": "times",
-                "fontSize": 12,
-                "lineSpacing": 1.5
-              }
+              "title" : "Title Page",
+              "type" : "component"
+            },
+            {
+              "title" : "Abstract",
+              "type" : "component"
+            },
+            {
+              "title" : "Introduction",
+              "type" : "component"
+            },
+            {
+              "title" : "Methods",
+              "type" : "component"
+            },
+            {
+              "title" : "Results",
+              "type" : "component"
+            },
+            {
+              "title" : "Discussion",
+              "type" : "component"
+            },
+            {
+              "title" : "Public Health Implications",
+              "type" : "component"
             }
-          ]
+          ],
+          "lineNumbers" : false,
+          "margin" : 1,
+          "pageNumbers" : false
         }
-      ]
+      ],
+      "type" : "docx"
     }
   ]
 }
