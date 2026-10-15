@@ -213,7 +213,7 @@ struct TemplateSidebarView: View {
     }
 
     private func icon(for section: StructureSection) -> String {
-        section.subject == .abstract ? "text.quote" : section.kind.systemImage
+        section.subject == .abstract ? "text.quote" : section.type.systemImage
     }
 
     /// Adding a section here adds it to the template's structure — the two are

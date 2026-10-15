@@ -164,7 +164,7 @@ struct TemplateStructureView: View {
                 .foregroundStyle(.tertiary)
                 .font(.caption)
                 .help("Drag to reorder")
-            Image(systemName: section.kind.systemImage)
+            Image(systemName: section.type.systemImage)
                 .foregroundStyle(.tertiary)
                 .font(.caption)
                 .frame(width: 18)
@@ -175,8 +175,8 @@ struct TemplateStructureView: View {
                 .textFieldStyle(.roundedBorder)
 
             Picker("", selection: Binding(
-                get: { section.kind },
-                set: { value in edit(section) { $0.kind = value } })) {
+                get: { section.type },
+                set: { value in edit(section) { $0.type = value } })) {
                 ForEach(SectionKind.addable, id: \.self) { Text($0.label).tag($0) }
             }
             .labelsHidden().fixedSize()

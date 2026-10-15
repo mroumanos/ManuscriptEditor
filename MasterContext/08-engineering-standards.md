@@ -301,13 +301,24 @@ xcodebuild -scheme ManuscriptEditor -destination 'platform=macOS' build
     "<name> - copy", "- copy 2"…  A harness points the library at a scratch
     folder with `MANUSCRIPT_EDITOR_LIBRARY_ROOT`.
 
-42. **A structure entry's `type` and a question's `boilerplate` are written
-    under those names; `kind` and `sample` are read for older files.** The
-    rename (Oct 2026) changes the fingerprint of a structure that carries a
-    question series, so a template with one reads as edited against its
-    saved checksums once, until it is re-saved. A venue's page breaks,
-    separate title page or blinded copy live in `export.json` — the
-    outline — not in the structure.
+42. **Two kinds of section, named apart: a `manuscriptSection` is a
+    component of the paper; a document section is a run of pages in an
+    export with its own margin, line numbers, page numbers and columns.**
+    In the code: `ExportItem.ItemType.manuscriptSection` (file value
+    "section"), `ExportService.DocumentSection`, `StructureSection.type`,
+    `ExportItem.type`. In the files: `export.json` is `TemplateOutline` —
+    documents of a `type`, document `sections` with geometry, items of
+    `type: component` by `title`, no ids — converted to and from the app's
+    `ExportConfig` on read and write (`Models/TemplateOutline.swift`); a
+    manuscript section's typography is written with its structure entry,
+    never with an item. `kind`, `sample`, a top-level `documentFormat` and
+    the app-shaped export.json are all still read. The renames (Oct 2026)
+    change the fingerprint of a structure with a question series or
+    per-section typography, so such a template reads as edited against its
+    saved checksums once, until re-saved. `ManuscriptSection.kind`,
+    `SectionKind` and a check scope's `kind` keep their names: the first
+    because `ManuscriptSection.type` is its legacy section type, the last
+    because renaming the key would re-checksum every template's tests.
 
 ## Generated journal profiles
 

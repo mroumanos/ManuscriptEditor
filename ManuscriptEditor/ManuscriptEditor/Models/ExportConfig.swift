@@ -38,11 +38,11 @@ struct ExportConfig: Codable, Sendable, Equatable {
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         documents = try c.decodeIfPresent([ExportDocument].self, forKey: .documents) ?? []
-        guard !documents.flatMap(\.items).contains(where: { $0.kind == .authors }) else { return }
+        guard !documents.flatMap(\.items).contains(where: { $0.type == .authors }) else { return }
         for d in documents.indices {
             var items = documents[d].items
-            for i in items.indices.reversed() where items[i].kind == .titlePage {
-                var byline = ExportItem(kind: .authors)
+            for i in items.indices.reversed() where items[i].type == .titlePage {
+                var byline = ExportItem(type: .authors)
                 byline.authorDelimiter = items[i].authorDelimiter
                 byline.affiliationMarker = items[i].affiliationMarker
                 byline.affiliationDelimiter = items[i].affiliationDelimiter
@@ -66,26 +66,26 @@ struct ExportConfig: Codable, Sendable, Equatable {
         var items: [ExportItem] = [
             // The outline leads with an explicit first Section (geometry
             // inherits the document defaults until touched).
-            ExportItem(kind: .pageBreak),
-            ExportItem(kind: .titlePage),
-            ExportItem(kind: .authors),
+            ExportItem(type: .pageBreak),
+            ExportItem(type: .titlePage),
+            ExportItem(type: .authors),
         ]
         // The abstract has a fixed item of its own (it prints the abstract
         // section), so it is not also a section item below.
-        if content.abstractSection != nil { items.append(ExportItem(kind: .abstract)) }
-        items += [ExportItem(kind: .keywords), ExportItem(kind: .pageBreak)]
+        if content.abstractSection != nil { items.append(ExportItem(type: .abstract)) }
+        items += [ExportItem(type: .keywords), ExportItem(type: .pageBreak)]
         // The letter gets a document of its own below — sent beside the
         // manuscript, not bound into it.
         for section in content.sections.sorted(by: { $0.order < $1.order })
         where section.active && section.isJournalContent && section.sectionKind != .abstract {
-            items.append(ExportItem(kind: .section, sectionID: section.id))
+            items.append(ExportItem(type: .manuscriptSection, sectionID: section.id))
         }
-        items.append(ExportItem(kind: .pageBreak))
-        items.append(ExportItem(kind: .references))
+        items.append(ExportItem(type: .pageBreak))
+        items.append(ExportItem(type: .references))
         if !separateFigures {
-            items.append(ExportItem(kind: .pageBreak))
-            items.append(ExportItem(kind: .figures))
-            items.append(ExportItem(kind: .tables))
+            items.append(ExportItem(type: .pageBreak))
+            items.append(ExportItem(type: .figures))
+            items.append(ExportItem(type: .tables))
         }
 
         var documents = [ExportDocument(name: "Manuscript", fileType: fileType, items: items)]
@@ -99,7 +99,7 @@ struct ExportConfig: Codable, Sendable, Equatable {
         if separateFigures {
             documents.append(ExportDocument(
                 name: "Figures and Tables", fileType: fileType,
-                items: [ExportItem(kind: .figures), ExportItem(kind: .pageBreak), ExportItem(kind: .tables)]
+                items: [ExportItem(type: .figures), ExportItem(type: .pageBreak), ExportItem(type: .tables)]
             ))
         }
         // The letter, when the manuscript has one, as a document of its own
@@ -107,7 +107,7 @@ struct ExportConfig: Codable, Sendable, Equatable {
         // fixed item, whose heading is off: a real letter carries no label.
         if let letter = content.letterSection, letter.active {
             documents.append(ExportDocument(name: "Letter to the Editor", fileType: fileType,
-                                            items: [ExportItem(kind: .coverLetter)]))
+                                            items: [ExportItem(type: .coverLetter)]))
         }
         return ExportConfig(documents: documents)
     }
@@ -308,9 +308,13 @@ enum ExportFileType: String, Codable, CaseIterable, Identifiable, Sendable {
 
 /// One entry in a document's outline: a manuscript component or a page break.
 struct ExportItem: Codable, Identifiable, Sendable, Equatable {
-    enum Kind: String, Codable, CaseIterable, Sendable {
-        case titlePage, abstract, keywords, section, figures, tables,
-             references, pageBreak
+    /// What an item prints.  Raw values are the file's words — "section"
+    /// for a manuscript section — and stay so an outline written last year
+    /// still reads.
+    enum ItemType: String, Codable, CaseIterable, Sendable {
+        case titlePage, abstract, keywords, figures, tables, references, pageBreak
+        /// One of the manuscript's own sections, named by `sectionID`.
+        case manuscriptSection = "section"
         /// The manuscript's letter to the editor — the author's fixed part.
         /// An outline names it without knowing any section id (a template's
         /// outline has none to know), and the renderers print the
@@ -326,9 +330,35 @@ struct ExportItem: Codable, Identifiable, Sendable, Equatable {
     }
 
     var id: UUID = UUID()
-    var kind: Kind
-    /// The body section this item renders (only for `kind == .section`).
+    var type: ItemType
+    /// The body section this item renders (only for `.manuscriptSection`).
     var sectionID: UUID?
+
+    /// Written under the names the files have always had: the item's type is
+    /// `kind` on disk, so a manuscript saved last year still opens.
+    private enum CodingKeys: String, CodingKey {
+        case id,
+        type = "kind",
+        sectionID,
+        customTitle,
+        showTitle,
+        headingStyle,
+        sectionMarginInches,
+        sectionTwoColumn,
+        sectionLineNumbers,
+        sectionPageNumbers,
+        citationStyle,
+        authorDelimiter,
+        affiliationMarker,
+        institutionMarker,
+        authorParts,
+        affiliationDelimiter,
+        affiliationListStyle,
+        showCorresponding,
+        showAuthorTitles,
+        format,
+        headerFormat
+    }
 
     /// User-renamed heading for this item in the exported document (click the
     /// name in the Export card to edit).  Export-level only — it does not
@@ -345,7 +375,7 @@ struct ExportItem: Codable, Identifiable, Sendable, Equatable {
 
     /// Resolved show/hide for the printed heading.
     var titleShown: Bool {
-        get { showTitle ?? (kind != .coverLetter) }
+        get { showTitle ?? (type != .coverLetter) }
         set { showTitle = newValue }
     }
 
@@ -353,7 +383,7 @@ struct ExportItem: Codable, Identifiable, Sendable, Equatable {
     /// heading is off unless switched on.
     func headingShown(in content: Manuscript?) -> Bool {
         if let showTitle { return showTitle }
-        if kind == .section, let id = sectionID,
+        if type == .manuscriptSection, let id = sectionID,
            content?.sections.first(where: { $0.id == id })?.sectionKind == .letter {
             return false
         }
@@ -537,12 +567,12 @@ struct ExportItem: Codable, Identifiable, Sendable, Equatable {
 
     /// Default display name; body sections resolve their live title from `content`.
     func title(in content: Manuscript?) -> String {
-        switch kind {
+        switch type {
         case .titlePage:   return "Title"
         case .authors:     return "Authors"
         case .abstract:    return content?.abstractSection?.title ?? "Abstract"
         case .keywords:    return "Keywords"
-        case .section:
+        case .manuscriptSection:
             guard let sectionID,
                   let section = content?.sections.first(where: { $0.id == sectionID })
             else { return "(missing section)" }
@@ -556,12 +586,12 @@ struct ExportItem: Codable, Identifiable, Sendable, Equatable {
     }
 
     var systemImage: String {
-        switch kind {
+        switch type {
         case .titlePage:   return "textformat"
         case .authors:     return "person.2"
         case .abstract:    return "text.quote"
         case .keywords:    return "tag"
-        case .section:     return "doc.text"
+        case .manuscriptSection:     return "doc.text"
         case .figures:     return "photo.on.rectangle.angled"
         case .tables:      return "tablecells"
         case .references:  return "books.vertical"

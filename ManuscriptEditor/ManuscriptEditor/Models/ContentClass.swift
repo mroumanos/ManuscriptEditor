@@ -154,7 +154,7 @@ extension StructureSection {
     }
 
     var subject: Subject {
-        if kind == .letter { return .core }
+        if type == .letter { return .core }
         return key == "abstract" ? .abstract : .section
     }
 
@@ -173,13 +173,13 @@ extension JournalStructure {
 
 // MARK: - An outline's items
 
-extension ExportItem.Kind {
+extension ExportItem.ItemType {
     /// nil for a page break, which is layout rather than content.
     var contentClass: ContentClass? {
         switch self {
         case .titlePage, .authors, .keywords, .figures, .tables, .references, .coverLetter:
             return .core
-        case .abstract, .section:
+        case .abstract, .manuscriptSection:
             return .journal
         case .pageBreak:
             return nil
@@ -188,7 +188,7 @@ extension ExportItem.Kind {
 
     /// The core parts as outline items, in outline order — what Add Item
     /// lists under Components.
-    static let coreKinds: [ExportItem.Kind] =
+    static let coreKinds: [ExportItem.ItemType] =
         [.titlePage, .authors, .keywords, .figures, .tables, .references, .coverLetter]
 }
 

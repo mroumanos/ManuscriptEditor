@@ -1,123 +1,127 @@
 {
   "documents": [
     {
-      "id": "A919831F-9EB8-5DB3-939C-D9D147B04510",
       "name": "Title Page",
-      "fileType": "docx",
+      "type": "docx",
       "format": {
         "fontFamily": "times",
         "fontSize": 12,
-        "lineSpacing": 1.5,
-        "marginInches": 1.0,
-        "lineNumbers": false,
-        "pageNumbers": false,
-        "twoColumn": false
+        "lineSpacing": 1.5
       },
-      "items": [
+      "sections": [
         {
-          "id": "91D510A3-9AC9-5095-9F0E-AA4D983A45C7",
-          "kind": "titlePage"
-        },
-        {
-          "id": "571D0DD5-9678-5CA6-94BD-63521C79CE0C",
-          "kind": "authors"
-        },
-        {
-          "id": "943DF0EC-4089-5E50-A9ED-63152181006D",
-          "kind": "abstract"
+          "margin": 1.0,
+          "lineNumbers": false,
+          "pageNumbers": false,
+          "columns": 1,
+          "items": [
+            {
+              "type": "component",
+              "title": "Title Page"
+            },
+            {
+              "type": "component",
+              "title": "Authors"
+            },
+            {
+              "type": "component",
+              "title": "Abstract"
+            }
+          ]
         }
       ]
     },
     {
-      "id": "73D18DA6-6F5A-500E-B879-C030E61C3942",
       "name": "Manuscript (blinded)",
-      "fileType": "docx",
+      "type": "docx",
       "format": {
         "fontFamily": "times",
         "fontSize": 12,
-        "lineSpacing": 1.5,
-        "marginInches": 1.0,
-        "lineNumbers": true,
-        "pageNumbers": true,
-        "twoColumn": false
+        "lineSpacing": 1.5
       },
-      "items": [
+      "sections": [
         {
-          "id": "768043C6-3700-50E7-A7B3-7E1F38FA7018",
-          "kind": "titlePage"
+          "margin": 1.0,
+          "lineNumbers": true,
+          "pageNumbers": true,
+          "columns": 1,
+          "items": [
+            {
+              "type": "component",
+              "title": "Title Page"
+            },
+            {
+              "type": "component",
+              "title": "Abstract"
+            }
+          ]
         },
         {
-          "id": "5DFF0E8A-0B96-5F25-A203-2217A9FD35B4",
-          "kind": "abstract"
+          "items": [
+            {
+              "type": "component",
+              "title": "Introduction"
+            },
+            {
+              "type": "component",
+              "title": "Methods"
+            },
+            {
+              "type": "component",
+              "title": "Results"
+            },
+            {
+              "type": "component",
+              "title": "Discussion"
+            },
+            {
+              "type": "component",
+              "title": "Public Health Implications"
+            }
+          ]
         },
         {
-          "id": "788B3AEA-40F9-5737-9C7D-CA0D2F5AC9FE",
-          "kind": "pageBreak"
+          "items": [
+            {
+              "type": "component",
+              "title": "References"
+            }
+          ]
         },
         {
-          "id": "DA2C17D8-3384-5A75-A1CA-BB97598B2948",
-          "kind": "section",
-          "sectionID": "A2595CAD-C47C-57C3-BEDA-BF45AEBEC32D"
-        },
-        {
-          "id": "EFA0624A-7196-564F-87AC-6C4C94C26824",
-          "kind": "section",
-          "sectionID": "BC877780-3787-5F43-89C2-A9B6AB5331CA"
-        },
-        {
-          "id": "AD72ABE3-CE01-5B21-87CF-49DEBCACD4C2",
-          "kind": "section",
-          "sectionID": "72ECCC71-8249-58F5-A1B7-E7176DC86F5B"
-        },
-        {
-          "id": "39D59C14-C287-5CD0-A357-0D866DF38000",
-          "kind": "section",
-          "sectionID": "EB952E5F-C4BC-5661-AC44-9B3FD72FE376"
-        },
-        {
-          "id": "42D0B852-F075-5A1A-B92A-AC00E7D32C09",
-          "kind": "section",
-          "sectionID": "904872BE-4CC4-5343-8B47-7A0A145FD3A4"
-        },
-        {
-          "id": "52E6165B-4E94-5DD4-868D-7BCBB670DD3F",
-          "kind": "pageBreak"
-        },
-        {
-          "id": "D106D5BC-12E6-5AAF-8A92-E542F32A2031",
-          "kind": "references"
-        },
-        {
-          "id": "30EC8ABD-56FE-58D8-A229-38AF05229B14",
-          "kind": "pageBreak"
-        },
-        {
-          "id": "FEE95992-5CF6-54DB-B85F-B1A0696C8F64",
-          "kind": "tables"
-        },
-        {
-          "id": "75B8CC47-B68C-57D6-8208-1097C6745331",
-          "kind": "figures"
+          "items": [
+            {
+              "type": "component",
+              "title": "Tables"
+            },
+            {
+              "type": "component",
+              "title": "Figures"
+            }
+          ]
         }
       ]
     },
     {
-      "id": "43FAC658-180A-5D59-BB2B-F35B1A7F1D90",
       "name": "Cover Letter",
-      "fileType": "docx",
+      "type": "docx",
       "format": {
         "fontFamily": "times",
         "fontSize": 12,
-        "lineSpacing": 1.5,
-        "marginInches": 1.0,
-        "lineNumbers": false,
-        "pageNumbers": false,
-        "twoColumn": false
+        "lineSpacing": 1.5
       },
-      "items": [
+      "sections": [
         {
-          "id": "ADF8C6C2-E707-51E0-A471-02D2DC7A6DE4",
-          "kind": "coverLetter"
+          "margin": 1.0,
+          "lineNumbers": false,
+          "pageNumbers": false,
+          "columns": 1,
+          "items": [
+            {
+              "type": "component",
+              "title": "Cover Letter"
+            }
+          ]
         }
       ]
     }

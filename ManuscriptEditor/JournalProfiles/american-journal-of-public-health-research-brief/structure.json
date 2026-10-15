@@ -1,45 +1,66 @@
 {
   "id": "BE598C81-274C-582D-8FF2-1491E152ADE9",
   "journal": "American Journal of Public Health",
-  "documentFormat": {
-    "fontFamily": "times",
-    "fontSize": 12,
-    "lineNumbers": true,
-    "lineSpacing": 1.5,
-    "marginInches": 1,
-    "pageNumbers": true,
-    "twoColumn": false
-  },
   "sections": [
     {
       "title": "Abstract",
       "required": true,
+      "format": {
+        "fontFamily": "times",
+        "fontSize": 12,
+        "lineSpacing": 1.5
+      },
       "formatNote": "Structured, no more than 180 words including its headings: Objectives (begins with \"To\"), Methods, Results, Conclusions, and Public Health Implications. No Background heading. State the date(s) and location(s) of the data.",
       "boilerplate": "Objectives. \nMethods. \nResults. \nConclusions. \nPublic Health Implications. "
     },
     {
       "title": "Introduction",
       "required": true,
+      "format": {
+        "fontFamily": "times",
+        "fontSize": 12,
+        "lineSpacing": 1.5
+      },
       "formatNote": "Paragraphs; the question the study answers and why it matters for public health."
     },
     {
       "title": "Methods",
       "required": true,
+      "format": {
+        "fontFamily": "times",
+        "fontSize": 12,
+        "lineSpacing": 1.5
+      },
       "formatNote": "Paragraphs with subheadings as needed: data source(s) with dates and locations, design, measures, analysis. Name the IRB approval here, without the institution's name in the blinded manuscript."
     },
     {
       "title": "Results",
       "required": true,
+      "format": {
+        "fontFamily": "times",
+        "fontSize": 12,
+        "lineSpacing": 1.5
+      },
       "formatNote": "Paragraphs; one decimal place for proportions and effect measures; exponentiated estimates with 95% CIs rather than parameter estimates; actual P values rounded to 2 decimals, never \"NS\"."
     },
     {
       "title": "Discussion",
       "required": true,
+      "format": {
+        "fontFamily": "times",
+        "fontSize": 12,
+        "lineSpacing": 1.5
+      },
       "formatNote": "Paragraphs: principal findings, context with prior work, limitations, and what follows for practice, policy and research."
     },
     {
       "title": "Public Health Implications",
       "required": true,
+      "format": {
+        "fontFamily": "times",
+        "fontSize": 12,
+        "lineSpacing": 1.5
+      },
       "formatNote": "A short closing section of its own.",
       "note": "Named explicitly in this journal's instructions — practice, policy and research.",
       "boilerplate": "What these findings mean for public health practice, policy and research."

@@ -315,7 +315,7 @@ struct JournalStructureView: View {
             Image(systemName: "line.3.horizontal")
                 .foregroundStyle(.tertiary).font(.caption)
                 .help("Drag to reorder")
-            Image(systemName: section.kind.systemImage)
+            Image(systemName: section.type.systemImage)
                 .foregroundStyle(.tertiary).font(.caption).frame(width: 18)
             Text(section.displayTitle)
             if let boilerplate = section.boilerplate, !boilerplate.isEmpty {

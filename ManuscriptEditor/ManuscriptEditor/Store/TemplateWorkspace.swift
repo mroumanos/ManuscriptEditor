@@ -144,7 +144,7 @@ final class TemplateWorkspace {
             + template.structure.sectionEntries.enumerated().map { index, section in
                 ManuscriptSection(id: section.uid, type: .custom, title: section.title,
                                   content: PartEngine.richText(section.boilerplate ?? ""), order: index + 1,
-                                  kind: section.kind == .text ? nil : section.kind)
+                                  kind: section.type == .text ? nil : section.type)
             }
         return made
     }
@@ -172,13 +172,13 @@ final class TemplateWorkspace {
         var seen: Set<UUID> = []
         for d in out.documents.indices {
             out.documents[d].items = out.documents[d].items.compactMap { item in
-                guard item.kind == .section else { return item }   // the letter item stays
+                guard item.type == .manuscriptSection else { return item }   // the letter item stays
                 guard let id = item.sectionID else { return nil }
                 // A section item at a letter entry (the section-kind week)
                 // meant the author's letter: the fixed item says so.
                 if letterUIDs.contains(id) {
                     var letter = item
-                    letter.kind = .coverLetter
+                    letter.type = .coverLetter
                     letter.sectionID = nil
                     return letter
                 }
@@ -190,13 +190,13 @@ final class TemplateWorkspace {
         if !missing.isEmpty,
            let main = out.documents.firstIndex(where: { !$0.isAttachment }) {
             let items = out.documents[main].items
-            let insertAt = items.lastIndex { $0.kind == .section }.map { $0 + 1 } ?? items.count
+            let insertAt = items.lastIndex { $0.type == .manuscriptSection }.map { $0 + 1 } ?? items.count
             out.documents[main].items.insert(
-                contentsOf: missing.map { ExportItem(kind: .section, sectionID: $0.uid) },
+                contentsOf: missing.map { ExportItem(type: .manuscriptSection, sectionID: $0.uid) },
                 at: insertAt)
         }
         out.documents.removeAll { !$0.isAttachment && !$0.items.isEmpty
-            && $0.items.allSatisfy { $0.kind == .pageBreak } }
+            && $0.items.allSatisfy { $0.type == .pageBreak } }
         return out
     }
 

@@ -286,7 +286,7 @@ struct StructureSection: Codable, Sendable, Equatable, Identifiable {
     /// Prose, or the journal's submission questions.  Recorded here so a
     /// journal that asks a set of questions brings them with it: forking to
     /// that journal adds the section already in question form.
-    var kind: SectionKind = .text
+    var type: SectionKind = .text
     /// How this section must be WRITTEN at this venue, in words: the layout a
     /// title page needs, the headings a structured abstract uses, the order a
     /// venue expects an argument in.
@@ -380,7 +380,7 @@ struct StructureSection: Codable, Sendable, Equatable, Identifiable {
          format: ExportDocumentFormat? = nil, formatNote: String? = nil,
          uid: UUID? = nil) {
         self.uid = uid ?? StructureSection.derivedID(title: title)
-        self.title = title; self.required = required; self.kind = kind; self.note = note
+        self.title = title; self.required = required; self.type = kind; self.note = note
         self.boilerplate = boilerplate; self.questions = questions; self.format = format
         self.formatNote = formatNote
     }
@@ -404,10 +404,10 @@ struct StructureSection: Codable, Sendable, Equatable, Identifiable {
         let rawKind = (try? c.decodeIfPresent(String.self, forKey: .type)) ?? nil
             ?? (try? c.decodeIfPresent(String.self, forKey: .kind)) ?? nil
         isFixedPart = rawKind == "core" || (try? c.decodeIfPresent(String.self, forKey: .core)) != nil
-        kind = rawKind.flatMap(SectionKind.init(rawValue:)) ?? .text
+        type = rawKind.flatMap(SectionKind.init(rawValue:)) ?? .text
         // A file from the fortnight the cover letter was a "role" rather than
         // a kind: it is a letter section now.
-        if (try? c.decodeIfPresent(String.self, forKey: .role)) == "letter" { kind = .letter }
+        if (try? c.decodeIfPresent(String.self, forKey: .role)) == "letter" { type = .letter }
     }
 
     /// `isFixedPart` is deliberately absent: it is a read-time concern, and
@@ -417,11 +417,13 @@ struct StructureSection: Codable, Sendable, Equatable, Identifiable {
         try c.encode(uid, forKey: .id)
         try c.encode(title, forKey: .title)
         try c.encode(required, forKey: .required)
-        if kind != .text { try c.encode(kind.rawValue, forKey: .type) }
+        if type != .text { try c.encode(type.rawValue, forKey: .type) }
         try c.encodeIfPresent(note, forKey: .note)
         try c.encodeIfPresent(boilerplate, forKey: .boilerplate)
         try c.encodeIfPresent(questions, forKey: .questions)
-        try c.encodeIfPresent(format, forKey: .format)
+        // Typography only: margins, line numbers, page numbers and columns
+        // belong to a document section of the outline, not to a section.
+        try c.encodeIfPresent(format.map(TemplateOutline.Typography.init), forKey: .format)
         try c.encodeIfPresent(formatNote, forKey: .formatNote)
     }
 }
@@ -433,7 +435,7 @@ struct JournalStructure: Codable, Sendable, Equatable {
 
     /// Export formatting for the app's FIXED parts — title page, byline,
     /// abstract, keywords, figures, tables, references, cover letter — keyed
-    /// by `ExportItem.Kind`.
+    /// by `ExportItem.ItemType`.
     ///
     /// The fixed parts are the same everywhere, but how a venue sets them is
     /// not, and that is exactly what a journal template should carry: fork a
@@ -581,7 +583,7 @@ struct StructureDoc: Codable, Sendable, Equatable {
     var id: UUID
     var journal: String
     var sections: [StructureSection] = []
-    /// Export formatting for the app's fixed parts, keyed by `ExportItem.Kind`.
+    /// Export formatting for the app's fixed parts, keyed by `ExportItem.ItemType`.
     var coreFormats: [String: ExportDocumentFormat]? = nil
     /// Page geometry and the defaults everything inherits.
     var documentFormat: ExportDocumentFormat? = nil
@@ -846,10 +848,18 @@ struct JournalProfile: Codable, Identifiable, Sendable, Equatable {
                                         coreFormats: doc?.coreFormats,
                                         documentFormat: doc?.documentFormat)
             }(),
-            export: load(.export, as: ExportConfig.self),
+            export: nil,
             origin: origin, originURL: originURL, updatedAt: req.updatedAt,
             version: req.version, partChecksums: req.partChecksums
         )
+        // export.json speaks the outline's words (documents with sections
+        // and items by title); a file from before says it in the app's own.
+        if let outline = load(.export, as: TemplateOutline.self),
+           outline.documents.contains(where: { !$0.sections.isEmpty }) {
+            profile.export = outline.exportConfig(structure: profile.structure, profileID: profile.id)
+        } else if let legacy = load(.export, as: ExportConfig.self), !legacy.documents.isEmpty {
+            profile.export = legacy
+        }
         profile.publisher = req.publisher
         profile.country = req.country
         return profile
@@ -884,12 +894,26 @@ struct JournalProfile: Codable, Identifiable, Sendable, Equatable {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         encoder.dateEncodingStrategy = .iso8601
+        // A manuscript section's typography is written with its structure
+        // entry, whichever item of the outline set it.
+        var structureOut = structureDoc
+        if let export {
+            for d in export.documents {
+                for item in d.items where item.type == .manuscriptSection {
+                    guard let id = item.sectionID, let format = item.format,
+                          let idx = structureOut.sections.firstIndex(where: { $0.uid == id }) else { continue }
+                    structureOut.sections[idx].format = format
+                }
+            }
+        }
         var files: [ProfilePart: Data] = [
             .requirements: try encoder.encode(requirementsDocForWriting),
             .checks: try encoder.encode(checksDoc),
-            .structure: try encoder.encode(structureDoc),
+            .structure: try encoder.encode(structureOut),
         ]
-        if let export { files[.export] = try encoder.encode(export) }
+        if let export {
+            files[.export] = try encoder.encode(TemplateOutline.from(export, structure: structure))
+        }
         return files
     }
 

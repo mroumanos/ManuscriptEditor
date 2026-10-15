@@ -435,15 +435,15 @@ struct SectionPreviewButton: View {
     /// The export item this pane maps to (nil = not previewable).
     private var exportItem: ExportItem? {
         switch item {
-        case .title:           return ExportItem(kind: .titlePage)
-        case .authors:         return ExportItem(kind: .authors)
-        case .abstract:        return ExportItem(kind: .abstract)
-        case .keywords:        return ExportItem(kind: .keywords)
-        case .section(let id): return ExportItem(kind: .section, sectionID: id)
-        case .letterToEditor:  return ExportItem(kind: .coverLetter)
-        case .figures:         return ExportItem(kind: .figures)
-        case .tables:          return ExportItem(kind: .tables)
-        case .bibliography:    return ExportItem(kind: .references)
+        case .title:           return ExportItem(type: .titlePage)
+        case .authors:         return ExportItem(type: .authors)
+        case .abstract:        return ExportItem(type: .abstract)
+        case .keywords:        return ExportItem(type: .keywords)
+        case .section(let id): return ExportItem(type: .manuscriptSection, sectionID: id)
+        case .letterToEditor:  return ExportItem(type: .coverLetter)
+        case .figures:         return ExportItem(type: .figures)
+        case .tables:          return ExportItem(type: .tables)
+        case .bibliography:    return ExportItem(type: .references)
         default:               return nil
         }
     }
@@ -473,10 +473,10 @@ struct SectionPreviewButton: View {
     static func previewDocument(for baseItem: ExportItem, content: Manuscript,
                                 config: ExportConfig) -> ExportDocument {
         let carrying = config.documents.first { doc in
-            doc.items.contains { $0.kind == baseItem.kind && $0.sectionID == baseItem.sectionID }
+            doc.items.contains { $0.type == baseItem.type && $0.sectionID == baseItem.sectionID }
         }
         let item = carrying?.items
-            .first { $0.kind == baseItem.kind && $0.sectionID == baseItem.sectionID }
+            .first { $0.type == baseItem.type && $0.sectionID == baseItem.sectionID }
             ?? baseItem
         var document = ExportDocument(
             name: item.title(in: content), fileType: .pdf, items: [item])
@@ -485,7 +485,7 @@ struct SectionPreviewButton: View {
             for outlineItem in carrying.items {
                 // nil inherits the section before it — the same running
                 // geometry the export pipeline applies.
-                if outlineItem.kind == .pageBreak {
+                if outlineItem.type == .pageBreak {
                     if let margin = outlineItem.sectionMarginInches {
                         document.format.marginInches = margin
                     }
@@ -678,7 +678,7 @@ struct ExportDocumentCard: View {
         var twoColumn = document.format.twoColumn
         var lineNumbers = document.format.lineNumbers
         var pageNumbers = document.format.pageNumbers
-        for item in document.items.prefix(index) where item.kind == .pageBreak {
+        for item in document.items.prefix(index) where item.type == .pageBreak {
             margin = item.sectionMarginInches ?? margin
             twoColumn = item.sectionTwoColumn ?? twoColumn
             lineNumbers = item.sectionLineNumbers ?? lineNumbers
@@ -690,7 +690,7 @@ struct ExportDocumentCard: View {
     @ViewBuilder
     private func itemRow(_ item: ExportItem, index: Int) -> some View {
         HStack(spacing: 8) {
-            if index == 0 && item.kind == .pageBreak {
+            if index == 0 && item.type == .pageBreak {
                 // The document's first Section is pinned: it anchors the
                 // format settings and can't be moved or removed.
                 Image(systemName: "pin")
@@ -702,10 +702,10 @@ struct ExportDocumentCard: View {
                 dragHandle(item)
             }
             Image(systemName: item.systemImage)
-                .foregroundStyle(item.kind == .pageBreak ? Color.secondary : Color.accentColor)
+                .foregroundStyle(item.type == .pageBreak ? Color.secondary : Color.accentColor)
                 .frame(width: 20)
 
-            if item.kind == .pageBreak {
+            if item.type == .pageBreak {
                 line
                 // Geometry for the pages AFTER this boundary; values show
                 // the effective setting (inheriting the document's until
@@ -835,7 +835,7 @@ struct ExportDocumentCard: View {
                 }
             }
 
-            if !(index == 0 && item.kind == .pageBreak) {
+            if !(index == 0 && item.type == .pageBreak) {
                 Button {
                     var doc = document
                     doc.items.remove(at: index)
@@ -848,7 +848,7 @@ struct ExportDocumentCard: View {
             }
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, item.kind == .pageBreak ? 4 : 6)
+        .padding(.vertical, item.type == .pageBreak ? 4 : 6)
         .contentShape(Rectangle())
         .onDrop(of: [UTType.text], delegate: ItemDropDelegate(
             targetID: item.id,
@@ -856,7 +856,7 @@ struct ExportDocumentCard: View {
             moveAction: { moveItem($0, before: $1) }
         ))
         .contextMenu {
-            if item.kind != .pageBreak, item.format != nil {
+            if item.type != .pageBreak, item.format != nil {
                 Button("Reset Formatting to Document") {
                     var doc = document
                     guard doc.items.indices.contains(index) else { return }
@@ -904,7 +904,7 @@ struct ExportDocumentCard: View {
             parts.append(item.correspondingShown ? "+corr" : "no corr")
             parts.append(item.authorTitlesShown ? "+cred" : "no cred")
         }
-        switch item.kind {
+        switch item.type {
         case .references:
             switch item.citationStyle {
             case nil:                               parts.append("journal style")
@@ -926,7 +926,7 @@ struct ExportDocumentCard: View {
             // the Authors item's, and appear when it is added.
             break
         }
-        switch item.kind {
+        switch item.type {
         case .titlePage:
             parts.append("\(item.effectiveHeadingStyle.levelLabel) title")
         case .authors:
@@ -971,7 +971,7 @@ struct ExportDocumentCard: View {
               let to = doc.items.firstIndex(where: { $0.id == targetID }),
               from != to else { return }
         // The pinned first Section neither moves nor accepts items above it.
-        if doc.items.first?.kind == .pageBreak, from == 0 || to == 0 { return }
+        if doc.items.first?.type == .pageBreak, from == 0 || to == 0 { return }
         withAnimation(.easeInOut(duration: 0.15)) {
             doc.items.move(fromOffsets: IndexSet(integer: from), toOffset: to > from ? to + 1 : to)
             onChange(doc)
@@ -986,10 +986,10 @@ struct ExportDocumentCard: View {
             Section("Components") {
                 ForEach(missingSimpleKinds, id: \.self) { kind in
                     Button {
-                        append(ExportItem(kind: kind))
+                        append(ExportItem(type: kind))
                     } label: {
-                        Label(ExportItem(kind: kind).title(in: content),
-                              systemImage: ExportItem(kind: kind).systemImage)
+                        Label(ExportItem(type: kind).title(in: content),
+                              systemImage: ExportItem(type: kind).systemImage)
                     }
                 }
             }
@@ -997,14 +997,14 @@ struct ExportDocumentCard: View {
                 Section("Body Sections") {
                     if missingAbstract {
                         Button {
-                            append(ExportItem(kind: .abstract))
+                            append(ExportItem(type: .abstract))
                         } label: {
                             Label("Abstract", systemImage: "text.quote")
                         }
                     }
                     ForEach(missingSections) { section in
                         Button {
-                            append(ExportItem(kind: .section, sectionID: section.id))
+                            append(ExportItem(type: .manuscriptSection, sectionID: section.id))
                         } label: {
                             Label(section.title, systemImage: "doc.text")
                         }
@@ -1013,7 +1013,7 @@ struct ExportDocumentCard: View {
             }
             Divider()
             Button {
-                append(ExportItem(kind: .pageBreak))
+                append(ExportItem(type: .pageBreak))
             } label: {
                 Label("Add a Section", systemImage: "arrow.down.to.line.compact")
             }
@@ -1027,13 +1027,13 @@ struct ExportDocumentCard: View {
 
     /// The fixed parts, the letter among them — it is the author's.  The
     /// abstract is not: it is a cut's prose, listed with the body sections.
-    private var missingSimpleKinds: [ExportItem.Kind] {
-        let present = Set(document.items.map(\.kind))
-        return ExportItem.Kind.coreKinds.filter { !present.contains($0) }
+    private var missingSimpleKinds: [ExportItem.ItemType] {
+        let present = Set(document.items.map(\.type))
+        return ExportItem.ItemType.coreKinds.filter { !present.contains($0) }
     }
 
     private var missingAbstract: Bool {
-        content?.abstractSection != nil && !document.items.contains { $0.kind == .abstract }
+        content?.abstractSection != nil && !document.items.contains { $0.type == .abstract }
     }
 
     /// Neither the letter nor the abstract is listed here: each has a fixed

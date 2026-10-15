@@ -209,7 +209,7 @@ enum ChecklistService {
             // the entries after it (nil = inherit the document's).
             var sectionLines = document.format.lineNumbers
             for entry in document.items {
-                if entry.kind == .pageBreak {
+                if entry.type == .pageBreak {
                     // nil inherits the previous section (running geometry).
                     sectionLines = entry.sectionLineNumbers ?? sectionLines
                     continue

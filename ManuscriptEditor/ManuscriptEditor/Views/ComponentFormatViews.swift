@@ -62,13 +62,13 @@ struct ComponentSettingsForm: View {
         VStack(alignment: .leading, spacing: 10) {
             // Every component's heading configures HERE (one place, one
             // look); each kind adds its own settings on top.
-            switch item.kind {
+            switch item.type {
             case .coverLetter:
                 typographySection
                 letterheadTypographySection
                 Divider()
                 headingSection()
-            case .abstract, .section:
+            case .abstract, .manuscriptSection:
                 typographySection
                 Divider()
                 headingSection()

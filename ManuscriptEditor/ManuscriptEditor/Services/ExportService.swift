@@ -37,8 +37,8 @@ import CoreText
 /// letter for the `.coverLetter` item — the author's fixed part, which an
 /// outline names without a section id (a template's outline has none).
 private func exportSection(for item: ExportItem, in m: Manuscript) -> ManuscriptSection? {
-    switch item.kind {
-    case .section:
+    switch item.type {
+    case .manuscriptSection:
         return item.sectionID.flatMap { id in m.sections.first { $0.id == id } }
     case .coverLetter:
         return m.letterSection
@@ -428,7 +428,7 @@ struct ExportService {
         }
 
         // Copy figure images whenever any document includes the figures block.
-        if config.documents.contains(where: { doc in doc.items.contains { $0.kind == .figures } }) {
+        if config.documents.contains(where: { doc in doc.items.contains { $0.type == .figures } }) {
             try copyFigureImages(content, figureURL: figureURL, chartImage: chartImage, into: folder)
         }
         return folder
@@ -497,7 +497,7 @@ struct ExportService {
             current = NSMutableAttributedString()
         }
         for item in document.items {
-            if item.kind == .pageBreak {
+            if item.type == .pageBreak {
                 flush()
                 // nil INHERITS the section before it (running geometry) —
                 // falling back to the document's static format instead made
@@ -555,15 +555,15 @@ struct ExportService {
         var numbering = false
         var sectionLines: Bool? = nil
         for item in document.items {
-            if item.kind == .pageBreak { sectionLines = item.sectionLineNumbers ?? sectionLines }
-            if anyLineNumbers, item.kind != .pageBreak {
+            if item.type == .pageBreak { sectionLines = item.sectionLineNumbers ?? sectionLines }
+            if anyLineNumbers, item.type != .pageBreak {
                 let wanted = sectionLines ?? f.lineNumbers
                 if wanted != numbering {
                     out += wanted ? "\\linenumbers\n" : "\\nolinenumbers\n"
                     numbering = wanted
                 }
             }
-            switch item.kind {
+            switch item.type {
             case .titlePage:
                 let subtitleTex = (m.subtitle?.isEmpty == false)
                     ? " \\\\ \\large \(tex(m.subtitle ?? ""))" : ""
@@ -641,7 +641,7 @@ struct ExportService {
                     let delim = OutlineBuilder.delimiterText(item.authorDelimiter, fallback: ", ")
                     out += "\\noindent\(label)\(tex(m.keywords.joined(separator: delim)))\n\n"
                 }
-            case .section, .coverLetter:
+            case .manuscriptSection, .coverLetter:
                 if let section = exportSection(for: item, in: m),
                    section.active, !section.isEmptyContent {
                     if section.sectionKind == .letter, let letter = section.letter, letter.hasHeader {
@@ -1221,7 +1221,7 @@ private struct OutlineBuilder {
     }
 
     private func renderBlock(_ item: ExportItem, content m: Manuscript) -> NSAttributedString? {
-        switch item.kind {
+        switch item.type {
         case .titlePage:
             let doc = NSMutableAttributedString()
             // The title uses the standard heading system: its item's H
@@ -1299,7 +1299,7 @@ private struct OutlineBuilder {
                 separator: Self.delimiterText(item.authorDelimiter, fallback: ", "))
             let text = item.titleShown ? "\(headingText(item.customTitle ?? "Keywords")): " + list : list
             return line(text, font: meta, color: .darkGray, after: 10)
-        case .section, .coverLetter:
+        case .manuscriptSection, .coverLetter:
             guard let section = exportSection(for: item, in: m),
                   section.active, !section.isEmptyContent else { return nil }
             let doc = NSMutableAttributedString()

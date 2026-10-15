@@ -1100,7 +1100,7 @@ final class ManuscriptStore {
         // Only entries that become sections: the abstract entry describes a
         // field, and a letter entry describes what is the author's.
         for section in wanted where section.subject == .section && !existing.contains(section.key) {
-            guard let id = addSection(type: .custom, title: section.title, kind: section.kind)
+            guard let id = addSection(type: .custom, title: section.title, kind: section.type)
             else { continue }
             created.append((id, section))
         }
@@ -1159,7 +1159,7 @@ final class ManuscriptStore {
         var out = repaired
         for d in out.documents.indices {
             out.documents[d].items = out.documents[d].items.compactMap { item in
-                guard item.kind == .section else { return item }   // the letter item passes through
+                guard item.type == .manuscriptSection else { return item }   // the letter item passes through
                 guard let uid = item.sectionID, let key = keyByUID[uid], let id = idByKey[key]
                 else { return nil }
                 var mapped = item
@@ -1198,16 +1198,16 @@ final class ManuscriptStore {
             }
             for i in config.documents[d].items.indices {
                 let item = config.documents[d].items[i]
-                switch item.kind {
+                switch item.type {
                 case .pageBreak:
                     continue
-                case .section:
+                case .manuscriptSection:
                     guard let id = item.sectionID,
                           let title = content.sections.first(where: { $0.id == id })?.title,
                           let format = formatByTitle[title.lowercased()] else { continue }
                     config.documents[d].items[i].format = format
                 default:
-                    guard let format = structure.coreFormats?[item.kind.rawValue] else { continue }
+                    guard let format = structure.coreFormats?[item.type.rawValue] else { continue }
                     config.documents[d].items[i].format = format
                 }
             }
@@ -1236,9 +1236,9 @@ final class ManuscriptStore {
         }
         // Then what the venue carries for it.
         guard let entry else { return out }
-        switch entry.kind {
+        switch entry.type {
         case .text, .letter, .abstract:
-            if entry.kind == .letter {
+            if entry.type == .letter {
                 out.kind = .letter
                 if out.letter == nil { out.letter = LetterDetails() }
             }
@@ -1857,7 +1857,7 @@ final class ManuscriptStore {
             let entryTitle = section.sectionKind == .abstract ? "Abstract" : section.title
             var entry = byTitle[entryTitle.lowercased()] ?? StructureSection(title: entryTitle)
             entry.title = entryTitle
-            entry.kind = section.sectionKind == .abstract ? .text : section.sectionKind
+            entry.type = section.sectionKind == .abstract ? .text : section.sectionKind
             // **Boilerplate is not captured.**  It is the venue's default
             // content, authored while editing the template — taking whatever a
             // cut happens to contain is how one author's draft became
@@ -1997,37 +1997,37 @@ final class ManuscriptStore {
         // configs saved before sections existed gain one here.
         for i in config.documents.indices
             where !config.documents[i].items.isEmpty
-                && config.documents[i].items.first?.kind != .pageBreak {
-            config.documents[i].items.insert(ExportItem(kind: .pageBreak), at: 0)
+                && config.documents[i].items.first?.type != .pageBreak {
+            config.documents[i].items.insert(ExportItem(type: .pageBreak), at: 0)
         }
         // An outline from the week the letter was a section kind names it
         // by section id; the letter is the fixed item again.
         let letterIDs = Set(content.sections.filter(\.isCore).map(\.id))
         for d in config.documents.indices {
             config.documents[d].items = config.documents[d].items.map { item in
-                guard item.kind == .section, let id = item.sectionID, letterIDs.contains(id)
+                guard item.type == .manuscriptSection, let id = item.sectionID, letterIDs.contains(id)
                 else { return item }
                 var letter = item
-                letter.kind = .coverLetter
+                letter.type = .coverLetter
                 letter.sectionID = nil
                 return letter
             }
         }
         config.documents.removeAll { !$0.isAttachment && !$0.items.isEmpty
-            && $0.items.allSatisfy { $0.kind == .pageBreak } }
+            && $0.items.allSatisfy { $0.type == .pageBreak } }
         return config
     }
 
     /// Persists a (customized) export outline for a journal or the Source.
     /// The export-item identity a content pane maps to (nil = the pane has
     /// no exported counterpart).
-    static func exportItemKey(for item: SidebarItem) -> (kind: ExportItem.Kind, sectionID: UUID?)? {
+    static func exportItemKey(for item: SidebarItem) -> (type: ExportItem.ItemType, sectionID: UUID?)? {
         switch item {
         case .title:           return (.titlePage, nil)
         case .authors:         return (.authors, nil)
         case .abstract:        return (.abstract, nil)
         case .keywords:        return (.keywords, nil)
-        case .section(let id): return (.section, id)
+        case .section(let id):       return (.manuscriptSection, id)
         case .figures:         return (.figures, nil)
         case .tables:          return (.tables, nil)
         case .bibliography:    return (.references, nil)
@@ -2050,13 +2050,13 @@ final class ManuscriptStore {
             return config.documents.first?.format ?? ExportDocumentFormat()
         }
         // Pre-split configs: the byline is part of the Title item.
-        if key.kind == .authors,
-           !config.documents.contains(where: { $0.items.contains { $0.kind == .authors } }) {
+        if key.type == .authors,
+           !config.documents.contains(where: { $0.items.contains { $0.type == .authors } }) {
             key = (.titlePage, nil)
         }
         for document in config.documents {
             guard let found = document.items.first(where: {
-                $0.kind == key.kind && $0.sectionID == key.sectionID
+                $0.type == key.type && $0.sectionID == key.sectionID
             }) else { continue }
             var format = document.format
             if let override = found.format {
@@ -2081,8 +2081,8 @@ final class ManuscriptStore {
         var config = exportConfig(forJournal: jid)
         // Pre-split configs carry the byline on the Title item (no .authors
         // item anywhere) — the Authors pane's settings write there.
-        if key.kind == .authors,
-           !config.documents.contains(where: { $0.items.contains { $0.kind == .authors } }) {
+        if key.type == .authors,
+           !config.documents.contains(where: { $0.items.contains { $0.type == .authors } }) {
             key = (.titlePage, nil)
         }
         // EVERY copy of the component, not just the first.  An outline can
@@ -2094,7 +2094,7 @@ final class ManuscriptStore {
         var touched = false
         for d in config.documents.indices {
             let matches = config.documents[d].items.indices.filter {
-                config.documents[d].items[$0].kind == key.kind
+                config.documents[d].items[$0].type == key.type
                     && config.documents[d].items[$0].sectionID == key.sectionID
             }
             guard !matches.isEmpty else { continue }

@@ -64,7 +64,7 @@ struct TemplateSectionView: View {
                                    subtitle: subtitle(section))
                 identity(section)
                 Divider()
-                switch section.kind {
+                switch section.type {
                 case .text, .letter, .abstract: editor(section)
                 case .questions:     questions(section)
                 }
@@ -84,7 +84,7 @@ struct TemplateSectionView: View {
         if isAbstract {
             return "The abstract as this venue wants it. A manuscript's abstract starts from this when it adds the journal, and Assist writes to it."
         }
-        return section.kind == .letter
+        return section.type == .letter
             ? "Created in every manuscript that adds this journal — with a letterhead and a signature of its own."
             : "Created in every manuscript that adds this journal."
     }
@@ -124,8 +124,8 @@ struct TemplateSectionView: View {
 
             if !isAbstract {
                 Picker("", selection: Binding(
-                    get: { section.kind },
-                    set: { value in edit { $0.kind = value } })) {
+                    get: { section.type },
+                    set: { value in edit { $0.type = value } })) {
                     ForEach(SectionKind.addable, id: \.self) { Text($0.label).tag($0) }
                 }
                 .labelsHidden().fixedSize()
@@ -153,7 +153,7 @@ struct TemplateSectionView: View {
         RichEditor(value: $content,
                    placeholder: isAbstract
                        ? "How this venue's abstract reads — its headings, in its order — “/” inserts [[title]]…"
-                       : section.kind == .letter
+                       : section.type == .letter
                        ? "The letter this venue expects — “/” inserts [[title]], [[authors.names]]…"
                        : "What this section contains at this venue — “/” inserts [[title]], [[authors.names]]…",
                    templateMode: true)
