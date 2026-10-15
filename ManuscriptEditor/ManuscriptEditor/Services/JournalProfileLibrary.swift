@@ -86,12 +86,26 @@ final class JournalProfileLibrary {
             else { continue }
             loaded[profile.id] = profile
         }
-        for (id, var bundled) in JournalProfile.bundled() where loaded[id] == nil {
+        for (id, var bundled) in JournalProfile.bundled() {
             bundled.origin = .library
-            let destination = root.appendingPathComponent(bundled.slug, isDirectory: true)
-            if bundled.write(to: destination) {
-                bundled.originURL = destination.path
-                loaded[id] = bundled
+            if let mine = loaded[id] {
+                // A copy never saved here — version 1, no checksums of its
+                // own — is the bundle's, and follows it when the app ships a
+                // newer one.  A copy that has been saved is the user's and
+                // stays; the published-copy check says when it differs.
+                guard mine.version <= 1, mine.partChecksums == nil, mine.checksum != bundled.checksum,
+                      let path = mine.originURL else { continue }
+                let destination = URL(fileURLWithPath: path, isDirectory: true)
+                if bundled.write(to: destination) {
+                    bundled.originURL = path
+                    loaded[id] = bundled
+                }
+            } else {
+                let destination = root.appendingPathComponent(bundled.slug, isDirectory: true)
+                if bundled.write(to: destination) {
+                    bundled.originURL = destination.path
+                    loaded[id] = bundled
+                }
             }
         }
         profiles = loaded

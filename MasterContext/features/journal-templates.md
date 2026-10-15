@@ -432,6 +432,14 @@ folders are never hand-edited (see the corpus
 `scripts/harness/corpus_profiles.sh` checks that every bundled profile decodes
 whole under the GUID its slug derives.
 
+A library copy that has never been saved there (version 1, no checksums of
+its own) **follows the bundle**: when the app ships a newer version of that
+GUID, `load()` rewrites it. A saved copy is the user's and stays — the
+published-copy check says when it differs. Journals that track the library
+(never edited in the manuscript) take the refreshed copy on open
+(`seedProfileIfNeeded`); an edited journal keeps its own until a part is
+Loaded.
+
 The manuscript's copy always wins for evaluation. **Fix the bundled corpus**:
 `load()` re-seeds any bundled profile the library no longer holds, so a
 correction made only in Application Support is restored to the stale version the
