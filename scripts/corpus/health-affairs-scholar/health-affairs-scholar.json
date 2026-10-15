@@ -3,7 +3,7 @@
   "url": "https://academic.oup.com/healthaffairsscholar/pages/general-instructions",
   "fetched": "2026-10-14",
   "formatting": {
-    "coverLetter": "Required at submission: discloses any related preprint, dissertation or paper and how the submission differs; any use of AI tools; any reviewers to exclude, with a brief explanation."
+    "coverLetter": "Required: a statement that the paper has not been previously published and is not under consideration by another journal; a brief description of the research, why it is important, key takeaways, and why the journal's readers would be interested; any funding or potential conflict of interest disclosures."
   },
   "articleTypes": [
     {
@@ -12,7 +12,7 @@
       "words": 4000,
       "wordsIsRecommended": false,
       "wordsNote": "The word count limitation does not include references",
-      "abstract": "structured",
+      "abstract": "unstructured",
       "abstractWords": 200,
       "abstractHeadings": null,
       "keyPoints": true,
@@ -35,17 +35,16 @@
       ],
       "requirements": [],
       "notes": [
-        "References are not limited.",
-        "The page does not fix the structured abstract's headings in the text that could be retrieved."
+        "References are not limited."
       ],
       "quotes": [
         "Research Article—Word Count: 4,000",
         "The word count limitation does not include references.",
-        "structured abstract of no more than 200 words",
         "1 to 3 key-takeaway bullets",
         "1 to 15 keywords",
         "May include a maximum of 4 tables or figures",
-        "Introduction, Data and Methods, Results, Discussion, and Conclusion"
+        "Introduction, Data and Methods, Results, Discussion, and Conclusion",
+        "An abstract should be between 150 and 200 words"
       ]
     },
     {
@@ -54,7 +53,7 @@
       "words": 4000,
       "wordsIsRecommended": false,
       "wordsNote": "The word count limitation does not include references",
-      "abstract": "structured",
+      "abstract": "unstructured",
       "abstractWords": 200,
       "abstractHeadings": null,
       "keyPoints": true,
@@ -119,7 +118,7 @@
       "words": 2000,
       "wordsIsRecommended": false,
       "wordsNote": "The word count limitation does not include references",
-      "abstract": "structured",
+      "abstract": "unstructured",
       "abstractWords": 200,
       "abstractHeadings": null,
       "keyPoints": true,
@@ -267,5 +266,5 @@
   "journalNotes": [
     "Open access (CC BY or CC BY-NC); single-anonymised peer review, typically 2 reviewers; ICMJE authorship; ORCID encouraged; a signed ICMJE disclosure form for every author by the latest revision; data and code sharing strongly encouraged where ethically feasible."
   ],
-  "unread": "academic.oup.com blocks automated download of this page (HTTP 403), and the page fetcher's text of it holds the policy sections but not the article-type and manuscript-preparation sections. Every limit above comes from search-indexed excerpts of the official page, cross-checked across several queries; manuscript formatting (file, font, spacing, line numbers, reference style) could not be retrieved at all."
+  "unread": "academic.oup.com blocks automated download of this page (HTTP 403), and the page fetcher's text of it holds the policy sections but not the article-type sections. The article-type limits come from search-indexed excerpts of the official page, cross-checked across several queries. The Preparing Your Manuscript section (cover letter, title page, abstract guidance and checklist, teaser text, alternative names, acknowledgments and funding, style, abbreviations, tables, figures and alt text, references, supplementary material) was supplied by hand from the page on 2026-10-15 and is encoded in the network's config in build_corpus.py. Not stated anywhere read: which sections a Brief Report, Review Article, Policy Inquiry or Commentary must carry; line spacing, font and line numbers."
 }

@@ -4,6 +4,19 @@
    "note": "This article type has no abstract.",
    "required": false,
    "title": "Abstract"
+  },
+  {
+   "formatNote": "No longer than 200 words: a brief promotional text that entices a reader to click through, published online in the table of contents. No citations; define any abbreviations.",
+   "note": "Encouraged for all article types; submitted for peer review in the main manuscript file under the heading \"Teaser text\", before the main text.",
+   "required": false,
+   "title": "Teaser Text"
+  },
+  {
+   "boilerplate": "Funding: This work was supported by [funder, as named in the Crossref funder registry] [grant number] to [author initials].\nAcknowledgments: ",
+   "formatNote": "Clearly labeled, at the end of the manuscript. Declare all funding relevant to the study with specific grant numbers; a funder listed in the Crossref funder registry is named exactly as it appears there; grants received by specific authors are identified by initial.",
+   "note": "Required by the journal's instructions.",
+   "required": true,
+   "title": "Acknowledgments and Funding"
   }
  ]
 }

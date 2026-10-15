@@ -150,6 +150,32 @@ NETWORKS = {
         "country": "United States",
         "abstractHeadings": {},
         "abstractLabels": {},
+        # The page's own guidance for an unstructured abstract.
+        "abstractFormatNote": ("Between 150 and 200 words (fewer is fine if everything is covered), narrative, no headings. "
+                               "The first one or two sentences give useful or contextual background; the next one or two say what "
+                               "you sought to do or did; the next one or two give the results — if there is a central quantitative "
+                               "finding, state it specifically; the last sentence or sentences give the policy implications or "
+                               "recommendations. Methods only at a very general level; no jargon; no acronyms. The abstract presents "
+                               "the paper in miniature: what it is about, why it matters and its relation to policy, what it adds, "
+                               "what it recommends."),
+        # Sections every article type carries at this venue.
+        "commonSections": [
+            {"title": "Teaser Text", "required": False,
+             "formatNote": "No longer than 200 words: a brief promotional text that entices a reader to click through, published online in the table of contents. No citations; define any abbreviations.",
+             "note": "Encouraged for all article types; submitted for peer review in the main manuscript file under the heading \"Teaser text\", before the main text.",
+             "wordsMax": 200},
+            {"title": "Acknowledgments and Funding", "required": True,
+             "formatNote": "Clearly labeled, at the end of the manuscript. Declare all funding relevant to the study with specific grant numbers; a funder listed in the Crossref funder registry is named exactly as it appears there; grants received by specific authors are identified by initial.",
+             "note": "Required by the journal's instructions.",
+             "boilerplate": "Funding: This work was supported by [funder, as named in the Crossref funder registry] [grant number] to [author initials].\nAcknowledgments: "},
+        ],
+        "manualChecks": [
+            ("Tables numbered, cited in the text, editable (not images), at the end of the main text", "Units in column or row headers, not the body; symbols such as asterisks explained in a footnote; no color, shading or tab-alignment."),
+            ("Figures as separate files with titles, legends and captions in the manuscript", ".jpeg, .jpg, .tiff, .svg, .pdf or .eps (never .bmp, .gif or .docx); one file per figure, named to match its citation (fig1.tiff); multi-panel figures as one file with panels lettered A, B, C in the upper-left; vector art as .eps/.pdf/.svg with fonts embedded; raster at 300 dpi (color half-tones), 600 dpi (grayscale, combinations), 1200 dpi (fine line art)."),
+            ("Alt text under every figure legend, preceded by \"Alt text:\"", "Required for all images, figures, illustrations and photographs in the main article; concise and informative, so a screen-reader user understands the figure."),
+            ("References carry the DOI and eLocator of every online-only article", "Any readable style at submission (the journal follows AMA); authors are responsible for accuracy. Example: Health Affairs Scholar. 2023;1(1):qxad009. https://doi.org/10.1093/haschl/qxad009"),
+            ("Supplementary material cited in the text and submitted with the manuscript", "Online only, not copyedited; documentation and appendices as PDF, data as .zip; hosted by OUP or a partner such as Dryad — never a personal, institutional or Google Docs link. What is necessary to understand the article stays in the manuscript."),
+        ],
         "keyPoints": {
             "title": "Key Takeaways",
             "words": None,
@@ -161,17 +187,24 @@ NETWORKS = {
             "manual": ("1–3 key-takeaway bullets supplied", "Each a sentence; the journal publishes them with the abstract."),
         },
         "sectionNotes": {},
-        "coverLetter": ("an explanation of how the submission differs from any related preprint, dissertation or "
-                        "paper, any use of AI tools, and any reviewers to exclude with a brief reason"),
+        "coverLetter": ("a statement that the paper has not been previously published and is not under consideration by "
+                        "another journal; a brief description of the research, why it is important, its key takeaways, and why "
+                        "the journal's readers would be interested; and any funding or potential conflict of interest disclosures "
+                        "(with how the submission differs from any related preprint, dissertation or paper, and any use of AI tools)"),
         "formatBullets": [
-            "format: titles up to 100 characters including spaces.",
-            "format: 1 to 15 keywords.",
-            "format: related published papers are cited as endnotes; the journal's own page gives the reference style — confirm there.",
-            "format: every author's conflicts of interest are declared on the cover page; a signed ICMJE disclosure form for each author by the latest revision.",
-            "format: the Methods state ethics approval (or that it was not required) and written informed consent; identifying information is anonymised.",
+            "format: title page — the title, all author names and affiliations, and the mailing and email address of one corresponding author; an alternative name (another script, a name you are known by) in parentheses after the Latin-character name.",
+            "format: AMA style; US spelling throughout except in quotations and references; nonstandard abbreviations defined at first occurrence.",
+            "format: titles up to 100 characters including spaces; 1 to 15 keywords.",
+            "format: tables numbered and cited in the text, in an editable format (not images), placed at the end of the main text; units in column or row headers; symbols explained in a footnote; no color, shading or tab alignment.",
+            "format: figures as separate .jpeg/.jpg/.tiff/.svg/.pdf/.eps files named to match their citation (fig1.tiff), titles, legends and captions in the manuscript file, each multi-panel figure one file with panels lettered A, B, C…; vector art as .eps/.pdf/.svg with fonts embedded; raster images 300 dpi (color half-tones), 600 dpi (grayscale, combinations), 1200 dpi (fine line art); alt text under every figure legend, preceded by \"Alt text:\".",
+            "format: references in any readable style at submission, with the DOI and eLocator (e.g. qxad009) of every online-only article; authors are responsible for their accuracy.",
+            "format: supplementary material online only, submitted with the manuscript and cited in its text — PDF for documentation and appendices, .zip for data — hosted by OUP or a partner such as Dryad.",
+            "format: a 30% discount on Enago language editing is offered through OUP; optional, and no guarantee of acceptance.",
         ],
-        "acknowledgmentBullet": ("components: disclosures — a concise summary of every author's declared conflicts in the manuscript; "
-                                 "any AI use disclosed in the Methods or Acknowledgements; data and code sources cited in the reference list."),
+        "acknowledgmentBullet": ("components: Acknowledgments and Funding, clearly labeled at the end of the manuscript — all funding relevant "
+                                 "to the study with grant numbers, Crossref funder names, grants by author initial; every author's conflicts "
+                                 "declared on the cover page and in a concise summary in the manuscript; a signed ICMJE form per author by the "
+                                 "latest revision; any AI use disclosed in the Methods or Acknowledgments; data and code sources cited."),
         "acknowledgmentCheck": ("Conflicts summarised in the manuscript; a signed ICMJE form for every author", "Every author declares on the cover page at submission; the forms by the latest revision — one per author even with nothing to disclose."),
         "patientPermission": "Written informed consent from every participant; identifying details removed.",
         "titleNote": "Including spaces.",
@@ -536,6 +569,17 @@ def build_checks(net, j, t):
             checks.append(rule(f"{s['title']} section present",
                                [cond("EXISTS", [scope("section", s["title"])], "<=", 0)],
                                note="Required by this journal's structure."))
+    for common in net.get("commonSections", []):
+        if common.get("required") and not t["name"].startswith("Letter"):
+            checks.append(rule(f"{common['title']} section present",
+                               [cond("EXISTS", [scope("section", common["title"])], "<=", 0)],
+                               note="Required by this journal's structure."))
+        if common.get("wordsMax"):
+            checks.append(rule(f"{common['title']} ≤ {common['wordsMax']} words",
+                               [cond("LENGTH_WORDS", [scope("section", common["title"])], "<=", common["wordsMax"])],
+                               note=common.get("formatNote")))
+    for name, note in net.get("manualChecks", []):
+        checks.append(manual(name, note))
     return checks
 
 
@@ -564,7 +608,9 @@ def build_structure(net, j, t):
         sections.append(entry)
     elif abstract == "unstructured":
         entry = {"title": "Abstract", "required": True}
-        if t.get("abstractWords"):
+        if net.get("abstractFormatNote"):
+            entry["formatNote"] = net["abstractFormatNote"]
+        elif t.get("abstractWords"):
             entry["formatNote"] = f"Unstructured, no more than {t['abstractWords']} words."
         sections.append(entry)
 
@@ -574,6 +620,15 @@ def build_structure(net, j, t):
         note = s.get("note") or notes.get(s["title"])
         if note:
             entry["note"] = note
+        sections.append(entry)
+    # What every type at this venue carries (a letter needs no funding
+    # statement, so there it is optional).
+    for common in net.get("commonSections", []):
+        if any(s["title"].lower() == common["title"].lower() for s in sections):
+            continue
+        entry = {k: common[k] for k in ("title", "required", "formatNote", "note", "boilerplate") if k in common}
+        if t["name"].startswith("Letter"):
+            entry["required"] = False
         sections.append(entry)
     return sections
 
@@ -641,6 +696,8 @@ def build_bullets(net, j, t):
     else:
         b.append("components: no cover letter — the submission form asks for its contents")
 
+    for common in net.get("commonSections", []):
+        b.append(f"components: {common['title']}" + (" (encouraged)" if not common.get("required") else "") + " — " + common["formatNote"][0].lower() + common["formatNote"][1:])
     b += net["formatBullets"]
     for extra in j.get("formatBullets", []):
         b.append("format: " + extra)

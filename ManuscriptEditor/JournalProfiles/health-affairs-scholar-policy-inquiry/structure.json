@@ -1,9 +1,22 @@
 {
  "sections": [
   {
-   "formatNote": "Unstructured, no more than 200 words.",
+   "formatNote": "Between 150 and 200 words (fewer is fine if everything is covered), narrative, no headings. The first one or two sentences give useful or contextual background; the next one or two say what you sought to do or did; the next one or two give the results — if there is a central quantitative finding, state it specifically; the last sentence or sentences give the policy implications or recommendations. Methods only at a very general level; no jargon; no acronyms. The abstract presents the paper in miniature: what it is about, why it matters and its relation to policy, what it adds, what it recommends.",
    "required": true,
    "title": "Abstract"
+  },
+  {
+   "formatNote": "No longer than 200 words: a brief promotional text that entices a reader to click through, published online in the table of contents. No citations; define any abbreviations.",
+   "note": "Encouraged for all article types; submitted for peer review in the main manuscript file under the heading \"Teaser text\", before the main text.",
+   "required": false,
+   "title": "Teaser Text"
+  },
+  {
+   "boilerplate": "Funding: This work was supported by [funder, as named in the Crossref funder registry] [grant number] to [author initials].\nAcknowledgments: ",
+   "formatNote": "Clearly labeled, at the end of the manuscript. Declare all funding relevant to the study with specific grant numbers; a funder listed in the Crossref funder registry is named exactly as it appears there; grants received by specific authors are identified by initial.",
+   "note": "Required by the journal's instructions.",
+   "required": true,
+   "title": "Acknowledgments and Funding"
   }
  ]
 }
