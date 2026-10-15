@@ -247,7 +247,8 @@ struct ContentView: View {
                 if let templateID = activeTemplateID {
                     TemplateSidebarView(templateID: templateID, selection: $templateSelection)
                 } else {
-                    SidebarView(selection: $selection, activeRef: ref(for: activeTab) ?? .source)
+                    SidebarView(selection: $selection, activeRef: ref(for: activeTab) ?? .source,
+                                comparedRefs: tabMode == .compare ? compareTabs.compactMap { ref(for: $0) } : [])
                 }
             }
             .navigationSplitViewColumnWidth(min: 200, ideal: 230, max: 290)

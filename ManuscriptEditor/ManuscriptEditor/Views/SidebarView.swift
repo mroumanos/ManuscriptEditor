@@ -31,6 +31,9 @@ struct SidebarView: View {
     /// The active tab's content reference — item counts reflect the **active
     /// journal** (Data stays global; sections are shared structure).
     var activeRef: VersionRef = .source
+    /// In Compare, the panes' journals: a section is greyed when none of
+    /// them names it.
+    var comparedRefs: [VersionRef] = []
 
     /// App-wide appearance, also editable from Preferences.
     @AppStorage(EditorPrefs.appearanceKey) private var appearance = AppearanceMode.system.rawValue
@@ -346,15 +349,27 @@ struct SidebarView: View {
 
     // MARK: - Row helpers
 
+    /// The journals in view — the compared panes', else the active tab's.
+    private var journalsInView: [Journal] {
+        let refs = comparedRefs.isEmpty ? [activeRef] : comparedRefs
+        return refs.compactMap { store.paneJournal(for: $0) }
+    }
+
     private func sectionRow(_ section: ManuscriptSection) -> some View {
         // Activation is PER JOURNAL, so it reads from the active tab's copy
         // rather than from Source's.
         let isActive = active?.sections.first { $0.id == section.id }?.active ?? section.active
+        // A section none of the journals in view names is greyed, still
+        // selectable: writing to it, or exporting it, makes it theirs.
+        let journals = journalsInView
+        let belongs = journals.isEmpty || journals.contains { store.sectionBelongs(section, to: $0) }
+        let outsiders = journals.filter { !store.sectionBelongs(section, to: $0) }.map(\.name)
         return HStack {
             Label(section.title, systemImage: section.sectionKind == .text
                                               ? section.type.systemImage
                                               : section.sectionKind.systemImage)
-                .foregroundStyle(isActive ? .primary : .tertiary)
+                .foregroundStyle(isActive && belongs ? .primary : .tertiary)
+                .help(belongs ? "" : "Not part of \(outsiders.joined(separator: ", "))'s structure — writing to it here, or adding it to the export, makes it part of this journal")
             Spacer()
             if !isActive {
                 Image(systemName: "eye.slash")

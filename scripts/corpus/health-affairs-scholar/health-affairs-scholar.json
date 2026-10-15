@@ -66,17 +66,10 @@
       "titleChars": 100,
       "presubmissionInquiry": false,
       "patientPermission": false,
-      "sections": [
-        "Introduction",
-        "Methods",
-        "Findings",
-        "Discussion",
-        "Conclusion"
-      ],
+      "sections": [],
       "requirements": [],
       "notes": [
-        "References are not limited.",
-        "The section names here are the generator's; the retrieved text names none for this type."
+        "References are not limited."
       ],
       "quotes": [
         "Review Article—Word Count: 4,000",
@@ -108,9 +101,7 @@
       "titleChars": 100,
       "presubmissionInquiry": false,
       "patientPermission": false,
-      "sections": [
-        "Policy Inquiry"
-      ],
+      "sections": [],
       "requirements": [],
       "notes": [
         "Key-takeaway, keyword and exhibit rules for this type are on the journal's page but could not be retrieved — confirm them before submitting."
@@ -142,13 +133,7 @@
       "titleChars": 100,
       "presubmissionInquiry": false,
       "patientPermission": false,
-      "sections": [
-        "Introduction",
-        "Data and Methods",
-        "Results",
-        "Discussion",
-        "Conclusion"
-      ],
+      "sections": [],
       "requirements": [],
       "notes": [
         "References are not limited."
@@ -181,9 +166,7 @@
       "titleChars": 100,
       "presubmissionInquiry": false,
       "patientPermission": false,
-      "sections": [
-        "Commentary"
-      ],
+      "sections": [],
       "requirements": [],
       "notes": [
         "The page says fewer than 10 references — 9 is the test here."
@@ -215,17 +198,13 @@
       "titleChars": 100,
       "presubmissionInquiry": false,
       "patientPermission": false,
-      "sections": [
-        "Introduction",
-        "Methods",
-        "Results",
-        "Discussion"
-      ],
+      "sections": [],
       "requirements": [],
       "notes": [
         "The journal lists this type; its word, abstract, reference and exhibit limits are on the journal's page but could not be retrieved — confirm them before submitting."
       ],
-      "quotes": []
+      "quotes": [],
+      "keep": true
     },
     {
       "name": "Letter to the Editor",
@@ -245,16 +224,15 @@
       "titleChars": 100,
       "presubmissionInquiry": false,
       "patientPermission": false,
-      "sections": [
-        "Letter"
-      ],
+      "sections": [],
       "requirements": [],
       "notes": [
         "The journal lists this type; its word and reference limits are on the journal's page but could not be retrieved — confirm them before submitting."
       ],
       "quotes": [
         "Letters to the Editor should discuss a recent article published in Health Affairs Scholar"
-      ]
+      ],
+      "keep": true
     },
     {
       "name": "Non-standard Article",
@@ -274,9 +252,7 @@
       "titleChars": 100,
       "presubmissionInquiry": false,
       "patientPermission": false,
-      "sections": [
-        "Non-standard Article"
-      ],
+      "sections": [],
       "requirements": [],
       "notes": [
         "Pre-submission inquiries are suggested but not required."
@@ -284,7 +260,8 @@
       "quotes": [
         "We will also consider publishing interviews with healthcare experts and point/counterpoint manuscripts",
         "Article title, Author list, A brief description or abstract, Article type and word count"
-      ]
+      ],
+      "keep": true
     }
   ],
   "journalNotes": [

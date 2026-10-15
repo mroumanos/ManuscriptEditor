@@ -11,26 +11,6 @@
    "formatNote": "Structured, no more than 200 words; the venue does not fix the headings for this type.",
    "required": true,
    "title": "Abstract"
-  },
-  {
-   "required": true,
-   "title": "Introduction"
-  },
-  {
-   "required": true,
-   "title": "Methods"
-  },
-  {
-   "required": true,
-   "title": "Findings"
-  },
-  {
-   "required": true,
-   "title": "Discussion"
-  },
-  {
-   "required": true,
-   "title": "Conclusion"
   }
  ]
 }

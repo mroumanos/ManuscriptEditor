@@ -158,24 +158,6 @@
    "manual": true,
    "name": "Conflict of interest disclosures for every author",
    "note": "Complete disclosure of all relevant financial relationships; authors with none say so."
-  },
-  {
-   "combinator": "ALL",
-   "conditions": [
-    {
-     "comparator": "<=",
-     "metric": "EXISTS",
-     "number": 0,
-     "scopes": [
-      {
-       "name": "Special Communication",
-       "type": "section"
-      }
-     ]
-    }
-   ],
-   "name": "Special Communication section present",
-   "note": "Required by this journal's structure."
   }
  ]
 }

@@ -5,11 +5,6 @@
    "formatNote": "Structured, no more than 300 words, under the headings Importance; Observations; Conclusions and Relevance.",
    "required": true,
    "title": "Abstract"
-  },
-  {
-   "note": "The venue names no sections for this article type.",
-   "required": true,
-   "title": "Narrative Review"
   }
  ]
 }

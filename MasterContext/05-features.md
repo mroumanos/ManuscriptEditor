@@ -536,6 +536,20 @@ propagate by explicit, individual fast-forwards.
   registration and permission requirements as manual tests. The profiles
   are generated from per-journal specs (`scripts/corpus/`); the template
   lists group a venue's formats under its name.
+- AC (implemented, Oct 2026): **A journal's structure is its own; the
+  manuscript's sections are the union.** Adding a journal adds the sections
+  its structure names and nothing to any other journal's structure. In a
+  journal's tab (and in Compare, across the compared journals) a section no
+  structure in view names is **greyed, still selectable**. Writing to it in
+  that cut, or adding it to the journal's export, adds it to the journal's
+  structure (an optional entry noted as the cut's); emptying it, or removing
+  it from the export, takes it out again — the template's own entries are
+  never removed this way. The **standard export prints only what the
+  structure names** (export ⊆ structure; a structure section may be left out
+  of the export); the assisted fast-forward is sent only the sections the
+  venue's structure names, and told so. Bundled profiles name only the
+  sections a venue's page names — no section is invented for a type that
+  names none (`scripts/harness/template_divergence.sh`).
 - AC (implemented, Oct 2026): **Template management.** Summary, Structure,
   Tests and Export show the same template row — name — type, instructions
   link, one warning icon, **Manage** / **Add** (a "<name> - copy" opened

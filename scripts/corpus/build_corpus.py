@@ -198,6 +198,8 @@ def is_dropped(t):
     limit (commissioned features such as an Invited Commentary)."""
     if t["name"].startswith(TYPE_DROPS):
         return True
+    if t.get("keep"):
+        return False    # the venue names it and takes it; its limits are on a page we could not read
     return not any(t.get(k) for k in ("words", "referencesMax", "tablesFiguresCombined", "figuresMax",
                                       "tablesMax", "authorsMax", "sections", "abstractWords"))
 # The page's section names, read from their first words, to the title a
@@ -353,10 +355,12 @@ def normalize(net, t):
     if sections == "imrad":
         sections = IMRAD
     elif sections is None:
+        # IMRaD where the page describes a report of original data in those
+        # parts; nothing invented for anything else — a cut writes into the
+        # manuscript's own sections, and its structure follows.
         research = t["abstractHeadings"] in ("original", "trial", "metaAnalysis") \
             or t["name"] in ("Brief Report", "Research Letter")
-        sections = IMRAD if research else [{"title": single_section_name(t["name"]),
-                                             "note": "The venue names no sections for this article type."}]
+        sections = IMRAD if research else []
     # A page may list the abstract and the Key Points among the sections;
     # those entries are built from the type's own fields, not from that line.
     t["sections"] = [e for e in (section_entry(s) for s in sections)
@@ -610,7 +614,11 @@ def build_bullets(net, j, t):
                  else f"limits: up to {t['keywordsMax']} keywords")
     b.append(f"limits: title up to {t['titleChars']} characters including spaces")
 
-    b.append("components: required sections: " + ", ".join(s["title"] for s in t["sections"] if s.get("required", True)))
+    required = [s["title"] for s in t["sections"] if s.get("required", True)]
+    if required:
+        b.append("components: required sections: " + ", ".join(required))
+    else:
+        b.append("components: the venue names no sections for this type — write into the manuscript's own, and the journal's structure follows what you write")
     if abstract == "structured" and t.get("abstractHeadings"):
         b.append("components: structured abstract under " + layout_text(net, t["abstractHeadings"]))
     if t.get("keyPoints"):

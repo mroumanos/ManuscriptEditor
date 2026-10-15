@@ -4,7 +4,7 @@
   "description: A letter discussing a recent article published in Health Affairs Scholar.",
   "limits: no abstract and no Key Points",
   "limits: title up to 100 characters including spaces",
-  "components: required sections: Letter",
+  "components: the venue names no sections for this type — write into the manuscript's own, and the journal's structure follows what you write",
   "components: cover letter — an explanation of how the submission differs from any related preprint, dissertation or paper, any use of AI tools, and any reviewers to exclude with a brief reason",
   "format: titles up to 100 characters including spaces.",
   "format: 1 to 15 keywords.",

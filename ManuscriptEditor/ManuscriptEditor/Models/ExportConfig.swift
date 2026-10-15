@@ -75,9 +75,13 @@ struct ExportConfig: Codable, Sendable, Equatable {
         if content.abstractSection != nil { items.append(ExportItem(type: .abstract)) }
         items += [ExportItem(type: .keywords), ExportItem(type: .pageBreak)]
         // The letter gets a document of its own below — sent beside the
-        // manuscript, not bound into it.
+        // manuscript, not bound into it.  Only what the journal's structure
+        // names: the manuscript's sections are the union across its
+        // journals, and a venue prints its own.
+        let entries = journal?.structure?.journalEntries ?? []
         for section in content.sections.sorted(by: { $0.order < $1.order })
-        where section.active && section.isJournalContent && section.sectionKind != .abstract {
+        where section.active && section.isJournalContent && section.sectionKind != .abstract
+            && (entries.isEmpty || entries.contains { $0.key == section.title.lowercased() }) {
             items.append(ExportItem(type: .manuscriptSection, sectionID: section.id))
         }
         items.append(ExportItem(type: .pageBreak))

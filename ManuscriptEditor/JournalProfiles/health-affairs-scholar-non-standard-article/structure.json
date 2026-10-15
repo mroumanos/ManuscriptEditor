@@ -4,10 +4,6 @@
    "note": "This article type has no abstract.",
    "required": false,
    "title": "Abstract"
-  },
-  {
-   "required": true,
-   "title": "Non-standard Article"
   }
  ]
 }

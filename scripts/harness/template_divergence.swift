@@ -110,6 +110,44 @@ func check(_ label: String, _ ok: Bool, _ detail: String = "") {
     var renamed = copy!; renamed.name = "Harness Journal"
     check("saving a copy under the original's name is refused", !library.save(renamed))
 
+    // The manuscript's sections are the union across journals; this journal's
+    // structure is its own, and follows what its cut writes or exports.
+    guard let extraID = store.addSection(type: .custom, title: "Extra Notes", kind: .text),
+          let head = store.latestVersion(forJournal: journal.id) else {
+        check("a section outside the structure was added", false); return
+    }
+    func journalNow() -> Journal { store.manuscript!.journals.first { $0.id == journal.id }! }
+    func cutSection() -> ManuscriptSection { store.manuscript(for: .version(head.id))!.sections.first { $0.id == extraID }! }
+    check("a manuscript section the structure doesn't name is not part of the journal",
+          !store.sectionBelongs(cutSection(), to: journalNow()))
+    check("one the structure names is", store.sectionBelongs(store.manuscript!.sections.first { $0.title == "Introduction" }!, to: journalNow()))
+    check("the export prints only what the structure names",
+          !store.exportConfig(forJournal: journal.id).documents.flatMap(\.items).contains { $0.sectionID == extraID })
+    check("the model is not sent it", !FastForwardIntent.payloads(for: store.manuscript(for: .version(head.id))!, target: journalNow())
+          .contains { $0.section.id == extraID })
+    check("… and is told what a submission contains",
+          (try? FastForwardIntent.task(content: store.manuscript(for: .version(head.id))!, target: journalNow()))?
+              .contains("The sections sent below are the ones a submission here contains") == true)
+    var written = cutSection(); written.content = RichText(plain: "Something this cut says.")
+    store.updateSection(written, ref: .version(head.id))
+    check("writing to it in this cut adds it to the journal's structure", store.sectionBelongs(cutSection(), to: journalNow()))
+    check("… marked as the cut's, not the template's", journalNow().structure?.sections.first { $0.title == "Extra Notes" }?.note == ManuscriptStore.writtenHereNote)
+    check("… and the export prints it now", store.exportConfig(forJournal: journal.id).documents.flatMap(\.items).contains { $0.sectionID == extraID })
+    check("… and the structure reads as edited", store.partDiffersFromTemplate(.structure, journal: journalNow()))
+    var emptied = cutSection(); emptied.content = RichText()
+    store.updateSection(emptied, ref: .version(head.id))
+    check("emptying it takes it out again", !store.sectionBelongs(cutSection(), to: journalNow()))
+    var outline = store.exportConfig(forJournal: journal.id)
+    outline.documents[0].items.append(ExportItem(type: .manuscriptSection, sectionID: extraID))
+    store.updateExportConfig(outline, forJournal: journal.id)
+    check("adding it to the export adds it to the structure", store.sectionBelongs(cutSection(), to: journalNow()))
+    var trimmed = store.exportConfig(forJournal: journal.id)
+    for d in trimmed.documents.indices { trimmed.documents[d].items.removeAll { $0.sectionID == extraID } }
+    store.updateExportConfig(trimmed, forJournal: journal.id)
+    check("removing it from the export takes it out again", !store.sectionBelongs(cutSection(), to: journalNow()))
+    check("a template's own entry is never removed this way",
+          store.sectionBelongs(store.manuscript!.sections.first { $0.title == "Introduction" }!, to: journalNow()))
+
     // Checksums saved under the old spelling (kind, sample, full formats)
     // are recognised and replaced, so a rename never reads as an edit.
     var old = source

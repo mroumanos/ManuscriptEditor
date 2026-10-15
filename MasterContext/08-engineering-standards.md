@@ -325,6 +325,18 @@ xcodebuild -scheme ManuscriptEditor -destination 'platform=macOS' build
     in manuscript.json, because `ManuscriptSection.type` is its legacy
     section type.
 
+43. **A journal's structure follows its cut; the manuscript's sections are
+    the union.** `ManuscriptStore.reconcileStructure(journalID:)` runs after a
+    cut's section or question is edited and after its outline changes: a
+    section the structure doesn't name joins it (optional, noted
+    `writtenHereNote`) when written or exported, and such an entry leaves
+    when empty and unexported — never a template's own. `ExportConfig
+    .standard` prints only sections the structure names, `FastForwardIntent
+    .payloads` sends only those, and `SidebarView` greys the rest for the
+    journal(s) in view. Adding a journal must never touch another journal's
+    structure or export — that was the "edited template" flag on every
+    mismatched add.
+
 ## Generated journal profiles
 
 - The JAMA Network and Health Affairs Scholar profiles

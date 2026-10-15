@@ -4,22 +4,6 @@
    "note": "This article type has no abstract.",
    "required": false,
    "title": "Abstract"
-  },
-  {
-   "required": true,
-   "title": "Introduction"
-  },
-  {
-   "required": true,
-   "title": "Methods"
-  },
-  {
-   "required": true,
-   "title": "Results"
-  },
-  {
-   "required": true,
-   "title": "Discussion"
   }
  ]
 }

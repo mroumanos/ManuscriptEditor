@@ -7,7 +7,7 @@
   "limits: up to 4 tables and figures combined",
   "limits: 1–15 keywords",
   "limits: title up to 100 characters including spaces",
-  "components: required sections: Introduction, Methods, Findings, Discussion, Conclusion",
+  "components: the venue names no sections for this type — write into the manuscript's own, and the journal's structure follows what you write",
   "components: 1–3 key-takeaway bullets",
   "components: disclosures — a concise summary of every author's declared conflicts in the manuscript; any AI use disclosed in the Methods or Acknowledgements; data and code sources cited in the reference list.",
   "components: cover letter — an explanation of how the submission differs from any related preprint, dissertation or paper, any use of AI tools, and any reviewers to exclude with a brief reason",
@@ -17,7 +17,6 @@
   "format: every author's conflicts of interest are declared on the cover page; a signed ICMJE disclosure form for each author by the latest revision.",
   "format: the Methods state ethics approval (or that it was not required) and written informed consent; identifying information is anonymised.",
   "extra: References are not limited.",
-  "extra: The section names here are the generator's; the retrieved text names none for this type.",
   "extra: this summary is the app's distillation — open the author instructions above to confirm against the journal's current text."
  ],
  "country": "United States",

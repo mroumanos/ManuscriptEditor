@@ -4,11 +4,6 @@
    "note": "This article type has no abstract.",
    "required": false,
    "title": "Abstract"
-  },
-  {
-   "note": "The venue names no sections for this article type.",
-   "required": true,
-   "title": "From the Heart"
   }
  ]
 }

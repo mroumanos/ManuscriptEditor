@@ -580,6 +580,7 @@ final class ManuscriptStore {
             guard let i = list.firstIndex(where: { $0.id == question.id }) else { return }
             list[i] = question
         }
+        if let journalID = journalID(for: ref) { reconcileStructure(journalID: journalID) }
     }
 
     func deleteQuestion(id: UUID, sectionID: UUID, ref: VersionRef = .source) {
@@ -633,6 +634,68 @@ final class ManuscriptStore {
         touch(ref, undoable: false) { m in
             if let idx = m.sections.firstIndex(where: { $0.id == section.id }) { m.sections[idx] = section }
         }
+        if let journalID = journalID(for: ref) { reconcileStructure(journalID: journalID) }
+    }
+
+    // MARK: - A journal's structure and the manuscript's sections
+
+    /// Whether a manuscript section is part of a submission at this journal
+    /// — named in its structure.  The manuscript's sections are the union
+    /// across its journals; each journal's structure is only its own.  A
+    /// journal without a structure takes every section.
+    func sectionBelongs(_ section: ManuscriptSection, to journal: Journal) -> Bool {
+        guard section.isJournalContent, section.sectionKind != .abstract,
+              let structure = journal.structure, !structure.journalEntries.isEmpty else { return true }
+        return structure.journalEntries.contains { $0.key == section.title.lowercased() }
+    }
+
+    /// The note an entry carries when a cut, not the template, put it there.
+    static let writtenHereNote = "Not in the template — this cut wrote to it."
+
+    /// Keeps a journal's structure in step with what its cut holds.  A
+    /// manuscript section the structure doesn't name joins it when this cut
+    /// writes to it or exports it; an entry that came in that way leaves
+    /// again when the section is empty and unexported.  So a journal added
+    /// with components B, C and D never reads as an edit to the journal with
+    /// A, B and C: D is greyed there until something is written to it, and A
+    /// here likewise.
+    func reconcileStructure(journalID: UUID) {
+        guard let m = manuscript,
+              let journal = m.journals.first(where: { $0.id == journalID }),
+              var structure = journal.structure, !structure.journalEntries.isEmpty
+        else { return }
+        let content = latestVersion(forJournal: journalID)?.content ?? m
+        let template = journal.profileID.flatMap { JournalProfileLibrary.shared.profile(id: $0) }
+        let templateKeys = Set((template?.structure.journalEntries ?? []).map(\.key))
+        // Only an outline the journal holds counts as exporting: the standard
+        // one is derived from this structure and would keep every entry alive.
+        let exported = Set((journal.exportConfig?.documents ?? []).flatMap(\.items).compactMap(\.sectionID))
+        var changed = false
+        for section in content.sections where section.isJournalContent && section.sectionKind != .abstract {
+            let key = section.title.lowercased()
+            let entry = structure.sections.first { $0.key == key }
+            let written = !section.isEmptyContent
+            let isExported = exported.contains(section.id)
+            if entry == nil, written || isExported {
+                var made = StructureSection(title: section.title)
+                made.required = false
+                made.type = section.sectionKind == .questions ? .questions : .text
+                made.note = Self.writtenHereNote
+                structure.sections.append(made)
+                changed = true
+            } else if let entry, entry.note == Self.writtenHereNote, !templateKeys.contains(key),
+                      !written, !isExported {
+                structure.sections.removeAll { $0.uid == entry.uid }
+                changed = true
+            }
+        }
+        guard changed else { return }
+        let updated = structure
+        touch(undoable: false) { m in
+            guard let idx = m.journals.firstIndex(where: { $0.id == journalID }) else { return }
+            m.journals[idx].structure = updated
+        }
+        writeProfile(journalID: journalID)
     }
 
     /// Deletes a section everywhere (Source + all versions).
@@ -2128,6 +2191,8 @@ final class ManuscriptStore {
                     ProfileFingerprint.of(config) == ProfileFingerprint.of(baseline) ? nil : config
             }
         }
+        // What is exported is part of the structure, and what leaves it may leave the structure.
+        if let journalID { reconcileStructure(journalID: journalID) }
     }
 
     // MARK: - Versions (cuts)

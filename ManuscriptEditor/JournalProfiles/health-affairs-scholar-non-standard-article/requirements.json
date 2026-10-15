@@ -4,7 +4,7 @@
   "description: Formats outside the standard types: summaries from professional society meetings, manuscripts adapted from Congressional testimony, health policy briefs written for legislators, comments submitted to federal agencies, interviews with health care experts, and point/counterpoint manuscripts. A pre-submission inquiry — title, author list, a brief description or abstract, article type and word count, and why the journal should consider it — is suggested but not required.",
   "limits: no abstract and no Key Points",
   "limits: title up to 100 characters including spaces",
-  "components: required sections: Non-standard Article",
+  "components: the venue names no sections for this type — write into the manuscript's own, and the journal's structure follows what you write",
   "components: cover letter — an explanation of how the submission differs from any related preprint, dissertation or paper, any use of AI tools, and any reviewers to exclude with a brief reason",
   "format: titles up to 100 characters including spaces.",
   "format: 1 to 15 keywords.",

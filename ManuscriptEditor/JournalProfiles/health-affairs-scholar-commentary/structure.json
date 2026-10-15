@@ -11,10 +11,6 @@
    "formatNote": "Unstructured, no more than 200 words.",
    "required": true,
    "title": "Abstract"
-  },
-  {
-   "required": true,
-   "title": "Commentary"
   }
  ]
 }

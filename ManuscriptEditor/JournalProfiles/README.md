@@ -46,6 +46,11 @@ into the three files here. Edit the spec and re-run the script; a hand-edit
 to a generated folder is undone by the next run (`build_corpus.py --check`
 says whether any is stale).
 
+A spec names sections only where the venue's page does (`"sections": []`
+otherwise): a cut writes into the manuscript's own sections, and the
+journal's structure follows what is written. A type the page names but
+gives no limits for ships when its spec says `"keep": true`.
+
 Article types the instructions describe without author limits — Editorials,
 Invited Commentaries and the commissioned Clinical Review & Education
 features — have no profile, and neither does Poetry (a poem is not a
