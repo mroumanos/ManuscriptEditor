@@ -76,17 +76,66 @@ final class TemplatePublishing {
     }
 
     /// The pure comparison — what the harness holds to its word.
-    static func compare(_ mine: JournalProfile, published: JournalProfile?) -> Status {
+    /// `exportDiffers` settles the export part for a manuscript's copy, whose
+    /// outline names the manuscript's sections (`ManuscriptStore.exportDiffers`).
+    static func compare(_ mine: JournalProfile, published: JournalProfile?,
+                        exportDiffers: ((JournalProfile) -> Bool)? = nil) -> Status {
         guard let published else { return .absent }
         guard published.id == mine.id else { return .differentIdentity }
-        let parts = Set(ProfilePart.allCases.filter { mine.fingerprint($0) != published.fingerprint($0) })
+        let parts = Set(ProfilePart.allCases.filter { part in
+            if part == .export, let exportDiffers { return exportDiffers(published) }
+            return mine.fingerprint(part) != published.fingerprint(part)
+        })
         return parts.isEmpty ? .matches : .differs(parts)
+    }
+
+    /// The published copy's checksum — `checksum.txt` in its folder — or nil
+    /// when nothing is published there.  One small fetch.
+    func publishedChecksum(slug: String, token: String?) async throws -> String? {
+        guard let data = try await service.fileContent(
+            owner: Self.owner, repo: Self.repository,
+            path: "\(Self.folder)/\(slug)/\(JournalProfile.checksumFileName)", ref: Self.branch, token: token)
+        else { return nil }
+        return String(decoding: data, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Whether a library copy should take the published one: same template,
+    /// different content, and nothing of the user's in the copy — the pure
+    /// decision the harness holds to its word.
+    static func shouldAdopt(local: JournalProfile, published: JournalProfile) -> Bool {
+        published.id == local.id && published.checksum != local.checksum && local.isUnmodifiedSincePublished
+    }
+
+    /// The copy to cut a journal from: the published one, when it has moved
+    /// on and the library's copy is untouched — so a template corrected in
+    /// the shared repository reaches every install without a new build.
+    /// An edited library copy stays the user's (the icon says it differs);
+    /// no network, no change.
+    func synced(_ template: JournalProfile, token: String? = nil) async -> JournalProfile {
+        do {
+            guard let remote = try await publishedChecksum(slug: template.slug, token: token),
+                  remote != template.checksum,
+                  let published = try await published(slug: template.slug, token: token)
+            else { return template }
+            let status = Self.compare(template, published: published)
+            checked[template.id] = Checked(status: status, at: Date(), checksum: template.checksum)
+            guard Self.shouldAdopt(local: template, published: published) else { return template }
+            var adopted = published
+            adopted.origin = .library
+            adopted.originURL = template.originURL
+            guard JournalProfileLibrary.shared.save(adopted, asPublished: true) else { return template }
+            checked[template.id] = Checked(status: .matches, at: Date(), checksum: adopted.checksum)
+            return JournalProfileLibrary.shared.profile(id: template.id) ?? adopted
+        } catch {
+            return template
+        }
     }
 
     /// Checks a template against its published copy, at most once every
     /// ten minutes unless forced.  A network failure leaves `.unknown`:
     /// no warning is better than a false one.
-    func refresh(_ template: JournalProfile, token: String? = nil, force: Bool = false) {
+    func refresh(_ template: JournalProfile, token: String? = nil, force: Bool = false,
+                 exportDiffers: ((JournalProfile) -> Bool)? = nil) {
         if !force, let last = checked[template.id], last.status != .unknown,
            last.checksum == template.checksum, Date().timeIntervalSince(last.at) < 600 { return }
         if checked[template.id]?.status == .checking { return }
@@ -96,8 +145,14 @@ final class TemplatePublishing {
         Task {
             let status: Status
             do {
-                let published = try await self.published(slug: template.slug, token: token)
-                status = Self.compare(template, published: published)
+                // The checksum first: one small fetch settles the common case.
+                if let remote = try await self.publishedChecksum(slug: template.slug, token: token),
+                   remote == checksum {
+                    status = .matches
+                } else {
+                    let published = try await self.published(slug: template.slug, token: token)
+                    status = Self.compare(template, published: published, exportDiffers: exportDiffers)
+                }
             } catch {
                 status = .unknown
             }
@@ -158,7 +213,8 @@ final class TemplatePublishing {
         _ = try await service.push(
             files: ProfilePart.allCases.compactMap { part in
                 files[part].map { GitHubBackendService.File(path: "\(Self.folder)/\(template.slug)/\(part.fileName)", data: $0) }
-            },
+            } + [GitHubBackendService.File(path: "\(Self.folder)/\(template.slug)/\(JournalProfile.checksumFileName)",
+                                            data: Data((template.checksum + "\n").utf8))],
             message: "Template: \(template.displayName) v\(template.version)",
             config: config)
         let body = """

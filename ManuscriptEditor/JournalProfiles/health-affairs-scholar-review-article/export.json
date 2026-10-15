@@ -1,0 +1,92 @@
+{
+ "documents": [
+  {
+   "name": "Manuscript",
+   "sections": [
+    {
+     "columns": 1,
+     "items": [
+      {
+       "title": "Title Page",
+       "type": "component"
+      },
+      {
+       "title": "Authors",
+       "type": "component"
+      }
+     ],
+     "lineNumbers": false,
+     "margin": 1.0,
+     "pageNumbers": true
+    },
+    {
+     "items": [
+      {
+       "title": "Abstract",
+       "type": "component"
+      },
+      {
+       "title": "Key Takeaways",
+       "type": "component"
+      },
+      {
+       "title": "Keywords",
+       "type": "component"
+      },
+      {
+       "title": "Teaser Text",
+       "type": "component"
+      }
+     ]
+    },
+    {
+     "items": [
+      {
+       "title": "Acknowledgments and Funding",
+       "type": "component"
+      }
+     ]
+    },
+    {
+     "items": [
+      {
+       "title": "References",
+       "type": "component"
+      }
+     ]
+    },
+    {
+     "items": [
+      {
+       "title": "Tables",
+       "type": "component"
+      },
+      {
+       "title": "Figures",
+       "type": "component"
+      }
+     ]
+    }
+   ],
+   "type": "docx"
+  },
+  {
+   "name": "Cover Letter",
+   "sections": [
+    {
+     "columns": 1,
+     "items": [
+      {
+       "title": "Cover Letter",
+       "type": "component"
+      }
+     ],
+     "lineNumbers": false,
+     "margin": 1.0,
+     "pageNumbers": false
+    }
+   ],
+   "type": "docx"
+  }
+ ]
+}

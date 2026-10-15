@@ -550,6 +550,15 @@ propagate by explicit, individual fast-forwards.
   venue's structure names, and told so. Bundled profiles name only the
   sections a venue's page names — no section is invented for a type that
   names none (`scripts/harness/template_divergence.sh`).
+- AC (implemented, Oct 2026): **Templates propagate from the shared
+  repository.** Every profile folder carries `checksum.txt`; Add Journal
+  fetches it, and when it differs from an untouched library copy
+  (`publishedChecksum == checksum`), pulls the published files into the
+  library and cuts the journal from them — no new build needed. An edited
+  library copy is never overwritten. Every profile lays its export out in
+  `export.json` (generated from the network's page groups; the standard
+  outline stamped for hand-written profiles). `scripts/corpus/stamp.sh`
+  writes both; the corpus harness fails on a stale checksum.
 - AC (implemented, Oct 2026): **Template management.** Summary, Structure,
   Tests and Export show the same template row — name — type, instructions
   link, one warning icon, **Manage** / **Add** (a "<name> - copy" opened

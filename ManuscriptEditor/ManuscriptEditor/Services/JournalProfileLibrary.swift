@@ -88,12 +88,13 @@ final class JournalProfileLibrary {
         }
         for (id, var bundled) in JournalProfile.bundled() {
             bundled.origin = .library
+            bundled.publishedChecksum = bundled.checksum     // what it is, until the user saves it
             if let mine = loaded[id] {
-                // A copy never saved here — version 1, no checksums of its
-                // own — is the bundle's, and follows it when the app ships a
-                // newer one.  A copy that has been saved is the user's and
-                // stays; the published-copy check says when it differs.
-                guard mine.version <= 1, mine.partChecksums == nil, mine.checksum != bundled.checksum,
+                // A copy untouched since it took the bundle's (or the shared
+                // repository's) content follows the bundle when the app
+                // ships a newer one.  A copy the user has saved stays; the
+                // published-copy check says when it differs.
+                guard mine.isUnmodifiedSincePublished, mine.checksum != bundled.checksum,
                       let path = mine.originURL else { continue }
                 let destination = URL(fileURLWithPath: path, isDirectory: true)
                 if bundled.write(to: destination) {
@@ -155,13 +156,17 @@ final class JournalProfileLibrary {
     /// version 1 — so "the same template, later" and "a different template"
     /// stay different questions.
     @discardableResult
-    func save(_ profile: JournalProfile) -> Bool {
+    func save(_ profile: JournalProfile, asPublished: Bool = false) -> Bool {
         guard holder(ofName: profile.name, articleType: profile.articleType, excluding: profile.id) == nil
         else { return false }
         var stored = profile
         stored.origin = .library
         stored.updatedAt = Date()
-        if let existing = profiles[stored.id] {
+        if asPublished {
+            // The shared repository's copy, taken whole: its version, and its
+            // checksum remembered as the one this copy matches.
+            stored.publishedChecksum = profile.checksum
+        } else if let existing = profiles[stored.id] {
             // Only a real change earns a version: re-saving an untouched
             // template shouldn't make everyone else's copy look stale.
             stored.version = existing.checksum == stored.checksum
@@ -309,9 +314,16 @@ extension JournalProfileLibrary {
 
     /// Compares a manuscript's profile against the library, by GUID first and
     /// by name second — the three cases Save to Library has to handle.
-    func status(of theirs: JournalProfile) -> ProfileLibraryStatus {
+    ///
+    /// `exportDiffers`, when given, settles the export part: a manuscript's
+    /// outline names the manuscript's sections and must be compared as the
+    /// cut prints it (`ManuscriptStore.exportDiffers`), not by fingerprint.
+    func status(of theirs: JournalProfile, exportDiffers: Bool? = nil) -> ProfileLibraryStatus {
         func differences(from mine: JournalProfile) -> Set<ProfilePart> {
-            Set(ProfilePart.allCases.filter { mine.fingerprint($0) != theirs.fingerprint($0) })
+            Set(ProfilePart.allCases.filter { part in
+                if part == .export, let exportDiffers { return exportDiffers }
+                return mine.fingerprint(part) != theirs.fingerprint(part)
+            })
         }
         if let mine = profiles[theirs.id] {
             let differing = differences(from: mine)

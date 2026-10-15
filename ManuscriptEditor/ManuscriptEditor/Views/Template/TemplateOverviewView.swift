@@ -425,6 +425,7 @@ struct TemplateOverviewView: View {
                     draft.export = copy.export
                     draft.publisher = copy.publisher ?? draft.publisher
                     draft.country = copy.country ?? draft.country
+                    draft.publishedChecksum = copy.checksum
                 }
                 publishing.invalidate(template.id)
                 store.showBanner(.success, "Loaded the published “\(template.displayName)” — Save to keep it.")

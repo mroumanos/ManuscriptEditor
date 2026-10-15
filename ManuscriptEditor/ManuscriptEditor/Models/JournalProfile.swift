@@ -502,21 +502,25 @@ struct RequirementsDoc: Codable, Sendable, Equatable {
     var version: Int = 1
     /// Each part's checksum as last saved, keyed by `ProfilePart`.
     var partChecksums: [String: String]? = nil
+    /// The checksum of the published copy this one last took or matched —
+    /// what tells an unmodified library copy from an edited one.
+    var publishedChecksum: String? = nil
 
     private enum CodingKeys: String, CodingKey {
         case id, journal, articleType, lineage, derivedFrom, url, bullets, updatedAt
-        case version, partChecksums, publisher, country
+        case version, partChecksums, publisher, country, publishedChecksum
     }
 
     init(id: UUID, journal: String, articleType: String? = nil, lineage: [UUID] = [],
          url: String = "", bullets: [String] = [], updatedAt: Date? = nil,
          version: Int = 1, partChecksums: [String: String]? = nil,
-         publisher: String? = nil, country: String? = nil) {
+         publisher: String? = nil, country: String? = nil, publishedChecksum: String? = nil) {
         self.id = id; self.journal = journal; self.articleType = articleType
         self.lineage = lineage; self.url = url; self.bullets = bullets
         self.updatedAt = updatedAt
         self.version = version; self.partChecksums = partChecksums
         self.publisher = publisher; self.country = country
+        self.publishedChecksum = publishedChecksum
     }
 
     /// Tolerates the single-parent `derivedFrom` written by the first cut of
@@ -541,6 +545,7 @@ struct RequirementsDoc: Codable, Sendable, Equatable {
         partChecksums = try c.decodeIfPresent([String: String].self, forKey: .partChecksums)
         publisher = try c.decodeIfPresent(String.self, forKey: .publisher)
         country = try c.decodeIfPresent(String.self, forKey: .country)
+        publishedChecksum = try c.decodeIfPresent(String.self, forKey: .publishedChecksum)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -560,6 +565,7 @@ struct RequirementsDoc: Codable, Sendable, Equatable {
         try c.encodeIfPresent(partChecksums, forKey: .partChecksums)
         try c.encodeIfPresent(publisher, forKey: .publisher)
         try c.encodeIfPresent(country, forKey: .country)
+        try c.encodeIfPresent(publishedChecksum, forKey: .publishedChecksum)
     }
 }
 
@@ -674,6 +680,17 @@ struct JournalProfile: Codable, Identifiable, Sendable, Equatable {
     /// drifted without holding the template it drifted from — the copy it
     /// carries is enough.
     var partChecksums: [String: String]? = nil
+    /// The checksum of the published copy this one last took or matched
+    /// (library copies).  Equal to `checksum` while the copy is untouched.
+    var publishedChecksum: String? = nil
+
+    /// Whether this copy is still what it took from the bundle or the shared
+    /// repository — nothing of the user's in it.  A copy from before this
+    /// was recorded counts as untouched while it was never saved here.
+    var isUnmodifiedSincePublished: Bool {
+        if let publishedChecksum { return publishedChecksum == checksum }
+        return version <= 1 && partChecksums == nil
+    }
 
     var displayName: String { articleType.map { "\(name) — \($0)" } ?? name }
 
@@ -792,6 +809,7 @@ struct JournalProfile: Codable, Identifiable, Sendable, Equatable {
     /// which part drifted without holding the one it drifted from.
     var requirementsDocForWriting: RequirementsDoc {
         var doc = requirementsDoc
+        doc.publishedChecksum = publishedChecksum
         doc.version = version
         doc.partChecksums = Dictionary(uniqueKeysWithValues:
             ProfilePart.allCases.map { ($0.rawValue, fingerprint($0)) })
@@ -880,6 +898,7 @@ struct JournalProfile: Codable, Identifiable, Sendable, Equatable {
         }
         profile.publisher = req.publisher
         profile.country = req.country
+        profile.publishedChecksum = req.publishedChecksum
         profile.migrateChecksums()
         return profile
     }
@@ -913,6 +932,10 @@ struct JournalProfile: Codable, Identifiable, Sendable, Equatable {
     /// `export.json` is written only when there is one: a journal that never
     /// had its outline configured should not gain an empty file that then
     /// reads as "differs from your library".
+    /// The file beside the four that says what they add up to — one small
+    /// fetch tells whether a published copy differs from the one in hand.
+    static let checksumFileName = "checksum.txt"
+
     @discardableResult
     func write(to folder: URL) -> Bool {
         do {
@@ -921,6 +944,7 @@ struct JournalProfile: Codable, Identifiable, Sendable, Equatable {
             for (part, data) in files {
                 try data.write(to: folder.appendingPathComponent(part.fileName), options: .atomic)
             }
+            try Data((checksum + "\n").utf8).write(to: folder.appendingPathComponent(Self.checksumFileName), options: .atomic)
             if files[.export] == nil {
                 try? FileManager.default.removeItem(at: folder.appendingPathComponent(ProfilePart.export.fileName))
             }
@@ -1018,7 +1042,7 @@ enum ProfileFingerprint {
 
     private static let ignored: Set<String> = [
         "id", "derivedFrom", "lineage", "journal", "articleType", "updatedAt", "editedAt",
-        "publisher", "country",
+        "publisher", "country", "publishedChecksum",
     ]
 
     static func of(_ value: some Encodable) -> String {

@@ -649,8 +649,10 @@ final class ManuscriptStore {
         return structure.journalEntries.contains { $0.key == section.title.lowercased() }
     }
 
-    /// The note an entry carries when a cut, not the template, put it there.
+    /// The notes an entry carries when a cut, not the template, put it there
+    /// — by writing to the section, or by adding it to the export.
     static let writtenHereNote = "Not in the template — this cut wrote to it."
+    static let exportedHereNote = "Not in the template — this cut exports it."
 
     /// Keeps a journal's structure in step with what its cut holds.  A
     /// manuscript section the structure doesn't name joins it when this cut
@@ -669,8 +671,9 @@ final class ManuscriptStore {
         let templateKeys = Set((template?.structure.journalEntries ?? []).map(\.key))
         // Only an outline the journal holds counts as exporting: the standard
         // one is derived from this structure and would keep every entry alive.
-        let exported = Set((journal.exportConfig?.documents ?? []).flatMap(\.items).compactMap(\.sectionID))
-        var changed = false
+        var outline = journal.exportConfig
+        let exported = Set((outline?.documents ?? []).flatMap(\.items).compactMap(\.sectionID))
+        var changed = false, outlineChanged = false
         for section in content.sections where section.isJournalContent && section.sectionKind != .abstract {
             let key = section.title.lowercased()
             let entry = structure.sections.first { $0.key == key }
@@ -680,20 +683,43 @@ final class ManuscriptStore {
                 var made = StructureSection(title: section.title)
                 made.required = false
                 made.type = section.sectionKind == .questions ? .questions : .text
-                made.note = Self.writtenHereNote
+                made.note = written ? Self.writtenHereNote : Self.exportedHereNote
                 structure.sections.append(made)
                 changed = true
-            } else if let entry, entry.note == Self.writtenHereNote, !templateKeys.contains(key),
-                      !written, !isExported {
-                structure.sections.removeAll { $0.uid == entry.uid }
-                changed = true
+                // Written here, it prints here: an explicit outline gains the
+                // section after its last one (the standard outline follows
+                // the structure on its own).
+                if written, !isExported, outline != nil,
+                   let d = outline!.documents.firstIndex(where: { !$0.isAttachment }) {
+                    let items = outline!.documents[d].items
+                    let at = items.lastIndex { $0.type == .manuscriptSection }.map { $0 + 1 } ?? items.count
+                    outline!.documents[d].items.insert(ExportItem(type: .manuscriptSection, sectionID: section.id), at: at)
+                    outlineChanged = true
+                }
+            } else if let entry, !templateKeys.contains(key) {
+                // An entry a cut put there leaves the way it came: emptied
+                // (and out of the outline with it), or taken out of the export.
+                if entry.note == Self.writtenHereNote, !written {
+                    structure.sections.removeAll { $0.uid == entry.uid }
+                    changed = true
+                    if isExported, outline != nil {
+                        for d in outline!.documents.indices {
+                            outline!.documents[d].items.removeAll { $0.sectionID == section.id }
+                        }
+                        outlineChanged = true
+                    }
+                } else if entry.note == Self.exportedHereNote, !isExported, !written {
+                    structure.sections.removeAll { $0.uid == entry.uid }
+                    changed = true
+                }
             }
         }
-        guard changed else { return }
-        let updated = structure
+        guard changed || outlineChanged else { return }
+        let updated = structure, updatedOutline = outline
         touch(undoable: false) { m in
             guard let idx = m.journals.firstIndex(where: { $0.id == journalID }) else { return }
-            m.journals[idx].structure = updated
+            if changed { m.journals[idx].structure = updated }
+            if outlineChanged { m.journals[idx].exportConfig = updatedOutline }
         }
         writeProfile(journalID: journalID)
     }
@@ -1626,7 +1652,26 @@ final class ManuscriptStore {
     /// How this journal's profile compares with the user's library — what
     /// lights the warning icons and what Save to Library will do.
     func libraryStatus(for journal: Journal) -> ProfileLibraryStatus {
-        JournalProfileLibrary.shared.status(of: journal.profile)
+        // The outline is compared as this cut would print it — a profile's
+        // outline names the profile's sections, a cut's names the
+        // manuscript's, and a raw fingerprint could never match.
+        JournalProfileLibrary.shared.status(of: journal.profile,
+                                            exportDiffers: partDiffersFromTemplate(.export, journal: journal))
+    }
+
+    /// Whether this journal's outline differs from `profile`'s, compared as
+    /// the cut would print it: the profile's outline remapped onto the
+    /// manuscript's sections, both sides normalized the same way.
+    func exportDiffers(from profile: JournalProfile, journal: Journal) -> Bool {
+        guard let content = latestVersion(forJournal: journal.id)?.content ?? manuscript else { return false }
+        let theirs: ExportConfig
+        if let export = profile.export, !export.documents.isEmpty {
+            theirs = remappedExport(export, template: profile, content: content)
+        } else {
+            theirs = ExportConfig.standard(content: content, journal: journal)
+        }
+        return ProfileFingerprint.of(exportConfig(forJournal: journal.id))
+            != ProfileFingerprint.of(normalizedOutline(theirs, content: content))
     }
 
     /// The journal behind a pane's tab.  A pane IS its tab's journal; Source
@@ -1663,17 +1708,8 @@ final class ManuscriptStore {
         if part == .export {
             // Without the template there is nothing to remap against, and
             // "unknown" must not read as "edited".
-            guard let template,
-                  let content = latestVersion(forJournal: journal.id)?.content ?? manuscript
-            else { return false }
-            let theirs: ExportConfig
-            if let export = template.export, !export.documents.isEmpty {
-                theirs = remappedExport(export, template: template, content: content)
-            } else {
-                theirs = ExportConfig.standard(content: content, journal: journal)
-            }
-            return ProfileFingerprint.of(exportConfig(forJournal: journal.id))
-                != ProfileFingerprint.of(normalizedOutline(theirs, content: content))
+            guard let template else { return false }
+            return exportDiffers(from: template, journal: journal)
         }
         let mine = journal.profile
         if let saved = (template?.partChecksums ?? journal.profile.partChecksums)?[part.rawValue] {

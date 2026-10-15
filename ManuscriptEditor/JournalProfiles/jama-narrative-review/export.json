@@ -1,0 +1,143 @@
+{
+ "documents": [
+  {
+   "name": "Manuscript",
+   "sections": [
+    {
+     "columns": 1,
+     "items": [
+      {
+       "format": {
+        "fontFamily": "times",
+        "fontSize": 12,
+        "lineSpacing": 2.0
+       },
+       "title": "Title Page",
+       "type": "component"
+      },
+      {
+       "format": {
+        "fontFamily": "times",
+        "fontSize": 12,
+        "lineSpacing": 2.0
+       },
+       "title": "Authors",
+       "type": "component"
+      }
+     ],
+     "lineNumbers": false,
+     "margin": 1.0,
+     "pageNumbers": true
+    },
+    {
+     "items": [
+      {
+       "title": "Abstract",
+       "type": "component"
+      },
+      {
+       "format": {
+        "fontFamily": "times",
+        "fontSize": 12,
+        "lineSpacing": 2.0
+       },
+       "title": "Keywords",
+       "type": "component"
+      }
+     ]
+    },
+    {
+     "items": [
+      {
+       "title": "Introduction",
+       "type": "component"
+      },
+      {
+       "title": "Methods",
+       "type": "component"
+      },
+      {
+       "title": "Discussion",
+       "type": "component"
+      },
+      {
+       "title": "Practical Considerations",
+       "type": "component"
+      },
+      {
+       "title": "Limitations",
+       "type": "component"
+      },
+      {
+       "title": "Conclusions",
+       "type": "component"
+      }
+     ]
+    },
+    {
+     "items": [
+      {
+       "format": {
+        "fontFamily": "times",
+        "fontSize": 12,
+        "lineSpacing": 2.0
+       },
+       "title": "References",
+       "type": "component"
+      }
+     ]
+    },
+    {
+     "items": [
+      {
+       "format": {
+        "fontFamily": "times",
+        "fontSize": 12,
+        "lineSpacing": 2.0
+       },
+       "title": "Tables",
+       "type": "component"
+      }
+     ]
+    },
+    {
+     "items": [
+      {
+       "format": {
+        "fontFamily": "times",
+        "fontSize": 12,
+        "lineSpacing": 2.0
+       },
+       "title": "Figures",
+       "type": "component"
+      }
+     ]
+    }
+   ],
+   "type": "docx"
+  },
+  {
+   "name": "Cover Letter",
+   "sections": [
+    {
+     "columns": 1,
+     "items": [
+      {
+       "format": {
+        "fontFamily": "times",
+        "fontSize": 12,
+        "lineSpacing": 2.0
+       },
+       "title": "Cover Letter",
+       "type": "component"
+      }
+     ],
+     "lineNumbers": false,
+     "margin": 1.0,
+     "pageNumbers": false
+    }
+   ],
+   "type": "docx"
+  }
+ ]
+}

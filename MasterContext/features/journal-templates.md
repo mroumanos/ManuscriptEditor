@@ -365,6 +365,15 @@ GitHub, shipped with every release (`TemplatePublishing`, Oct 2026).
   check that cannot reach GitHub says nothing — no warning beats a false
   one. Reads need no token (the repository is public); a changed copy is
   checked again at once, an unchanged one every ten minutes.
+- **Adding a journal takes the published copy when it has moved on.** Add
+  Journal fetches the template's `checksum.txt` from the shared repository
+  (one small file); if it differs from the library copy's checksum and the
+  library copy is **untouched** — still what it took from the bundle or the
+  repository, by its recorded `publishedChecksum` — the published files are
+  pulled into the library and the journal is cut from them. So a template
+  corrected on `main` reaches every install without a new build. An edited
+  library copy is kept (the icon says it differs); offline, the library copy
+  is used at once. Remote Load records the published checksum too.
 - **Remote Save = a pull request, never a merge.** The template's Overview
   has the rows a manuscript's has — **Local: Save | Load**, **Remote: Save |
   Load** — with a picker for which of the app's GitHub accounts a proposal

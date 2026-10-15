@@ -501,6 +501,8 @@ struct AddJournalSheet: View {
     @State private var customName = ""
     @State private var customType = ""
     @State private var journalQuery = ""
+    /// While the shared repository is asked for a newer copy of the template.
+    @State private var syncing = false
 
     private var journals: [Journal] { store.manuscript?.journals ?? [] }
 
@@ -673,10 +675,25 @@ struct AddJournalSheet: View {
                 Spacer()
                 Button("Cancel") { isPresented = false }
                     .keyboardShortcut(.cancelAction)
+                if syncing { ProgressView().controlSize(.small) }
                 Button("Add") {
-                    add()
-                    isPresented = false
+                    syncing = true
+                    Task {
+                        // The template as the shared repository has it, when
+                        // that has moved on and the library's copy is
+                        // untouched — a correction there reaches this
+                        // manuscript without a new build.  Offline: the
+                        // library's copy, at once.
+                        var fresh: JournalProfile?
+                        if let choice = libraryChoice, let local = JournalProfileLibrary.shared.profile(id: choice) {
+                            fresh = await TemplatePublishing.shared.synced(local)
+                        }
+                        add(profile: fresh)
+                        syncing = false
+                        isPresented = false
+                    }
                 }
+                .disabled(syncing)
                 .keyboardShortcut(.defaultAction)
                 .disabled(libraryChoice == nil
                           && customName.trimmingCharacters(in: .whitespaces).isEmpty)
@@ -687,10 +704,10 @@ struct AddJournalSheet: View {
 
     }
 
-    private func add() {
+    private func add(profile synced: JournalProfile? = nil) {
         var template: Journal
         if let choice = libraryChoice,
-           let profile = JournalProfileLibrary.shared.profile(id: choice) {
+           let profile = synced ?? JournalProfileLibrary.shared.profile(id: choice) {
             // The registry entry, when there is one, contributes only what a
             // profile doesn't carry: publisher, country, and the numeric
             // requirement fields the older checks read.

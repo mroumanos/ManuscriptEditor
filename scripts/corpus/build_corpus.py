@@ -144,6 +144,14 @@ NETWORKS = {
             ("Export font 10–12 pt", [("FONT_SIZE", ">=", 10.0), ("FONT_SIZE", "<=", 12.0)]),
             ("Export double-spaced", [("LINE_SPACING", ">=", 2.0)]),
         ],
+        # "Start each of these sections on a new page, numbered consecutively,
+        # beginning with the title page": title page, abstract, text,
+        # references, figure legends and tables.  @body is the type's own
+        # sections; a component the type lacks drops out.
+        "pageGroups": [["Title Page", "Authors"], ["Key Points", "Abstract", "Keywords"], ["@body"],
+                       ["References"], ["Tables"], ["Figures"]],
+        "pageSetup": {"margin": 1.0, "lineNumbers": False, "pageNumbers": True, "columns": 1},
+        "outlineTypography": {"fontFamily": "times", "fontSize": 12, "lineSpacing": 2.0},
     },
     "health-affairs-scholar": {
         "publisher": "Project HOPE / Oxford University Press",
@@ -210,6 +218,12 @@ NETWORKS = {
         "titleNote": "Including spaces.",
         "shortTitleChars": 100,
         "exportChecks": [],
+        # Teaser text before the main text; tables at the end of the main
+        # text; figures as separate files, their legends in the manuscript.
+        "pageGroups": [["Title Page", "Authors"], ["Abstract", "Key Takeaways", "Keywords", "Teaser Text"], ["@body"],
+                       ["Acknowledgments and Funding"], ["References"], ["Tables", "Figures"]],
+        "pageSetup": {"margin": 1.0, "lineNumbers": False, "pageNumbers": True, "columns": 1},
+        "outlineTypography": None,
     },
 }
 
@@ -707,6 +721,49 @@ def build_bullets(net, j, t):
     return b
 
 
+# ── The outline ──
+
+def build_outline(net, j, t, structure_sections):
+    """The export outline in the file's words: one manuscript document of
+    the network's page groups over this type's sections, and a cover-letter
+    document where the venue asks for one.  A component the type does not
+    have drops out; a group with nothing left drops out."""
+    titles = [s["title"] for s in structure_sections]
+    has_abstract = "Abstract" in titles and not any(s["title"] == "Abstract" and s.get("required") is False for s in structure_sections)
+    body = [s["title"] for s in structure_sections if s["title"] not in ("Abstract", "Key Points", "Key Takeaways", "Teaser Text", "Acknowledgments and Funding")]
+    fixed = {"Title Page", "Authors", "Keywords", "References", "Tables", "Figures", "Cover Letter"}
+    typography = net.get("outlineTypography")
+
+    def component(title):
+        item = {"type": "component", "title": title}
+        if title in fixed and typography:
+            item["format"] = dict(typography)
+        return item
+
+    sections, first = [], True
+    for group in net["pageGroups"]:
+        items = []
+        for name in group:
+            if name == "@body":
+                items += [component(b) for b in body]
+            elif name == "Abstract":
+                if has_abstract: items.append(component(name))
+            elif name in fixed or name in titles:
+                items.append(component(name))
+        if not items:
+            continue
+        section = dict(net["pageSetup"]) if first else {}
+        section["items"] = items
+        sections.append(section)
+        first = False
+    documents = [{"name": "Manuscript", "type": "docx", "sections": sections}]
+    if cover_letter(j) == "required":
+        documents.append({"name": "Cover Letter", "type": "docx",
+                          "sections": [{"margin": 1.0, "lineNumbers": False, "pageNumbers": False, "columns": 1,
+                                        "items": [component("Cover Letter")]}]})
+    return {"documents": documents}
+
+
 # ── Writing ──
 
 def dump(obj):
@@ -722,9 +779,11 @@ def profile_files(net, j, t):
         "updatedAt": STAMP, "url": j["url"],
     }
     checks = {"checks": build_checks(net, j, t)}
-    structure = {"sections": build_structure(net, j, t)}
+    sections = build_structure(net, j, t)
+    structure = {"sections": sections}
+    export = build_outline(net, j, t, sections)
     return slug, {"requirements.json": dump(requirements), "checks.json": dump(checks),
-                  "structure.json": dump(structure)}
+                  "structure.json": dump(structure), "export.json": dump(export)}
 
 
 def main(check_only=False):
@@ -767,6 +826,7 @@ def main(check_only=False):
         print("every generated profile is current")
         return 0
     print(f"wrote {written} file(s)")
+    print("now run scripts/corpus/stamp.sh to write each profile's checksum.txt")
     return 0
 
 

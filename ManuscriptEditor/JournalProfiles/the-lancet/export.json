@@ -1,0 +1,74 @@
+{
+  "documents" : [
+    {
+      "name" : "Manuscript",
+      "sections" : [
+        {
+          "columns" : 1,
+          "items" : [
+            {
+              "title" : "Title Page",
+              "type" : "component"
+            },
+            {
+              "title" : "Authors",
+              "type" : "component"
+            },
+            {
+              "title" : "Abstract",
+              "type" : "component"
+            },
+            {
+              "title" : "Keywords",
+              "type" : "component"
+            }
+          ],
+          "lineNumbers" : false,
+          "margin" : 1,
+          "pageNumbers" : false
+        },
+        {
+          "items" : [
+            {
+              "title" : "Introduction",
+              "type" : "component"
+            },
+            {
+              "title" : "Methods",
+              "type" : "component"
+            },
+            {
+              "title" : "Results",
+              "type" : "component"
+            },
+            {
+              "title" : "Discussion",
+              "type" : "component"
+            }
+          ]
+        },
+        {
+          "items" : [
+            {
+              "title" : "References",
+              "type" : "component"
+            }
+          ]
+        },
+        {
+          "items" : [
+            {
+              "title" : "Figures",
+              "type" : "component"
+            },
+            {
+              "title" : "Tables",
+              "type" : "component"
+            }
+          ]
+        }
+      ],
+      "type" : "pdf"
+    }
+  ]
+}

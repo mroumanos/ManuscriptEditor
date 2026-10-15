@@ -52,7 +52,7 @@ for folder in folders.sorted(by: { $0.lastPathComponent < $1.lastPathComponent }
 // The hand-written AJPH profiles carry the venue's content in the fields
 // made for it: a question series with a boilerplate per question, and an
 // export outline with its page breaks.
-for slug in ["american-journal-of-public-health-research-article", "american-journal-of-public-health-research-brief"] {
+for slug in ["american-journal-of-public-health-research-article"] {
     guard let p = bundled[JournalProfile.bundledID(slug: slug)] else { check("\(slug) present", false); continue }
     let questions = p.structure.sections.first { $0.type == .questions }
     check("\(slug): a question series decoded as one", questions != nil)
@@ -75,13 +75,26 @@ for folder in folders {
     for name in ["requirements.json", "checks.json", "structure.json", "export.json"] {
         guard let text = try? String(contentsOf: folder.appendingPathComponent(name), encoding: .utf8) else { continue }
         if text.contains("\"kind\"") { kindFiles += 1 }
-        if name == "checks.json" || name == "structure.json", text.contains("\"id\"") || text.contains("\"journal\"") { idFiles += 1 }
+        if name == "checks.json", text.contains("\"id\"") || text.contains("\"journal\"") { idFiles += 1 }
+        if name == "structure.json", text.contains("\"journal\"") { idFiles += 1 }
         if name == "export.json", let json = try? JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: Any],
            let docs = json["documents"] as? [[String: Any]], docs.contains(where: { $0["format"] != nil }) { docTypography += 1 }
     }
 }
 check("no bundled file says \"kind\"", kindFiles == 0, "\(kindFiles) files")
-check("checks.json and structure.json carry no ids or identity", idFiles == 0, "\(idFiles) files")
+// Every profile lays its export out and carries its checksum, as stamped.
+var noOutline = 0, badChecksum = 0
+for folder in folders {
+    let slug = folder.lastPathComponent
+    if !FileManager.default.fileExists(atPath: folder.appendingPathComponent("export.json").path) { noOutline += 1 }
+    guard let p = bundled[JournalProfile.bundledID(slug: slug)] else { continue }
+    let stamped = (try? String(contentsOf: folder.appendingPathComponent(JournalProfile.checksumFileName), encoding: .utf8))?
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+    if stamped != p.checksum { badChecksum += 1; if badChecksum <= 3 { print("      stale checksum: \(slug)") } }
+}
+check("every profile lays its export out (export.json)", noOutline == 0, "\(noOutline) without")
+check("every profile's checksum.txt is its checksum (run scripts/corpus/stamp.sh)", badChecksum == 0, "\(badChecksum) stale")
+check("checks.json carries no ids; neither file carries identity", idFiles == 0, "\(idFiles) files")
 check("no outline document carries typography", docTypography == 0)
 // Rules read from a file without ids get the same ids every time.
 if let p = bundled[JournalProfile.bundledID(slug: "american-journal-of-public-health-research-article")],

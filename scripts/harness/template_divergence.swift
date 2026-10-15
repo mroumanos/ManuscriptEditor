@@ -88,7 +88,8 @@ func check(_ label: String, _ ok: Bool, _ detail: String = "") {
     check("published under another GUID → different identity",
           TemplatePublishing.compare(edited.profile, published: library.profile(name: "JAMA", articleType: "Viewpoint")) == .differentIdentity)
     check("the untouched template matches its published self", TemplatePublishing.compare(source, published: source) == .matches)
-    if case .differs(let parts) = TemplatePublishing.compare(edited.profile, published: source) {
+    if case .differs(let parts) = TemplatePublishing.compare(edited.profile, published: source,
+                                                              exportDiffers: { store.exportDiffers(from: $0, journal: edited) }) {
         check("the edited copy differs in exactly the edited parts", parts == [.requirements, .structure, .checks], "\(parts)")
     } else {
         check("the edited copy differs from the published one", false)
@@ -137,6 +138,8 @@ func check(_ label: String, _ ok: Bool, _ detail: String = "") {
     var emptied = cutSection(); emptied.content = RichText()
     store.updateSection(emptied, ref: .version(head.id))
     check("emptying it takes it out again", !store.sectionBelongs(cutSection(), to: journalNow()))
+    check("… and out of the export with it",
+          !store.exportConfig(forJournal: journal.id).documents.flatMap(\.items).contains { $0.sectionID == extraID })
     var outline = store.exportConfig(forJournal: journal.id)
     outline.documents[0].items.append(ExportItem(type: .manuscriptSection, sectionID: extraID))
     store.updateExportConfig(outline, forJournal: journal.id)
@@ -147,6 +150,23 @@ func check(_ label: String, _ ok: Bool, _ detail: String = "") {
     check("removing it from the export takes it out again", !store.sectionBelongs(cutSection(), to: journalNow()))
     check("a template's own entry is never removed this way",
           store.sectionBelongs(store.manuscript!.sections.first { $0.title == "Introduction" }!, to: journalNow()))
+
+    // Adding a journal takes the published copy when it has moved on and the
+    // library's copy is untouched; an edited copy stays the user's.
+    var fromBundle = source; fromBundle.publishedChecksum = fromBundle.checksum
+    var newer = source; newer.checks.append(CheckRule(name: "A newer published rule", conditions: [], manual: true))
+    check("an untouched copy adopts a newer published one", TemplatePublishing.shouldAdopt(local: fromBundle, published: newer))
+    check("… but not an identical one", !TemplatePublishing.shouldAdopt(local: fromBundle, published: fromBundle))
+    var mine = fromBundle; mine.requirements.bullets.append("limits: my own rule"); mine.version = 2
+    check("an edited copy is kept", !TemplatePublishing.shouldAdopt(local: mine, published: newer))
+    var other = newer; other.id = UUID()
+    check("a different template under the name is never adopted", !TemplatePublishing.shouldAdopt(local: fromBundle, published: other))
+    var unrecorded = source; unrecorded.publishedChecksum = nil; unrecorded.version = 1; unrecorded.partChecksums = nil
+    check("a copy from before the checksum was recorded counts as untouched while never saved", TemplatePublishing.shouldAdopt(local: unrecorded, published: newer))
+    check("the library seeds a copy as its own published checksum", library.profile(id: source.id)?.publishedChecksum == source.checksum)
+    check("a library write leaves checksum.txt beside the files",
+          (try? String(contentsOf: library.root.appendingPathComponent(source.slug).appendingPathComponent(JournalProfile.checksumFileName), encoding: .utf8))?
+              .trimmingCharacters(in: .whitespacesAndNewlines) == source.checksum)
 
     // Checksums saved under the old spelling (kind, sample, full formats)
     // are recognised and replaced, so a rename never reads as an edit.

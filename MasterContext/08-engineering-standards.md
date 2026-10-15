@@ -337,6 +337,16 @@ xcodebuild -scheme ManuscriptEditor -destination 'platform=macOS' build
     structure or export — that was the "edited template" flag on every
     mismatched add.
 
+44. **`checksum.txt` is the app's checksum, so only the app writes it.**
+    `JournalProfile.write(to:)` writes it beside the four files, and
+    `scripts/corpus/stamp.sh` (Swift, against the Debug build) writes it
+    into the bundled corpus; Python cannot reproduce the fingerprint, so
+    `build_corpus.py` is followed by `stamp.sh`, and the corpus harness
+    fails on a stale one. A library copy records `publishedChecksum` — what
+    it last took or matched — and is overwritten by a newer published or
+    bundled copy only while `checksum == publishedChecksum`; a saved edit
+    breaks that equality, and the copy is the user's from then on.
+
 ## Generated journal profiles
 
 - The JAMA Network and Health Affairs Scholar profiles

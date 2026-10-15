@@ -134,7 +134,10 @@ struct JournalPartHeader: View {
         // The manuscript's own copy against the shared repository's — a
         // changed copy is checked again, an unchanged one every ten minutes.
         .task(id: journal.profile.checksum) {
-            TemplatePublishing.shared.refresh(journal.profile)
+            let journal = journal
+            TemplatePublishing.shared.refresh(journal.profile, exportDiffers: { published in
+                store.exportDiffers(from: published, journal: journal)
+            })
         }
         .confirmationDialog("Replace this journal's \(part.label.lowercased()) with the template's?",
                             isPresented: $loading, titleVisibility: .visible) {
