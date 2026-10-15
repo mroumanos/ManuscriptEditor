@@ -223,8 +223,35 @@ struct TemplateQuestion: Codable, Sendable, Equatable {
     /// Words or characters — journals ask for both, so the template carries
     /// which one this question means.  nil = words.
     var limitUnit: QuestionEntry.LimitUnit? = nil
-    /// A sample or starter answer, when the journal's instructions imply one.
-    var sample: String? = nil
+    /// The answer a new cut starts with — the venue's own format for it, a
+    /// certification to initial, a count to fill in.  Written as `sample`
+    /// until Oct 2026.
+    var boilerplate: String? = nil
+
+    private enum CodingKeys: String, CodingKey { case prompt, wordLimit, limitUnit, boilerplate, sample }
+
+    init(prompt: String, wordLimit: Int? = nil, limitUnit: QuestionEntry.LimitUnit? = nil,
+         boilerplate: String? = nil) {
+        self.prompt = prompt; self.wordLimit = wordLimit; self.limitUnit = limitUnit
+        self.boilerplate = boilerplate
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        prompt = try c.decode(String.self, forKey: .prompt)
+        wordLimit = try c.decodeIfPresent(Int.self, forKey: .wordLimit)
+        limitUnit = try c.decodeIfPresent(QuestionEntry.LimitUnit.self, forKey: .limitUnit)
+        boilerplate = try c.decodeIfPresent(String.self, forKey: .boilerplate)
+            ?? c.decodeIfPresent(String.self, forKey: .sample)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(prompt, forKey: .prompt)
+        try c.encodeIfPresent(wordLimit, forKey: .wordLimit)
+        try c.encodeIfPresent(limitUnit, forKey: .limitUnit)
+        try c.encodeIfPresent(boilerplate, forKey: .boilerplate)
+    }
 }
 
 // MARK: - JournalStructure
@@ -328,8 +355,10 @@ struct StructureSection: Codable, Sendable, Equatable, Identifiable {
     var displayTitle: String { title }
 
     private enum CodingKeys: String, CodingKey {
-        case id, title, required, note, kind, core, sample, questions, format, formatNote
+        case id, title, required, note, type, core, questions, format, formatNote
         case boilerplate
+        case kind       // what `type` was called until Oct 2026
+        case sample     // what `boilerplate` was called until Sep 2026
         case role       // legacy: "letter" marked the cover letter before it was a kind
     }
 
@@ -368,10 +397,12 @@ struct StructureSection: Codable, Sendable, Equatable, Identifiable {
         questions = try c.decodeIfPresent([TemplateQuestion].self, forKey: .questions)
         format = try c.decodeIfPresent(ExportDocumentFormat.self, forKey: .format)
         formatNote = try c.decodeIfPresent(String.self, forKey: .formatNote)
-        // `kind` briefly meant "core"/"text" when structure files also listed
-        // the app's fixed parts; anything but a section kind marks the entry
-        // for dropping, and only "questions" changes what gets created.
-        let rawKind = (try? c.decodeIfPresent(String.self, forKey: .kind)) ?? nil
+        // `type` — "text" (the default) or "questions".  Written as `kind`
+        // until Oct 2026, and for a while that meant "core"/"text" when
+        // structure files also listed the app's fixed parts; anything but a
+        // section kind marks the entry for dropping.
+        let rawKind = (try? c.decodeIfPresent(String.self, forKey: .type)) ?? nil
+            ?? (try? c.decodeIfPresent(String.self, forKey: .kind)) ?? nil
         isFixedPart = rawKind == "core" || (try? c.decodeIfPresent(String.self, forKey: .core)) != nil
         kind = rawKind.flatMap(SectionKind.init(rawValue:)) ?? .text
         // A file from the fortnight the cover letter was a "role" rather than
@@ -386,7 +417,7 @@ struct StructureSection: Codable, Sendable, Equatable, Identifiable {
         try c.encode(uid, forKey: .id)
         try c.encode(title, forKey: .title)
         try c.encode(required, forKey: .required)
-        if kind != .text { try c.encode(kind.rawValue, forKey: .kind) }
+        if kind != .text { try c.encode(kind.rawValue, forKey: .type) }
         try c.encodeIfPresent(note, forKey: .note)
         try c.encodeIfPresent(boilerplate, forKey: .boilerplate)
         try c.encodeIfPresent(questions, forKey: .questions)

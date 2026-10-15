@@ -49,6 +49,21 @@ for folder in folders.sorted(by: { $0.lastPathComponent < $1.lastPathComponent }
         check("\(slug): a body limit", p.checks.contains { $0.name.hasPrefix("Body") })
     }
 }
+// The hand-written AJPH profiles carry the venue's content in the fields
+// made for it: a question series with a boilerplate per question, and an
+// export outline with its page breaks.
+for slug in ["american-journal-of-public-health-research-article", "american-journal-of-public-health-research-brief"] {
+    guard let p = bundled[JournalProfile.bundledID(slug: slug)] else { check("\(slug) present", false); continue }
+    let questions = p.structure.sections.first { $0.kind == .questions }
+    check("\(slug): a question series decoded as one", questions != nil)
+    check("\(slug): every question carries a boilerplate",
+          (questions?.questions ?? []).count == 24 && (questions?.questions ?? []).allSatisfy { $0.boilerplate?.isEmpty == false })
+    check("\(slug): the abstract entry carries its layout", p.structure.abstractEntry?.boilerplate?.contains("Objectives") == true)
+    check("\(slug): an export outline with a blinded manuscript", p.export?.documents.map(\.name) == ["Title Page", "Manuscript (blinded)", "Cover Letter"])
+    check("\(slug): the outline's page breaks decoded", (p.export?.documents[1].items.filter { $0.kind == .pageBreak }.count ?? 0) == 3)
+    check("\(slug): the outline names the structure's sections",
+          Set(p.export?.documents[1].items.compactMap(\.sectionID) ?? []) == Set(p.structure.sectionEntries.filter { $0.kind == .text }.map(\.uid)))
+}
 print("\(jamaCount) generated profiles, \(keyPointsCount) with Key Points")
 check("generated profiles present", jamaCount >= 16)
 check("Health Affairs Scholar ships per article type",

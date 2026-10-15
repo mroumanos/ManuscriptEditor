@@ -238,9 +238,9 @@ struct TemplateSectionView: View {
                 } label: { Image(systemName: "trash") }
                     .buttonStyle(.borderless)
             }
-            TextField("Starter answer (optional)", text: Binding(
-                get: { question.sample ?? "" },
-                set: { value in editQuestion(index) { $0.sample = value.isEmpty ? nil : value } }),
+            TextField("Boilerplate — what the answer starts as (optional)", text: Binding(
+                get: { question.boilerplate ?? "" },
+                set: { value in editQuestion(index) { $0.boilerplate = value.isEmpty ? nil : value } }),
                       axis: .vertical)
                 .textFieldStyle(.roundedBorder)
                 .lineLimit(1...4)

@@ -301,6 +301,14 @@ xcodebuild -scheme ManuscriptEditor -destination 'platform=macOS' build
     "<name> - copy", "- copy 2"…  A harness points the library at a scratch
     folder with `MANUSCRIPT_EDITOR_LIBRARY_ROOT`.
 
+42. **A structure entry's `type` and a question's `boilerplate` are written
+    under those names; `kind` and `sample` are read for older files.** The
+    rename (Oct 2026) changes the fingerprint of a structure that carries a
+    question series, so a template with one reads as edited against its
+    saved checksums once, until it is re-saved. A venue's page breaks,
+    separate title page or blinded copy live in `export.json` — the
+    outline — not in the structure.
+
 ## Generated journal profiles
 
 - The JAMA Network and Health Affairs Scholar profiles

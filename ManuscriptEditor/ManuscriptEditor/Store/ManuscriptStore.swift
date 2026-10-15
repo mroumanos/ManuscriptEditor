@@ -1254,8 +1254,8 @@ final class ManuscriptStore {
                 made.wordLimit = q.wordLimit
                 made.limitUnit = q.limitUnit
                 made.order = index
-                if let sample = q.sample, !sample.isEmpty {
-                    made.response = PartEngine.richText(sample)
+                if let boilerplate = q.boilerplate, !boilerplate.isEmpty {
+                    made.response = PartEngine.richText(boilerplate)
                 }
                 return made
             }
@@ -1879,7 +1879,7 @@ final class ManuscriptStore {
                     entry.questions = asked.map { q in
                         TemplateQuestion(prompt: q.prompt, wordLimit: q.wordLimit,
                                          limitUnit: q.limitUnit,
-                                         sample: previous[q.prompt.lowercased()]?.sample)
+                                         boilerplate: previous[q.prompt.lowercased()]?.boilerplate)
                     }
                 }
             }
