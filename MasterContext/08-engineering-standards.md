@@ -311,14 +311,19 @@ xcodebuild -scheme ManuscriptEditor -destination 'platform=macOS' build
     `type: component` by `title`, no ids — converted to and from the app's
     `ExportConfig` on read and write (`Models/TemplateOutline.swift`); a
     manuscript section's typography is written with its structure entry,
-    never with an item. `kind`, `sample`, a top-level `documentFormat` and
-    the app-shaped export.json are all still read. The renames (Oct 2026)
-    change the fingerprint of a structure with a question series or
-    per-section typography, so such a template reads as edited against its
-    saved checksums once, until re-saved. `ManuscriptSection.kind`,
-    `SectionKind` and a check scope's `kind` keep their names: the first
-    because `ManuscriptSection.type` is its legacy section type, the last
-    because renaming the key would re-checksum every template's tests.
+    never with an item, and a document carries none. A check scope's
+    `kind` is `type` too (`CheckScope.ScopeType`). A template's files carry
+    no ids and no identity but requirements.json's: rules and conditions
+    leave their ids out under `CodingUserInfoKey.profileFile` and a reader
+    derives the same ids every time; a manuscript keeps its own. `kind`,
+    `sample`, a top-level `documentFormat`, rule ids and the app-shaped
+    export.json are all still read. **Old checksums survive the renames**:
+    `ProfileFingerprint.legacy(of:)` hashes the old spelling, and
+    `JournalProfile.migrateChecksums()` replaces a stored checksum that
+    matches it with the current one on read, so nothing reads as edited for
+    a rename it never saw. The one `kind` left is `ManuscriptSection.kind`
+    in manuscript.json, because `ManuscriptSection.type` is its legacy
+    section type.
 
 ## Generated journal profiles
 

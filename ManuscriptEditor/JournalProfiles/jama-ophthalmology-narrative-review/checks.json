@@ -9,7 +9,7 @@
      "number": 3500,
      "scopes": [
       {
-       "kind": "body"
+       "type": "body"
       }
      ]
     }
@@ -26,7 +26,7 @@
      "number": 300,
      "scopes": [
       {
-       "kind": "abstract"
+       "type": "abstract"
       }
      ]
     }
@@ -40,7 +40,7 @@
      "metric": "CONTAINS",
      "scopes": [
       {
-       "kind": "abstract"
+       "type": "abstract"
       }
      ],
      "text": "Importance"
@@ -49,7 +49,7 @@
      "metric": "CONTAINS",
      "scopes": [
       {
-       "kind": "abstract"
+       "type": "abstract"
       }
      ],
      "text": "Observations"
@@ -58,7 +58,7 @@
      "metric": "CONTAINS",
      "scopes": [
       {
-       "kind": "abstract"
+       "type": "abstract"
       }
      ],
      "text": "Conclusions and Relevance"
@@ -76,7 +76,7 @@
      "number": 75,
      "scopes": [
       {
-       "kind": "references"
+       "type": "references"
       }
      ]
     }
@@ -93,10 +93,10 @@
      "number": 5,
      "scopes": [
       {
-       "kind": "figures"
+       "type": "figures"
       },
       {
-       "kind": "tables"
+       "type": "tables"
       }
      ]
     }
@@ -112,7 +112,7 @@
      "number": 100,
      "scopes": [
       {
-       "kind": "title"
+       "type": "title"
       }
      ]
     }
@@ -127,7 +127,7 @@
      "metric": "CONTAINS",
      "scopes": [
       {
-       "kind": "subtitle"
+       "type": "subtitle"
       }
      ],
      "text": "A Review"
@@ -145,7 +145,7 @@
      "number": 10.0,
      "scopes": [
       {
-       "kind": "export"
+       "type": "export"
       }
      ]
     },
@@ -155,7 +155,7 @@
      "number": 12.0,
      "scopes": [
       {
-       "kind": "export"
+       "type": "export"
       }
      ]
     }
@@ -171,7 +171,7 @@
      "number": 2.0,
      "scopes": [
       {
-       "kind": "export"
+       "type": "export"
       }
      ]
     }
@@ -200,7 +200,7 @@
      "number": 0,
      "scopes": [
       {
-       "kind": "coverLetter"
+       "type": "coverLetter"
       }
      ]
     }
@@ -229,8 +229,8 @@
      "number": 0,
      "scopes": [
       {
-       "kind": "section",
-       "name": "Introduction"
+       "name": "Introduction",
+       "type": "section"
       }
      ]
     }
@@ -247,8 +247,8 @@
      "number": 0,
      "scopes": [
       {
-       "kind": "section",
-       "name": "Discussion"
+       "name": "Discussion",
+       "type": "section"
       }
      ]
     }
@@ -265,8 +265,8 @@
      "number": 0,
      "scopes": [
       {
-       "kind": "section",
-       "name": "Conclusions"
+       "name": "Conclusions",
+       "type": "section"
       }
      ]
     }
@@ -274,8 +274,5 @@
    "name": "Conclusions section present",
    "note": "Required by this journal's structure."
   }
- ],
- "id": "F10B9A7B-168F-5AF9-AF46-0C21AE40ED70",
- "journal": "JAMA Ophthalmology",
- "updatedAt": "2026-10-13T12:00:00Z"
+ ]
 }

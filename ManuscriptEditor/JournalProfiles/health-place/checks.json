@@ -9,7 +9,7 @@
      "number": 8000,
      "scopes": [
       {
-       "kind": "body"
+       "type": "body"
       }
      ]
     }
@@ -25,7 +25,7 @@
      "number": 250,
      "scopes": [
       {
-       "kind": "abstract"
+       "type": "abstract"
       }
      ]
     }
@@ -56,18 +56,16 @@
    "conditions": [
     {
      "comparator": "<=",
-     "id": "4C2D14CA-D4AE-4D7C-A812-8554236723F3",
      "metric": "EXISTS",
      "number": 0,
      "scopes": [
       {
-       "kind": "section",
-       "name": "Introduction"
+       "name": "Introduction",
+       "type": "section"
       }
      ]
     }
    ],
-   "id": "61D58AC6-D955-47E2-9097-43DC8AA18C34",
    "name": "Introduction section present",
    "note": "Required by this journal's structure."
   },
@@ -76,18 +74,16 @@
    "conditions": [
     {
      "comparator": "<=",
-     "id": "D1DD8ED0-FEAD-49F0-AB2C-6F7B20DDA18E",
      "metric": "EXISTS",
      "number": 0,
      "scopes": [
       {
-       "kind": "section",
-       "name": "Methods"
+       "name": "Methods",
+       "type": "section"
       }
      ]
     }
    ],
-   "id": "79C69EA3-FB53-4237-8347-E53CB4EA2126",
    "name": "Methods section present",
    "note": "Required by this journal's structure."
   },
@@ -96,18 +92,16 @@
    "conditions": [
     {
      "comparator": "<=",
-     "id": "3071C10D-605C-4E53-BBA7-F49EC90E24CB",
      "metric": "EXISTS",
      "number": 0,
      "scopes": [
       {
-       "kind": "section",
-       "name": "Results"
+       "name": "Results",
+       "type": "section"
       }
      ]
     }
    ],
-   "id": "98FA9634-5462-41A2-BB3C-77FDC9AC66DD",
    "name": "Results section present",
    "note": "Required by this journal's structure."
   },
@@ -116,23 +110,18 @@
    "conditions": [
     {
      "comparator": "<=",
-     "id": "56A9005D-5AE5-4156-AAF3-C0186A2AB385",
      "metric": "EXISTS",
      "number": 0,
      "scopes": [
       {
-       "kind": "section",
-       "name": "Discussion"
+       "name": "Discussion",
+       "type": "section"
       }
      ]
     }
    ],
-   "id": "DBA69F53-ED5A-4C58-B750-BEABD15BDBEE",
    "name": "Discussion section present",
    "note": "Required by this journal's structure."
   }
- ],
- "id": "B7442DA9-9D74-537A-9133-E5632C6101C5",
- "journal": "Health & Place",
- "updatedAt": "2026-09-10T17:05:39Z"
+ ]
 }

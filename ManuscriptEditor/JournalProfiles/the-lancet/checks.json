@@ -9,7 +9,7 @@
      "number": 3000,
      "scopes": [
       {
-       "kind": "body"
+       "type": "body"
       }
      ]
     }
@@ -25,7 +25,7 @@
      "number": 250,
      "scopes": [
       {
-       "kind": "abstract"
+       "type": "abstract"
       }
      ]
     }
@@ -41,7 +41,7 @@
      "number": 4,
      "scopes": [
       {
-       "kind": "figures"
+       "type": "figures"
       }
      ]
     }
@@ -57,7 +57,7 @@
      "number": 4,
      "scopes": [
       {
-       "kind": "tables"
+       "type": "tables"
       }
      ]
     }
@@ -73,7 +73,7 @@
      "number": 60,
      "scopes": [
       {
-       "kind": "references"
+       "type": "references"
       }
      ]
     }
@@ -116,18 +116,16 @@
    "conditions": [
     {
      "comparator": "<=",
-     "id": "1E7BBC88-B21D-4A45-9C2F-BEB5EF0755E4",
      "metric": "EXISTS",
      "number": 0,
      "scopes": [
       {
-       "kind": "section",
-       "name": "Introduction"
+       "name": "Introduction",
+       "type": "section"
       }
      ]
     }
    ],
-   "id": "CFCF5E14-B961-44F9-84FC-EBE98C72E865",
    "name": "Introduction section present",
    "note": "Required by this journal's structure."
   },
@@ -136,18 +134,16 @@
    "conditions": [
     {
      "comparator": "<=",
-     "id": "0EAD0DBC-7B47-4A75-8B2B-6F107D868608",
      "metric": "EXISTS",
      "number": 0,
      "scopes": [
       {
-       "kind": "section",
-       "name": "Methods"
+       "name": "Methods",
+       "type": "section"
       }
      ]
     }
    ],
-   "id": "2FD0EE84-23D3-4BBF-83A2-956E2D88995B",
    "name": "Methods section present",
    "note": "Required by this journal's structure."
   },
@@ -156,18 +152,16 @@
    "conditions": [
     {
      "comparator": "<=",
-     "id": "A2BCFEF5-A871-49A2-8E7F-9366F393B5D0",
      "metric": "EXISTS",
      "number": 0,
      "scopes": [
       {
-       "kind": "section",
-       "name": "Results"
+       "name": "Results",
+       "type": "section"
       }
      ]
     }
    ],
-   "id": "C40BB488-1527-4277-AA92-E5B04BF16DF3",
    "name": "Results section present",
    "note": "Required by this journal's structure."
   },
@@ -176,23 +170,18 @@
    "conditions": [
     {
      "comparator": "<=",
-     "id": "2C6DA8A1-1A60-4AC9-8F4B-882E91A07244",
      "metric": "EXISTS",
      "number": 0,
      "scopes": [
       {
-       "kind": "section",
-       "name": "Discussion"
+       "name": "Discussion",
+       "type": "section"
       }
      ]
     }
    ],
-   "id": "85780F9B-A841-4B39-ADE9-87CB86AA695D",
    "name": "Discussion section present",
    "note": "Required by this journal's structure."
   }
- ],
- "id": "D6FAD149-5248-53C5-B308-9F5CBB2647D0",
- "journal": "The Lancet",
- "updatedAt": "2026-09-10T17:05:39Z"
+ ]
 }

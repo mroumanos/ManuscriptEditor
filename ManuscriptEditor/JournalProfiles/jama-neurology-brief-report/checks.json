@@ -9,7 +9,7 @@
      "number": 1200,
      "scopes": [
       {
-       "kind": "body"
+       "type": "body"
       }
      ]
     }
@@ -26,8 +26,8 @@
      "number": 100,
      "scopes": [
       {
-       "kind": "section",
-       "name": "Key Points"
+       "name": "Key Points",
+       "type": "section"
       }
      ]
     }
@@ -42,8 +42,8 @@
      "metric": "CONTAINS",
      "scopes": [
       {
-       "kind": "section",
-       "name": "Key Points"
+       "name": "Key Points",
+       "type": "section"
       }
      ],
      "text": "Question"
@@ -52,8 +52,8 @@
      "metric": "CONTAINS",
      "scopes": [
       {
-       "kind": "section",
-       "name": "Key Points"
+       "name": "Key Points",
+       "type": "section"
       }
      ],
      "text": "Findings"
@@ -62,8 +62,8 @@
      "metric": "CONTAINS",
      "scopes": [
       {
-       "kind": "section",
-       "name": "Key Points"
+       "name": "Key Points",
+       "type": "section"
       }
      ],
      "text": "Meaning"
@@ -80,7 +80,7 @@
      "number": 15,
      "scopes": [
       {
-       "kind": "references"
+       "type": "references"
       }
      ]
     }
@@ -96,10 +96,10 @@
      "number": 3,
      "scopes": [
       {
-       "kind": "figures"
+       "type": "figures"
       },
       {
-       "kind": "tables"
+       "type": "tables"
       }
      ]
     }
@@ -115,7 +115,7 @@
      "number": 100,
      "scopes": [
       {
-       "kind": "title"
+       "type": "title"
       }
      ]
     }
@@ -132,7 +132,7 @@
      "number": 10.0,
      "scopes": [
       {
-       "kind": "export"
+       "type": "export"
       }
      ]
     },
@@ -142,7 +142,7 @@
      "number": 12.0,
      "scopes": [
       {
-       "kind": "export"
+       "type": "export"
       }
      ]
     }
@@ -158,7 +158,7 @@
      "number": 2.0,
      "scopes": [
       {
-       "kind": "export"
+       "type": "export"
       }
      ]
     }
@@ -187,7 +187,7 @@
      "number": 0,
      "scopes": [
       {
-       "kind": "coverLetter"
+       "type": "coverLetter"
       }
      ]
     }
@@ -228,8 +228,8 @@
      "number": 0,
      "scopes": [
       {
-       "kind": "section",
-       "name": "Introduction"
+       "name": "Introduction",
+       "type": "section"
       }
      ]
     }
@@ -246,8 +246,8 @@
      "number": 0,
      "scopes": [
       {
-       "kind": "section",
-       "name": "Methods"
+       "name": "Methods",
+       "type": "section"
       }
      ]
     }
@@ -264,8 +264,8 @@
      "number": 0,
      "scopes": [
       {
-       "kind": "section",
-       "name": "Results"
+       "name": "Results",
+       "type": "section"
       }
      ]
     }
@@ -282,8 +282,8 @@
      "number": 0,
      "scopes": [
       {
-       "kind": "section",
-       "name": "Discussion"
+       "name": "Discussion",
+       "type": "section"
       }
      ]
     }
@@ -291,8 +291,5 @@
    "name": "Discussion section present",
    "note": "Required by this journal's structure."
   }
- ],
- "id": "CC16A240-868E-594B-AF7B-138A062979B5",
- "journal": "JAMA Neurology",
- "updatedAt": "2026-10-13T12:00:00Z"
+ ]
 }

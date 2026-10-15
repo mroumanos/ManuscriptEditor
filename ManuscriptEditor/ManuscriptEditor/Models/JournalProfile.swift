@@ -563,12 +563,19 @@ struct RequirementsDoc: Codable, Sendable, Equatable {
     }
 }
 
-/// `checks.json`
+/// `checks.json` — the rules, nothing else.  Identity is requirements.json's;
+/// a file from before Oct 2026 also said `id`, `journal` and `updatedAt`.
 struct ChecksDoc: Codable, Sendable, Equatable {
-    var id: UUID
-    var journal: String
     var checks: [CheckRule] = []
-    var updatedAt: Date? = nil
+
+    private enum CodingKeys: String, CodingKey { case checks }
+
+    init(checks: [CheckRule]) { self.checks = checks }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        checks = try c.decodeIfPresent([CheckRule].self, forKey: .checks) ?? []
+    }
 }
 
 /// `structure.json`
@@ -580,14 +587,26 @@ struct ChecksDoc: Codable, Sendable, Equatable {
 /// the library or travelled with a manuscript.  It read as a template that
 /// forgot half its formatting every time it was saved.
 struct StructureDoc: Codable, Sendable, Equatable {
-    var id: UUID
-    var journal: String
     var sections: [StructureSection] = []
     /// Export formatting for the app's fixed parts, keyed by `ExportItem.ItemType`.
+    /// Read from older files; typography is written with each section now.
     var coreFormats: [String: ExportDocumentFormat]? = nil
-    /// Page geometry and the defaults everything inherits.
+    /// Page geometry and the defaults everything inherits (older files).
     var documentFormat: ExportDocumentFormat? = nil
-    var updatedAt: Date? = nil
+
+    private enum CodingKeys: String, CodingKey { case sections, coreFormats, documentFormat }
+
+    init(sections: [StructureSection], coreFormats: [String: ExportDocumentFormat]? = nil,
+         documentFormat: ExportDocumentFormat? = nil) {
+        self.sections = sections; self.coreFormats = coreFormats; self.documentFormat = documentFormat
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        sections = try c.decodeIfPresent([StructureSection].self, forKey: .sections) ?? []
+        coreFormats = try c.decodeIfPresent([String: ExportDocumentFormat].self, forKey: .coreFormats)
+        documentFormat = try c.decodeIfPresent(ExportDocumentFormat.self, forKey: .documentFormat)
+    }
 }
 
 // MARK: - JournalProfile
@@ -779,13 +798,12 @@ struct JournalProfile: Codable, Identifiable, Sendable, Equatable {
         return doc
     }
     var checksDoc: ChecksDoc {
-        ChecksDoc(id: id, journal: name, checks: checks, updatedAt: updatedAt)
+        ChecksDoc(checks: checks)
     }
     var structureDoc: StructureDoc {
-        StructureDoc(id: id, journal: name, sections: structure.sections,
+        StructureDoc(sections: structure.sections,
                      coreFormats: structure.coreFormats,
-                     documentFormat: structure.documentFormat,
-                     updatedAt: updatedAt)
+                     documentFormat: structure.documentFormat)
     }
 
     /// The content signature of one part — what "differs from your library"
@@ -862,7 +880,31 @@ struct JournalProfile: Codable, Identifiable, Sendable, Equatable {
         }
         profile.publisher = req.publisher
         profile.country = req.country
+        profile.migrateChecksums()
         return profile
+    }
+
+    /// Checksums saved before the Oct 2026 renames (`kind`→`type`,
+    /// `sample`→`boilerplate`, typography-only section formats) were taken
+    /// over the old spelling.  One that matches the old spelling of this
+    /// content is the same content: it becomes the current fingerprint, so a
+    /// template is not marked edited by a rename it never saw.
+    mutating func migrateChecksums() {
+        guard var checksums = partChecksums else { return }
+        for part in ProfilePart.allCases {
+            guard let stored = checksums[part.rawValue], stored != fingerprint(part) else { continue }
+            if stored == legacyFingerprint(part) { checksums[part.rawValue] = fingerprint(part) }
+        }
+        partChecksums = checksums
+    }
+
+    func legacyFingerprint(_ part: ProfilePart) -> String {
+        switch part {
+        case .requirements: return ProfileFingerprint.legacy(of: requirementsDoc)
+        case .checks:       return ProfileFingerprint.legacy(of: checksDoc)
+        case .structure:    return ProfileFingerprint.legacy(of: structureDoc)
+        case .export:       return export.map { ProfileFingerprint.legacy(of: $0) } ?? ""
+        }
     }
 
     /// Writes the profile's files, creating the folder.  Returns false if any
@@ -894,15 +936,23 @@ struct JournalProfile: Codable, Identifiable, Sendable, Equatable {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         encoder.dateEncodingStrategy = .iso8601
+        encoder.userInfo[.profileFile] = true      // rules and conditions leave their ids out
         // A manuscript section's typography is written with its structure
         // entry, whichever item of the outline set it.
         var structureOut = structureDoc
         if let export {
             for d in export.documents {
                 for item in d.items where item.type == .manuscriptSection {
-                    guard let id = item.sectionID, let format = item.format,
+                    guard let id = item.sectionID,
                           let idx = structureOut.sections.firstIndex(where: { $0.uid == id }) else { continue }
-                    structureOut.sections[idx].format = format
+                    // Its own, else the document's where that is not the
+                    // default — a document has no typography in the file.
+                    if let own = item.format {
+                        structureOut.sections[idx].format = own
+                    } else if structureOut.sections[idx].format == nil,
+                              TemplateOutline.Typography(d.format) != TemplateOutline.Typography(ExportDocumentFormat()) {
+                        structureOut.sections[idx].format = d.format
+                    }
                 }
             }
         }
@@ -980,6 +1030,43 @@ enum ProfileFingerprint {
                                                           options: [.sortedKeys, .fragmentsAllowed])
         else { return "" }
         return SHA256.hash(data: canonical).map { String(format: "%02x", $0) }.joined()
+    }
+
+    /// The fingerprint a file from before Oct 2026 would have had: the same
+    /// content under its old spelling — `kind` for a scope's, an item's or
+    /// a section entry's `type`, `sample` for a question's `boilerplate`,
+    /// and a section's format with every page key written out.
+    static func legacy(of value: some Encodable) -> String {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        guard let data = try? encoder.encode(value),
+              let object = try? JSONSerialization.jsonObject(with: data),
+              let canonical = try? JSONSerialization.data(withJSONObject: strip(oldSpelling(object, under: nil)),
+                                                          options: [.sortedKeys, .fragmentsAllowed])
+        else { return "" }
+        return SHA256.hash(data: canonical).map { String(format: "%02x", $0) }.joined()
+    }
+
+    private static func oldSpelling(_ object: Any, under parent: String?) -> Any {
+        if var dict = object as? [String: Any] {
+            if parent == "scopes" || parent == "items", let type = dict["type"] {
+                dict["kind"] = type; dict["type"] = nil
+            }
+            if parent == "sections", dict["title"] != nil {
+                if let type = dict["type"] { dict["kind"] = type; dict["type"] = nil }
+                if var format = dict["format"] as? [String: Any] {
+                    let defaults: [String: Any] = ["marginInches": 1.0, "lineNumbers": false, "pageNumbers": false, "twoColumn": false]
+                    for (key, value) in defaults where format[key] == nil { format[key] = value }
+                    dict["format"] = format
+                }
+            }
+            if parent == "questions", let boilerplate = dict["boilerplate"] {
+                dict["sample"] = boilerplate; dict["boilerplate"] = nil
+            }
+            return dict.reduce(into: [String: Any]()) { out, pair in out[pair.key] = oldSpelling(pair.value, under: pair.key) }
+        }
+        if let array = object as? [Any] { return array.map { oldSpelling($0, under: parent) } }
+        return object
     }
 
     private static func strip(_ object: Any) -> Any {

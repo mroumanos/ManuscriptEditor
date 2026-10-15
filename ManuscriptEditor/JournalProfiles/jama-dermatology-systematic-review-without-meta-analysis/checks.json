@@ -9,7 +9,7 @@
      "number": 3000,
      "scopes": [
       {
-       "kind": "body"
+       "type": "body"
       }
      ]
     }
@@ -26,7 +26,7 @@
      "number": 350,
      "scopes": [
       {
-       "kind": "abstract"
+       "type": "abstract"
       }
      ]
     }
@@ -40,7 +40,7 @@
      "metric": "CONTAINS",
      "scopes": [
       {
-       "kind": "abstract"
+       "type": "abstract"
       }
      ],
      "text": "Importance"
@@ -49,7 +49,7 @@
      "metric": "CONTAINS",
      "scopes": [
       {
-       "kind": "abstract"
+       "type": "abstract"
       }
      ],
      "text": "Objective"
@@ -58,7 +58,7 @@
      "metric": "CONTAINS",
      "scopes": [
       {
-       "kind": "abstract"
+       "type": "abstract"
       }
      ],
      "text": "Evidence Review"
@@ -67,7 +67,7 @@
      "metric": "CONTAINS",
      "scopes": [
       {
-       "kind": "abstract"
+       "type": "abstract"
       }
      ],
      "text": "Findings"
@@ -76,7 +76,7 @@
      "metric": "CONTAINS",
      "scopes": [
       {
-       "kind": "abstract"
+       "type": "abstract"
       }
      ],
      "text": "Conclusions and Relevance"
@@ -94,8 +94,8 @@
      "number": 100,
      "scopes": [
       {
-       "kind": "section",
-       "name": "Key Points"
+       "name": "Key Points",
+       "type": "section"
       }
      ]
     }
@@ -110,8 +110,8 @@
      "metric": "CONTAINS",
      "scopes": [
       {
-       "kind": "section",
-       "name": "Key Points"
+       "name": "Key Points",
+       "type": "section"
       }
      ],
      "text": "Question"
@@ -120,8 +120,8 @@
      "metric": "CONTAINS",
      "scopes": [
       {
-       "kind": "section",
-       "name": "Key Points"
+       "name": "Key Points",
+       "type": "section"
       }
      ],
      "text": "Findings"
@@ -130,8 +130,8 @@
      "metric": "CONTAINS",
      "scopes": [
       {
-       "kind": "section",
-       "name": "Key Points"
+       "name": "Key Points",
+       "type": "section"
       }
      ],
      "text": "Meaning"
@@ -148,7 +148,7 @@
      "number": 75,
      "scopes": [
       {
-       "kind": "references"
+       "type": "references"
       }
      ]
     }
@@ -165,10 +165,10 @@
      "number": 5,
      "scopes": [
       {
-       "kind": "figures"
+       "type": "figures"
       },
       {
-       "kind": "tables"
+       "type": "tables"
       }
      ]
     }
@@ -184,7 +184,7 @@
      "number": 100,
      "scopes": [
       {
-       "kind": "title"
+       "type": "title"
       }
      ]
     }
@@ -199,7 +199,7 @@
      "metric": "CONTAINS",
      "scopes": [
       {
-       "kind": "subtitle"
+       "type": "subtitle"
       }
      ],
      "text": "A Systematic Review"
@@ -217,7 +217,7 @@
      "number": 10.0,
      "scopes": [
       {
-       "kind": "export"
+       "type": "export"
       }
      ]
     },
@@ -227,7 +227,7 @@
      "number": 12.0,
      "scopes": [
       {
-       "kind": "export"
+       "type": "export"
       }
      ]
     }
@@ -243,7 +243,7 @@
      "number": 2.0,
      "scopes": [
       {
-       "kind": "export"
+       "type": "export"
       }
      ]
     }
@@ -272,7 +272,7 @@
      "number": 0,
      "scopes": [
       {
-       "kind": "coverLetter"
+       "type": "coverLetter"
       }
      ]
     }
@@ -319,8 +319,8 @@
      "number": 0,
      "scopes": [
       {
-       "kind": "section",
-       "name": "Introduction"
+       "name": "Introduction",
+       "type": "section"
       }
      ]
     }
@@ -337,8 +337,8 @@
      "number": 0,
      "scopes": [
       {
-       "kind": "section",
-       "name": "Methods"
+       "name": "Methods",
+       "type": "section"
       }
      ]
     }
@@ -355,8 +355,8 @@
      "number": 0,
      "scopes": [
       {
-       "kind": "section",
-       "name": "Results"
+       "name": "Results",
+       "type": "section"
       }
      ]
     }
@@ -373,8 +373,8 @@
      "number": 0,
      "scopes": [
       {
-       "kind": "section",
-       "name": "Discussion"
+       "name": "Discussion",
+       "type": "section"
       }
      ]
     }
@@ -391,8 +391,8 @@
      "number": 0,
      "scopes": [
       {
-       "kind": "section",
-       "name": "Conclusions"
+       "name": "Conclusions",
+       "type": "section"
       }
      ]
     }
@@ -400,8 +400,5 @@
    "name": "Conclusions section present",
    "note": "Required by this journal's structure."
   }
- ],
- "id": "7237218B-76D5-5A47-938C-48DBEC732F02",
- "journal": "JAMA Dermatology",
- "updatedAt": "2026-10-13T12:00:00Z"
+ ]
 }

@@ -90,7 +90,7 @@ enum ChecklistService {
         }
 
         func text(of scope: CheckScope) -> String {
-            switch scope.kind {
+            switch scope.type {
             case .title:       return m.articleTitle ?? m.title
             case .subtitle:    return m.subtitle ?? ""
             case .abstract:    return m.abstract.plain
@@ -115,7 +115,7 @@ enum ChecklistService {
         }
 
         func collectionCount(of scope: CheckScope) -> Int {
-            switch scope.kind {
+            switch scope.type {
             case .figures:    return m.figures.count
             case .tables:     return m.tables.count
             case .references: return m.bibliography.count

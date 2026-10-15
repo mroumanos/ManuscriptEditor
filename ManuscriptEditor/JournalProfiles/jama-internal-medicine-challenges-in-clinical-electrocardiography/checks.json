@@ -9,7 +9,7 @@
      "number": 1000,
      "scopes": [
       {
-       "kind": "body"
+       "type": "body"
       }
      ]
     }
@@ -26,7 +26,7 @@
      "number": 0,
      "scopes": [
       {
-       "kind": "abstract"
+       "type": "abstract"
       }
      ]
     }
@@ -43,7 +43,7 @@
      "number": 10,
      "scopes": [
       {
-       "kind": "references"
+       "type": "references"
       }
      ]
     }
@@ -59,7 +59,7 @@
      "number": 1,
      "scopes": [
       {
-       "kind": "figures"
+       "type": "figures"
       }
      ]
     }
@@ -75,7 +75,7 @@
      "number": 3,
      "scopes": [
       {
-       "kind": "authors"
+       "type": "authors"
       }
      ]
     }
@@ -91,7 +91,7 @@
      "number": 60,
      "scopes": [
       {
-       "kind": "title"
+       "type": "title"
       }
      ]
     }
@@ -108,7 +108,7 @@
      "number": 10.0,
      "scopes": [
       {
-       "kind": "export"
+       "type": "export"
       }
      ]
     },
@@ -118,7 +118,7 @@
      "number": 12.0,
      "scopes": [
       {
-       "kind": "export"
+       "type": "export"
       }
      ]
     }
@@ -134,7 +134,7 @@
      "number": 2.0,
      "scopes": [
       {
-       "kind": "export"
+       "type": "export"
       }
      ]
     }
@@ -163,7 +163,7 @@
      "number": 0,
      "scopes": [
       {
-       "kind": "coverLetter"
+       "type": "coverLetter"
       }
      ]
     }
@@ -192,8 +192,8 @@
      "number": 0,
      "scopes": [
       {
-       "kind": "section",
-       "name": "Introduction"
+       "name": "Introduction",
+       "type": "section"
       }
      ]
     }
@@ -210,8 +210,8 @@
      "number": 0,
      "scopes": [
       {
-       "kind": "section",
-       "name": "Case Presentation"
+       "name": "Case Presentation",
+       "type": "section"
       }
      ]
     }
@@ -228,8 +228,8 @@
      "number": 0,
      "scopes": [
       {
-       "kind": "section",
-       "name": "Question"
+       "name": "Question",
+       "type": "section"
       }
      ]
     }
@@ -246,8 +246,8 @@
      "number": 0,
      "scopes": [
       {
-       "kind": "section",
-       "name": "Discussion and Patient Course"
+       "name": "Discussion and Patient Course",
+       "type": "section"
       }
      ]
     }
@@ -264,8 +264,8 @@
      "number": 0,
      "scopes": [
       {
-       "kind": "section",
-       "name": "Summary Points"
+       "name": "Summary Points",
+       "type": "section"
       }
      ]
     }
@@ -273,8 +273,5 @@
    "name": "Summary Points section present",
    "note": "Required by this journal's structure."
   }
- ],
- "id": "5E99A96E-3D14-58B1-A766-C09628BF583D",
- "journal": "JAMA Internal Medicine",
- "updatedAt": "2026-10-13T12:00:00Z"
+ ]
 }

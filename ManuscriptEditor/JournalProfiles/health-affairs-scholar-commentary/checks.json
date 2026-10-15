@@ -9,7 +9,7 @@
      "number": 1200,
      "scopes": [
       {
-       "kind": "body"
+       "type": "body"
       }
      ]
     }
@@ -26,7 +26,7 @@
      "number": 200,
      "scopes": [
       {
-       "kind": "abstract"
+       "type": "abstract"
       }
      ]
     }
@@ -48,7 +48,7 @@
      "number": 1,
      "scopes": [
       {
-       "kind": "keywords"
+       "type": "keywords"
       }
      ]
     },
@@ -58,7 +58,7 @@
      "number": 15,
      "scopes": [
       {
-       "kind": "keywords"
+       "type": "keywords"
       }
      ]
     }
@@ -74,7 +74,7 @@
      "number": 9,
      "scopes": [
       {
-       "kind": "references"
+       "type": "references"
       }
      ]
     }
@@ -90,10 +90,10 @@
      "number": 1,
      "scopes": [
       {
-       "kind": "figures"
+       "type": "figures"
       },
       {
-       "kind": "tables"
+       "type": "tables"
       }
      ]
     }
@@ -109,7 +109,7 @@
      "number": 100,
      "scopes": [
       {
-       "kind": "title"
+       "type": "title"
       }
      ]
     }
@@ -139,7 +139,7 @@
      "number": 0,
      "scopes": [
       {
-       "kind": "coverLetter"
+       "type": "coverLetter"
       }
      ]
     }
@@ -168,8 +168,8 @@
      "number": 0,
      "scopes": [
       {
-       "kind": "section",
-       "name": "Commentary"
+       "name": "Commentary",
+       "type": "section"
       }
      ]
     }
@@ -177,8 +177,5 @@
    "name": "Commentary section present",
    "note": "Required by this journal's structure."
   }
- ],
- "id": "6E1273A5-B1A1-584B-82B7-D3ED4A48B48B",
- "journal": "Health Affairs Scholar",
- "updatedAt": "2026-10-13T12:00:00Z"
+ ]
 }

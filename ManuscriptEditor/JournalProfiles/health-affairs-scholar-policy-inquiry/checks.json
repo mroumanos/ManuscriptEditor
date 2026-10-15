@@ -9,7 +9,7 @@
      "number": 4000,
      "scopes": [
       {
-       "kind": "body"
+       "type": "body"
       }
      ]
     }
@@ -26,7 +26,7 @@
      "number": 200,
      "scopes": [
       {
-       "kind": "abstract"
+       "type": "abstract"
       }
      ]
     }
@@ -42,7 +42,7 @@
      "number": 100,
      "scopes": [
       {
-       "kind": "title"
+       "type": "title"
       }
      ]
     }
@@ -72,7 +72,7 @@
      "number": 0,
      "scopes": [
       {
-       "kind": "coverLetter"
+       "type": "coverLetter"
       }
      ]
     }
@@ -101,8 +101,8 @@
      "number": 0,
      "scopes": [
       {
-       "kind": "section",
-       "name": "Policy Inquiry"
+       "name": "Policy Inquiry",
+       "type": "section"
       }
      ]
     }
@@ -110,8 +110,5 @@
    "name": "Policy Inquiry section present",
    "note": "Required by this journal's structure."
   }
- ],
- "id": "3CC5D9DD-03B1-54B8-8E41-702A279A242F",
- "journal": "Health Affairs Scholar",
- "updatedAt": "2026-10-13T12:00:00Z"
+ ]
 }

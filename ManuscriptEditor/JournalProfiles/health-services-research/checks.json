@@ -9,7 +9,7 @@
      "number": 6000,
      "scopes": [
       {
-       "kind": "body"
+       "type": "body"
       }
      ]
     }
@@ -25,7 +25,7 @@
      "number": 250,
      "scopes": [
       {
-       "kind": "abstract"
+       "type": "abstract"
       }
      ]
     }
@@ -41,7 +41,7 @@
      "number": 4,
      "scopes": [
       {
-       "kind": "figures"
+       "type": "figures"
       }
      ]
     }
@@ -57,7 +57,7 @@
      "number": 4,
      "scopes": [
       {
-       "kind": "tables"
+       "type": "tables"
       }
      ]
     }
@@ -94,18 +94,16 @@
    "conditions": [
     {
      "comparator": "<=",
-     "id": "5282841B-BE26-4464-9BDF-F22724CD1B70",
      "metric": "EXISTS",
      "number": 0,
      "scopes": [
       {
-       "kind": "section",
-       "name": "Introduction"
+       "name": "Introduction",
+       "type": "section"
       }
      ]
     }
    ],
-   "id": "D046B132-1456-4C5C-B983-ABB201DAC61B",
    "name": "Introduction section present",
    "note": "Required by this journal's structure."
   },
@@ -114,18 +112,16 @@
    "conditions": [
     {
      "comparator": "<=",
-     "id": "7ABB4FA3-D05E-49DB-A71F-851BFFB40B69",
      "metric": "EXISTS",
      "number": 0,
      "scopes": [
       {
-       "kind": "section",
-       "name": "Methods"
+       "name": "Methods",
+       "type": "section"
       }
      ]
     }
    ],
-   "id": "EEA4786C-6F46-42BF-A7C5-7E0091B8A219",
    "name": "Methods section present",
    "note": "Required by this journal's structure."
   },
@@ -134,18 +130,16 @@
    "conditions": [
     {
      "comparator": "<=",
-     "id": "9E1D3160-1E39-4B8C-B259-A813F4A2C554",
      "metric": "EXISTS",
      "number": 0,
      "scopes": [
       {
-       "kind": "section",
-       "name": "Results"
+       "name": "Results",
+       "type": "section"
       }
      ]
     }
    ],
-   "id": "144F9E81-F2DB-4D91-91D8-196C905F6F54",
    "name": "Results section present",
    "note": "Required by this journal's structure."
   },
@@ -154,23 +148,18 @@
    "conditions": [
     {
      "comparator": "<=",
-     "id": "727DA7A4-81E8-4B33-B529-EFB44AB09AF5",
      "metric": "EXISTS",
      "number": 0,
      "scopes": [
       {
-       "kind": "section",
-       "name": "Discussion"
+       "name": "Discussion",
+       "type": "section"
       }
      ]
     }
    ],
-   "id": "014AB902-1A59-46C0-BE8E-BA569BE36A40",
    "name": "Discussion section present",
    "note": "Required by this journal's structure."
   }
- ],
- "id": "39A701F1-D9A8-5A88-98E8-72202EE45DE5",
- "journal": "Health Services Research",
- "updatedAt": "2026-09-10T17:05:39Z"
+ ]
 }

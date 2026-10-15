@@ -9,7 +9,7 @@
      "number": 4000,
      "scopes": [
       {
-       "kind": "body"
+       "type": "body"
       }
      ]
     }
@@ -26,7 +26,7 @@
      "number": 200,
      "scopes": [
       {
-       "kind": "abstract"
+       "type": "abstract"
       }
      ]
     }
@@ -48,7 +48,7 @@
      "number": 1,
      "scopes": [
       {
-       "kind": "keywords"
+       "type": "keywords"
       }
      ]
     },
@@ -58,7 +58,7 @@
      "number": 15,
      "scopes": [
       {
-       "kind": "keywords"
+       "type": "keywords"
       }
      ]
     }
@@ -74,10 +74,10 @@
      "number": 4,
      "scopes": [
       {
-       "kind": "figures"
+       "type": "figures"
       },
       {
-       "kind": "tables"
+       "type": "tables"
       }
      ]
     }
@@ -93,7 +93,7 @@
      "number": 100,
      "scopes": [
       {
-       "kind": "title"
+       "type": "title"
       }
      ]
     }
@@ -123,7 +123,7 @@
      "number": 0,
      "scopes": [
       {
-       "kind": "coverLetter"
+       "type": "coverLetter"
       }
      ]
     }
@@ -152,8 +152,8 @@
      "number": 0,
      "scopes": [
       {
-       "kind": "section",
-       "name": "Introduction"
+       "name": "Introduction",
+       "type": "section"
       }
      ]
     }
@@ -170,8 +170,8 @@
      "number": 0,
      "scopes": [
       {
-       "kind": "section",
-       "name": "Methods"
+       "name": "Methods",
+       "type": "section"
       }
      ]
     }
@@ -188,8 +188,8 @@
      "number": 0,
      "scopes": [
       {
-       "kind": "section",
-       "name": "Findings"
+       "name": "Findings",
+       "type": "section"
       }
      ]
     }
@@ -206,8 +206,8 @@
      "number": 0,
      "scopes": [
       {
-       "kind": "section",
-       "name": "Discussion"
+       "name": "Discussion",
+       "type": "section"
       }
      ]
     }
@@ -224,8 +224,8 @@
      "number": 0,
      "scopes": [
       {
-       "kind": "section",
-       "name": "Conclusion"
+       "name": "Conclusion",
+       "type": "section"
       }
      ]
     }
@@ -233,8 +233,5 @@
    "name": "Conclusion section present",
    "note": "Required by this journal's structure."
   }
- ],
- "id": "72AEE843-CA4A-5488-AD92-DCECB59FA6C0",
- "journal": "Health Affairs Scholar",
- "updatedAt": "2026-10-13T12:00:00Z"
+ ]
 }

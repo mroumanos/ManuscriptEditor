@@ -334,11 +334,11 @@ struct ExportItem: Codable, Identifiable, Sendable, Equatable {
     /// The body section this item renders (only for `.manuscriptSection`).
     var sectionID: UUID?
 
-    /// Written under the names the files have always had: the item's type is
-    /// `kind` on disk, so a manuscript saved last year still opens.
+    /// Written as `type`; `kind` is what a file said until Oct 2026, and is
+    /// still read.  Everything else keeps the name it has always had.
     private enum CodingKeys: String, CodingKey {
         case id,
-        type = "kind",
+        type,
         sectionID,
         customTitle,
         showTitle,
@@ -357,7 +357,62 @@ struct ExportItem: Codable, Identifiable, Sendable, Equatable {
         showCorresponding,
         showAuthorTitles,
         format,
-        headerFormat
+        headerFormat,
+        kind
+    }
+
+    init(id: UUID = UUID(), type: ItemType, sectionID: UUID? = nil) {
+        self.id = id; self.type = type; self.sectionID = sectionID
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        type = try c.decodeIfPresent(ItemType.self, forKey: .type) ?? c.decode(ItemType.self, forKey: .kind)
+        sectionID = try c.decodeIfPresent(UUID.self, forKey: .sectionID)
+        customTitle = try c.decodeIfPresent(String.self, forKey: .customTitle)
+        showTitle = try c.decodeIfPresent(Bool.self, forKey: .showTitle)
+        headingStyle = try c.decodeIfPresent(HeadingStyle.self, forKey: .headingStyle)
+        sectionMarginInches = try c.decodeIfPresent(Double.self, forKey: .sectionMarginInches)
+        sectionTwoColumn = try c.decodeIfPresent(Bool.self, forKey: .sectionTwoColumn)
+        sectionLineNumbers = try c.decodeIfPresent(Bool.self, forKey: .sectionLineNumbers)
+        sectionPageNumbers = try c.decodeIfPresent(Bool.self, forKey: .sectionPageNumbers)
+        citationStyle = try c.decodeIfPresent(String.self, forKey: .citationStyle)
+        authorDelimiter = try c.decodeIfPresent(String.self, forKey: .authorDelimiter)
+        affiliationMarker = try c.decodeIfPresent(String.self, forKey: .affiliationMarker)
+        institutionMarker = try c.decodeIfPresent(String.self, forKey: .institutionMarker)
+        authorParts = try c.decodeIfPresent(String.self, forKey: .authorParts)
+        affiliationDelimiter = try c.decodeIfPresent(String.self, forKey: .affiliationDelimiter)
+        affiliationListStyle = try c.decodeIfPresent(String.self, forKey: .affiliationListStyle)
+        showCorresponding = try c.decodeIfPresent(Bool.self, forKey: .showCorresponding)
+        showAuthorTitles = try c.decodeIfPresent(Bool.self, forKey: .showAuthorTitles)
+        format = try c.decodeIfPresent(ExportDocumentFormat.self, forKey: .format)
+        headerFormat = try c.decodeIfPresent(ExportDocumentFormat.self, forKey: .headerFormat)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id)
+        try c.encode(type, forKey: .type)
+        try c.encodeIfPresent(sectionID, forKey: .sectionID)
+        try c.encodeIfPresent(customTitle, forKey: .customTitle)
+        try c.encodeIfPresent(showTitle, forKey: .showTitle)
+        try c.encodeIfPresent(headingStyle, forKey: .headingStyle)
+        try c.encodeIfPresent(sectionMarginInches, forKey: .sectionMarginInches)
+        try c.encodeIfPresent(sectionTwoColumn, forKey: .sectionTwoColumn)
+        try c.encodeIfPresent(sectionLineNumbers, forKey: .sectionLineNumbers)
+        try c.encodeIfPresent(sectionPageNumbers, forKey: .sectionPageNumbers)
+        try c.encodeIfPresent(citationStyle, forKey: .citationStyle)
+        try c.encodeIfPresent(authorDelimiter, forKey: .authorDelimiter)
+        try c.encodeIfPresent(affiliationMarker, forKey: .affiliationMarker)
+        try c.encodeIfPresent(institutionMarker, forKey: .institutionMarker)
+        try c.encodeIfPresent(authorParts, forKey: .authorParts)
+        try c.encodeIfPresent(affiliationDelimiter, forKey: .affiliationDelimiter)
+        try c.encodeIfPresent(affiliationListStyle, forKey: .affiliationListStyle)
+        try c.encodeIfPresent(showCorresponding, forKey: .showCorresponding)
+        try c.encodeIfPresent(showAuthorTitles, forKey: .showAuthorTitles)
+        try c.encodeIfPresent(format, forKey: .format)
+        try c.encodeIfPresent(headerFormat, forKey: .headerFormat)
     }
 
     /// User-renamed heading for this item in the exported document (click the

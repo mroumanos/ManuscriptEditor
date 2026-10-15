@@ -9,7 +9,7 @@
      "number": 3500,
      "scopes": [
       {
-       "kind": "body"
+       "type": "body"
       }
      ]
     }
@@ -26,7 +26,7 @@
      "number": 75,
      "scopes": [
       {
-       "kind": "references"
+       "type": "references"
       }
      ]
     }
@@ -43,10 +43,10 @@
      "number": 5,
      "scopes": [
       {
-       "kind": "figures"
+       "type": "figures"
       },
       {
-       "kind": "tables"
+       "type": "tables"
       }
      ]
     }
@@ -62,7 +62,7 @@
      "number": 100,
      "scopes": [
       {
-       "kind": "title"
+       "type": "title"
       }
      ]
     }
@@ -79,7 +79,7 @@
      "number": 10.0,
      "scopes": [
       {
-       "kind": "export"
+       "type": "export"
       }
      ]
     },
@@ -89,7 +89,7 @@
      "number": 12.0,
      "scopes": [
       {
-       "kind": "export"
+       "type": "export"
       }
      ]
     }
@@ -105,7 +105,7 @@
      "number": 2.0,
      "scopes": [
       {
-       "kind": "export"
+       "type": "export"
       }
      ]
     }
@@ -134,7 +134,7 @@
      "number": 0,
      "scopes": [
       {
-       "kind": "coverLetter"
+       "type": "coverLetter"
       }
      ]
     }
@@ -175,8 +175,8 @@
      "number": 0,
      "scopes": [
       {
-       "kind": "section",
-       "name": "Consensus Statement"
+       "name": "Consensus Statement",
+       "type": "section"
       }
      ]
     }
@@ -184,8 +184,5 @@
    "name": "Consensus Statement section present",
    "note": "Required by this journal's structure."
   }
- ],
- "id": "6C791F0A-6F9E-505C-8B06-E8B1BF1A7487",
- "journal": "JAMA Dermatology",
- "updatedAt": "2026-10-13T12:00:00Z"
+ ]
 }

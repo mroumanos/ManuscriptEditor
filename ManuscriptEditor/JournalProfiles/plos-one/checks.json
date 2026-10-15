@@ -9,7 +9,7 @@
      "number": 300,
      "scopes": [
       {
-       "kind": "abstract"
+       "type": "abstract"
       }
      ]
     }
@@ -58,18 +58,16 @@
    "conditions": [
     {
      "comparator": "<=",
-     "id": "6FAE0CE5-106C-4A6B-A641-1F6D2AE9B7E7",
      "metric": "EXISTS",
      "number": 0,
      "scopes": [
       {
-       "kind": "section",
-       "name": "Introduction"
+       "name": "Introduction",
+       "type": "section"
       }
      ]
     }
    ],
-   "id": "2E42BADF-A1F0-4332-9A68-47E3EA537E19",
    "name": "Introduction section present",
    "note": "Required by this journal's structure."
   },
@@ -78,18 +76,16 @@
    "conditions": [
     {
      "comparator": "<=",
-     "id": "7BA131DC-DE1D-4BED-8752-ECBF02BB68DE",
      "metric": "EXISTS",
      "number": 0,
      "scopes": [
       {
-       "kind": "section",
-       "name": "Methods"
+       "name": "Methods",
+       "type": "section"
       }
      ]
     }
    ],
-   "id": "E3D921AF-3901-4F0A-B3E3-FB86DD3FE2A0",
    "name": "Methods section present",
    "note": "Required by this journal's structure."
   },
@@ -98,18 +94,16 @@
    "conditions": [
     {
      "comparator": "<=",
-     "id": "EEE19F61-CCED-40C8-BE53-5291AEAB85A0",
      "metric": "EXISTS",
      "number": 0,
      "scopes": [
       {
-       "kind": "section",
-       "name": "Results"
+       "name": "Results",
+       "type": "section"
       }
      ]
     }
    ],
-   "id": "F5559F8C-4194-4505-93F8-E67DE5553EF9",
    "name": "Results section present",
    "note": "Required by this journal's structure."
   },
@@ -118,23 +112,18 @@
    "conditions": [
     {
      "comparator": "<=",
-     "id": "A4331011-2005-450D-ABC8-8D40224FF65B",
      "metric": "EXISTS",
      "number": 0,
      "scopes": [
       {
-       "kind": "section",
-       "name": "Discussion"
+       "name": "Discussion",
+       "type": "section"
       }
      ]
     }
    ],
-   "id": "25B3D2D3-7770-4AE0-A3F0-484B032E792B",
    "name": "Discussion section present",
    "note": "Required by this journal's structure."
   }
- ],
- "id": "D37575CD-83DC-598A-96C9-0D177FCADA9F",
- "journal": "PLOS ONE",
- "updatedAt": "2026-09-10T17:05:39Z"
+ ]
 }

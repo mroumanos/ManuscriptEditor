@@ -9,7 +9,7 @@
      "number": 500,
      "scopes": [
       {
-       "kind": "body"
+       "type": "body"
       }
      ]
     }
@@ -26,7 +26,7 @@
      "number": 0,
      "scopes": [
       {
-       "kind": "abstract"
+       "type": "abstract"
       }
      ]
     }
@@ -43,7 +43,7 @@
      "number": 4,
      "scopes": [
       {
-       "kind": "references"
+       "type": "references"
       }
      ]
     }
@@ -59,7 +59,7 @@
      "number": 2,
      "scopes": [
       {
-       "kind": "figures"
+       "type": "figures"
       }
      ]
     }
@@ -75,7 +75,7 @@
      "number": 3,
      "scopes": [
       {
-       "kind": "authors"
+       "type": "authors"
       }
      ]
     }
@@ -91,7 +91,7 @@
      "number": 60,
      "scopes": [
       {
-       "kind": "title"
+       "type": "title"
       }
      ]
     }
@@ -108,7 +108,7 @@
      "number": 10.0,
      "scopes": [
       {
-       "kind": "export"
+       "type": "export"
       }
      ]
     },
@@ -118,7 +118,7 @@
      "number": 12.0,
      "scopes": [
       {
-       "kind": "export"
+       "type": "export"
       }
      ]
     }
@@ -134,7 +134,7 @@
      "number": 2.0,
      "scopes": [
       {
-       "kind": "export"
+       "type": "export"
       }
      ]
     }
@@ -163,7 +163,7 @@
      "number": 0,
      "scopes": [
       {
-       "kind": "coverLetter"
+       "type": "coverLetter"
       }
      ]
     }
@@ -192,8 +192,8 @@
      "number": 0,
      "scopes": [
       {
-       "kind": "section",
-       "name": "Images in Neurology"
+       "name": "Images in Neurology",
+       "type": "section"
       }
      ]
     }
@@ -201,8 +201,5 @@
    "name": "Images in Neurology section present",
    "note": "Required by this journal's structure."
   }
- ],
- "id": "E7304E0A-38D4-56EF-B233-7F7C29A8E0BD",
- "journal": "JAMA Neurology",
- "updatedAt": "2026-10-13T12:00:00Z"
+ ]
 }

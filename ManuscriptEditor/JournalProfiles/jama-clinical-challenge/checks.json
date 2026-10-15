@@ -9,7 +9,7 @@
      "number": 850,
      "scopes": [
       {
-       "kind": "body"
+       "type": "body"
       }
      ]
     }
@@ -26,7 +26,7 @@
      "number": 0,
      "scopes": [
       {
-       "kind": "abstract"
+       "type": "abstract"
       }
      ]
     }
@@ -43,7 +43,7 @@
      "number": 10,
      "scopes": [
       {
-       "kind": "references"
+       "type": "references"
       }
      ]
     }
@@ -59,7 +59,7 @@
      "number": 2,
      "scopes": [
       {
-       "kind": "figures"
+       "type": "figures"
       }
      ]
     }
@@ -75,7 +75,7 @@
      "number": 3,
      "scopes": [
       {
-       "kind": "authors"
+       "type": "authors"
       }
      ]
     }
@@ -91,7 +91,7 @@
      "number": 60,
      "scopes": [
       {
-       "kind": "title"
+       "type": "title"
       }
      ]
     }
@@ -108,7 +108,7 @@
      "number": 10.0,
      "scopes": [
       {
-       "kind": "export"
+       "type": "export"
       }
      ]
     },
@@ -118,7 +118,7 @@
      "number": 12.0,
      "scopes": [
       {
-       "kind": "export"
+       "type": "export"
       }
      ]
     }
@@ -134,7 +134,7 @@
      "number": 2.0,
      "scopes": [
       {
-       "kind": "export"
+       "type": "export"
       }
      ]
     }
@@ -163,7 +163,7 @@
      "number": 0,
      "scopes": [
       {
-       "kind": "coverLetter"
+       "type": "coverLetter"
       }
      ]
     }
@@ -192,8 +192,8 @@
      "number": 0,
      "scopes": [
       {
-       "kind": "section",
-       "name": "Case Presentation"
+       "name": "Case Presentation",
+       "type": "section"
       }
      ]
     }
@@ -210,8 +210,8 @@
      "number": 0,
      "scopes": [
       {
-       "kind": "section",
-       "name": "What Would You Do Next?"
+       "name": "What Would You Do Next?",
+       "type": "section"
       }
      ]
     }
@@ -228,8 +228,8 @@
      "number": 0,
      "scopes": [
       {
-       "kind": "section",
-       "name": "Diagnosis"
+       "name": "Diagnosis",
+       "type": "section"
       }
      ]
     }
@@ -246,8 +246,8 @@
      "number": 0,
      "scopes": [
       {
-       "kind": "section",
-       "name": "Discussion"
+       "name": "Discussion",
+       "type": "section"
       }
      ]
     }
@@ -255,8 +255,5 @@
    "name": "Discussion section present",
    "note": "Required by this journal's structure."
   }
- ],
- "id": "B0A626B8-B322-5C9C-B568-6F77F88065C2",
- "journal": "JAMA",
- "updatedAt": "2026-10-13T12:00:00Z"
+ ]
 }

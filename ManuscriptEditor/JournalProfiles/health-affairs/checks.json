@@ -9,7 +9,7 @@
      "number": 3500,
      "scopes": [
       {
-       "kind": "body"
+       "type": "body"
       }
      ]
     }
@@ -25,7 +25,7 @@
      "number": 100,
      "scopes": [
       {
-       "kind": "abstract"
+       "type": "abstract"
       }
      ]
     }
@@ -41,7 +41,7 @@
      "number": 4,
      "scopes": [
       {
-       "kind": "figures"
+       "type": "figures"
       }
      ]
     }
@@ -57,7 +57,7 @@
      "number": 4,
      "scopes": [
       {
-       "kind": "tables"
+       "type": "tables"
       }
      ]
     }
@@ -73,7 +73,7 @@
      "number": 40,
      "scopes": [
       {
-       "kind": "references"
+       "type": "references"
       }
      ]
     }
@@ -110,18 +110,16 @@
    "conditions": [
     {
      "comparator": "<=",
-     "id": "0382D19B-8572-4B93-879E-D6CFE1EB587F",
      "metric": "EXISTS",
      "number": 0,
      "scopes": [
       {
-       "kind": "section",
-       "name": "Introduction"
+       "name": "Introduction",
+       "type": "section"
       }
      ]
     }
    ],
-   "id": "082F0C4A-89DD-47C4-9FBE-7CD3B6E4AC8B",
    "name": "Introduction section present",
    "note": "Required by this journal's structure."
   },
@@ -130,18 +128,16 @@
    "conditions": [
     {
      "comparator": "<=",
-     "id": "999C8611-36B2-481F-86BF-BBA503231C4B",
      "metric": "EXISTS",
      "number": 0,
      "scopes": [
       {
-       "kind": "section",
-       "name": "Methods"
+       "name": "Methods",
+       "type": "section"
       }
      ]
     }
    ],
-   "id": "08C6C8D9-FC8A-477A-87EB-239A8CA82D51",
    "name": "Methods section present",
    "note": "Required by this journal's structure."
   },
@@ -150,18 +146,16 @@
    "conditions": [
     {
      "comparator": "<=",
-     "id": "77E55E35-AD92-415B-B2EA-8E69E813FBBA",
      "metric": "EXISTS",
      "number": 0,
      "scopes": [
       {
-       "kind": "section",
-       "name": "Results"
+       "name": "Results",
+       "type": "section"
       }
      ]
     }
    ],
-   "id": "05354847-37E8-42BD-B488-A29D4CF3632B",
    "name": "Results section present",
    "note": "Required by this journal's structure."
   },
@@ -170,23 +164,18 @@
    "conditions": [
     {
      "comparator": "<=",
-     "id": "ED9F1BA1-4375-46F1-81DF-FE5037FBD110",
      "metric": "EXISTS",
      "number": 0,
      "scopes": [
       {
-       "kind": "section",
-       "name": "Discussion"
+       "name": "Discussion",
+       "type": "section"
       }
      ]
     }
    ],
-   "id": "1476C861-0BEF-4648-9BC9-924FBE820E65",
    "name": "Discussion section present",
    "note": "Required by this journal's structure."
   }
- ],
- "id": "9199DAC6-B068-54EC-9A6F-9F4F6C4A2137",
- "journal": "Health Affairs",
- "updatedAt": "2026-09-10T17:05:39Z"
+ ]
 }

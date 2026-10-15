@@ -9,7 +9,7 @@
      "number": 2500,
      "scopes": [
       {
-       "kind": "body"
+       "type": "body"
       }
      ]
     }
@@ -25,7 +25,7 @@
      "number": 125,
      "scopes": [
       {
-       "kind": "abstract"
+       "type": "abstract"
       }
      ]
     }
@@ -41,7 +41,7 @@
      "number": 5,
      "scopes": [
       {
-       "kind": "figures"
+       "type": "figures"
       }
      ]
     }
@@ -57,7 +57,7 @@
      "number": 40,
      "scopes": [
       {
-       "kind": "references"
+       "type": "references"
       }
      ]
     }
@@ -100,18 +100,16 @@
    "conditions": [
     {
      "comparator": "<=",
-     "id": "BA98311B-FDB9-404B-BC4D-8525A6085A6A",
      "metric": "EXISTS",
      "number": 0,
      "scopes": [
       {
-       "kind": "section",
-       "name": "Introduction"
+       "name": "Introduction",
+       "type": "section"
       }
      ]
     }
    ],
-   "id": "5FA9DC4F-5AD6-45C4-B75A-8189269A9DDA",
    "name": "Introduction section present",
    "note": "Required by this journal's structure."
   },
@@ -120,18 +118,16 @@
    "conditions": [
     {
      "comparator": "<=",
-     "id": "209ECB29-B28D-46B0-BD1B-BAB1030336E1",
      "metric": "EXISTS",
      "number": 0,
      "scopes": [
       {
-       "kind": "section",
-       "name": "Methods"
+       "name": "Methods",
+       "type": "section"
       }
      ]
     }
    ],
-   "id": "79349660-9DB9-43F2-BA08-CDF2A7A89199",
    "name": "Methods section present",
    "note": "Required by this journal's structure."
   },
@@ -140,18 +136,16 @@
    "conditions": [
     {
      "comparator": "<=",
-     "id": "D96FE31E-7C7A-4CA9-BFD5-7648FA7EF46C",
      "metric": "EXISTS",
      "number": 0,
      "scopes": [
       {
-       "kind": "section",
-       "name": "Results"
+       "name": "Results",
+       "type": "section"
       }
      ]
     }
    ],
-   "id": "86D2DFF4-1649-454C-82A7-90548B9C2175",
    "name": "Results section present",
    "note": "Required by this journal's structure."
   },
@@ -160,23 +154,18 @@
    "conditions": [
     {
      "comparator": "<=",
-     "id": "6C18025E-6DFE-40E5-BFBF-B487ACAE5740",
      "metric": "EXISTS",
      "number": 0,
      "scopes": [
       {
-       "kind": "section",
-       "name": "Discussion"
+       "name": "Discussion",
+       "type": "section"
       }
      ]
     }
    ],
-   "id": "5BEEC952-7649-40B4-8727-3EEE843771FB",
    "name": "Discussion section present",
    "note": "Required by this journal's structure."
   }
- ],
- "id": "790FAD47-44A9-5A8D-B01E-23C83B386F1B",
- "journal": "Science",
- "updatedAt": "2026-09-10T17:05:39Z"
+ ]
 }

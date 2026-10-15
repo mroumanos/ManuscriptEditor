@@ -9,7 +9,7 @@
      "number": 800,
      "scopes": [
       {
-       "kind": "body"
+       "type": "body"
       }
      ]
     }
@@ -26,7 +26,7 @@
      "number": 0,
      "scopes": [
       {
-       "kind": "abstract"
+       "type": "abstract"
       }
      ]
     }
@@ -43,7 +43,7 @@
      "number": 5,
      "scopes": [
       {
-       "kind": "references"
+       "type": "references"
       }
      ]
     }
@@ -59,10 +59,10 @@
      "number": 1,
      "scopes": [
       {
-       "kind": "figures"
+       "type": "figures"
       },
       {
-       "kind": "tables"
+       "type": "tables"
       }
      ]
     }
@@ -78,7 +78,7 @@
      "number": 3,
      "scopes": [
       {
-       "kind": "authors"
+       "type": "authors"
       }
      ]
     }
@@ -94,7 +94,7 @@
      "number": 60,
      "scopes": [
       {
-       "kind": "title"
+       "type": "title"
       }
      ]
     }
@@ -111,7 +111,7 @@
      "number": 10.0,
      "scopes": [
       {
-       "kind": "export"
+       "type": "export"
       }
      ]
     },
@@ -121,7 +121,7 @@
      "number": 12.0,
      "scopes": [
       {
-       "kind": "export"
+       "type": "export"
       }
      ]
     }
@@ -137,7 +137,7 @@
      "number": 2.0,
      "scopes": [
       {
-       "kind": "export"
+       "type": "export"
       }
      ]
     }
@@ -166,7 +166,7 @@
      "number": 0,
      "scopes": [
       {
-       "kind": "coverLetter"
+       "type": "coverLetter"
       }
      ]
     }
@@ -195,8 +195,8 @@
      "number": 0,
      "scopes": [
       {
-       "kind": "section",
-       "name": "Story From the Front Lines"
+       "name": "Story From the Front Lines",
+       "type": "section"
       }
      ]
     }
@@ -213,8 +213,8 @@
      "number": 0,
      "scopes": [
       {
-       "kind": "section",
-       "name": "Teachable Moment"
+       "name": "Teachable Moment",
+       "type": "section"
       }
      ]
     }
@@ -222,8 +222,5 @@
    "name": "Teachable Moment section present",
    "note": "Required by this journal's structure."
   }
- ],
- "id": "4D230465-BD2E-5B40-A11A-5098C9BAC87C",
- "journal": "JAMA Internal Medicine",
- "updatedAt": "2026-10-13T12:00:00Z"
+ ]
 }

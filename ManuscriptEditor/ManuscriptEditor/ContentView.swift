@@ -583,18 +583,18 @@ struct ContentView: View {
     /// Maps a pane to the check scope covering it (mirrors the sidebar).
     private func checkScopeKey(for item: SidebarItem) -> String? {
         switch item {
-        case .title:          return CheckScope(kind: .title).key
-        case .authors:        return CheckScope(kind: .authors).key
-        case .abstract:       return CheckScope(kind: .abstract).key
-        case .letterToEditor: return CheckScope(kind: .coverLetter).key
-        case .keywords:       return CheckScope(kind: .keywords).key
-        case .figures:        return CheckScope(kind: .figures).key
-        case .tables:         return CheckScope(kind: .tables).key
-        case .bibliography:   return CheckScope(kind: .references).key
+        case .title:          return CheckScope(type: .title).key
+        case .authors:        return CheckScope(type: .authors).key
+        case .abstract:       return CheckScope(type: .abstract).key
+        case .letterToEditor: return CheckScope(type: .coverLetter).key
+        case .keywords:       return CheckScope(type: .keywords).key
+        case .figures:        return CheckScope(type: .figures).key
+        case .tables:         return CheckScope(type: .tables).key
+        case .bibliography:   return CheckScope(type: .references).key
         case .section(let id):
             guard let title = store.manuscript?.sections.first(where: { $0.id == id })?.title
             else { return nil }
-            return CheckScope(kind: .section, name: title).key
+            return CheckScope(type: .section, name: title).key
         default:              return nil
         }
     }

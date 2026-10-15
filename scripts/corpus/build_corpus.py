@@ -407,8 +407,8 @@ def manual(name, note=None):
     return {"conditions": [], "manual": True, "name": name, "note": note or "Tick once verified by hand"}
 
 
-def scope(kind, name=None):
-    return {"kind": kind, "name": name} if name else {"kind": kind}
+def scope(type_, name=None):
+    return {"type": type_, "name": name} if name else {"type": type_}
 
 
 def fmt(n):
@@ -656,8 +656,8 @@ def profile_files(net, j, t):
         "id": pid, "journal": j["journal"], "publisher": net["publisher"],
         "updatedAt": STAMP, "url": j["url"],
     }
-    checks = {"checks": build_checks(net, j, t), "id": pid, "journal": j["journal"], "updatedAt": STAMP}
-    structure = {"id": pid, "journal": j["journal"], "sections": build_structure(net, j, t)}
+    checks = {"checks": build_checks(net, j, t)}
+    structure = {"sections": build_structure(net, j, t)}
     return slug, {"requirements.json": dump(requirements), "checks.json": dump(checks),
                   "structure.json": dump(structure)}
 

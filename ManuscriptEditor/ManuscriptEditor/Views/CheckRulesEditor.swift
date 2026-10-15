@@ -269,13 +269,13 @@ struct CheckRulesList: View {
     /// (LENGTH of Abstract + Introduction is their combined count).
     private func scopeMenu(_ condition: Binding<CheckCondition>) -> some View {
         Menu {
-            ForEach(CheckScope.Kind.allCases.filter { $0 != .section }, id: \.self) { kind in
-                scopeItem(condition, CheckScope(kind: kind), title: kind.label)
+            ForEach(CheckScope.ScopeType.allCases.filter { $0 != .section }, id: \.self) { kind in
+                scopeItem(condition, CheckScope(type: kind), title: kind.label)
             }
             if !sectionTitles.isEmpty {
                 Divider()
                 ForEach(sectionTitles, id: \.self) { title in
-                    scopeItem(condition, CheckScope(kind: .section, name: title), title: title)
+                    scopeItem(condition, CheckScope(type: .section, name: title), title: title)
                 }
             }
         } label: {

@@ -9,7 +9,7 @@
      "number": 0,
      "scopes": [
       {
-       "kind": "abstract"
+       "type": "abstract"
       }
      ]
     }
@@ -26,7 +26,7 @@
      "number": 100,
      "scopes": [
       {
-       "kind": "title"
+       "type": "title"
       }
      ]
     }
@@ -56,7 +56,7 @@
      "number": 0,
      "scopes": [
       {
-       "kind": "coverLetter"
+       "type": "coverLetter"
       }
      ]
     }
@@ -79,8 +79,8 @@
      "number": 0,
      "scopes": [
       {
-       "kind": "section",
-       "name": "Non-standard Article"
+       "name": "Non-standard Article",
+       "type": "section"
       }
      ]
     }
@@ -88,8 +88,5 @@
    "name": "Non-standard Article section present",
    "note": "Required by this journal's structure."
   }
- ],
- "id": "044E42C9-0193-5A77-AECC-D727B35DD114",
- "journal": "Health Affairs Scholar",
- "updatedAt": "2026-10-13T12:00:00Z"
+ ]
 }

@@ -9,7 +9,7 @@
      "number": 400,
      "scopes": [
       {
-       "kind": "body"
+       "type": "body"
       }
      ]
     }
@@ -26,7 +26,7 @@
      "number": 0,
      "scopes": [
       {
-       "kind": "abstract"
+       "type": "abstract"
       }
      ]
     }
@@ -43,7 +43,7 @@
      "number": 5,
      "scopes": [
       {
-       "kind": "references"
+       "type": "references"
       }
      ]
     }
@@ -59,7 +59,7 @@
      "number": 3,
      "scopes": [
       {
-       "kind": "authors"
+       "type": "authors"
       }
      ]
     }
@@ -75,7 +75,7 @@
      "number": 60,
      "scopes": [
       {
-       "kind": "title"
+       "type": "title"
       }
      ]
     }
@@ -92,7 +92,7 @@
      "number": 10.0,
      "scopes": [
       {
-       "kind": "export"
+       "type": "export"
       }
      ]
     },
@@ -102,7 +102,7 @@
      "number": 12.0,
      "scopes": [
       {
-       "kind": "export"
+       "type": "export"
       }
      ]
     }
@@ -118,7 +118,7 @@
      "number": 2.0,
      "scopes": [
       {
-       "kind": "export"
+       "type": "export"
       }
      ]
     }
@@ -147,7 +147,7 @@
      "number": 0,
      "scopes": [
       {
-       "kind": "coverLetter"
+       "type": "coverLetter"
       }
      ]
     }
@@ -176,8 +176,8 @@
      "number": 0,
      "scopes": [
       {
-       "kind": "section",
-       "name": "Letter"
+       "name": "Letter",
+       "type": "section"
       }
      ]
     }
@@ -185,8 +185,5 @@
    "name": "Letter section present",
    "note": "Required by this journal's structure."
   }
- ],
- "id": "5E2CD7EE-C498-50C6-B27A-1D780F101BEE",
- "journal": "JAMA Dermatology",
- "updatedAt": "2026-10-13T12:00:00Z"
+ ]
 }

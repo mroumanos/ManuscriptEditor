@@ -9,7 +9,7 @@
      "number": 3500,
      "scopes": [
       {
-       "kind": "body"
+       "type": "body"
       }
      ]
     }
@@ -25,7 +25,7 @@
      "number": 180,
      "scopes": [
       {
-       "kind": "abstract"
+       "type": "abstract"
       }
      ]
     }
@@ -41,10 +41,10 @@
      "number": 4,
      "scopes": [
       {
-       "kind": "figures"
+       "type": "figures"
       },
       {
-       "kind": "tables"
+       "type": "tables"
       }
      ]
     }
@@ -60,7 +60,7 @@
      "number": 35,
      "scopes": [
       {
-       "kind": "references"
+       "type": "references"
       }
      ]
     }
@@ -76,7 +76,7 @@
      "number": 150,
      "scopes": [
       {
-       "kind": "coverLetter"
+       "type": "coverLetter"
       }
      ]
     }
@@ -103,7 +103,7 @@
      "metric": "CONTAINS",
      "scopes": [
       {
-       "kind": "abstract"
+       "type": "abstract"
       }
      ],
      "text": "Objectives"
@@ -112,7 +112,7 @@
      "metric": "CONTAINS",
      "scopes": [
       {
-       "kind": "abstract"
+       "type": "abstract"
       }
      ],
      "text": "Methods"
@@ -121,7 +121,7 @@
      "metric": "CONTAINS",
      "scopes": [
       {
-       "kind": "abstract"
+       "type": "abstract"
       }
      ],
      "text": "Results"
@@ -130,7 +130,7 @@
      "metric": "CONTAINS",
      "scopes": [
       {
-       "kind": "abstract"
+       "type": "abstract"
       }
      ],
      "text": "Conclusions"
@@ -147,7 +147,7 @@
      "number": 12.0,
      "scopes": [
       {
-       "kind": "export"
+       "type": "export"
       }
      ]
     }
@@ -163,7 +163,7 @@
      "number": 1.5,
      "scopes": [
       {
-       "kind": "export"
+       "type": "export"
       }
      ]
     }
@@ -179,7 +179,7 @@
      "number": 1,
      "scopes": [
       {
-       "kind": "export"
+       "type": "export"
       }
      ]
     }
@@ -191,18 +191,16 @@
    "conditions": [
     {
      "comparator": "<=",
-     "id": "2DCB2F8C-957A-4853-B712-AC6AADA46E2C",
      "metric": "EXISTS",
      "number": 0,
      "scopes": [
       {
-       "kind": "section",
-       "name": "Introduction"
+       "name": "Introduction",
+       "type": "section"
       }
      ]
     }
    ],
-   "id": "BE12E529-95C0-46F8-8CBC-AF52EDB9CAC9",
    "name": "Introduction section present",
    "note": "Required by this journal's structure."
   },
@@ -211,18 +209,16 @@
    "conditions": [
     {
      "comparator": "<=",
-     "id": "3000E0FC-CA66-4561-A34B-D7EFA8DEA50B",
      "metric": "EXISTS",
      "number": 0,
      "scopes": [
       {
-       "kind": "section",
-       "name": "Methods"
+       "name": "Methods",
+       "type": "section"
       }
      ]
     }
    ],
-   "id": "B8B6C480-BA1B-4A13-BD79-E6B5CD181BB9",
    "name": "Methods section present",
    "note": "Required by this journal's structure."
   },
@@ -231,18 +227,16 @@
    "conditions": [
     {
      "comparator": "<=",
-     "id": "F8CA192B-5F57-44E7-AD8A-91D0305CA72B",
      "metric": "EXISTS",
      "number": 0,
      "scopes": [
       {
-       "kind": "section",
-       "name": "Results"
+       "name": "Results",
+       "type": "section"
       }
      ]
     }
    ],
-   "id": "B710A655-CAE7-40E9-9D0C-41CD0D8D3DFF",
    "name": "Results section present",
    "note": "Required by this journal's structure."
   },
@@ -251,18 +245,16 @@
    "conditions": [
     {
      "comparator": "<=",
-     "id": "CCDDC30E-2B1C-49FB-BDB5-B202AC661E0F",
      "metric": "EXISTS",
      "number": 0,
      "scopes": [
       {
-       "kind": "section",
-       "name": "Discussion"
+       "name": "Discussion",
+       "type": "section"
       }
      ]
     }
    ],
-   "id": "082380A9-35DE-4EBC-ABF7-12350453443C",
    "name": "Discussion section present",
    "note": "Required by this journal's structure."
   },
@@ -271,23 +263,18 @@
    "conditions": [
     {
      "comparator": "<=",
-     "id": "AF2D6331-F33F-449E-9122-F5DAC79FF99E",
      "metric": "EXISTS",
      "number": 0,
      "scopes": [
       {
-       "kind": "section",
-       "name": "Public Health Implications"
+       "name": "Public Health Implications",
+       "type": "section"
       }
      ]
     }
    ],
-   "id": "9AA94DE2-35D6-4830-99C2-84E061C52F20",
    "name": "Public Health Implications section present",
    "note": "Required by this journal's structure."
   }
- ],
- "id": "7326FAF0-32D6-5C37-B991-452D852CEFEB",
- "journal": "American Journal of Public Health",
- "updatedAt": "2026-09-10T17:05:39Z"
+ ]
 }

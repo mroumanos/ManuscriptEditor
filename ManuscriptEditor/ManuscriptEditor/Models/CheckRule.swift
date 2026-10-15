@@ -102,7 +102,7 @@ enum CheckComparator: String, Codable, CaseIterable, Sendable {
 /// uses to color the pane a failing rule belongs to.
 struct CheckScope: Codable, Hashable, Sendable {
 
-    enum Kind: String, Codable, CaseIterable, Sendable {
+    enum ScopeType: String, Codable, CaseIterable, Sendable {
         case title, subtitle, abstract, keywords, authors
         case body            // every active body section, together
         case section         // one body section, named
@@ -127,17 +127,45 @@ struct CheckScope: Codable, Hashable, Sendable {
         }
     }
 
-    var kind: Kind
-    /// Section title when `kind == .section` (matched case-insensitively).
+    var type: ScopeType
+    /// Section title when `type == .section` (matched case-insensitively).
     var name: String? = nil
 
+    init(type: ScopeType, name: String? = nil) {
+        self.type = type
+        self.name = name
+    }
+
     var key: String {
-        kind == .section ? "section:\((name ?? "").lowercased())" : kind.rawValue
+        type == .section ? "section:\((name ?? "").lowercased())" : type.rawValue
     }
 
     var label: String {
-        kind == .section ? (name?.isEmpty == false ? name! : "Section") : kind.label
+        type == .section ? (name?.isEmpty == false ? name! : "Section") : type.label
     }
+
+    /// Written as `type`; `kind` is what a file said until Oct 2026.
+    private enum CodingKeys: String, CodingKey { case type, kind, name }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        type = try c.decodeIfPresent(ScopeType.self, forKey: .type)
+            ?? c.decode(ScopeType.self, forKey: .kind)
+        name = try c.decodeIfPresent(String.self, forKey: .name)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(type, forKey: .type)
+        try c.encodeIfPresent(name, forKey: .name)
+    }
+}
+
+extension CodingUserInfoKey {
+    /// Set on an encoder writing a template's files: rules and conditions
+    /// leave their ids out, since a file is read by name and a reader
+    /// derives the same ids every time.  A manuscript keeps them.
+    static let profileFile = CodingUserInfoKey(rawValue: "ManuscriptEditor.profileFile")!
 }
 
 // MARK: - CheckCondition
@@ -149,7 +177,7 @@ struct CheckCondition: Codable, Identifiable, Sendable, Equatable {
     /// [Abstract, Introduction] is their combined word count, COUNT is the
     /// sum, EXISTS/CONTAINS require every selected scope.  Written as a
     /// list so a single-scope condition reads the same as a combined one.
-    var scopes: [CheckScope] = [CheckScope(kind: .abstract)]
+    var scopes: [CheckScope] = [CheckScope(type: .abstract)]
     /// Subsections (headings inside the selected scopes) to narrow to.
     /// Empty = the whole scope.
     var subsections: [String] = []
@@ -165,7 +193,7 @@ struct CheckCondition: Codable, Identifiable, Sendable, Equatable {
     }
 
     init(id: UUID = UUID(), metric: CheckMetric = .words,
-         scopes: [CheckScope] = [CheckScope(kind: .abstract)],
+         scopes: [CheckScope] = [CheckScope(type: .abstract)],
          subsections: [String] = [],
          comparator: CheckComparator = .atMost, number: Double = 250, text: String = "") {
         self.id = id; self.metric = metric; self.scopes = scopes
@@ -175,24 +203,31 @@ struct CheckCondition: Codable, Identifiable, Sendable, Equatable {
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        id = try c.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        let storedID = try c.decodeIfPresent(UUID.self, forKey: .id)
+        id = storedID ?? UUID()
         metric = try c.decodeIfPresent(CheckMetric.self, forKey: .metric) ?? .words
         if let list = try c.decodeIfPresent([CheckScope].self, forKey: .scopes) {
             scopes = list
         } else if let single = try c.decodeIfPresent(CheckScope.self, forKey: .scope) {
             scopes = [single]
         } else {
-            scopes = [CheckScope(kind: .abstract)]
+            scopes = [CheckScope(type: .abstract)]
         }
         subsections = try c.decodeIfPresent([String].self, forKey: .subsections) ?? []
         comparator = try c.decodeIfPresent(CheckComparator.self, forKey: .comparator) ?? .atMost
         number = try c.decodeIfPresent(Double.self, forKey: .number) ?? 0
         text = try c.decodeIfPresent(String.self, forKey: .text) ?? ""
+        if storedID == nil {
+            // A file carries no ids: the same condition reads as the same id
+            // every time, from what it measures.
+            id = StructureSection.derivedID(title:
+                "check-condition:\(metric.rawValue):\(comparator.rawValue):\(number):\(text):\(scopes.map(\.key).joined(separator: ","))")
+        }
     }
 
     func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
-        try c.encode(id, forKey: .id)
+        if encoder.userInfo[.profileFile] as? Bool != true { try c.encode(id, forKey: .id) }
         try c.encode(metric, forKey: .metric)
         try c.encode(scopes, forKey: .scopes)
         if !subsections.isEmpty { try c.encode(subsections, forKey: .subsections) }
@@ -287,13 +322,36 @@ struct CheckRule: Codable, Identifiable, Sendable, Equatable {
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        id = try c.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        let storedID = try c.decodeIfPresent(UUID.self, forKey: .id)
+        id = storedID ?? UUID()
         name = try c.decodeIfPresent(String.self, forKey: .name) ?? ""
         enabled = try c.decodeIfPresent(Bool.self, forKey: .enabled)
         combinator = try c.decodeIfPresent(Combinator.self, forKey: .combinator) ?? .all
         conditions = try c.decodeIfPresent([CheckCondition].self, forKey: .conditions) ?? []
         note = try c.decodeIfPresent(String.self, forKey: .note)
         manual = try c.decodeIfPresent(Bool.self, forKey: .manual)
+        if storedID == nil {
+            id = StructureSection.derivedID(title: "check-rule:\(name)")
+            // Two conditions alike in one rule would derive one id; the
+            // position tells them apart.
+            var seen: Set<UUID> = []
+            for i in conditions.indices where !seen.insert(conditions[i].id).inserted {
+                conditions[i].id = StructureSection.derivedID(title: "check-condition:\(name):\(i)")
+            }
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        // A template's file is read by name and derives the same ids every
+        // time; a manuscript keeps them.
+        if encoder.userInfo[.profileFile] as? Bool != true { try c.encode(id, forKey: .id) }
+        try c.encode(name, forKey: .name)
+        try c.encodeIfPresent(enabled, forKey: .enabled)
+        try c.encode(combinator, forKey: .combinator)
+        try c.encode(conditions, forKey: .conditions)
+        try c.encodeIfPresent(note, forKey: .note)
+        try c.encodeIfPresent(manual, forKey: .manual)
     }
 
     static func newRule() -> CheckRule {

@@ -4,8 +4,7 @@
 // person reads and edits, as distinct from `ExportConfig`, the outline a
 // manuscript holds and the exporter runs.
 //
-//   documents          each a file of one type (docx, pdf, rtf, latex) with
-//                      the typography its fixed components print in
+//   documents          each a file of one type (docx, pdf, rtf, latex)
 //   document sections  each with its own margin, line numbers, page numbers
 //                      and columns — a new document section is a new page
 //   items              named by TITLE: a structure section's title, or one of
@@ -13,11 +12,11 @@
 //                      "Abstract", "Keywords", "References", "Tables",
 //                      "Figures", "Cover Letter")
 //
-// A manuscript section's typography is the STRUCTURE's (`format` on its
-// entry), never the outline's: an outline may print a section twice, and two
-// places for one setting is a conflict waiting to happen.  A fixed
-// component's typography may sit on its item.  No GUIDs: titles are the
-// link, and the structure's derived ids are computed on read.
+// Typography is a component's, never a document's.  A manuscript section's
+// is the STRUCTURE's (`format` on its entry): an outline may print a section
+// twice, and two places for one setting is a conflict waiting to happen.  A
+// fixed component's sits on its item.  No GUIDs: titles are the link, and
+// the structure's derived ids are computed on read.
 //
 // Anything else an item carries — a heading style, a citation style, the
 // byline's delimiters — passes through under `settings`, as the item's own
@@ -71,7 +70,6 @@ struct TemplateOutline: Codable, Equatable, Sendable {
     struct Document: Codable, Equatable, Sendable {
         var name: String
         var type: String
-        var format: Typography?
         var sections: [DocumentSection]
     }
 
@@ -126,13 +124,17 @@ struct TemplateOutline: Codable, Equatable, Sendable {
                     title = t
                 } else {
                     title = componentTitles[item.type] ?? item.type.rawValue
-                    format = item.format.map(Typography.init)
+                    // What the component prints in — its own, else the
+                    // document's where that is not the default.
+                    let effective = item.format ?? doc.format
+                    if item.format != nil || Typography(effective) != Typography(ExportDocumentFormat()) {
+                        format = Typography(effective)
+                    }
                 }
                 current.items.append(Item(title: title, format: format, settings: settings(of: item)))
             }
             sections.append(current)
-            return Document(name: doc.name, type: doc.fileType.rawValue,
-                            format: Typography(doc.format), sections: sections)
+            return Document(name: doc.name, type: doc.fileType.rawValue, sections: sections)
         })
     }
 
@@ -163,7 +165,6 @@ struct TemplateOutline: Codable, Equatable, Sendable {
         var out = ExportConfig(documents: [])
         for (d, doc) in documents.enumerated() {
             var base = ExportDocumentFormat()
-            if let typography = doc.format { base = typography.applied(to: base) }
             if let first = doc.sections.first {
                 if let m = first.margin { base.marginInches = m }
                 if let l = first.lineNumbers { base.lineNumbers = l }
@@ -215,7 +216,7 @@ struct TemplateOutline: Codable, Equatable, Sendable {
     private static func item(type: ExportItem.ItemType, id: UUID, settings: JSONValue?) -> ExportItem {
         var object: [String: Any] = settings?.object ?? [:]
         object["id"] = id.uuidString
-        object["kind"] = type.rawValue
+        object["type"] = type.rawValue
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         if let data = try? JSONSerialization.data(withJSONObject: object),

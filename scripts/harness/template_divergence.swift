@@ -110,6 +110,23 @@ func check(_ label: String, _ ok: Bool, _ detail: String = "") {
     var renamed = copy!; renamed.name = "Harness Journal"
     check("saving a copy under the original's name is refused", !library.save(renamed))
 
+    // Checksums saved under the old spelling (kind, sample, full formats)
+    // are recognised and replaced, so a rename never reads as an edit.
+    var old = source
+    var legacy: [String: String] = [:]
+    for part in ProfilePart.allCases { legacy[part.rawValue] = old.legacyFingerprint(part) }
+    check("the old spelling hashes differently where a scope or entry type is written",
+          legacy["checks"] != old.fingerprint(.checks))
+    old.partChecksums = legacy
+    old.migrateChecksums()
+    check("old checksums migrate to the current fingerprint",
+          ProfilePart.allCases.allSatisfy { old.partChecksums?[$0.rawValue] == old.fingerprint($0) })
+    var changed = source
+    changed.checks.append(CheckRule(name: "Another rule", conditions: [], manual: true))
+    changed.partChecksums = legacy
+    changed.migrateChecksums()
+    check("a real change is not mistaken for a rename", changed.partChecksums?["checks"] == legacy["checks"])
+
     print(failures == 0 ? "ALL PASS" : "\(failures) FAILURE(S)")
     exit(failures == 0 ? 0 : 1)
 }

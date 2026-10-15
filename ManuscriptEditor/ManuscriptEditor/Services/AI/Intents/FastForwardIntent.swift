@@ -476,7 +476,7 @@ struct FastForwardIntent: AIIntent {
                                  in content: Manuscript) -> [ManuscriptSection] {
         var out: [ManuscriptSection] = []
         for scope in condition.scopes {
-            switch scope.kind {
+            switch scope.type {
             case .body:
                 out.append(contentsOf: content.bodySections.filter(\.active))
             case .section:

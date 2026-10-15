@@ -68,6 +68,26 @@ for slug in ["american-journal-of-public-health-research-article", "american-jou
     check("\(slug): the outline names the structure's sections",
           Set(p.export?.documents[1].items.compactMap(\.sectionID) ?? []) == Set(p.structure.sectionEntries.filter { $0.type == .text }.map(\.uid)))
 }
+// The files themselves: no "kind" anywhere, no ids or identity in checks
+// and structure, no typography on an outline's documents.
+var kindFiles = 0, idFiles = 0, docTypography = 0
+for folder in folders {
+    for name in ["requirements.json", "checks.json", "structure.json", "export.json"] {
+        guard let text = try? String(contentsOf: folder.appendingPathComponent(name), encoding: .utf8) else { continue }
+        if text.contains("\"kind\"") { kindFiles += 1 }
+        if name == "checks.json" || name == "structure.json", text.contains("\"id\"") || text.contains("\"journal\"") { idFiles += 1 }
+        if name == "export.json", let json = try? JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: Any],
+           let docs = json["documents"] as? [[String: Any]], docs.contains(where: { $0["format"] != nil }) { docTypography += 1 }
+    }
+}
+check("no bundled file says \"kind\"", kindFiles == 0, "\(kindFiles) files")
+check("checks.json and structure.json carry no ids or identity", idFiles == 0, "\(idFiles) files")
+check("no outline document carries typography", docTypography == 0)
+// Rules read from a file without ids get the same ids every time.
+if let p = bundled[JournalProfile.bundledID(slug: "american-journal-of-public-health-research-article")],
+   let again = JournalProfile.read(from: root.appendingPathComponent(p.slug), origin: .bundled) {
+    check("derived rule ids are stable across reads", p.checks.map(\.id) == again.checks.map(\.id) && Set(p.checks.map(\.id)).count == p.checks.count)
+}
 print("\(jamaCount) generated profiles, \(keyPointsCount) with Key Points")
 check("generated profiles present", jamaCount >= 16)
 check("Health Affairs Scholar ships per article type",

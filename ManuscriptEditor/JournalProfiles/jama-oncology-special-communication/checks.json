@@ -9,7 +9,7 @@
      "number": 3000,
      "scopes": [
       {
-       "kind": "body"
+       "type": "body"
       }
      ]
     }
@@ -26,7 +26,7 @@
      "number": 50,
      "scopes": [
       {
-       "kind": "references"
+       "type": "references"
       }
      ]
     }
@@ -42,10 +42,10 @@
      "number": 4,
      "scopes": [
       {
-       "kind": "figures"
+       "type": "figures"
       },
       {
-       "kind": "tables"
+       "type": "tables"
       }
      ]
     }
@@ -61,7 +61,7 @@
      "number": 100,
      "scopes": [
       {
-       "kind": "title"
+       "type": "title"
       }
      ]
     }
@@ -78,7 +78,7 @@
      "number": 10.0,
      "scopes": [
       {
-       "kind": "export"
+       "type": "export"
       }
      ]
     },
@@ -88,7 +88,7 @@
      "number": 12.0,
      "scopes": [
       {
-       "kind": "export"
+       "type": "export"
       }
      ]
     }
@@ -104,7 +104,7 @@
      "number": 2.0,
      "scopes": [
       {
-       "kind": "export"
+       "type": "export"
       }
      ]
     }
@@ -133,7 +133,7 @@
      "number": 0,
      "scopes": [
       {
-       "kind": "coverLetter"
+       "type": "coverLetter"
       }
      ]
     }
@@ -168,8 +168,8 @@
      "number": 0,
      "scopes": [
       {
-       "kind": "section",
-       "name": "Special Communication"
+       "name": "Special Communication",
+       "type": "section"
       }
      ]
     }
@@ -177,8 +177,5 @@
    "name": "Special Communication section present",
    "note": "Required by this journal's structure."
   }
- ],
- "id": "142E7922-DB1F-5674-A186-5A45A8A4F9FD",
- "journal": "JAMA Oncology",
- "updatedAt": "2026-10-13T12:00:00Z"
+ ]
 }

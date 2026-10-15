@@ -9,7 +9,7 @@
      "number": 300,
      "scopes": [
       {
-       "kind": "abstract"
+       "type": "abstract"
       }
      ]
     }
@@ -52,18 +52,16 @@
    "conditions": [
     {
      "comparator": "<=",
-     "id": "CDB3C16A-C5F5-4EA5-BD65-767276EBB0A7",
      "metric": "EXISTS",
      "number": 0,
      "scopes": [
       {
-       "kind": "section",
-       "name": "Introduction"
+       "name": "Introduction",
+       "type": "section"
       }
      ]
     }
    ],
-   "id": "BB378723-7FA8-404E-AEA2-4F2C9EE61DA3",
    "name": "Introduction section present",
    "note": "Required by this journal's structure."
   },
@@ -72,18 +70,16 @@
    "conditions": [
     {
      "comparator": "<=",
-     "id": "4CF3C21F-F727-4C11-8A56-3F4DE9CDAF88",
      "metric": "EXISTS",
      "number": 0,
      "scopes": [
       {
-       "kind": "section",
-       "name": "Methods"
+       "name": "Methods",
+       "type": "section"
       }
      ]
     }
    ],
-   "id": "6BC86315-2C61-4F37-B0EF-F770A2C995FA",
    "name": "Methods section present",
    "note": "Required by this journal's structure."
   },
@@ -92,18 +88,16 @@
    "conditions": [
     {
      "comparator": "<=",
-     "id": "30C4544A-D77F-4466-9165-44E4ADCC3F97",
      "metric": "EXISTS",
      "number": 0,
      "scopes": [
       {
-       "kind": "section",
-       "name": "Results"
+       "name": "Results",
+       "type": "section"
       }
      ]
     }
    ],
-   "id": "BB76C00B-2A45-44C1-98DA-80B4944D5EFC",
    "name": "Results section present",
    "note": "Required by this journal's structure."
   },
@@ -112,23 +106,18 @@
    "conditions": [
     {
      "comparator": "<=",
-     "id": "0385FB35-4C0C-4643-AB62-96BB6F1E8040",
      "metric": "EXISTS",
      "number": 0,
      "scopes": [
       {
-       "kind": "section",
-       "name": "Discussion"
+       "name": "Discussion",
+       "type": "section"
       }
      ]
     }
    ],
-   "id": "4AE74861-988E-4C36-8BC5-0C64A8E1C5DA",
    "name": "Discussion section present",
    "note": "Required by this journal's structure."
   }
- ],
- "id": "69D022B4-4071-530F-8893-F3510040B07B",
- "journal": "PLOS Medicine",
- "updatedAt": "2026-09-10T17:05:39Z"
+ ]
 }

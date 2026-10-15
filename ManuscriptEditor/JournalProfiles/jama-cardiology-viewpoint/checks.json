@@ -9,7 +9,7 @@
      "number": 1200,
      "scopes": [
       {
-       "kind": "body"
+       "type": "body"
       }
      ]
     }
@@ -26,7 +26,7 @@
      "number": 0,
      "scopes": [
       {
-       "kind": "abstract"
+       "type": "abstract"
       }
      ]
     }
@@ -43,7 +43,7 @@
      "number": 7,
      "scopes": [
       {
-       "kind": "references"
+       "type": "references"
       }
      ]
     }
@@ -59,10 +59,10 @@
      "number": 1,
      "scopes": [
       {
-       "kind": "figures"
+       "type": "figures"
       },
       {
-       "kind": "tables"
+       "type": "tables"
       }
      ]
     }
@@ -78,7 +78,7 @@
      "number": 4,
      "scopes": [
       {
-       "kind": "authors"
+       "type": "authors"
       }
      ]
     }
@@ -94,7 +94,7 @@
      "number": 60,
      "scopes": [
       {
-       "kind": "title"
+       "type": "title"
       }
      ]
     }
@@ -111,7 +111,7 @@
      "number": 10.0,
      "scopes": [
       {
-       "kind": "export"
+       "type": "export"
       }
      ]
     },
@@ -121,7 +121,7 @@
      "number": 12.0,
      "scopes": [
       {
-       "kind": "export"
+       "type": "export"
       }
      ]
     }
@@ -137,7 +137,7 @@
      "number": 2.0,
      "scopes": [
       {
-       "kind": "export"
+       "type": "export"
       }
      ]
     }
@@ -166,7 +166,7 @@
      "number": 0,
      "scopes": [
       {
-       "kind": "coverLetter"
+       "type": "coverLetter"
       }
      ]
     }
@@ -189,8 +189,8 @@
      "number": 0,
      "scopes": [
       {
-       "kind": "section",
-       "name": "Viewpoint"
+       "name": "Viewpoint",
+       "type": "section"
       }
      ]
     }
@@ -198,8 +198,5 @@
    "name": "Viewpoint section present",
    "note": "Required by this journal's structure."
   }
- ],
- "id": "1EE55703-BF2B-5B4E-913C-11A8EE473620",
- "journal": "JAMA Cardiology",
- "updatedAt": "2026-10-13T12:00:00Z"
+ ]
 }
