@@ -1,27 +1,153 @@
 {
   "id": "BE598C81-274C-582D-8FF2-1491E152ADE9",
   "journal": "American Journal of Public Health",
+  "documentFormat": {
+    "fontFamily": "times",
+    "fontSize": 12,
+    "lineNumbers": true,
+    "lineSpacing": 1.5,
+    "marginInches": 1,
+    "pageNumbers": true,
+    "twoColumn": false
+  },
   "sections": [
     {
+      "title": "Abstract",
       "required": true,
-      "title": "Introduction"
+      "formatNote": "Structured, no more than 180 words including its headings: Objectives (begins with \"To\"), Methods, Results, Conclusions, and Public Health Implications. No Background heading. State the date(s) and location(s) of the data.",
+      "boilerplate": "Objectives. \nMethods. \nResults. \nConclusions. \nPublic Health Implications. "
     },
     {
+      "title": "Introduction",
       "required": true,
-      "title": "Methods"
+      "formatNote": "Paragraphs; the question the study answers and why it matters for public health."
     },
     {
+      "title": "Methods",
       "required": true,
-      "title": "Results"
+      "formatNote": "Paragraphs with subheadings as needed: data source(s) with dates and locations, design, measures, analysis. Name the IRB approval here, without the institution's name in the blinded manuscript."
     },
     {
+      "title": "Results",
       "required": true,
-      "title": "Discussion"
+      "formatNote": "Paragraphs; one decimal place for proportions and effect measures; exponentiated estimates with 95% CIs rather than parameter estimates; actual P values rounded to 2 decimals, never \"NS\"."
     },
     {
-      "note": "Named explicitly in this journal's instructions",
+      "title": "Discussion",
       "required": true,
-      "title": "Public Health Implications"
+      "formatNote": "Paragraphs: principal findings, context with prior work, limitations, and what follows for practice, policy and research."
+    },
+    {
+      "title": "Public Health Implications",
+      "required": true,
+      "formatNote": "A short closing section of its own.",
+      "note": "Named explicitly in this journal's instructions — practice, policy and research.",
+      "boilerplate": "What these findings mean for public health practice, policy and research."
+    },
+    {
+      "title": "Submission Questions",
+      "required": true,
+      "kind": "questions",
+      "note": "The questions Editorial Manager asks at submission, answered here so they travel with the manuscript and can be pasted in.",
+      "questions": [
+        {
+          "limitUnit": "characters",
+          "prompt": "What is the public health importance of the paper?",
+          "wordLimit": 2000
+        },
+        {
+          "limitUnit": "characters",
+          "prompt": "Provide a description of what the paper adds to current knowledge base, particularly with respect to material previously published in AJPH, and if systematic reviews exist on the topic.",
+          "wordLimit": 2000
+        },
+        {
+          "prompt": "Provide one sentence summarizing the main message(s) of the paper. This is important as it may be used on social media (e.g., AJPH Twitter, etc) to highlight the findings of the paper.",
+          "wordLimit": 2000
+        },
+        {
+          "limitUnit": "characters",
+          "prompt": "Please list the Abstract word count for this document. This count is forwarded to the Editors and Reviewers as part of the evaluation process.",
+          "wordLimit": 100
+        },
+        {
+          "limitUnit": "characters",
+          "prompt": "Please list the main text word count for this document. This count excludes the abstract, figures and tables, and references and is forwarded to the Editors and Reviewers as part of the evaluation process.",
+          "wordLimit": 100
+        },
+        {
+          "limitUnit": "characters",
+          "prompt": "Please list the number of references in this document. This count is forwarded to the Editors and Reviewers as part of the evaluation process.",
+          "wordLimit": 100
+        },
+        {
+          "limitUnit": "characters",
+          "prompt": "Please list the number of Tables and Figures and Supplemental Tables and Figures in this document. This count is forwarded to the Editors and Reviewers as part of the evaluation process. Please report counts as follows: Figures: #; Tables: #; Supplemental Tables: #; Supplemental Figures: # (where # represents the actual count of submitted Tables and Figures).",
+          "wordLimit": 100
+        },
+        {
+          "limitUnit": "characters",
+          "prompt": "AJPH Submission Agreement: Read thoroughly and initial to agree to abide by Journal policies. Please note that this is required to complete your submission.\n-I certify that the content of this paper has not been published elsewhere and does not overlap or duplicate published work. (Please note that exceptions are made for abstracts and reports from scientific meetings.)\n-I certify that all authors have contributed substantially to the conception, design, analysis, and/or interpretation of the data in this manuscript. I certify that researchers have obtained informed consent from human participants, and approval by an institutional review board. (The American Journal of Public Health adheres to the Declaration of Helsinki of the World Medical Association http://www.wma.net.)\n-I understand that upon acceptance, (1) all authors must certify that they will take public responsibility for the content and provide any relevant data upon request, and (2) copyright will be transferred to the American Public Health Association.",
+          "wordLimit": 3
+        },
+        {
+          "prompt": "Please indicate the total number of authors for this submission. This number must match the number of listed authors included in the \"Authors\" tab located in the \"Manuscript Data\" section of the submission process. Please ensure the number and names are accurate, as authors cannot be added once a paper is submitted."
+        },
+        {
+          "prompt": "For individual or group randomized trials, provide the date of trial registration and the NCT number from Clinicaltrials.gov or other approved registry."
+        },
+        {
+          "limitUnit": "characters",
+          "prompt": "Affiliations Statement",
+          "wordLimit": 20000
+        },
+        {
+          "limitUnit": "characters",
+          "prompt": "Please list all authors' social media handles (e.g., @alfredomorabia.bsky.social).",
+          "wordLimit": 20000
+        },
+        {
+          "limitUnit": "characters",
+          "prompt": "Statement of Authors' Contributions",
+          "wordLimit": 20000
+        },
+        {
+          "limitUnit": "characters",
+          "prompt": "Acknowledgments and Funding Disclosure",
+          "wordLimit": 20000
+        },
+        {
+          "limitUnit": "characters",
+          "prompt": "Disclosures of Potential and Actual Conflicts of Interest",
+          "wordLimit": 20000
+        },
+        {
+          "prompt": "Human Participant Protection statement"
+        },
+        {
+          "prompt": "Did this paper receive funding from NIH, AHRQ, ASPR, FDA, CDC, or VA sources? OR, are any authors claiming affiliation with any of these federal agencies? If yes, AJPH will submit this paper to PubMedCentral upon publication, requesting the AJPH-specified 12-month embargo. To have the paper accessible in PubMedCentral immediately upon publication, please select the Open Access option (an opt-in payment option)."
+        },
+        {
+          "prompt": "If accepted for publication, would you like this submission to be Open Access upon publication? This service will cost $2500 and will be billed to the corresponding author upon acceptance of the article for publication."
+        },
+        {
+          "prompt": "If your submission is accepted for publication, would you like to run any color figures or images? If \"Yes,\" there will a $750 charge per color image."
+        },
+        {
+          "prompt": "If accepted for publication, would you like this submission to have a Noncommercial Common Use License (NCUL) attached to it. This license costs $500 and will be billed to the corresponding author upon acceptance of the article for publication. The NCUL permits readers to print the article and use its content for noncommercial purposes, so long as the article is properly cited, without needing to purchase permission for each use. Commercial purposes will still require explicit permission for use."
+        },
+        {
+          "prompt": "If your article is chosen for AJPH’s Continuing Education program, would you be willing to develop 10 assessment questions (8 multiple choice and 2 true/false) for your article?"
+        },
+        {
+          "prompt": "Theme Issue Question"
+        },
+        {
+          "prompt": "Were any AI tools used in the development; writing; analysis; generation of figures, tables, and images; or review during the creation of this manuscript?"
+        },
+        {
+          "prompt": "NOTES"
+        }
+      ]
     }
   ]
 }

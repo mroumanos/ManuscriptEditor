@@ -7,7 +7,8 @@ app reads:
 |---|---|
 | `requirements.json` | The journal's own instructions — a link to its author-instructions page and the distilled requirements, one per bullet. Reference material, not executable. |
 | `checks.json` | The rules the app evaluates: automatic ones (`LENGTH_WORDS`, `COUNT`, `EXISTS`, `CONTAINS`, `STRUCTURE`, `FONT_SIZE`, `LINE_SPACING`, `LINE_NUMBERS`) and manual ones the user ticks by hand. |
-| `structure.json` | The sections a submission is expected to have. Seeds a new cut, and the `STRUCTURE` check verifies it. |
+| `structure.json` | The sections a submission is expected to have, and the venue's say about each. Every entry can carry `kind` (`text`, or `questions` for a series of submission questions, each with `prompt`, `wordLimit`, `limitUnit`, `sample`), `boilerplate` (the content a new cut starts with — `[[title]]`, `[[authors.names]]`, `[[authors.institutes]]` resolve), `formatNote` (how the section must be written — sent to the model when a cut is adapted), `note` (why the venue asks), `required`. An `Abstract` entry describes the abstract field. `documentFormat` and `coreFormats` carry the venue's typography. Seeds a new cut, and the `STRUCTURE` check verifies it. |
+| `export.json` | The venue's export outline — documents, items, per-component typography — when it differs from the standard outline the app derives from the structure. Absent otherwise. |
 
 All three share an `id` — the profile's **GUID**. Identity lives in that GUID,
 not in the folder name: one journal can carry several profiles (different
