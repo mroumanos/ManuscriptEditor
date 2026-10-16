@@ -786,8 +786,19 @@ def profile_files(net, j, t):
                   "structure.json": dump(structure), "export.json": dump(export)}
 
 
+def published_from_app(folder):
+    """A folder whose requirements.json carries the app's own marks — a
+    version past 1, per-part checksums — was written by the app and merged
+    from a pull request.  The generator never overwrites it."""
+    try:
+        doc = json.loads((folder / "requirements.json").read_text())
+    except (OSError, ValueError):
+        return False
+    return doc.get("version", 1) > 1 or bool(doc.get("partChecksums"))
+
+
 def main(check_only=False):
-    stale, written, total, produced, owned = [], 0, 0, set(), set()
+    stale, written, total, produced, owned, kept = [], 0, 0, set(), set(), []
     for spec_path in sorted(HERE.glob("*/*.json")):
         j = json.loads(spec_path.read_text())
         net = NETWORKS[j.get("network", spec_path.parent.name)]
@@ -797,6 +808,11 @@ def main(check_only=False):
             slug, files = profile_files(net, j, normalize(net, t))
             produced.add(slug)
             folder = OUT / slug
+            if published_from_app(folder):
+                # Proposed from the app and merged: the author's template now,
+                # not the spec's.  Left exactly as it is.
+                kept.append(slug)
+                continue
             for name, text in files.items():
                 path = folder / name
                 if path.exists() and path.read_text() == text:
@@ -810,6 +826,8 @@ def main(check_only=False):
         total += len(types)
         print(f"{j['journal']}: {len(types)} article types")
     print(f"{total} profiles")
+    for slug in kept:
+        print(f"kept {slug} (published from the app)")
     # The generator owns every folder under a journal it builds: one a spec
     # no longer yields is a stale profile, not a hand-made one.
     for folder in sorted(OUT.iterdir()):
