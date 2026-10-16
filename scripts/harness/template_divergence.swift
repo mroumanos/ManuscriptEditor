@@ -168,6 +168,19 @@ func check(_ label: String, _ ok: Bool, _ detail: String = "") {
           (try? String(contentsOf: library.root.appendingPathComponent(source.slug).appendingPathComponent(JournalProfile.checksumFileName), encoding: .utf8))?
               .trimmingCharacters(in: .whitespacesAndNewlines) == source.checksum)
 
+    // A structure entry is its own: made as "New Section", renamed, and the
+    // next "New Section" is another entry — not the same one twice.
+    var retitled = StructureSection(title: "New Section"); retitled.title = "Data and Methods"
+    let another = StructureSection(title: "New Section")
+    check("two entries made under one title are two entries", retitled.uid != another.uid)
+    let twins = Data("""
+    {"sections": [{"title": "Data and Methods"}, {"title": "New Section"}, {"title": "Data and Methods"}]}
+    """.utf8)
+    if let doc = try? JSONDecoder().decode(StructureDoc.self, from: twins) {
+        check("a file with two entries of one title and no ids yields two entries", Set(doc.sections.map(\.uid)).count == 3)
+        check("… the first keeping the id a manuscript matches it by", doc.sections[0].uid == StructureSection.derivedID(title: "Data and Methods"))
+    } else { check("a structure file decodes", false) }
+
     // Checksums saved under the old spelling (kind, sample, full formats)
     // are recognised and replaced, so a rename never reads as an edit.
     var old = source

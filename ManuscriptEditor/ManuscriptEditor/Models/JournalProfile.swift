@@ -379,7 +379,12 @@ struct StructureSection: Codable, Sendable, Equatable, Identifiable {
          questions: [TemplateQuestion]? = nil,
          format: ExportDocumentFormat? = nil, formatNote: String? = nil,
          uid: UUID? = nil) {
-        self.uid = uid ?? StructureSection.derivedID(title: title)
+        // Its own identity, not one derived from its title: an entry made
+        // as "New Section" and renamed kept the id derived from "New
+        // Section", and the next "New Section" derived the same one — two
+        // rows, one identity, selected and deleted together.  A title-derived
+        // id is for a file that carries none (see `init(from:)`).
+        self.uid = uid ?? UUID()
         self.title = title; self.required = required; self.type = kind; self.note = note
         self.boilerplate = boilerplate; self.questions = questions; self.format = format
         self.formatNote = formatNote
@@ -460,8 +465,8 @@ struct JournalStructure: Codable, Sendable, Equatable {
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        sections = StructureSection.configurable(
-            try c.decodeIfPresent([StructureSection].self, forKey: .sections) ?? [])
+        sections = StructureSection.uniqued(StructureSection.configurable(
+            try c.decodeIfPresent([StructureSection].self, forKey: .sections) ?? []))
         coreFormats = try c.decodeIfPresent([String: ExportDocumentFormat].self,
                                             forKey: .coreFormats)
         documentFormat = try c.decodeIfPresent(ExportDocumentFormat.self,
@@ -470,6 +475,21 @@ struct JournalStructure: Codable, Sendable, Equatable {
 }
 
 extension StructureSection {
+    /// The entries with distinct identities: a file without ids derives
+    /// them from titles, and two entries of one title derived one id.  The
+    /// second and later take an id derived from the title and position.
+    static func uniqued(_ sections: [StructureSection]) -> [StructureSection] {
+        var seen: Set<UUID> = []
+        return sections.enumerated().map { index, section in
+            var section = section
+            if !seen.insert(section.uid).inserted {
+                section.uid = derivedID(title: "\(section.title)#\(index)")
+                seen.insert(section.uid)
+            }
+            return section
+        }
+    }
+
     /// Drops entries describing the app's fixed parts.
     static func configurable(_ sections: [StructureSection]) -> [StructureSection] {
         sections.filter { !$0.isFixedPart }
@@ -609,7 +629,7 @@ struct StructureDoc: Codable, Sendable, Equatable {
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        sections = try c.decodeIfPresent([StructureSection].self, forKey: .sections) ?? []
+        sections = StructureSection.uniqued(try c.decodeIfPresent([StructureSection].self, forKey: .sections) ?? [])
         coreFormats = try c.decodeIfPresent([String: ExportDocumentFormat].self, forKey: .coreFormats)
         documentFormat = try c.decodeIfPresent(ExportDocumentFormat.self, forKey: .documentFormat)
     }

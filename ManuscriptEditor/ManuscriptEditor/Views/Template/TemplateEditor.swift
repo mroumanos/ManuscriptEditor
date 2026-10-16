@@ -260,13 +260,22 @@ struct TemplateSidebarView: View {
     }
 
     private func rename(_ section: StructureSection) {
-        let title = renameDraft.trimmingCharacters(in: .whitespaces)
+        var title = renameDraft.trimmingCharacters(in: .whitespaces)
         renamingKey = nil
         guard !title.isEmpty, title.lowercased() != section.key else { return }
+        // Titles are how manuscripts match a template's sections, so two
+        // entries never share one: a taken title takes a number.
+        let others = Set(sections.filter { $0.id != section.id }.map(\.key))
+        if others.contains(title.lowercased()) {
+            var n = 2
+            while others.contains("\(title) \(n)".lowercased()) { n += 1 }
+            title = "\(title) \(n)"
+        }
+        let final = title
         templates.edit(templateID) { template in
             guard let idx = template.structure.sections.firstIndex(where: { $0.id == section.id })
             else { return }
-            template.structure.sections[idx].title = title
+            template.structure.sections[idx].title = final
         }
     }
 

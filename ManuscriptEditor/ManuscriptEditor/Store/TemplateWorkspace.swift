@@ -87,7 +87,7 @@ final class TemplateWorkspace {
             if let idx = template.structure.sections.firstIndex(where: { $0.uid == uid }) {
                 mutate(&template.structure.sections[idx])
             } else if uid == TemplateWorkspace.abstractUID {
-                var made = StructureSection(title: "Abstract")
+                var made = StructureSection(title: "Abstract", uid: TemplateWorkspace.abstractUID)
                 mutate(&made)
                 let saysSomething = made.boilerplate != nil || made.note != nil
                     || made.formatNote != nil || !(made.questions ?? []).isEmpty
