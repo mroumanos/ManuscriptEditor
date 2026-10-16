@@ -347,6 +347,15 @@ xcodebuild -scheme ManuscriptEditor -destination 'platform=macOS' build
     bundled copy only while `checksum == publishedChecksum`; a saved edit
     breaks that equality, and the copy is the user's from then on.
 
+45. **A CLI agent gets no tools and a bounded effort.** `claude -p` and
+    `codex exec` are agents: given tools and full effort, one fast-forward
+    produced 204,466 output tokens in 23 minutes for a 3,000-token answer.
+    `AIConnectorRunner` passes `--tools ""` and `--effort` (Claude Code) and
+    `-c model_reasoning_effort=…` (Codex) from the connector's `effort`
+    setting, and the prompt says the answer is the reply itself. Check
+    `~/.claude/projects/…/<sessionID>.jsonl` (the app records the session
+    id) when a run is slow: output tokens and tool uses say where it went.
+
 ## Generated journal profiles
 
 - The JAMA Network and Health Affairs Scholar profiles

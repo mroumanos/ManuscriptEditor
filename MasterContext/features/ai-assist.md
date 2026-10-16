@@ -225,6 +225,19 @@ are wrong. The runner matches the **requested** id against that report
 (prefix-wise, since ids carry date suffixes) and flags a genuine substitution
 rather than papering over it.
 
+### 3.5 Effort, and no tools
+
+A fast-forward is a bounded rewrite, and the CLI agents are built to
+investigate. Left to themselves they did: one Opus run spent **204,466
+output tokens over 7 turns — 23 minutes** — thinking at full effort, writing
+its answer to a file and checking it in a shell, for a 3,000-token reply
+(`ai/log.json`, Oct 2026). So Claude Code runs with `--tools ""` and
+`--effort <level>`, Codex with `-c model_reasoning_effort=<level>`, and the
+prompt says the answer is the JSON in the reply. The level is a per-connector
+setting (Settings → AI → the connector → Effort: low / medium / high;
+medium by default). The other lever is the model: a Sonnet-class model
+answers the same request several times faster than Opus.
+
 ### 3.4 Zotero
 
 **Deferred.** `ZoteroService` is already a local connector in everything but

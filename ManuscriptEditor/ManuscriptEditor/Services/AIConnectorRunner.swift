@@ -279,6 +279,8 @@ enum AIConnectorRunner {
         if !connector.selectedModel.isEmpty {
             arguments.append(contentsOf: ["--model", connector.selectedModel])
         }
+        // A bounded reasoning effort, for the same reason Claude Code gets one.
+        arguments.append(contentsOf: ["-c", "model_reasoning_effort=\"\(connector.effectiveEffort.rawValue)\""])
         // "--" so a prompt that happens to begin with a dash is a prompt.
         arguments.append(contentsOf: ["--", prompt])
 
@@ -512,9 +514,15 @@ enum AIConnectorRunner {
         let path = try resolve(tool: "claude", storedPath: connector.executablePath)
         onResolvePath?(path)
 
+        // No tools and a bounded effort: the answer is the JSON in the reply,
+        // and a coding agent left to its own devices will think at length,
+        // write the answer to a file and check it in a shell — a 23-minute
+        // run for a 3,000-token answer, once.
         var arguments = ["-p", prompt,
                          "--output-format", "stream-json",
-                         "--verbose", "--include-partial-messages"]
+                         "--verbose", "--include-partial-messages",
+                         "--tools", "",
+                         "--effort", connector.effectiveEffort.rawValue]
         if !connector.selectedModel.isEmpty {
             arguments.append(contentsOf: ["--model", connector.selectedModel])
         }

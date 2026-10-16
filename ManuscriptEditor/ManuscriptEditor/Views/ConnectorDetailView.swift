@@ -119,6 +119,27 @@ struct ConnectorDetailView: View {
                 }
             }
 
+            if connector.kind == .claudeCLI || connector.kind == .codexCLI {
+                Section {
+                    Picker("Effort", selection: Binding(
+                        get: { connector.effectiveEffort },
+                        set: { value in
+                            var edited = connector
+                            edited.effort = value
+                            appStore.updateConnector(edited)
+                        })) {
+                        ForEach(AIEffort.allCases) { Text($0.label).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                    Text(connector.effectiveEffort.help + " The agent runs with no tools either way: the answer is the reply itself.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                } header: {
+                    Text("Effort")
+                }
+            }
+
             Section {
                 HStack(spacing: 10) {
                     Button {

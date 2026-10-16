@@ -283,8 +283,10 @@ struct FastForwardIntent: AIIntent {
         \(sectionsText)
 
         Reply with JSON only, in exactly this shape — one entry per section, \
-        with the same ids. Prose sections use "content"; question sections use \
-        "answers", one entry per question id:
+        with the same ids. The answer is this JSON object in your reply: use \
+        no tools, write no files, run nothing, and add no commentary. Prose \
+        sections use "content"; question sections use "answers", one entry \
+        per question id:
 
         {"sections": [
           {"id": "<section id>", "content": "<the adapted text>"},

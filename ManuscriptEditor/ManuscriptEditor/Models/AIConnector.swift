@@ -155,6 +155,23 @@ enum AIModelCatalog {
 
 // MARK: - AIConnector
 
+/// How hard a CLI agent thinks on a request.  A fast-forward is a bounded
+/// rewrite, not an investigation: at full effort an Opus run spent 200,000
+/// output tokens — 23 minutes — thinking and using tools for a 3,000-token
+/// answer.  Medium is the default; the connector's settings offer the rest.
+enum AIEffort: String, Codable, CaseIterable, Sendable, Identifiable {
+    case low, medium, high
+    var id: String { rawValue }
+    var label: String { rawValue.capitalized }
+    var help: String {
+        switch self {
+        case .low:    return "Fastest; fine for a short cut or a format change."
+        case .medium: return "The default — a careful rewrite in a few minutes."
+        case .high:   return "Longest; for a demanding adaptation."
+        }
+    }
+}
+
 struct AIConnector: Identifiable, Codable, Sendable, Equatable {
 
     var id: UUID = UUID()
@@ -184,6 +201,9 @@ struct AIConnector: Identifiable, Codable, Sendable, Equatable {
     var lastTestedAt: Date? = nil
     var lastTestSucceeded: Bool? = nil
     var lastTestMessage: String? = nil
+    /// Thinking effort for the CLI agents (Claude Code, Codex); nil = medium.
+    var effort: AIEffort? = nil
+    var effectiveEffort: AIEffort { effort ?? .medium }
 
     init(kind: AIConnectorKind) {
         self.kind = kind
@@ -212,7 +232,7 @@ struct AIConnector: Identifiable, Codable, Sendable, Equatable {
 
     private enum CodingKeys: String, CodingKey {
         case id, kind, executablePath, endpoint, selectedModel, availableModels
-        case lastTestedAt, lastTestSucceeded, lastTestMessage
+        case lastTestedAt, lastTestSucceeded, lastTestMessage, effort
     }
 
     init(from decoder: Decoder) throws {
@@ -228,5 +248,6 @@ struct AIConnector: Identifiable, Codable, Sendable, Equatable {
         lastTestedAt = try c.decodeIfPresent(Date.self, forKey: .lastTestedAt)
         lastTestSucceeded = try c.decodeIfPresent(Bool.self, forKey: .lastTestSucceeded)
         lastTestMessage = try c.decodeIfPresent(String.self, forKey: .lastTestMessage)
+        effort = try c.decodeIfPresent(AIEffort.self, forKey: .effort)
     }
 }
