@@ -1,29 +1,64 @@
 {
- "sections": [
-  {
-   "boilerplate": "• \n• \n• ",
-   "formatNote": "1 to 3 key-takeaway bullets, each a sentence a policymaker could act on.",
-   "note": "The venue's bulleted summary, submitted with the abstract.",
-   "required": true,
-   "title": "Key Takeaways"
-  },
-  {
-   "formatNote": "Between 150 and 200 words (fewer is fine if everything is covered), narrative, no headings. The first one or two sentences give useful or contextual background; the next one or two say what you sought to do or did; the next one or two give the results — if there is a central quantitative finding, state it specifically; the last sentence or sentences give the policy implications or recommendations. Methods only at a very general level; no jargon; no acronyms. The abstract presents the paper in miniature: what it is about, why it matters and its relation to policy, what it adds, what it recommends.",
-   "required": true,
-   "title": "Abstract"
-  },
-  {
-   "formatNote": "No longer than 200 words: a brief promotional text that entices a reader to click through, published online in the table of contents. No citations; define any abbreviations.",
-   "note": "Encouraged for all article types; submitted for peer review in the main manuscript file under the heading \"Teaser text\", before the main text.",
-   "required": false,
-   "title": "Teaser Text"
-  },
-  {
-   "boilerplate": "Funding: This work was supported by [funder, as named in the Crossref funder registry] [grant number] to [author initials].\nAcknowledgments: ",
-   "formatNote": "Clearly labeled, at the end of the manuscript. Declare all funding relevant to the study with specific grant numbers; a funder listed in the Crossref funder registry is named exactly as it appears there; grants received by specific authors are identified by initial.",
-   "note": "Required by the journal's instructions.",
-   "required": true,
-   "title": "Acknowledgments and Funding"
-  }
- ]
+  "sections" : [
+    {
+      "boilerplate" : "• \n• \n• ",
+      "formatNote" : "1 to 3 key-takeaway bullets, each a sentence a policymaker could act on.",
+      "id" : "FE10F13F-6619-5E5C-AFB6-584C2D338959",
+      "note" : "The venue's bulleted summary, submitted with the abstract.",
+      "required" : true,
+      "title" : "Key Takeaways"
+    },
+    {
+      "formatNote" : "Between 150 and 200 words (fewer is fine if everything is covered), narrative, no headings. The first one or two sentences give useful or contextual background; the next one or two say what you sought to do or did; the next one or two give the results — if there is a central quantitative finding, state it specifically; the last sentence or sentences give the policy implications or recommendations. Methods only at a very general level; no jargon; no acronyms. The abstract presents the paper in miniature: what it is about, why it matters and its relation to policy, what it adds, what it recommends.",
+      "id" : "12694586-66F8-5AB4-A487-B3BCB0ACBCA7",
+      "required" : true,
+      "title" : "Abstract"
+    },
+    {
+      "formatNote" : "No longer than 200 words: a brief promotional text that entices a reader to click through, published online in the table of contents. No citations; define any abbreviations.",
+      "id" : "3C3A2D9D-74D0-513C-847B-4A08732F30E1",
+      "note" : "Encouraged for all article types; submitted for peer review in the main manuscript file under the heading \"Teaser text\", before the main text.",
+      "required" : false,
+      "title" : "Teaser Text"
+    },
+    {
+      "boilerplate" : "Funding: This work was supported by [funder, as named in the Crossref funder registry] [grant number] to [author initials].\nAcknowledgments: ",
+      "formatNote" : "Clearly labeled, at the end of the manuscript. Declare all funding relevant to the study with specific grant numbers; a funder listed in the Crossref funder registry is named exactly as it appears there; grants received by specific authors are identified by initial.",
+      "id" : "60F4B873-E913-5D70-AF92-128481D450CF",
+      "note" : "Required by the journal's instructions.",
+      "required" : true,
+      "title" : "Acknowledgments and Funding"
+    },
+    {
+      "id" : "3C9B2D5B-ADE4-4F32-B429-1B7AA7C8E58B",
+      "required" : true,
+      "title" : "Introduction"
+    },
+    {
+      "id" : "4207346B-39DC-4B0A-860C-B10848EA9669",
+      "required" : true,
+      "title" : "Data and Methods"
+    },
+    {
+      "id" : "29D035F4-8418-4799-9D9C-B13389B3C095",
+      "required" : true,
+      "title" : "Discussion"
+    },
+    {
+      "id" : "1786153C-0043-42B4-AA43-0B42BA68F83A",
+      "required" : true,
+      "title" : "Results"
+    },
+    {
+      "id" : "06B4BDBF-62EB-43EB-9A3B-51693B015B21",
+      "required" : true,
+      "title" : "Conclusion"
+    },
+    {
+      "boilerplate" : "Author Contributions\n.... had full responsibility in collecting and validating the integrity of the data and the accuracy of the data analysis. Study concept and design: ... Acquisition, analysis, or interpretation of data: ... Drafting of the manuscript: ...  Critical revision of the manuscript for important intellectual content: ... Statistical analysis: ... Obtained funding: ... Administrative, technical, or material support: ... Study supervision: ...\n\nSupplementary material\nSupplementary material is available at Health Affairs Scholar\nonline.\n\nFunding\nThere was no direct grant funding for this work.\nRole of the funder: No funding organization was involved in the\ndesign and conduct of the study; collection, management, ana-\nlysis, and interpretation of the data; preparation, review, or ap-\nproval of the manuscript; and decision to submit the\nmanuscript for publication.\n\nConflicts of interest\nPlease see ICMJE form(s) for author conflicts of interest. These\nhave been provided as supplementary materials.\n\nData availability\nThe data underlying this study are publicly available at ...",
+      "id" : "97A8527D-0762-4857-B6F4-4A795C1E4051",
+      "required" : true,
+      "title" : "Additional"
+    }
+  ]
 }

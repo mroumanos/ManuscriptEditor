@@ -1,213 +1,239 @@
 {
- "checks": [
-  {
-   "combinator": "ALL",
-   "conditions": [
+  "checks" : [
     {
-     "comparator": "<=",
-     "metric": "LENGTH_WORDS",
-     "number": 2000,
-     "scopes": [
-      {
-       "type": "body"
-      }
-     ]
-    }
-   ],
-   "name": "Body ≤ 2,000 words",
-   "note": "The word count limitation does not include references. Counts every active section, Key Takeaways included; the venue counts those separately."
-  },
-  {
-   "combinator": "ALL",
-   "conditions": [
-    {
-     "comparator": "<=",
-     "metric": "LENGTH_WORDS",
-     "number": 200,
-     "scopes": [
-      {
-       "type": "abstract"
-      }
-     ]
-    }
-   ],
-   "name": "Abstract ≤ 200 words"
-  },
-  {
-   "conditions": [],
-   "manual": true,
-   "name": "1–3 key-takeaway bullets supplied",
-   "note": "Each a sentence; the journal publishes them with the abstract."
-  },
-  {
-   "combinator": "ALL",
-   "conditions": [
-    {
-     "comparator": ">=",
-     "metric": "COUNT",
-     "number": 1,
-     "scopes": [
-      {
-       "type": "keywords"
-      }
-     ]
+      "combinator" : "ALL",
+      "conditions" : [
+        {
+          "comparator" : "<=",
+          "metric" : "LENGTH_WORDS",
+          "number" : 2000,
+          "scopes" : [
+            {
+              "type" : "body"
+            }
+          ]
+        }
+      ],
+      "name" : "Body ≤ 2,000 words",
+      "note" : "The word count limitation does not include references. Counts every active section, Key Takeaways included; the venue counts those separately."
     },
     {
-     "comparator": "<=",
-     "metric": "COUNT",
-     "number": 15,
-     "scopes": [
-      {
-       "type": "keywords"
-      }
-     ]
-    }
-   ],
-   "name": "Keywords 1–15"
-  },
-  {
-   "combinator": "ALL",
-   "conditions": [
+      "combinator" : "ALL",
+      "conditions" : [
+        {
+          "comparator" : "<=",
+          "metric" : "LENGTH_WORDS",
+          "number" : 200,
+          "scopes" : [
+            {
+              "type" : "abstract"
+            }
+          ]
+        }
+      ],
+      "name" : "Abstract ≤ 200 words"
+    },
     {
-     "comparator": "<=",
-     "metric": "COUNT",
-     "number": 2,
-     "scopes": [
-      {
-       "type": "figures"
-      },
-      {
-       "type": "tables"
-      }
-     ]
-    }
-   ],
-   "name": "Tables + figures ≤ 2"
-  },
-  {
-   "combinator": "ALL",
-   "conditions": [
+      "combinator" : "ALL",
+      "conditions" : [
+
+      ],
+      "manual" : true,
+      "name" : "1–3 key-takeaway bullets supplied",
+      "note" : "Each a sentence; the journal publishes them with the abstract."
+    },
     {
-     "comparator": "<=",
-     "metric": "LENGTH_CHARS",
-     "number": 100,
-     "scopes": [
-      {
-       "type": "title"
-      }
-     ]
-    }
-   ],
-   "name": "Title ≤ 100 characters",
-   "note": "Including spaces."
-  },
-  {
-   "combinator": "ALL",
-   "conditions": [
+      "combinator" : "ALL",
+      "conditions" : [
+        {
+          "comparator" : ">=",
+          "metric" : "COUNT",
+          "number" : 1,
+          "scopes" : [
+            {
+              "type" : "keywords"
+            }
+          ]
+        },
+        {
+          "comparator" : "<=",
+          "metric" : "COUNT",
+          "number" : 15,
+          "scopes" : [
+            {
+              "type" : "keywords"
+            }
+          ]
+        }
+      ],
+      "name" : "Keywords 1–15"
+    },
     {
-     "comparator": "==",
-     "metric": "STRUCTURE",
-     "number": 1,
-     "scopes": []
-    }
-   ],
-   "name": "Sections match the journal's structure",
-   "note": "Every section marked required in the structure file must be present and non-empty"
-  },
-  {
-   "combinator": "ALL",
-   "conditions": [
+      "combinator" : "ALL",
+      "conditions" : [
+        {
+          "comparator" : "<=",
+          "metric" : "COUNT",
+          "number" : 2,
+          "scopes" : [
+            {
+              "type" : "figures"
+            },
+            {
+              "type" : "tables"
+            }
+          ]
+        }
+      ],
+      "name" : "Tables + figures ≤ 2"
+    },
     {
-     "comparator": "<=",
-     "metric": "EXISTS",
-     "number": 0,
-     "scopes": [
-      {
-       "type": "coverLetter"
-      }
-     ]
-    }
-   ],
-   "name": "Cover letter present",
-   "note": "A statement that the paper has not been previously published and is not under consideration by another journal; a brief description of the research, why it is important, its key takeaways, and why the journal's readers would be interested; and any funding or potential conflict of interest disclosures (with how the submission differs from any related preprint, dissertation or paper, and any use of AI tools)."
-  },
-  {
-   "conditions": [],
-   "manual": true,
-   "name": "Conflicts summarised in the manuscript; a signed ICMJE form for every author",
-   "note": "Every author declares on the cover page at submission; the forms by the latest revision — one per author even with nothing to disclose."
-  },
-  {
-   "conditions": [],
-   "manual": true,
-   "name": "Conflict of interest disclosures for every author",
-   "note": "Complete disclosure of all relevant financial relationships; authors with none say so."
-  },
-  {
-   "combinator": "ALL",
-   "conditions": [
+      "combinator" : "ALL",
+      "conditions" : [
+        {
+          "comparator" : "<=",
+          "metric" : "LENGTH_CHARS",
+          "number" : 100,
+          "scopes" : [
+            {
+              "type" : "title"
+            }
+          ]
+        }
+      ],
+      "name" : "Title ≤ 100 characters",
+      "note" : "Including spaces."
+    },
     {
-     "comparator": "<=",
-     "metric": "LENGTH_WORDS",
-     "number": 200,
-     "scopes": [
-      {
-       "name": "Teaser Text",
-       "type": "section"
-      }
-     ]
-    }
-   ],
-   "name": "Teaser Text ≤ 200 words",
-   "note": "No longer than 200 words: a brief promotional text that entices a reader to click through, published online in the table of contents. No citations; define any abbreviations."
-  },
-  {
-   "combinator": "ALL",
-   "conditions": [
+      "combinator" : "ALL",
+      "conditions" : [
+        {
+          "comparator" : "==",
+          "metric" : "STRUCTURE",
+          "number" : 1,
+          "scopes" : [
+
+          ]
+        }
+      ],
+      "name" : "Sections match the journal's structure",
+      "note" : "Every section marked required in the structure file must be present and non-empty"
+    },
     {
-     "comparator": "<=",
-     "metric": "EXISTS",
-     "number": 0,
-     "scopes": [
-      {
-       "name": "Acknowledgments and Funding",
-       "type": "section"
-      }
-     ]
+      "combinator" : "ALL",
+      "conditions" : [
+        {
+          "comparator" : "<=",
+          "metric" : "EXISTS",
+          "number" : 0,
+          "scopes" : [
+            {
+              "type" : "coverLetter"
+            }
+          ]
+        }
+      ],
+      "name" : "Cover letter present",
+      "note" : "A statement that the paper has not been previously published and is not under consideration by another journal; a brief description of the research, why it is important, its key takeaways, and why the journal's readers would be interested; and any funding or potential conflict of interest disclosures (with how the submission differs from any related preprint, dissertation or paper, and any use of AI tools)."
+    },
+    {
+      "combinator" : "ALL",
+      "conditions" : [
+
+      ],
+      "manual" : true,
+      "name" : "Conflicts summarised in the manuscript; a signed ICMJE form for every author",
+      "note" : "Every author declares on the cover page at submission; the forms by the latest revision — one per author even with nothing to disclose."
+    },
+    {
+      "combinator" : "ALL",
+      "conditions" : [
+
+      ],
+      "manual" : true,
+      "name" : "Conflict of interest disclosures for every author",
+      "note" : "Complete disclosure of all relevant financial relationships; authors with none say so."
+    },
+    {
+      "combinator" : "ALL",
+      "conditions" : [
+        {
+          "comparator" : "<=",
+          "metric" : "LENGTH_WORDS",
+          "number" : 200,
+          "scopes" : [
+            {
+              "name" : "Teaser Text",
+              "type" : "section"
+            }
+          ]
+        }
+      ],
+      "name" : "Teaser Text ≤ 200 words",
+      "note" : "No longer than 200 words: a brief promotional text that entices a reader to click through, published online in the table of contents. No citations; define any abbreviations."
+    },
+    {
+      "combinator" : "ALL",
+      "conditions" : [
+        {
+          "comparator" : "<=",
+          "metric" : "EXISTS",
+          "number" : 0,
+          "scopes" : [
+            {
+              "name" : "Acknowledgments and Funding",
+              "type" : "section"
+            }
+          ]
+        }
+      ],
+      "name" : "Acknowledgments and Funding section present",
+      "note" : "Required by this journal's structure."
+    },
+    {
+      "combinator" : "ALL",
+      "conditions" : [
+
+      ],
+      "manual" : true,
+      "name" : "Tables numbered, cited in the text, editable (not images), at the end of the main text",
+      "note" : "Units in column or row headers, not the body; symbols such as asterisks explained in a footnote; no color, shading or tab-alignment."
+    },
+    {
+      "combinator" : "ALL",
+      "conditions" : [
+
+      ],
+      "manual" : true,
+      "name" : "Figures as separate files with titles, legends and captions in the manuscript",
+      "note" : ".jpeg, .jpg, .tiff, .svg, .pdf or .eps (never .bmp, .gif or .docx); one file per figure, named to match its citation (fig1.tiff); multi-panel figures as one file with panels lettered A, B, C in the upper-left; vector art as .eps\/.pdf\/.svg with fonts embedded; raster at 300 dpi (color half-tones), 600 dpi (grayscale, combinations), 1200 dpi (fine line art)."
+    },
+    {
+      "combinator" : "ALL",
+      "conditions" : [
+
+      ],
+      "manual" : true,
+      "name" : "Alt text under every figure legend, preceded by \"Alt text:\"",
+      "note" : "Required for all images, figures, illustrations and photographs in the main article; concise and informative, so a screen-reader user understands the figure."
+    },
+    {
+      "combinator" : "ALL",
+      "conditions" : [
+
+      ],
+      "manual" : true,
+      "name" : "References carry the DOI and eLocator of every online-only article",
+      "note" : "Any readable style at submission (the journal follows AMA); authors are responsible for accuracy. Example: Health Affairs Scholar. 2023;1(1):qxad009. https:\/\/doi.org\/10.1093\/haschl\/qxad009"
+    },
+    {
+      "combinator" : "ALL",
+      "conditions" : [
+
+      ],
+      "manual" : true,
+      "name" : "Supplementary material cited in the text and submitted with the manuscript",
+      "note" : "Online only, not copyedited; documentation and appendices as PDF, data as .zip; hosted by OUP or a partner such as Dryad — never a personal, institutional or Google Docs link. What is necessary to understand the article stays in the manuscript."
     }
-   ],
-   "name": "Acknowledgments and Funding section present",
-   "note": "Required by this journal's structure."
-  },
-  {
-   "conditions": [],
-   "manual": true,
-   "name": "Tables numbered, cited in the text, editable (not images), at the end of the main text",
-   "note": "Units in column or row headers, not the body; symbols such as asterisks explained in a footnote; no color, shading or tab-alignment."
-  },
-  {
-   "conditions": [],
-   "manual": true,
-   "name": "Figures as separate files with titles, legends and captions in the manuscript",
-   "note": ".jpeg, .jpg, .tiff, .svg, .pdf or .eps (never .bmp, .gif or .docx); one file per figure, named to match its citation (fig1.tiff); multi-panel figures as one file with panels lettered A, B, C in the upper-left; vector art as .eps/.pdf/.svg with fonts embedded; raster at 300 dpi (color half-tones), 600 dpi (grayscale, combinations), 1200 dpi (fine line art)."
-  },
-  {
-   "conditions": [],
-   "manual": true,
-   "name": "Alt text under every figure legend, preceded by \"Alt text:\"",
-   "note": "Required for all images, figures, illustrations and photographs in the main article; concise and informative, so a screen-reader user understands the figure."
-  },
-  {
-   "conditions": [],
-   "manual": true,
-   "name": "References carry the DOI and eLocator of every online-only article",
-   "note": "Any readable style at submission (the journal follows AMA); authors are responsible for accuracy. Example: Health Affairs Scholar. 2023;1(1):qxad009. https://doi.org/10.1093/haschl/qxad009"
-  },
-  {
-   "conditions": [],
-   "manual": true,
-   "name": "Supplementary material cited in the text and submitted with the manuscript",
-   "note": "Online only, not copyedited; documentation and appendices as PDF, data as .zip; hosted by OUP or a partner such as Dryad — never a personal, institutional or Google Docs link. What is necessary to understand the article stays in the manuscript."
-  }
- ]
+  ]
 }
