@@ -55,7 +55,7 @@ struct ChecksView: View {
                         subtitle: "What the app enforces of the journal's instructions — automatic tests and the ones you tick by hand.",
                         edited: store.partDiffersFromTemplate(.checks, journal: journal),
                         padded: false)
-                    header(journal)
+                    if linkedTemplate == nil { header(journal) }
                     checklist(journal)
                 } else {
                     noJournalState
@@ -197,20 +197,26 @@ struct ChecksView: View {
             if !technical.isEmpty {
                 sectionHeader("Technical", note: "checked automatically against the manuscript and export")
                 ForEach(technical) { result in
-                    ChecklistRow(result: result,
-                                 fixAction: result.fixID == "typography" && !result.passed
-                                     ? { store.applyRequiredTypography(journalID: journal.id) }
-                                     : nil)
+                    HStack(alignment: .top, spacing: 6) {
+                        ChecklistRow(result: result,
+                                     fixAction: result.fixID == "typography" && !result.passed
+                                         ? { store.applyRequiredTypography(journalID: journal.id) }
+                                         : nil)
+                        editPencil
+                    }
                 }
             }
             if !manualRules.isEmpty {
                 sectionHeader("Manual", note: "tick each box once you've verified it yourself")
                 ForEach(manualRules) { result in
-                    // Label the argument: an unlabeled trailing closure can
-                    // bind to fixAction, turning checkboxes into Fix buttons.
-                    ChecklistRow(result: result, onToggle: {
-                        store.toggleManualCheck(journalID: journal.id, rule: result.rule)
-                    })
+                    HStack(alignment: .top, spacing: 6) {
+                        // Label the argument: an unlabeled trailing closure can
+                        // bind to fixAction, turning checkboxes into Fix buttons.
+                        ChecklistRow(result: result, onToggle: {
+                            store.toggleManualCheck(journalID: journal.id, rule: result.rule)
+                        })
+                        editPencil
+                    }
                 }
             }
             if results.isEmpty {
@@ -221,6 +227,15 @@ struct ChecksView: View {
         }
     }
 
+    /// The pencil every test carries: the tests are edited here, in the
+    /// same editor.
+    private var editPencil: some View {
+        Button { editingRules = true } label: { Image(systemName: "pencil").font(.caption) }
+            .buttonStyle(.borderless)
+            .foregroundStyle(.tertiary)
+            .help("Edit this test")
+    }
+
     /// The heading the pane is really about.
     ///
     /// "Tests", not "Checks": each one is a test of a requirement stated in the
@@ -229,7 +244,6 @@ struct ChecksView: View {
     @ViewBuilder
     private func testsHeader(_ journal: Journal, results: [ChecklistResult]) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Text("Tests").font(.headline)
             if store.partDiffersFromTemplate(.checks, journal: journal) {
                 Image(systemName: "pencil.circle.fill")
                     .foregroundStyle(.orange).font(.caption)
@@ -239,12 +253,10 @@ struct ChecksView: View {
                 .font(.caption)
                 .foregroundStyle(.tertiary)
             Spacer()
-            Button("Load") { loadingTests = true }
+            Button { editingRules = true } label: { Image(systemName: "pencil") }
+                .buttonStyle(.borderless)
                 .controlSize(.small)
-                .disabled(linkedTemplate == nil)
-                .help(linkedTemplate == nil
-                      ? "This journal isn't linked to a template"
-                      : "Replace this journal's tests with the template's")
+                .help("Add or edit tests")
         }
         .padding(.top, 12)
     }

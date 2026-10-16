@@ -74,20 +74,24 @@ struct ExportView: View {
                 header
 
                 ForEach(config.documents) { document in
-                    // Read here, exported here; edited in the template (Edit,
-                    // above).  An uploaded file is this manuscript's own and
-                    // stays removable.
                     ExportDocumentCard(
                         document: document,
                         content: store.manuscript,
                         onChange: { replace(document: $0) },
                         onDelete: { remove(documentID: document.id) },
-                        editable: false,
                         attachmentURL: store.attachmentURL(for: document)
                     )
                 }
 
                 HStack(spacing: 12) {
+                    Button {
+                        config.documents.append(ExportDocument(name: "New Document", items: []))
+                        persist()
+                    } label: {
+                        Label("Add Document", systemImage: "plus")
+                    }
+                    .buttonStyle(.bordered)
+
                     Button {
                         uploadDocument()
                     } label: {

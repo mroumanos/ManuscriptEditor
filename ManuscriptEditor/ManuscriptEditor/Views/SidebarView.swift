@@ -154,7 +154,6 @@ struct SidebarView: View {
     private var journalSection: some View {
         Section("Journal") {
             row(SidebarItem.summary, "Summary", "doc.text")
-            row(SidebarItem.structure, "Structure", "list.bullet.indent")
             row(SidebarItem.checks, checksTitle, "checklist")
             row(SidebarItem.export, "Export", "square.and.arrow.up")
             row(SidebarItem.versions, "Versions (\(versionCount))", "arrow.triangle.branch")

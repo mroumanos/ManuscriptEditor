@@ -28,12 +28,13 @@ import SwiftUI
 /// copy back.
 struct JournalPartHeader: View {
     @Environment(ManuscriptStore.self) private var store
+    @Environment(AppStore.self) private var appStore
     @Environment(TemplateWorkspace.self) private var templates
-    @Environment(\.colorScheme) private var scheme
 
     let journal: Journal
     let part: ProfilePart
-    let subtitle: String
+    /// Kept for call sites; a header says nothing but the journal.
+    var subtitle: String = ""
     /// Set when this part differs from the template it came from.
     var edited: Bool = false
     /// Off when the header sits inside a pane that pads its own content
@@ -41,6 +42,8 @@ struct JournalPartHeader: View {
     var padded: Bool = true
 
     @State private var loading = false
+    @State private var editingType = false
+    @State private var typeDraft = ""
 
     private var template: JournalTemplate? {
         journal.profileID.flatMap { JournalProfileLibrary.shared.profile(id: $0) }
@@ -53,9 +56,15 @@ struct JournalPartHeader: View {
         return URL(string: own.isEmpty ? fallback : own)
     }
 
-    /// Everything wrong with this journal's copy, for one icon: this part
-    /// moved away from the template it came from, and/or the copy the
-    /// manuscript carries is not what the shared repository publishes.
+    /// The journal's configured icon (Settings → Journals), as the versions
+    /// row shows it.
+    private var icon: String {
+        let name = appStore.journalLibrary.first(where: { $0.name == journal.name })?.icon ?? journal.icon
+        if let name, NSImage(systemSymbolName: name, accessibilityDescription: nil) != nil { return name }
+        return "building.columns"
+    }
+
+    /// Everything wrong with this journal's copy, for one icon.
     private var warnings: [String] {
         var out: [String] = []
         if edited {
@@ -68,45 +77,51 @@ struct JournalPartHeader: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(part.label).font(.headline)
-            // The same row on Summary, Structure, Tests and Export: the
-            // template this journal follows, its instructions, one warning
-            // icon for whatever is wrong, and the three ways in.
-            HStack(spacing: 8) {
-                Image(systemName: TemplateStyle.symbol)
-                    .font(.caption)
-                    .foregroundStyle(TemplateStyle.accent(scheme))
-                Text(journal.displayName)
-                    .font(.caption.weight(.medium))
-                    .lineLimit(1)
-                if let url = instructionsURL {
-                    Link(destination: url) {
-                        Image(systemName: "globe").font(.caption)
-                    }
+        // The same row on Summary, Tests and Export, the way the versions
+        // section shows a journal: its icon, its name, its type, and the
+        // link and warning icons.  Summary alone carries the three actions.
+        HStack(spacing: 10) {
+            Image(systemName: icon)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .frame(width: 28, height: 28)
+                .background(Circle().fill(Color(NSColor.windowBackgroundColor)))
+                .overlay(Circle().strokeBorder(.primary.opacity(0.35), lineWidth: 1))
+            Text(journal.name).font(.headline)
+            typeButton
+            if let url = instructionsURL {
+                Link(destination: url) { Image(systemName: "globe").font(.caption) }
                     .help(url.absoluteString)
-                }
-                if !warnings.isEmpty {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.caption)
-                        .foregroundStyle(.orange)
-                        .help(warnings.joined(separator: "\n\n"))
-                        .accessibilityLabel(warnings.joined(separator: " "))
-                }
+            }
+            if !warnings.isEmpty {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                    .help(warnings.joined(separator: "\n\n"))
+                    .accessibilityLabel(warnings.joined(separator: " "))
+            }
+            if part == .requirements {
                 Spacer()
                 if let template {
-                    // Two ways in, and only two: a part is edited in the
-                    // template — Edit opens it at this part — and Load takes
-                    // what the library holds.  Saved there, an edit stays
-                    // local, and the icon says so until it is merged.
-                    Button("Edit") {
-                        NotificationCenter.default.post(
-                            name: .manageTemplate, object: nil,
-                            userInfo: ["template": template.id, "pane": part.rawValue])
+                    Button("Manage") {
+                        NotificationCenter.default.post(name: .manageTemplate, object: nil,
+                                                        userInfo: ["template": template.id])
                     }
-                    .help("Open “\(template.displayName)” at its \(part.label) — where it is edited")
+                    .help("Edit the original — “\(template.displayName)”, in its own tab")
                     Button("Load") { loading = true }
-                        .help("Replace this journal's \(part.label.lowercased()) with the template's copy from your library")
+                        .help("Load the original: replace this journal's summary, structure, tests and export with the template's copy from your library")
+                    Button("Copy") {
+                        // A fork: a copy of the template, this journal pointed
+                        // at it, opened for editing — a version of your own.
+                        if let made = templates.openCopy(of: template.id) {
+                            _ = store.linkToTemplate(made, journalID: journal.id)
+                            NotificationCenter.default.post(name: .manageTemplate, object: nil,
+                                                            userInfo: ["template": made])
+                        } else {
+                            store.showBanner(.error, "Couldn't copy “\(template.displayName)”.")
+                        }
+                    }
+                    .help("Fork: a copy of the template as a new version, named “\(JournalProfileLibrary.shared.copyName(for: template))”, with this journal following it")
                 } else {
                     Text("Not linked to a template")
                         .font(.caption)
@@ -114,32 +129,63 @@ struct JournalPartHeader: View {
                         .help("This journal's configuration exists only here — link it in Tests.")
                 }
             }
-            .controlSize(.small)
-            Text(subtitle)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
         }
+        .controlSize(.small)
         .padding(.horizontal, padded ? 20 : 0)
         .padding(.vertical, padded ? 10 : 0)
         .frame(maxWidth: .infinity, alignment: .leading)
-        // The manuscript's own copy against the shared repository's — a
-        // changed copy is checked again, an unchanged one every ten minutes.
         .task(id: journal.profile.checksum) {
             let journal = journal
             TemplatePublishing.shared.refresh(journal.profile, exportDiffers: { published in
                 store.exportDiffers(from: published, journal: journal)
             })
         }
-        .confirmationDialog("Replace this journal's \(part.label.lowercased()) with the template's?",
+        .confirmationDialog("Replace this journal's configuration with its template's?",
                             isPresented: $loading, titleVisibility: .visible) {
-            Button("Load", role: .destructive) {
-                store.loadTemplatePart(part, journalID: journal.id)
-            }
+            Button("Load", role: .destructive) { _ = store.adoptLibraryProfile(journalID: journal.id) }
             Button("Cancel", role: .cancel) { }
         } message: {
-            Text("Takes “\(template?.displayName ?? "the template")”'s copy of this part. Nothing you have written in the manuscript changes, and ⌘Z undoes it.")
+            Text("The summary, structure, tests and export outline are replaced with “\(template?.displayName ?? "the template")”'s. Nothing you have written in the manuscript changes, and ⌘Z undoes it.")
         }
+    }
+
+    /// The article type as a button: free-form, because journals invent
+    /// their own format names and a fixed list would be wrong within a year.
+    private var typeButton: some View {
+        Button {
+            typeDraft = journal.articleType ?? ""
+            editingType = true
+        } label: {
+            Text(journal.articleType?.isEmpty == false ? journal.articleType! : "Add type…")
+                .font(.caption)
+                .padding(.horizontal, 7).padding(.vertical, 2)
+                .background(Color.accentColor.opacity(journal.articleType == nil ? 0.06 : 0.12), in: Capsule())
+                .foregroundStyle(journal.articleType == nil ? Color.secondary : Color.accentColor)
+        }
+        .buttonStyle(.plain)
+        .help("The article format this cut targets — Research Article, Research Brief, …")
+        .popover(isPresented: $editingType, arrowEdge: .bottom) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Article type").font(.callout.weight(.medium))
+                TextField("Research Article, Research Brief, …", text: $typeDraft)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 260)
+                    .onSubmit { commitType() }
+                HStack {
+                    Spacer()
+                    Button("Set") { commitType() }.keyboardShortcut(.defaultAction)
+                }
+            }
+            .padding(14)
+        }
+    }
+
+    private func commitType() {
+        var edited = journal
+        let trimmed = typeDraft.trimmingCharacters(in: .whitespaces)
+        edited.articleType = trimmed.isEmpty ? nil : trimmed
+        store.updateJournal(edited)
+        editingType = false
     }
 }
 
@@ -167,7 +213,30 @@ struct JournalSummaryView: View {
                     subtitle: "The journal's instructions, distilled. Tests are what the app enforces of them.",
                     edited: store.partDiffersFromTemplate(.requirements, journal: journal))
 
-                // Read here; edited in the template (Edit, above).
+                // A pencil, not a page of controls: the bullets and the link
+                // are edited in place and saved on the second click.
+                HStack(spacing: 8) {
+                    Button {
+                        if editing {
+                            var edited = requirements
+                            edited.url = urlDraft.trimmingCharacters(in: .whitespaces)
+                            edited.text = bulletDraft
+                            store.updateSourceRequirements(edited, journalID: journal.id)
+                        } else {
+                            urlDraft = requirements.url.isEmpty ? journal.submissionURL : requirements.url
+                            bulletDraft = requirements.text
+                        }
+                        editing.toggle()
+                    } label: {
+                        Image(systemName: editing ? "checkmark.circle.fill" : "pencil")
+                    }
+                    .buttonStyle(.borderless)
+                    .help(editing ? "Save" : "Edit the summary")
+                    if editing { Button("Cancel") { editing = false }.buttonStyle(.borderless) }
+                    Spacer()
+                }
+                .controlSize(.small)
+                .padding(.horizontal, 20)
                 .padding(.horizontal, 20)
 
                 if editing {

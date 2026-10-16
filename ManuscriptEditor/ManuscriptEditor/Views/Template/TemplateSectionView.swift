@@ -135,11 +135,15 @@ struct TemplateSectionView: View {
                     }
                     .labelsHidden().fixedSize()
                 }
+                Toggle("Required", isOn: Binding(
+                    get: { section.required },
+                    set: { value in edit { $0.required = value } }))
+                    .toggleStyle(.checkbox)
                 Spacer()
                 typography(section)
             }
             HStack(spacing: 8) {
-                TextField("Format — how it must be written here (sent when adapting)", text: Binding(
+                TextField("Prompt — shown while the section is empty; sent when adapting", text: Binding(
                     get: { section.formatNote ?? "" },
                     set: { value in edit { $0.formatNote = value.isEmpty ? nil : value } }))
                     .textFieldStyle(.roundedBorder)

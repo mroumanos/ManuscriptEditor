@@ -39,7 +39,10 @@ the Load that takes the template's copy back. (A template tab's rows do mark
 unsaved edits; that is a different question.)
 - Summary  ← **comparable**: the venue's instructions, distilled, as this cut
              holds them; Edit, and Load from the template
-- Structure ← **comparable**: which sections a submission here has; add,
+- (Structure has no page of its own since Oct 2026: the sidebar's sections are
+  the structure, and each section's settings — part of this journal, required,
+  type, prompt, AI context, default content — sit top right of the section.)
+- Structure (former) ← **comparable**: which sections a submission here has; add,
              reorder, remove, and Load from the template
 - Tests    ← **comparable**: one live pane per tab, each checking its own
              tab's journal; hosts Edit Tests…, Load, Manage <template>, and
