@@ -3,7 +3,8 @@
   {
    "note": "This article type has no abstract.",
    "required": false,
-   "title": "Abstract"
+   "title": "Abstract",
+   "type": "abstract"
   }
  ]
 }

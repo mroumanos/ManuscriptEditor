@@ -95,26 +95,18 @@ struct JournalPartHeader: View {
                 }
                 Spacer()
                 if let template {
-                    Button("Manage") {
+                    // Two ways in, and only two: a part is edited in the
+                    // template — Edit opens it at this part — and Load takes
+                    // what the library holds.  Saved there, an edit stays
+                    // local, and the icon says so until it is merged.
+                    Button("Edit") {
                         NotificationCenter.default.post(
                             name: .manageTemplate, object: nil,
-                            userInfo: ["template": template.id])
+                            userInfo: ["template": template.id, "pane": part.rawValue])
                     }
-                    .help("Open “\(template.displayName)” in its own tab — where a template is edited")
-                    Button("Add") {
-                        // A copy of the template, opened for editing: the
-                        // way to a template of your own that starts from
-                        // this one, without touching what others follow.
-                        if let made = templates.openCopy(of: template.id) {
-                            NotificationCenter.default.post(
-                                name: .manageTemplate, object: nil, userInfo: ["template": made])
-                        } else {
-                            store.showBanner(.error, "Couldn't copy “\(template.displayName)”.")
-                        }
-                    }
-                    .help("A copy of “\(template.displayName)”, named “\(JournalProfileLibrary.shared.copyName(for: template))”, opened for editing")
+                    .help("Open “\(template.displayName)” at its \(part.label) — where it is edited")
                     Button("Load") { loading = true }
-                        .help("Replace this journal's \(part.label.lowercased()) with the template's copy")
+                        .help("Replace this journal's \(part.label.lowercased()) with the template's copy from your library")
                 } else {
                     Text("Not linked to a template")
                         .font(.caption)
@@ -175,22 +167,7 @@ struct JournalSummaryView: View {
                     subtitle: "The journal's instructions, distilled. Tests are what the app enforces of them.",
                     edited: store.partDiffersFromTemplate(.requirements, journal: journal))
 
-                HStack(spacing: 8) {
-                    Spacer()
-                    Button(editing ? "Save" : "Edit") {
-                        if editing {
-                            var edited = requirements
-                            edited.url = urlDraft.trimmingCharacters(in: .whitespaces)
-                            edited.text = bulletDraft
-                            store.updateSourceRequirements(edited, journalID: journal.id)
-                        } else {
-                            urlDraft = requirements.url.isEmpty ? journal.submissionURL : requirements.url
-                            bulletDraft = requirements.text
-                        }
-                        editing.toggle()
-                    }
-                    .controlSize(.small)
-                }
+                // Read here; edited in the template (Edit, above).
                 .padding(.horizontal, 20)
 
                 if editing {
@@ -268,7 +245,7 @@ struct JournalStructureView: View {
             if let journal {
                 JournalPartHeader(
                     journal: journal, part: .structure,
-                    subtitle: "What a submission at this venue contains. Add or remove sections for this cut here, and set how they print in Export — the template's own copy is edited in its tab.",
+                    subtitle: "What a submission at this venue contains, as this cut holds it. A section the manuscript has that isn't named here is greyed in the sidebar and left out of the export; the components, their typography, boilerplate and AI context are edited in the template (Edit).",
                     edited: store.partDiffersFromTemplate(.structure, journal: journal))
 
                 List {
@@ -283,11 +260,6 @@ struct JournalStructureView: View {
                             .listRowSeparator(.hidden)
                             .listRowInsets(EdgeInsets(top: 4, leading: 20, bottom: 4, trailing: 20))
                     }
-                    .onMove { from, to in
-                        var edited = sections
-                        edited.move(fromOffsets: from, toOffset: to)
-                        store.updateStructure(rebuilt(journal, sections: edited), journalID: journal.id)
-                    }
                     Text("Title, authors, abstract, keywords, figures, tables and bibliography come with every manuscript, so they aren't listed here.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -297,16 +269,6 @@ struct JournalStructureView: View {
                 }
                 .listStyle(.plain)
                 .scrollContentBackground(.hidden)
-
-                Divider()
-                HStack(spacing: 8) {
-                    TextField("Add a section this journal expects", text: $newTitle)
-                        .textFieldStyle(.roundedBorder)
-                        .onSubmit { add(journal) }
-                    Button("Add") { add(journal) }
-                        .disabled(newTitle.trimmingCharacters(in: .whitespaces).isEmpty)
-                }
-                .padding(14)
             } else {
                 JournalPartPlaceholder(part: .structure)
             }

@@ -607,11 +607,11 @@ def build_structure(net, j, t):
                          "note": kp["note"], "boilerplate": kp["boilerplate"]})
     abstract = t.get("abstract")
     if abstract == "none":
-        sections.append({"title": "Abstract", "required": False,
+        sections.append({"title": "Abstract", "type": "abstract", "required": False,
                          "note": "This article type has no abstract."})
     elif abstract == "structured":
         key = t.get("abstractHeadings")
-        entry = {"title": "Abstract", "required": True}
+        entry = {"title": "Abstract", "type": "abstract", "required": True}
         words = f"no more than {t['abstractWords']} words" if t.get("abstractWords") else None
         if key:
             labels = net["abstractLabels"].get(key, key)
@@ -621,7 +621,7 @@ def build_structure(net, j, t):
             entry["formatNote"] = "Structured" + (f", {words}" if words else "") + "; the venue does not fix the headings for this type."
         sections.append(entry)
     elif abstract == "unstructured":
-        entry = {"title": "Abstract", "required": True}
+        entry = {"title": "Abstract", "type": "abstract", "required": True}
         if net.get("abstractFormatNote"):
             entry["formatNote"] = net["abstractFormatNote"]
         elif t.get("abstractWords"):

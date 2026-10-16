@@ -324,7 +324,9 @@ struct SidebarView: View {
             sectionRow(section)
         }
         .onMove  { store.moveSections(from: $0, to: $1) }
-        .onDelete { store.deleteSections(at: $0) }
+        .onDelete { offsets in
+            for i in offsets where sortedSections.indices.contains(i) { remove(sortedSections[i]) }
+        }
     }
 
     private var addSectionRow: some View {
@@ -381,9 +383,11 @@ struct SidebarView: View {
         }
         .tag(SidebarItem.section(section.id))
         // Reliable delete affordances (macOS swipe can be non-obvious).
+        // Delete means delete only while nobody else holds content in the
+        // section; otherwise it is cleared here and the others keep theirs.
         .swipeActions(edge: .trailing) {
-            Button(role: .destructive) { deleteSection(section) } label: {
-                Label("Delete", systemImage: "trash")
+            Button(role: .destructive) { remove(section) } label: {
+                Label(clears(section) ? "Clear" : "Delete", systemImage: clears(section) ? "eraser" : "trash")
             }
         }
         .contextMenu {
@@ -391,7 +395,13 @@ struct SidebarView: View {
                 renameDraft = section.title
                 renamingSectionID = section.id
             }
-            Button("Delete Section", role: .destructive) { deleteSection(section) }
+            let users = store.sectionUsers(section.id, excluding: activeRef)
+            if users.isEmpty {
+                Button("Delete Section", role: .destructive) { remove(section) }
+            } else {
+                Button("Clear Section Here", role: .destructive) { remove(section) }
+                Text("Also has content in \(users.joined(separator: ", ")) — cleared here only")
+            }
         }
         .alert("Rename Section", isPresented: Binding(
             get: { renamingSectionID == section.id },
@@ -408,9 +418,19 @@ struct SidebarView: View {
         }
     }
 
-    private func deleteSection(_ section: ManuscriptSection) {
-        if selection == .section(section.id) { selection = .overview }
-        store.deleteSection(id: section.id)
+    /// Whether removing this section here means clearing it: someone else —
+    /// Source, or another journal's cut — still has content in it.
+    private func clears(_ section: ManuscriptSection) -> Bool {
+        !store.sectionUsers(section.id, excluding: activeRef).isEmpty
+    }
+
+    private func remove(_ section: ManuscriptSection) {
+        if clears(section) {
+            store.clearSection(id: section.id, ref: activeRef)
+        } else {
+            if selection == .section(section.id) { selection = .overview }
+            store.deleteSection(id: section.id)
+        }
     }
 
     /// The sections past the rule — the letter has a fixed row above it.

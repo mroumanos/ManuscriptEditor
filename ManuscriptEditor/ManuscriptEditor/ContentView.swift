@@ -344,7 +344,7 @@ struct ContentView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .manageTemplate)) { note in
             guard let id = note.userInfo?["template"] as? UUID else { return }
-            openTemplate(id)
+            openTemplate(id, pane: (note.userInfo?["pane"] as? String).flatMap(ProfilePart.init(rawValue:)))
         }
         .onReceive(NotificationCenter.default.publisher(for: .newManuscript)) { _ in
             if store.manuscript == nil { createInAppData() } else { pendingNew = .file }
@@ -736,14 +736,20 @@ struct ContentView: View {
     }
 
     /// Opens a template in its own tab and goes there.
-    func openTemplate(_ id: UUID) {
+    func openTemplate(_ id: UUID, pane: ProfilePart? = nil) {
         guard templates.open(id) else {
             store.showBanner(.error, "That template is no longer in your library.")
             return
         }
         tabMode = .active
         activeTab = .template(id)
-        templateSelection = .templateOverview
+        switch pane {
+        case .requirements: templateSelection = .summary
+        case .structure:    templateSelection = .structure
+        case .checks:       templateSelection = .checks
+        case .export:       templateSelection = .export
+        case nil:           templateSelection = .templateOverview
+        }
     }
 
     private func resetWorkspace() {

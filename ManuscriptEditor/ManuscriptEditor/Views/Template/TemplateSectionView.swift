@@ -53,7 +53,7 @@ struct TemplateSectionView: View {
     private var isAbstract: Bool { sectionKey == TemplateWorkspace.abstractUID.uuidString }
     private var section: StructureSection? {
         template?.structure.sections.first { $0.id.uuidString == sectionKey }
-            ?? (isAbstract ? StructureSection(title: "Abstract") : nil)
+            ?? (isAbstract ? StructureSection(title: "Abstract", kind: .abstract, uid: TemplateWorkspace.abstractUID) : nil)
     }
 
     var body: some View {
@@ -112,37 +112,84 @@ struct TemplateSectionView: View {
     /// called, what shape it is, why the venue asks for it, and the gear.
     @ViewBuilder
     private func identity(_ section: StructureSection) -> some View {
-        HStack(spacing: 8) {
-            // The abstract's name and shape are fixed: renamed, it would
-            // become an ordinary section every manuscript creates.
-            TextField("Section title", text: Binding(
-                get: { section.title },
-                set: { value in edit { $0.title = value } }))
-                .textFieldStyle(.roundedBorder)
-                .frame(maxWidth: 240)
-                .disabled(isAbstract)
+        VStack(spacing: 6) {
+            HStack(spacing: 8) {
+                // Every entry, the abstract's included, is called what the
+                // venue calls it; the abstract's shape is fixed by its type.
+                TextField("Section title", text: Binding(
+                    get: { section.title },
+                    set: { value in edit { $0.title = value; if isAbstract { $0.type = .abstract } } }))
+                    .textFieldStyle(.roundedBorder)
+                    .frame(maxWidth: 240)
 
-            if !isAbstract {
-                Picker("", selection: Binding(
-                    get: { section.type },
-                    set: { value in edit { $0.type = value } })) {
-                    ForEach(SectionKind.addable, id: \.self) { Text($0.label).tag($0) }
+                if isAbstract {
+                    Text("Abstract")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .help("The abstract field, under the name this venue gives it.")
+                } else {
+                    Picker("", selection: Binding(
+                        get: { section.type },
+                        set: { value in edit { $0.type = value } })) {
+                        ForEach(SectionKind.addable, id: \.self) { Text($0.label).tag($0) }
+                    }
+                    .labelsHidden().fixedSize()
                 }
-                .labelsHidden().fixedSize()
+                Spacer()
+                typography(section)
             }
-
-            TextField("Why this venue asks for it (optional — sent when adapting)", text: Binding(
-                get: { section.note ?? "" },
-                set: { value in edit { $0.note = value.isEmpty ? nil : value } }))
-                .textFieldStyle(.roundedBorder)
-                .font(.caption)
-
+            HStack(spacing: 8) {
+                TextField("Format — how it must be written here (sent when adapting)", text: Binding(
+                    get: { section.formatNote ?? "" },
+                    set: { value in edit { $0.formatNote = value.isEmpty ? nil : value } }))
+                    .textFieldStyle(.roundedBorder)
+                    .font(.caption)
+                TextField("AI context — anything else the model should know (optional, sent when adapting)", text: Binding(
+                    get: { section.note ?? "" },
+                    set: { value in edit { $0.note = value.isEmpty ? nil : value } }))
+                    .textFieldStyle(.roundedBorder)
+                    .font(.caption)
+            }
         }
         .controlSize(.small)
         .padding(.horizontal, 20)
         .padding(.vertical, 7)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(nsColor: .textBackgroundColor))
+    }
+
+    /// The section's typography — family, size, spacing — where a section
+    /// pane keeps its settings: top right.  Unset, it prints in the
+    /// document's.
+    private func typography(_ section: StructureSection) -> some View {
+        let current = section.format ?? ExportDocumentFormat()
+        func set(_ mutate: (inout ExportDocumentFormat) -> Void) {
+            var format = section.format ?? ExportDocumentFormat()
+            mutate(&format)
+            edit { $0.format = format }
+        }
+        return Menu {
+            Picker("Font", selection: Binding(get: { current.fontFamily }, set: { v in set { $0.fontFamily = v } })) {
+                ForEach(ExportFontFamily.allCases) { Text($0.label).tag($0) }
+            }
+            Picker("Size", selection: Binding(get: { current.fontSize }, set: { v in set { $0.fontSize = v } })) {
+                ForEach([9.0, 10.0, 10.5, 11.0, 12.0, 14.0], id: \.self) { Text("\($0.formatted()) pt").tag($0) }
+            }
+            Picker("Spacing", selection: Binding(get: { current.lineSpacing }, set: { v in set { $0.lineSpacing = v } })) {
+                ForEach([1.0, 1.15, 1.5, 2.0], id: \.self) { Text("\($0.formatted())×").tag($0) }
+            }
+            if section.format != nil {
+                Divider()
+                Button("Use the document's") { edit { $0.format = nil } }
+            }
+        } label: {
+            Label(section.format.map { "\($0.fontFamily.shortLabel) \($0.fontSize.formatted()) · \($0.lineSpacing.formatted())×" } ?? "Document typography",
+                  systemImage: "textformat.size")
+                .font(.caption)
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .help("How this section prints at this venue — font family, size and line spacing. Kept with the section, so an outline that prints it twice cannot disagree.")
     }
 
     // MARK: - Content

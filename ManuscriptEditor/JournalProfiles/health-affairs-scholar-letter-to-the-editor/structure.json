@@ -3,7 +3,8 @@
   {
    "note": "This article type has no abstract.",
    "required": false,
-   "title": "Abstract"
+   "title": "Abstract",
+   "type": "abstract"
   },
   {
    "formatNote": "No longer than 200 words: a brief promotional text that entices a reader to click through, published online in the table of contents. No citations; define any abbreviations.",

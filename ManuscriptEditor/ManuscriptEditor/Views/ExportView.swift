@@ -74,24 +74,20 @@ struct ExportView: View {
                 header
 
                 ForEach(config.documents) { document in
+                    // Read here, exported here; edited in the template (Edit,
+                    // above).  An uploaded file is this manuscript's own and
+                    // stays removable.
                     ExportDocumentCard(
                         document: document,
                         content: store.manuscript,
                         onChange: { replace(document: $0) },
                         onDelete: { remove(documentID: document.id) },
+                        editable: false,
                         attachmentURL: store.attachmentURL(for: document)
                     )
                 }
 
                 HStack(spacing: 12) {
-                    Button {
-                        config.documents.append(ExportDocument(name: "New Document", items: []))
-                        persist()
-                    } label: {
-                        Label("Add Document", systemImage: "plus")
-                    }
-                    .buttonStyle(.bordered)
-
                     Button {
                         uploadDocument()
                     } label: {
@@ -541,6 +537,9 @@ struct ExportDocumentCard: View {
     let content: Manuscript?
     let onChange: (ExportDocument) -> Void
     let onDelete: () -> Void
+    /// Off in a manuscript: an outline is edited in the template, and read
+    /// (and exported) here.  The template's Export pane keeps it on.
+    var editable: Bool = true
 
     /// Item currently being dragged by its handle (drag-to-reorder).
     @State private var draggingItemID: UUID?
@@ -564,9 +563,11 @@ struct ExportDocumentCard: View {
             itemsList
                 .padding(.vertical, 4)
             Divider()
-            addItemRow
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
+            if editable {
+                addItemRow
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+            }
             }
         }
         .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
@@ -622,9 +623,13 @@ struct ExportDocumentCard: View {
         HStack(spacing: 10) {
             Image(systemName: "doc.richtext")
                 .foregroundStyle(Color.accentColor)
-            TextField("Document name", text: binding(\.name))
-                .textFieldStyle(.plain)
-                .font(.headline)
+            if editable {
+                TextField("Document name", text: binding(\.name))
+                    .textFieldStyle(.plain)
+                    .font(.headline)
+            } else {
+                Text(document.name).font(.headline)
+            }
             Spacer()
             if document.isAttachment {
                 Text(document.attachmentExtension.uppercased())
@@ -639,14 +644,17 @@ struct ExportDocumentCard: View {
                 }
                 .labelsHidden()
                 .fixedSize()
+                .disabled(!editable)
             }
-            Button {
-                onDelete()
-            } label: {
-                Image(systemName: "xmark.circle.fill").foregroundStyle(.tertiary)
+            if editable || document.isAttachment {
+                Button {
+                    onDelete()
+                } label: {
+                    Image(systemName: "xmark.circle.fill").foregroundStyle(.tertiary)
+                }
+                .buttonStyle(.plain)
+                .help("Remove this document from the package")
             }
-            .buttonStyle(.plain)
-            .help("Remove this document from the package")
         }
         .controlSize(.small)
     }
@@ -801,20 +809,22 @@ struct ExportDocumentCard: View {
                 // not set any of it, and a manuscript had the outline in one
                 // place and what it prints in another.
                 Button {
-                    settingsItemID = item.id
+                    if editable { settingsItemID = item.id }
                 } label: {
                     HStack(spacing: 4) {
                         Text(formatSummary(item))
                             .font(.caption)
                             .foregroundStyle(Color(nsColor: .secondaryLabelColor))
                             .lineLimit(1)
-                        Image(systemName: "gearshape")
-                            .font(.caption2)
-                            .foregroundStyle(.tertiary)
+                        if editable {
+                            Image(systemName: "gearshape")
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                        }
                     }
                 }
                 .buttonStyle(.plain)
-                .help("Typography, heading and this component's own options")
+                .help(editable ? "Typography, heading and this component's own options" : "How this component prints — edited in the template")
                 .popover(isPresented: Binding(
                     get: { settingsItemID == item.id },
                     set: { if !$0 { settingsItemID = nil } }
@@ -835,7 +845,7 @@ struct ExportDocumentCard: View {
                 }
             }
 
-            if !(index == 0 && item.type == .pageBreak) {
+            if editable, !(index == 0 && item.type == .pageBreak) {
                 Button {
                     var doc = document
                     doc.items.remove(at: index)
@@ -856,7 +866,7 @@ struct ExportDocumentCard: View {
             moveAction: { moveItem($0, before: $1) }
         ))
         .contextMenu {
-            if item.type != .pageBreak, item.format != nil {
+            if editable, item.type != .pageBreak, item.format != nil {
                 Button("Reset Formatting to Document") {
                     var doc = document
                     guard doc.items.indices.contains(index) else { return }
@@ -946,17 +956,22 @@ struct ExportDocumentCard: View {
     }
 
     /// The three-line grab handle: drag it to reorder items.
+    @ViewBuilder
     private func dragHandle(_ item: ExportItem) -> some View {
-        Image(systemName: "line.3.horizontal")
-            .font(.caption)
-            .foregroundStyle(.tertiary)
-            .frame(width: 16)
-            .contentShape(Rectangle())
-            .onDrag {
-                draggingItemID = item.id
-                return NSItemProvider(object: item.id.uuidString as NSString)
-            }
-            .help("Drag to reorder")
+        if editable {
+            Image(systemName: "line.3.horizontal")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+                .frame(width: 16)
+                .contentShape(Rectangle())
+                .onDrag {
+                    draggingItemID = item.id
+                    return NSItemProvider(object: item.id.uuidString as NSString)
+                }
+                .help("Drag to reorder")
+        } else {
+            Color.clear.frame(width: 16)
+        }
     }
 
     private var line: some View {

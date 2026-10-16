@@ -10,7 +10,8 @@
   {
    "formatNote": "Structured; the venue does not fix the headings for this type.",
    "required": true,
-   "title": "Abstract"
+   "title": "Abstract",
+   "type": "abstract"
   },
   {
    "required": true,

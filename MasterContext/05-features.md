@@ -540,16 +540,31 @@ propagate by explicit, individual fast-forwards.
   manuscript's sections are the union.** Adding a journal adds the sections
   its structure names and nothing to any other journal's structure. In a
   journal's tab (and in Compare, across the compared journals) a section no
-  structure in view names is **greyed, still selectable**. Writing to it in
-  that cut, or adding it to the journal's export, adds it to the journal's
-  structure (an optional entry noted as the cut's); emptying it, or removing
-  it from the export, takes it out again — the template's own entries are
-  never removed this way. The **standard export prints only what the
-  structure names** (export ⊆ structure; a structure section may be left out
-  of the export); the assisted fast-forward is sent only the sections the
-  venue's structure names, and told so. Bundled profiles name only the
-  sections a venue's page names — no section is invented for a type that
-  names none (`scripts/harness/template_divergence.sh`).
+  structure in view names is **greyed, still selectable**. Nothing joins a
+  structure on its own: the components are edited in the template
+  (writing into a greyed section leaves it greyed and unexported). The
+  **standard export prints only what the structure names** (export ⊆
+  structure; a structure section may be left out of the export); a
+  **fast-forward fills only the sections the structure names** — the
+  upstream's text is not migrated into a section outside it, and the
+  assisted adaptation is sent only those, and told so. Bundled profiles
+  name only the sections a venue's page names.
+- AC (implemented, Oct 2026): **Delete or clear.** Deleting a section from
+  a journal's tab deletes it everywhere only when no other place holds
+  content in it; otherwise the action is **Clear** — the section is
+  emptied in this cut (or in Source) and every other copy is left alone,
+  and the menu names who still uses it.
+- AC (implemented, Oct 2026): **The four parts are edited in the template,
+  nowhere else.** Summary, Structure, Tests and Export in a journal's tab
+  are read-only (manual ticks and exporting aside): the row offers **Edit**
+  — the template's tab, at that part — and **Load** — the library's copy
+  of that part. A saved edit stays local and the icon says it differs
+  until it is merged. The template's Structure edits every entry alike,
+  the abstract's included (its title is the venue's; its `type` is
+  `abstract`), with per-section **typography** (family, size, spacing —
+  top right of the section, kept with the structure), a **format** note,
+  an **AI context** note and the **boilerplate**, all of which go to the
+  model on a fast-forward.
 - AC (implemented, Oct 2026): **Templates propagate from the shared
   repository.** Every profile folder carries `checksum.txt`; Add Journal
   fetches it, and when it differs from an untouched library copy

@@ -112,15 +112,15 @@ func check(_ label: String, _ ok: Bool, _ detail: String = "") {
     check("saving a copy under the original's name is refused", !library.save(renamed))
 
     // The manuscript's sections are the union across journals; this journal's
-    // structure is its own, and follows what its cut writes or exports.
+    // structure is its own, edited in the template — nothing joins it on its own.
     guard let extraID = store.addSection(type: .custom, title: "Extra Notes", kind: .text),
           let head = store.latestVersion(forJournal: journal.id) else {
         check("a section outside the structure was added", false); return
     }
     func journalNow() -> Journal { store.manuscript!.journals.first { $0.id == journal.id }! }
-    func cutSection() -> ManuscriptSection { store.manuscript(for: .version(head.id))!.sections.first { $0.id == extraID }! }
+    func cutSection(_ id: UUID) -> ManuscriptSection { store.manuscript(for: .version(head.id))!.sections.first { $0.id == id }! }
     check("a manuscript section the structure doesn't name is not part of the journal",
-          !store.sectionBelongs(cutSection(), to: journalNow()))
+          !store.sectionBelongs(cutSection(extraID), to: journalNow()))
     check("one the structure names is", store.sectionBelongs(store.manuscript!.sections.first { $0.title == "Introduction" }!, to: journalNow()))
     check("the export prints only what the structure names",
           !store.exportConfig(forJournal: journal.id).documents.flatMap(\.items).contains { $0.sectionID == extraID })
@@ -129,27 +129,35 @@ func check(_ label: String, _ ok: Bool, _ detail: String = "") {
     check("… and is told what a submission contains",
           (try? FastForwardIntent.task(content: store.manuscript(for: .version(head.id))!, target: journalNow()))?
               .contains("The sections sent below are the ones a submission here contains") == true)
-    var written = cutSection(); written.content = RichText(plain: "Something this cut says.")
+    var written = cutSection(extraID); written.content = RichText(plain: "Something this cut says.")
     store.updateSection(written, ref: .version(head.id))
-    check("writing to it in this cut adds it to the journal's structure", store.sectionBelongs(cutSection(), to: journalNow()))
-    check("… marked as the cut's, not the template's", journalNow().structure?.sections.first { $0.title == "Extra Notes" }?.note == ManuscriptStore.writtenHereNote)
-    check("… and the export prints it now", store.exportConfig(forJournal: journal.id).documents.flatMap(\.items).contains { $0.sectionID == extraID })
-    check("… and the structure reads as edited", store.partDiffersFromTemplate(.structure, journal: journalNow()))
-    var emptied = cutSection(); emptied.content = RichText()
-    store.updateSection(emptied, ref: .version(head.id))
-    check("emptying it takes it out again", !store.sectionBelongs(cutSection(), to: journalNow()))
-    check("… and out of the export with it",
+    check("writing to it leaves the structure alone — the template is where it is edited",
+          !store.sectionBelongs(cutSection(extraID), to: journalNow()))
+    check("… and the export still leaves it out",
           !store.exportConfig(forJournal: journal.id).documents.flatMap(\.items).contains { $0.sectionID == extraID })
-    var outline = store.exportConfig(forJournal: journal.id)
-    outline.documents[0].items.append(ExportItem(type: .manuscriptSection, sectionID: extraID))
-    store.updateExportConfig(outline, forJournal: journal.id)
-    check("adding it to the export adds it to the structure", store.sectionBelongs(cutSection(), to: journalNow()))
-    var trimmed = store.exportConfig(forJournal: journal.id)
-    for d in trimmed.documents.indices { trimmed.documents[d].items.removeAll { $0.sectionID == extraID } }
-    store.updateExportConfig(trimmed, forJournal: journal.id)
-    check("removing it from the export takes it out again", !store.sectionBelongs(cutSection(), to: journalNow()))
-    check("a template's own entry is never removed this way",
-          store.sectionBelongs(store.manuscript!.sections.first { $0.title == "Introduction" }!, to: journalNow()))
+
+    // Delete, or clear: deleting from a cut deletes everywhere only while
+    // nobody else holds content in the section.
+    check("nobody else holds content in it → a delete would delete", store.sectionUsers(extraID, excluding: .version(head.id)).isEmpty)
+    var inSource = store.manuscript!.sections.first { $0.id == extraID }!; inSource.content = RichText(plain: "Source's own words.")
+    store.updateSection(inSource, ref: .source)
+    check("Source holds content now → the cut's delete is a clear", store.sectionUsers(extraID, excluding: .version(head.id)) == ["Source"])
+    check("… and Source's delete is a clear, naming the journal", store.sectionUsers(extraID, excluding: .source) == [journal.name])
+    store.clearSection(id: extraID, ref: .version(head.id))
+    check("clearing empties this cut's copy", cutSection(extraID).isEmptyContent)
+    check("… and leaves Source's", !store.manuscript!.sections.first { $0.id == extraID }!.isEmptyContent)
+    check("the section still exists everywhere", store.manuscript!.sections.contains { $0.id == extraID })
+
+    // A fast-forward fills a submission: the upstream's text reaches only
+    // the sections the venue's structure names.
+    var intro = store.manuscript!.sections.first { $0.title == "Introduction" }!; intro.content = RichText(plain: "An introduction from Source.")
+    store.updateSection(intro, ref: .source)
+    _ = store.stampSource()     // a sync reads the upstream as last stamped
+    _ = store.syncJournal(journal.id)
+    let synced = store.manuscript(for: .version(store.latestVersion(forJournal: journal.id)!.id))!
+    check("a sync migrates Source's text into a section the structure names",
+          synced.sections.first { $0.title == "Introduction" }?.content.plain == "An introduction from Source.")
+    check("… and not into one it doesn't", synced.sections.first { $0.id == extraID }?.isEmptyContent == true)
 
     // Adding a journal takes the published copy when it has moved on and the
     // library's copy is untouched; an edited copy stays the user's.

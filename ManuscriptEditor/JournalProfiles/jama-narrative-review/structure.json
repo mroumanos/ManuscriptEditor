@@ -4,7 +4,8 @@
    "boilerplate": "Importance: \nObservations: \nConclusions and Relevance: ",
    "formatNote": "Structured, no more than 400 words, under the headings Importance; Observations; Conclusions and Relevance.",
    "required": true,
-   "title": "Abstract"
+   "title": "Abstract",
+   "type": "abstract"
   },
   {
    "required": true,

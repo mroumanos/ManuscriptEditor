@@ -10,7 +10,8 @@
   {
    "formatNote": "Between 150 and 200 words (fewer is fine if everything is covered), narrative, no headings. The first one or two sentences give useful or contextual background; the next one or two say what you sought to do or did; the next one or two give the results — if there is a central quantitative finding, state it specifically; the last sentence or sentences give the policy implications or recommendations. Methods only at a very general level; no jargon; no acronyms. The abstract presents the paper in miniature: what it is about, why it matters and its relation to policy, what it adds, what it recommends.",
    "required": true,
-   "title": "Abstract"
+   "title": "Abstract",
+   "type": "abstract"
   },
   {
    "required": true,

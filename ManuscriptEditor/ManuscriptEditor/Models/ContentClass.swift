@@ -155,7 +155,7 @@ extension StructureSection {
 
     var subject: Subject {
         if type == .letter { return .core }
-        return key == "abstract" ? .abstract : .section
+        return type == .abstract || key == "abstract" ? .abstract : .section
     }
 
     var describesJournalContent: Bool { subject != .core }

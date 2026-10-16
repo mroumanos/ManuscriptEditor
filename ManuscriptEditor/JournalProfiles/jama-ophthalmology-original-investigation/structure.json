@@ -11,7 +11,8 @@
    "boilerplate": "Importance: \nObjective: \nDesign: \nSetting: \nParticipants: \nIntervention(s) or Exposure(s): \nMain Outcome(s) and Measure(s): \nResults: \nConclusions and Relevance: ",
    "formatNote": "Structured, no more than 350 words, under the headings Importance; Objective; Design; Setting; Participants; Intervention(s) or Exposure(s); Main Outcome(s) and Measure(s); Results; Conclusions and Relevance.",
    "required": true,
-   "title": "Abstract"
+   "title": "Abstract",
+   "type": "abstract"
   },
   {
    "required": true,

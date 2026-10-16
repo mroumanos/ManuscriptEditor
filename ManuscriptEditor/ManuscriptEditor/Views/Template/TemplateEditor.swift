@@ -186,12 +186,9 @@ struct TemplateSidebarView: View {
         Label(section.displayTitle, systemImage: icon(for: section))
             .tag(SidebarItem.templateSection(section.id.uuidString))
             .contextMenu {
-                // Renamed, the Abstract would become an ordinary section.
-                if section.subject != .abstract {
-                    Button("Rename…") {
-                        renameDraft = section.title
-                        renamingKey = section.id.uuidString
-                    }
+                Button("Rename…") {
+                    renameDraft = section.title
+                    renamingKey = section.id.uuidString
                 }
                 Button("Delete Section", role: .destructive) { delete(section) }
             }
@@ -276,6 +273,9 @@ struct TemplateSidebarView: View {
             guard let idx = template.structure.sections.firstIndex(where: { $0.id == section.id })
             else { return }
             template.structure.sections[idx].title = final
+            // Renamed, the abstract's entry is still the abstract's: its type
+            // says so where its title no longer does.
+            if section.subject == .abstract { template.structure.sections[idx].type = .abstract }
         }
     }
 

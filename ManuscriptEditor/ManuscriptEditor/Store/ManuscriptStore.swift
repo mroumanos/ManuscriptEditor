@@ -580,7 +580,6 @@ final class ManuscriptStore {
             guard let i = list.firstIndex(where: { $0.id == question.id }) else { return }
             list[i] = question
         }
-        if let journalID = journalID(for: ref) { reconcileStructure(journalID: journalID) }
     }
 
     func deleteQuestion(id: UUID, sectionID: UUID, ref: VersionRef = .source) {
@@ -634,7 +633,6 @@ final class ManuscriptStore {
         touch(ref, undoable: false) { m in
             if let idx = m.sections.firstIndex(where: { $0.id == section.id }) { m.sections[idx] = section }
         }
-        if let journalID = journalID(for: ref) { reconcileStructure(journalID: journalID) }
     }
 
     // MARK: - A journal's structure and the manuscript's sections
@@ -649,79 +647,35 @@ final class ManuscriptStore {
         return structure.journalEntries.contains { $0.key == section.title.lowercased() }
     }
 
-    /// The notes an entry carries when a cut, not the template, put it there
-    /// — by writing to the section, or by adding it to the export.
-    static let writtenHereNote = "Not in the template — this cut wrote to it."
-    static let exportedHereNote = "Not in the template — this cut exports it."
 
-    /// Keeps a journal's structure in step with what its cut holds.  A
-    /// manuscript section the structure doesn't name joins it when this cut
-    /// writes to it or exports it; an entry that came in that way leaves
-    /// again when the section is empty and unexported.  So a journal added
-    /// with components B, C and D never reads as an edit to the journal with
-    /// A, B and C: D is greyed there until something is written to it, and A
-    /// here likewise.
-    func reconcileStructure(journalID: UUID) {
-        guard let m = manuscript,
-              let journal = m.journals.first(where: { $0.id == journalID }),
-              var structure = journal.structure, !structure.journalEntries.isEmpty
-        else { return }
-        let content = latestVersion(forJournal: journalID)?.content ?? m
-        let template = journal.profileID.flatMap { JournalProfileLibrary.shared.profile(id: $0) }
-        let templateKeys = Set((template?.structure.journalEntries ?? []).map(\.key))
-        // Only an outline the journal holds counts as exporting: the standard
-        // one is derived from this structure and would keep every entry alive.
-        var outline = journal.exportConfig
-        let exported = Set((outline?.documents ?? []).flatMap(\.items).compactMap(\.sectionID))
-        var changed = false, outlineChanged = false
-        for section in content.sections where section.isJournalContent && section.sectionKind != .abstract {
-            let key = section.title.lowercased()
-            let entry = structure.sections.first { $0.key == key }
-            let written = !section.isEmptyContent
-            let isExported = exported.contains(section.id)
-            if entry == nil, written || isExported {
-                var made = StructureSection(title: section.title)
-                made.required = false
-                made.type = section.sectionKind == .questions ? .questions : .text
-                made.note = written ? Self.writtenHereNote : Self.exportedHereNote
-                structure.sections.append(made)
-                changed = true
-                // Written here, it prints here: an explicit outline gains the
-                // section after its last one (the standard outline follows
-                // the structure on its own).
-                if written, !isExported, outline != nil,
-                   let d = outline!.documents.firstIndex(where: { !$0.isAttachment }) {
-                    let items = outline!.documents[d].items
-                    let at = items.lastIndex { $0.type == .manuscriptSection }.map { $0 + 1 } ?? items.count
-                    outline!.documents[d].items.insert(ExportItem(type: .manuscriptSection, sectionID: section.id), at: at)
-                    outlineChanged = true
-                }
-            } else if let entry, !templateKeys.contains(key) {
-                // An entry a cut put there leaves the way it came: emptied
-                // (and out of the outline with it), or taken out of the export.
-                if entry.note == Self.writtenHereNote, !written {
-                    structure.sections.removeAll { $0.uid == entry.uid }
-                    changed = true
-                    if isExported, outline != nil {
-                        for d in outline!.documents.indices {
-                            outline!.documents[d].items.removeAll { $0.sectionID == section.id }
-                        }
-                        outlineChanged = true
-                    }
-                } else if entry.note == Self.exportedHereNote, !isExported, !written {
-                    structure.sections.removeAll { $0.uid == entry.uid }
-                    changed = true
-                }
-            }
+    /// Where else a section has content — the places a delete would take it
+    /// from.  Source by name, and each journal whose cut holds something in
+    /// it; the place asked from is left out.
+    func sectionUsers(_ id: UUID, excluding ref: VersionRef) -> [String] {
+        guard let m = manuscript else { return [] }
+        var users: [String] = []
+        if case .version = ref, let own = m.sections.first(where: { $0.id == id }), !own.isEmptyContent {
+            users.append("Source")
         }
-        guard changed || outlineChanged else { return }
-        let updated = structure, updatedOutline = outline
-        touch(undoable: false) { m in
-            guard let idx = m.journals.firstIndex(where: { $0.id == journalID }) else { return }
-            if changed { m.journals[idx].structure = updated }
-            if outlineChanged { m.journals[idx].exportConfig = updatedOutline }
+        let excluded = journalID(for: ref)
+        for journal in m.journals where journal.id != excluded {
+            guard let content = latestVersion(forJournal: journal.id)?.content,
+                  let theirs = content.sections.first(where: { $0.id == id }), !theirs.isEmptyContent
+            else { continue }
+            users.append(journal.name)
         }
-        writeProfile(journalID: journalID)
+        return users
+    }
+
+    /// Empties a section in one place — this cut's copy, or Source's — and
+    /// leaves every other copy alone.  What "delete" means while someone
+    /// else still has the section.
+    func clearSection(id: UUID, ref: VersionRef) {
+        touch(ref, undoAction: "Clear Section") { m in
+            guard let i = m.sections.firstIndex(where: { $0.id == id }) else { return }
+            m.sections[i].content = RichText()
+            m.sections[i].questions = m.sections[i].orderedQuestions.map { var q = $0; q.response = RichText(); return q }
+        }
     }
 
     /// Deletes a section everywhere (Source + all versions).
@@ -2227,8 +2181,6 @@ final class ManuscriptStore {
                     ProfileFingerprint.of(config) == ProfileFingerprint.of(baseline) ? nil : config
             }
         }
-        // What is exported is part of the structure, and what leaves it may leave the structure.
-        if let journalID { reconcileStructure(journalID: journalID) }
     }
 
     // MARK: - Versions (cuts)
@@ -2588,6 +2540,18 @@ final class ManuscriptStore {
         // and quietly replaced every rewritten section with its boilerplate
         // while the banner reported the rewrite.)
         var baseContent = migrated(base?.content ?? m, into: head.content)
+        // Only what the venue's structure names takes the upstream's text; a
+        // section outside it keeps this cut's own (usually nothing) — a
+        // fast-forward fills a submission, not the union of the journals.
+        if let journal = m.journals.first(where: { $0.id == journalID }),
+           !(journal.structure?.journalEntries.isEmpty ?? true) {
+            for i in baseContent.sections.indices where !sectionBelongs(baseContent.sections[i], to: journal) {
+                if let own = head.content.sections.first(where: { $0.id == baseContent.sections[i].id }) {
+                    baseContent.sections[i].content = own.content
+                    baseContent.sections[i].questions = own.questions
+                }
+            }
+        }
         if let adaptation {
             let citedBefore = Set(RefEngine.citedOrder(in: baseContent))
             applyAdaptation(adaptation, to: &baseContent)

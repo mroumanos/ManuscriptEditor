@@ -156,15 +156,17 @@ struct ChecksView: View {
                 .buttonStyle(.link)
                 .help("This journal's configuration exists only here. Link it to a template to compare and update.")
             }
-            // Permanent, not conditional: adding this journal to the library
-            // as a template of its own is a thing you may want at any moment —
-            // not only when something happens to differ.
-            Button {
-                savingToLibrary = true
-            } label: {
-                Label("Add to Template Library", systemImage: "books.vertical")
+            // A journal with no template has nowhere to be edited: saving it
+            // as one gives it a tab.  A linked journal is edited there (Edit,
+            // above), so this is the unlinked case's only.
+            if linkedTemplate == nil {
+                Button {
+                    savingToLibrary = true
+                } label: {
+                    Label("Save as Template…", systemImage: "books.vertical")
+                }
+                .help("Save this journal's configuration as a template in your library, where it is edited.")
             }
-            .help("Save this journal's whole configuration as a template — overwriting the one it came from, or as a new one.")
         }
     }
 
@@ -237,8 +239,6 @@ struct ChecksView: View {
                 .font(.caption)
                 .foregroundStyle(.tertiary)
             Spacer()
-            Button("Edit Tests…") { editingRules = true }
-                .controlSize(.small)
             Button("Load") { loadingTests = true }
                 .controlSize(.small)
                 .disabled(linkedTemplate == nil)
