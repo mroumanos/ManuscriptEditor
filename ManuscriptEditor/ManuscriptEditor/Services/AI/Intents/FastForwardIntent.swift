@@ -261,7 +261,8 @@ struct FastForwardIntent: AIIntent {
         format: reuse its layout, its headings, its statements and its \
         `[[…]]` tokens as they stand, and fill in where it calls for the \
         manuscript's own content — its "format" says how it must be written \
-        and its "notes" say why it is asked for. Return the whole section in \
+        and its "notes" are the venue's context for it: read them before \
+        writing a word of it, and follow them. Return the whole section in \
         that format, with the manuscript's material in place of the \
         boilerplate's placeholders and nothing of the placeholder wording \
         left. A section whose "text" is empty and that has a template is \

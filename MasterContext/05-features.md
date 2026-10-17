@@ -588,8 +588,14 @@ propagate by explicit, individual fast-forwards.
   Save seeds with this cut's copy. No content pane carries a gear. No "In <journal>" bar and no "part of a submission" toggle:
   activation is that. The template's section window has the same fields,
   one per line, and no gear — its typography is set on the template's
-  Export pane; prompt, AI context and default content all go to the model
-  on a fast-forward.
+  Export pane. Its body is the section's **default content** (boilerplate,
+  directions, a complex layout), and while the body is empty it shows the
+  **prompt** as its placeholder, exactly as the manuscript's pane does —
+  the abstract's included. The abstract is a text box like any other
+  entry (its stored type stays `abstract` so a renamed one still pairs
+  with a manuscript's abstract, but nothing about that shows). Prompt, AI
+  context and default content all go to the model on a fast-forward, the
+  AI context framed as the venue's context to read before writing.
 - AC (implemented, Oct 2026): **Templates propagate from the shared
   repository.** Every profile folder carries `checksum.txt`; Add Journal
   fetches it, and when it differs from an untouched library copy

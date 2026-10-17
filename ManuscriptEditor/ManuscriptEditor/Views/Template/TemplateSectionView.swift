@@ -81,7 +81,7 @@ struct TemplateSectionView: View {
 
     private func subtitle(_ section: StructureSection) -> String {
         if isAbstract {
-            return "The abstract as this venue wants it. A manuscript's abstract starts from this when it adds the journal, and Assist writes to it."
+            return "A manuscript's abstract starts from this when it adds the journal."
         }
         return section.type == .letter
             ? "Created in every manuscript that adds this journal — with a letterhead and a signature of its own."
@@ -125,19 +125,16 @@ struct TemplateSectionView: View {
                 }
                 GridRow {
                     label("Type")
-                    if isAbstract {
-                        Text("Abstract")
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
-                            .help("The abstract field, under the name this venue gives it.")
-                    } else {
-                        Picker("", selection: Binding(
-                            get: { section.type },
-                            set: { value in edit { $0.type = value } })) {
-                            ForEach(SectionKind.addable, id: \.self) { Text($0.label).tag($0) }
-                        }
-                        .labelsHidden().fixedSize()
+                    // The abstract is a text box like any other entry.  Its
+                    // stored type stays `.abstract` while it is one — that
+                    // is how a manuscript's abstract finds it after a
+                    // rename — but nothing about that shows here.
+                    Picker("", selection: Binding(
+                        get: { section.type == .abstract ? SectionKind.text : section.type },
+                        set: { value in edit { $0.type = (isAbstract && value == .text) ? .abstract : value } })) {
+                        ForEach(SectionKind.addable, id: \.self) { Text($0.label).tag($0) }
                     }
+                    .labelsHidden().fixedSize()
                 }
                 GridRow {
                     label("Required")
@@ -149,7 +146,7 @@ struct TemplateSectionView: View {
                 }
                 GridRow {
                     label("Prompt")
-                    TextField("Shown while the section is empty; sent when adapting", text: Binding(
+                    TextField("Shown in the body while it is empty — here and in every manuscript; sent when adapting", text: Binding(
                         get: { section.formatNote ?? "" },
                         set: { value in edit { $0.formatNote = value.isEmpty ? nil : value } }))
                         .textFieldStyle(.roundedBorder)
@@ -183,15 +180,19 @@ struct TemplateSectionView: View {
 
     /// The venue's default content for this section, in the ordinary editor.
     @ViewBuilder
+    /// The body is the section's default content — what a manuscript starts
+    /// with here, boilerplate, directions, a complex layout — and while it
+    /// is empty it shows the prompt, exactly as the manuscript's pane will.
     private func editor(_ section: StructureSection) -> some View {
         RichEditor(value: $content,
-                   placeholder: isAbstract
-                       ? "How this venue's abstract reads — its headings, in its order — “/” inserts [[title]]…"
-                       : section.type == .letter
-                       ? "The letter this venue expects — “/” inserts [[title]], [[authors.names]]…"
-                       : "What this section contains at this venue — “/” inserts [[title]], [[authors.names]]…",
+                   placeholder: placeholder(section),
                    templateMode: true)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func placeholder(_ section: StructureSection) -> String {
+        if let prompt = section.formatNote, !prompt.isEmpty { return prompt }
+        return "Default content — what a manuscript starts with here. Write a prompt above and it shows here while this is empty; “/” inserts [[title]], [[authors.names]]…"
     }
 
     // MARK: - Questions

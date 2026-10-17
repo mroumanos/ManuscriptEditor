@@ -13,8 +13,15 @@ struct AbstractView: View {
 
     @State private var abstract = RichText()
 
+    /// In a journal's tab, the venue's prompt for the abstract — what the
+    /// template's Abstract entry says — shows while it is empty.
+    private var placeholder: String {
+        let prompt = store.paneJournal(for: versionRef)?.structure?.abstractEntry?.formatNote ?? ""
+        return prompt.isEmpty ? "Write your abstract here…" : prompt
+    }
+
     var body: some View {
-        RichEditor(value: $abstract, placeholder: "Write your abstract here…", versionRef: versionRef,
+        RichEditor(value: $abstract, placeholder: placeholder, versionRef: versionRef,
                    formatItem: .abstract)
             .onChange(of: abstract) { _, new in store.updateAbstract(new, ref: versionRef) }
             .onAppear { abstract = store.manuscript(for: versionRef)?.abstract ?? RichText() }
