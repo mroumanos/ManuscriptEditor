@@ -328,7 +328,7 @@ struct ContentView: View {
             //   MANUSCRIPT_EDITOR_OPEN="<project folder>|<pane>"
             //   pane: overview · summary · checks · export · section:<title>
             //         · template (the first journal's, seeded from it)
-            //         · template-section:<title>
+            //         · template-section:<title> · template-tests
             if let spec = ProcessInfo.processInfo.environment["MANUSCRIPT_EDITOR_OPEN"] {
                 openForHarness(spec)
             }
@@ -563,9 +563,8 @@ struct ContentView: View {
                     }
                 }
                 sectionActivationControl(item: item, ref: ref)
-                // The gear: the journal's say about this component and how
-                // it prints (`PaneSettingsPopover`) — on every content pane,
-                // where the pane keeps its functions.
+                // The gear: the journal's say about this section — not how
+                // it prints, which is the Export row's (`PaneSettingsButton`).
                 PaneSettingsButton(item: item, ref: ref)
                 SectionPreviewButton(item: item, versionRef: ref)
                 NotesButton(versionKey: ref.id, itemKey: item.notesKey)
@@ -795,6 +794,8 @@ struct ContentView: View {
         case "export":  selection = .export
         case "template":
             if let id = journal.profileID { openTemplate(id, seedFrom: journal.id) }
+        case "template-tests":
+            if let id = journal.profileID { openTemplate(id, pane: .checks, seedFrom: journal.id) }
         case let p where p.hasPrefix("template-section:"):
             guard let id = journal.profileID else { return }
             openTemplate(id, seedFrom: journal.id)

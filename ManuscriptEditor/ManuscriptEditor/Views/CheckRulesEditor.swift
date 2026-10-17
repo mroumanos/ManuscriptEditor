@@ -6,12 +6,11 @@
 //     LENGTH (words) of Abstract  ≤  250
 //     EXISTS Discussion
 //
-// One card per test (`CheckRuleCard`), because the same rules are written
-// in two places: a manuscript's Tests page edits each test in place behind
-// its pencil, and a template's Tests pane lists them all (`CheckRulesList`).
-// One card, two owners — the alternative was two editors drifting apart,
-// with the template's half quietly missing whatever was added to the
-// manuscript's.
+// One list (`CheckRulesList`: a card per test, and the bar that adds one),
+// because the same rules are written in two places: a template's Tests pane,
+// and a manuscript's Tests page behind its pencil.  One list, two owners —
+// the alternative was two editors drifting apart, with the template's half
+// quietly missing whatever was added to the manuscript's.
 //
 // Every condition names a scope, which is what lets a failing rule color that
 // pane in the sidebar.
@@ -20,85 +19,68 @@ import SwiftUI
 
 // MARK: - CheckRulesList
 
-/// The rules themselves: the empty state, one card per rule, and the bar that
-/// adds one.  Owns nothing — the binding's owner decides when a change is
-/// written and to what.
+/// The tests themselves: one card per test and the bar that adds one.
+/// Owns nothing — the binding's owner decides when a change is written and
+/// to what: a template writes into its draft, a manuscript's Tests page
+/// into the list behind its pencil.  No scrolling of its own; the owner
+/// scrolls.
 struct CheckRulesList: View {
 
     @Binding var rules: [CheckRule]
     /// Section titles a condition can be scoped to.  A template has no
     /// manuscript behind it, so it passes the titles its own structure names.
     var sectionTitles: [String] = []
-    /// The line under the add bar — where these rules end up.
-    var footnote: String?
 
     var body: some View {
-        VStack(spacing: 0) {
+        VStack(alignment: .leading, spacing: 12) {
             if rules.isEmpty {
-                VStack(spacing: 10) {
-                    Spacer()
-                    Image(systemName: "checklist")
-                        .font(.system(size: 34, weight: .thin))
-                        .foregroundStyle(.tertiary)
-                    Text("No tests yet")
-                        .font(.title3.weight(.semibold))
-                    Text("Measure LENGTH, COUNT, EXISTS, or CONTAINS over one or\nmore sections — or add a manual check to tick by hand.")
-                        .multilineTextAlignment(.center)
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                    HStack {
-                        Button { rules.append(.newRule()) } label: {
-                            Label("Add Test", systemImage: "plus")
-                        }
-                        .buttonStyle(.borderedProminent)
-                        Button { rules.append(.newManual()) } label: {
-                            Label("Add Manual Test", systemImage: "hand.tap")
-                        }
-                    }
-                    Spacer()
-                }
-                .frame(maxWidth: .infinity)
-            } else {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 12) {
-                        ForEach($rules) { $rule in
-                            CheckRuleCard(rule: $rule, sectionTitles: sectionTitles,
-                                          onDelete: { rules.removeAll { $0.id == rule.id } })
-                                .padding(12)
-                                .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
-                                .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.separator))
-                        }
-                    }
-                    .padding(14)
-                }
+                Text("No tests yet. Measure LENGTH, COUNT, EXISTS or CONTAINS over one or more sections, or add a manual test to tick by hand.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-
-            Divider()
-            HStack(spacing: 12) {
-                Button {
-                    rules.append(.newRule())
-                } label: {
-                    Label("Add Test", systemImage: "plus")
-                }
-                .buttonStyle(.borderless)
-                Button {
-                    rules.append(.newManual())
-                } label: {
-                    Label("Add Manual Test", systemImage: "hand.tap")
-                }
-                .buttonStyle(.borderless)
-                .help("A check the app can't measure — it renders as a checkbox to tick by hand")
-                Spacer()
-                if let footnote {
-                    Text(footnote)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+            ForEach($rules) { $rule in
+                CheckRuleCard(rule: $rule, sectionTitles: sectionTitles,
+                              onDelete: { rules.removeAll { $0.id == rule.id } })
+                    .padding(12)
+                    .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
+                    .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.separator))
             }
-            .padding(12)
+            AddTestBar { rules.append($0) }
         }
     }
+}
 
+// MARK: - AddTestBar
+
+/// The bar under a list of tests: a conditional test the app measures, or
+/// a manual one ticked by hand.  The same bar wherever tests are listed.
+struct AddTestBar: View {
+    let onAdd: (CheckRule) -> Void
+
+    var body: some View {
+        Menu {
+            Button { onAdd(.newRule()) } label: {
+                Label("Add Conditional Test", systemImage: "ruler")
+            }
+            Button { onAdd(.newManual()) } label: {
+                Label("Add Manual Test", systemImage: "hand.tap")
+            }
+        } label: {
+            Label("Add Test", systemImage: "plus")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 10)
+                .contentShape(Rectangle())
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
+        .overlay(RoundedRectangle(cornerRadius: 10)
+            .strokeBorder(.separator, style: StrokeStyle(lineWidth: 1, dash: [4])))
+        .help("Add a test — conditional (measured by the app) or manual (ticked by hand)")
+    }
 }
 
 // MARK: - CheckRuleCard
@@ -111,7 +93,7 @@ struct CheckRuleCard: View {
     @Binding var rule: CheckRule
     /// Section titles a condition can be scoped to.
     var sectionTitles: [String] = []
-    /// Offered as "Delete Test" when set.
+    /// The trash in the card's header row, when set.
     var onDelete: (() -> Void)? = nil
 
     var body: some View {
@@ -123,7 +105,7 @@ struct CheckRuleCard: View {
                 ))
                 .toggleStyle(.checkbox)
                 .labelsHidden()
-                .help("Include this test in the checklist")
+                .help("Active — unchecked, the test is kept but not run, and it leaves the checklist")
 
                 TextField("Test name (optional)", text: $rule.name)
                     .textFieldStyle(.roundedBorder)
@@ -136,6 +118,14 @@ struct CheckRuleCard: View {
                 .labelsHidden()
                 .fixedSize()
                 .help("Whether every condition must pass, or just one")
+
+                if let onDelete {
+                    Button(role: .destructive, action: onDelete) {
+                        Image(systemName: "trash")
+                    }
+                    .buttonStyle(.borderless)
+                    .help("Delete this test")
+                }
             }
 
             if rule.isManual {
@@ -157,12 +147,6 @@ struct CheckRuleCard: View {
                             .font(.caption)
                     }
                     .buttonStyle(.borderless)
-                }
-                if let onDelete {
-                    Button("Delete Test", role: .destructive, action: onDelete)
-                        .buttonStyle(.borderless)
-                        .font(.caption)
-                        .help("Remove this test")
                 }
                 Spacer()
                 TextField("Guidance shown when it fails (optional)", text: Binding(

@@ -34,12 +34,16 @@ struct TemplateTestsView: View {
                 subtitle: detail)
 
             if template != nil {
-                CheckRulesList(
-                    rules: Binding(
-                        get: { templates.template(templateID)?.checks ?? [] },
-                        set: { value in templates.edit(templateID) { $0.checks = value } }),
-                    sectionTitles: sectionTitles,
-                    footnote: "Written into this template — every manuscript that adopts it starts with these.")
+                ScrollView {
+                    CheckRulesList(
+                        rules: Binding(
+                            get: { templates.template(templateID)?.checks ?? [] },
+                            set: { value in templates.edit(templateID) { $0.checks = value } }),
+                        sectionTitles: sectionTitles)
+                        .padding(20)
+                        .frame(maxWidth: TemplateLayout.contentWidth, alignment: .topLeading)
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)

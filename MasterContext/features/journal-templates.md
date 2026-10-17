@@ -281,11 +281,11 @@ sections are its structure**: adding a journal deactivates, in that cut, the
 sections its template doesn't name; activating one (the eye) makes it part of
 the journal and gives the structure an entry for it; grey means deactivated
 and nothing else. The journal's say about a section — required, type, the
-prompt shown while it is empty, the AI context, the default content — and how
-it prints (the export item's typography, heading and options) sit behind the
-**gear in the pane's header**, beside the eye, preview and notes
-(`PaneSettingsButton` → `PaneSettingsPopover`), on every content pane — where
-the writing happens.
+prompt shown while it is empty, the AI context, the default content — sits
+behind the **gear in the section's pane header**, beside the eye, preview and
+notes (`PaneSettingsButton`), where the writing happens. How a component
+prints is set on the Export page's row and nowhere else: a section can print
+in two documents, and only the row says which copy.
 
 **What a cut may change is its own copy, and that is a lot**: its summary, its
 tests, its export outline and formatting, and which sections it has. None of

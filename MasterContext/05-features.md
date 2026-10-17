@@ -572,22 +572,23 @@ propagate by explicit, individual fast-forwards.
   Details has two boxes, **About** (name, type, publisher, country,
   description, version, last saved) and **Requirements** (link and one
   requirement per line). Tests keeps its plain rows; **one pencil in the
-  verdict banner** opens every test for editing in place (`CheckRuleCard`),
-  saved or discarded with the same two icons, and a **+ bar at the bottom**
-  adds one. Export's outline is edited in place, document types included,
-  with **no per-row gear in a manuscript** (the template's Export keeps it,
-  having no panes for the fixed parts). There is **no Structure page**:
-  the sidebar's active sections are the structure, and the **gear in every
-  content pane's header**, beside the eye, preview and notes icons
-  (`PaneSettingsButton` → `PaneSettingsPopover`), holds the journal's say
-  about it — required, type, prompt (shown while the section is empty), AI
-  context, default content — and how it prints (the export item's
-  typography, heading and options, bound to the same item the Export page
-  shows). No "In <journal>" bar and no "part of a submission" toggle:
+  verdict banner** opens the very list the template editor shows
+  (`CheckRulesList`: a card per test with its trash, an **Active**
+  checkbox that keeps a test but stops running it, and a **+ Add Test**
+  bar offering a conditional or a manual test), saved or discarded with
+  the same two icons; the same bar under the plain rows starts an edit
+  with the new test. Export's outline is edited in place, document types
+  included, and **each row's gear is the only place a component's
+  typography, heading and options are set** — a section can print in two
+  documents, and only the row says which copy. There is **no Structure page**:
+  the sidebar's active sections are the structure, and a section's **gear in its pane header**, in a
+  journal's tab beside the eye, preview and notes icons
+  (`PaneSettingsButton`), holds the journal's say about it — required,
+  type, prompt (shown while the section is empty), AI context, default
+  content — and nothing about how it prints. No "In <journal>" bar and no "part of a submission" toggle:
   activation is that. The template's section window has the same fields,
-  one per line, and the same gear and popup over the template's own
-  export item (`TemplateSectionSettings`, mirrored into the entry's
-  `format`); prompt, AI context and default content all go to the model
+  one per line, and no gear — its typography is set on the template's
+  Export pane; prompt, AI context and default content all go to the model
   on a fast-forward.
 - AC (implemented, Oct 2026): **Templates propagate from the shared
   repository.** Every profile folder carries `checksum.txt`; Add Journal

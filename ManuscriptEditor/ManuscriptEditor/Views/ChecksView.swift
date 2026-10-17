@@ -183,8 +183,8 @@ struct ChecksView: View {
     // MARK: - Checklist
 
     /// The list, as results — and behind the banner's pencil, as the tests
-    /// themselves, every one editable in place and saved or discarded with
-    /// the two icons every box uses.  The bar at the bottom adds one.
+    /// themselves: the list the template editor shows (`CheckRulesList`),
+    /// saved or discarded with the two icons every box uses.
     @ViewBuilder
     private func checklist(_ journal: Journal) -> some View {
         if let manuscript = store.manuscript(for: versionRef) {
@@ -195,13 +195,8 @@ struct ChecksView: View {
             testsHeader(journal)
             summaryBanner(results, journal: journal)
             if editingTests {
-                ForEach($rulesDraft) { $rule in
-                    CheckRuleCard(rule: $rule, sectionTitles: sectionTitles,
-                                  onDelete: { rulesDraft.removeAll { $0.id == rule.id } })
-                        .padding(12)
-                        .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
-                        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.separator))
-                }
+                // The very list the template editor shows.
+                CheckRulesList(rules: $rulesDraft, sectionTitles: sectionTitles)
             } else {
                 if !technical.isEmpty {
                     sectionHeader("Technical", note: "checked automatically against the manuscript and export")
@@ -227,8 +222,10 @@ struct ChecksView: View {
                         .font(.callout)
                         .foregroundStyle(.secondary)
                 }
+                // The same bar the list ends with: adding starts an edit.
+                AddTestBar { addTest($0, journal: journal) }
+                    .padding(.top, 8)
             }
-            addTestBar(journal)
         }
     }
 
@@ -254,33 +251,6 @@ struct ChecksView: View {
     private func addTest(_ rule: CheckRule, journal: Journal) {
         if !editingTests { beginEditing(journal) }
         rulesDraft.append(rule)
-    }
-
-    /// The bar at the bottom of the list: a test the app measures, or one
-    /// ticked by hand.
-    private func addTestBar(_ journal: Journal) -> some View {
-        Menu {
-            Button { addTest(.newRule(), journal: journal) } label: {
-                Label("Add Test", systemImage: "plus")
-            }
-            Button { addTest(.newManual(), journal: journal) } label: {
-                Label("Add Manual Test", systemImage: "hand.tap")
-            }
-        } label: {
-            Label("Add Test", systemImage: "plus")
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 10)
-                .contentShape(Rectangle())
-        }
-        .menuStyle(.borderlessButton)
-        .menuIndicator(.hidden)
-        .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
-        .overlay(RoundedRectangle(cornerRadius: 10)
-            .strokeBorder(.separator, style: StrokeStyle(lineWidth: 1, dash: [4])))
-        .help("Add a test — measured by the app, or ticked by hand")
-        .padding(.top, 8)
     }
 
     /// The heading the pane is really about.

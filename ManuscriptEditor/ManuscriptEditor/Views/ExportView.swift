@@ -79,7 +79,6 @@ struct ExportView: View {
                         content: store.manuscript,
                         onChange: { replace(document: $0) },
                         onDelete: { remove(documentID: document.id) },
-                        componentSettings: false,
                         attachmentURL: store.attachmentURL(for: document)
                     )
                 }
@@ -524,10 +523,6 @@ struct ExportDocumentCard: View {
     /// Off in a manuscript: an outline is edited in the template, and read
     /// (and exported) here.  The template's Export pane keeps it on.
     var editable: Bool = true
-    /// Whether a row opens the component's settings.  Off in a manuscript:
-    /// each component's gear sits on its own pane.  On in a template, which
-    /// has no panes for the fixed parts.
-    var componentSettings: Bool = true
 
     /// Item currently being dragged by its handle (drag-to-reorder).
     @State private var draggingItemID: UUID?
@@ -791,20 +786,19 @@ struct ExportDocumentCard: View {
                     .foregroundStyle(item.titleShown ? Color.secondary : Color(nsColor: .tertiaryLabelColor))
                     .help(item.titleShown ? "" : "Heading hidden in the export (content still exports)")
                 Spacer(minLength: 8)
-                // The formatting summary IS the way in.  It used to be a
-                // read-only review that sent you to a gear on the component's
-                // own pane — which meant a template, having no panes, could
-                // not set any of it, and a manuscript had the outline in one
-                // place and what it prints in another.
+                // The formatting summary IS the way in — and the only one.
+                // A section can print in two documents, and only this row
+                // says which copy; a gear on the component's own pane could
+                // not, and a template has no panes for the fixed parts.
                 Button {
-                    if editable && componentSettings { settingsItemID = item.id }
+                    if editable { settingsItemID = item.id }
                 } label: {
                     HStack(spacing: 4) {
                         Text(formatSummary(item))
                             .font(.caption)
                             .foregroundStyle(Color(nsColor: .secondaryLabelColor))
                             .lineLimit(1)
-                        if editable && componentSettings {
+                        if editable {
                             Image(systemName: "gearshape")
                                 .font(.caption2)
                                 .foregroundStyle(.tertiary)
@@ -812,9 +806,8 @@ struct ExportDocumentCard: View {
                     }
                 }
                 .buttonStyle(.plain)
-                .help(!editable ? "How this component prints — edited in the template"
-                      : componentSettings ? "Typography, heading and this component's own options"
-                                          : "How this component prints — set from the gear on its pane")
+                .help(editable ? "Typography, heading and this component's own options — this copy's; a section printed twice is set on each row"
+                               : "How this component prints — edited in the template")
                 .popover(isPresented: Binding(
                     get: { settingsItemID == item.id },
                     set: { if !$0 { settingsItemID = nil } }

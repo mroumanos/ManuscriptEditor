@@ -21,11 +21,9 @@
 // expressed.  A citation or a figure reference would point at one paper's
 // bibliography and be wrong in every other, so the picker doesn't offer them.
 //
-// How the section prints is behind the gear, top right — the same popup a
-// manuscript section's gear opens, bound to this template's export item for
-// the section (and mirrored into the entry's own `format`, so structure.json
-// and export.json never disagree).  The Export pane's row opens the same
-// form: one form, two ways in.
+// How the section prints is NOT here.  It is set on the template's Export
+// pane, on the row that prints it — the only place, because a section can
+// print in two documents and only the row says which copy.
 //
 // The text itself is stored as the section's `boilerplate` — plain, because
 // that is what a manuscript receives (`RichText(plain:)`) and what the model
@@ -47,8 +45,6 @@ struct TemplateSectionView: View {
 
     /// The prose being edited, mirrored out of the template's boilerplate.
     @State private var content = RichText()
-    /// The gear's popover, open.
-    @State private var showingSettings = false
 
     private var template: JournalTemplate? { templates.template(templateID) }
     /// The abstract's row is there before its entry is (see
@@ -113,7 +109,7 @@ struct TemplateSectionView: View {
 
     /// What the section is called, what shape it is, whether the venue
     /// requires it, the prompt and the AI context — one per line, the way
-    /// the Details boxes read — and the gear, top right.
+    /// the Details boxes read.
     @ViewBuilder
     private func identity(_ section: StructureSection) -> some View {
         HStack(alignment: .top, spacing: 12) {
@@ -168,7 +164,6 @@ struct TemplateSectionView: View {
             }
             .frame(maxWidth: 640)
             Spacer()
-            settings(section)
         }
         .controlSize(.small)
         .padding(.horizontal, 20)
@@ -182,20 +177,6 @@ struct TemplateSectionView: View {
             .font(.caption2.weight(.semibold))
             .foregroundStyle(.tertiary)
             .frame(width: 70, alignment: .leading)
-    }
-
-    /// The gear, where a section pane keeps its settings: top right.  The
-    /// same popup a manuscript section's gear opens, over this template's
-    /// export item for the section.
-    private func settings(_ section: StructureSection) -> some View {
-        Button { showingSettings = true } label: {
-            Image(systemName: "gearshape").foregroundStyle(.secondary)
-        }
-        .buttonStyle(.borderless)
-        .help("How this section prints at this venue — typography, heading and options")
-        .popover(isPresented: $showingSettings, arrowEdge: .bottom) {
-            TemplateSectionSettings(templateID: templateID, section: section)
-        }
     }
 
     // MARK: - Content
@@ -321,67 +302,3 @@ struct TemplateSectionView: View {
 
 }
 
-// MARK: - The gear's popup
-
-/// How a template section prints: the export item for it, in this
-/// template's outline, over the same form a manuscript's gear opens
-/// (`ComponentSettingsForm`).  A write reaches every copy of the item and
-/// is mirrored into the entry's own `format`.
-struct TemplateSectionSettings: View {
-    @Environment(TemplateWorkspace.self) private var templates
-
-    let templateID: UUID
-    let section: StructureSection
-
-    private var template: JournalTemplate? { templates.template(templateID) }
-    private var outline: ExportConfig {
-        template.map { $0.export ?? TemplateWorkspace.standardOutline(for: $0) } ?? ExportConfig(documents: [])
-    }
-    /// The abstract is the outline's fixed Abstract item; every other
-    /// entry is a section item by uid.
-    private func matches(_ item: ExportItem) -> Bool {
-        section.subject == .abstract
-            ? item.type == .abstract
-            : item.type == .manuscriptSection && item.sectionID == section.uid
-    }
-    private var entry: (item: ExportItem, document: ExportDocument)? {
-        for document in outline.documents {
-            if let found = document.items.first(where: matches) { return (found, document) }
-        }
-        return nil
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("EXPORT")
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(.tertiary)
-            if let entry {
-                ComponentSettingsForm(
-                    item: Binding(get: { self.entry?.item ?? entry.item }, set: { write($0) }),
-                    inherited: entry.document.format,
-                    content: template.map(TemplateWorkspace.asManuscript))
-            } else {
-                Text("Not in the export outline — add it on the Export pane to set how it prints.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-        .padding(14)
-        .frame(width: 380)
-    }
-
-    private func write(_ edited: ExportItem) {
-        var config = outline
-        for d in config.documents.indices {
-            for i in config.documents[d].items.indices where matches(config.documents[d].items[i]) {
-                var made = edited
-                made.id = config.documents[d].items[i].id
-                config.documents[d].items[i] = made
-            }
-        }
-        templates.setExport(config, for: templateID)
-        templates.editSection(section.uid, in: templateID) { $0.format = edited.format }
-    }
-}
