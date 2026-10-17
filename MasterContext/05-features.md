@@ -552,11 +552,16 @@ propagate by explicit, individual fast-forwards.
   stays deactivated and empty, and the assisted adaptation is sent only the
   active ones, and told so. Bundled profiles name only the sections a
   venue's page names.
-- AC (implemented, Oct 2026): **Delete or clear.** Deleting a section from
-  a journal's tab deletes it everywhere only when no other place holds
-  content in it; otherwise the action is **Clear** — the section is
-  emptied in this cut (or in Source) and every other copy is left alone,
-  and the menu names who still uses it.
+- AC (implemented, Oct 2026): **Clear always, delete rarely.** Every
+  section offers **Clear**: it empties this cut's copy (or Source's) and
+  touches nobody else's. **Delete** — gone everywhere — is offered only
+  while no other journal has the section active, since the eye says what
+  is part of a structure; the menu names the journals whose structure it
+  is in, or, when deleting, who still has text in it. A sync, plain or
+  adapted, keeps the cut's activation whatever the upstream's: it fills
+  only the cut's active sections, the model is sent only those and told
+  the rest are deactivated here, and nothing the model returns for a
+  deactivated section is written (`syncBaseContent`, `applyAdaptation`).
 - AC (implemented, Oct 2026): **One header, three pages, boxes edited in
   place.** Details, Tests and Export in a journal's tab wear the same
   one-line header the versions section gives a journal — the journal's

@@ -211,9 +211,11 @@ struct FastForwardIntent: AIIntent {
 
         \(profileText(for: target))
 
-        The sections sent below are the ones a submission here contains. \
-        Write those and only those; nothing else of the manuscript is part of \
-        this submission.
+        The sections sent below are the ones a submission here contains — \
+        the journal's active sections, which are its structure. Write those \
+        and only those. A section of the manuscript that is not sent is \
+        deactivated for this journal: do not write it, do not fold its \
+        content in, and do not return it.
 
         \(checkText(content: content, target: target))
 

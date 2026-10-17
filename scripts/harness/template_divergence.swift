@@ -170,6 +170,13 @@ func check(_ label: String, _ ok: Bool, _ detail: String = "") {
     store.updateSection(written, ref: .version(head.id))
     check("writing into a deactivated section does not activate it", !cutSection(extraID).active)
     check("nobody else holds content in it → a delete would delete", store.sectionUsers(extraID, excluding: .version(head.id)).isEmpty)
+    // Clear is always there; Delete only while no other journal has the
+    // section in its structure (active).
+    check("no other journal has it active → a delete is offered", store.journalsWithSection(extraID, excluding: .source).isEmpty)
+    store.setSectionActive(true, id: extraID, ref: .version(head.id))
+    check("active in a journal → that journal blocks a delete elsewhere", store.journalsWithSection(extraID, excluding: .source) == [journal.name])
+    check("… but not from its own tab", store.journalsWithSection(extraID, excluding: .version(head.id)).isEmpty)
+    store.setSectionActive(false, id: extraID, ref: .version(head.id))
     var inSource = store.manuscript!.sections.first { $0.id == extraID }!; inSource.content = RichText(plain: "Source's own words.")
     store.updateSection(inSource, ref: .source)
     check("Source holds content now → the cut's delete is a clear", store.sectionUsers(extraID, excluding: .version(head.id)) == ["Source"])
@@ -237,6 +244,48 @@ func check(_ label: String, _ ok: Bool, _ detail: String = "") {
     changed.partChecksums = legacy
     changed.migrateChecksums()
     check("a real change is not mistaken for a rename", changed.partChecksums?["checks"] == legacy["checks"])
+
+    // A sync keeps THIS cut's activation, whatever the upstream's: a cut
+    // downstream of a journal whose sections don't align is filled only in
+    // the sections it has active, and an adaptation can write only those.
+    var downstream = template; downstream.id = UUID(); downstream.name = "JAMA downstream"
+    if let down = store.addJournalCut(template: downstream, fromJournalID: journal.id, viewConfigID: nil),
+       let downHead = store.latestVersion(forJournal: down.id) {
+        func downSection(_ id: UUID) -> ManuscriptSection? {
+            store.latestVersion(forJournal: down.id).flatMap { store.manuscript(for: .version($0.id)) }?.sections.first { $0.id == id }
+        }
+        // The upstream's head moved with the sync above.
+        let upHead = store.latestVersion(forJournal: journal.id)!
+        func upSection(_ id: UUID) -> ManuscriptSection { store.manuscript(for: .version(upHead.id))!.sections.first { $0.id == id }! }
+        // Upstream (the first journal): Extra Notes on and written, Introduction off.
+        store.setSectionActive(true, id: extraID, ref: .version(upHead.id))
+        var upExtra = upSection(extraID); upExtra.content = RichText(plain: "The upstream's extra notes.")
+        store.updateSection(upExtra, ref: .version(upHead.id))
+        store.setSectionActive(false, id: introID, ref: .version(upHead.id))
+        // Downstream: the opposite.
+        store.setSectionActive(false, id: extraID, ref: .version(downHead.id))
+        store.setSectionActive(true, id: introID, ref: .version(downHead.id))
+        let merged = store.syncBaseContent(head: store.manuscript(for: .version(downHead.id))!,
+                                           upstream: store.manuscript(for: .version(upHead.id))!)
+        check("the sync base keeps the downstream's activation", merged.sections.first { $0.id == extraID }?.active == false
+              && merged.sections.first { $0.id == introID }?.active == true)
+        check("… fills an active section from the upstream even where the upstream has it off",
+              merged.sections.first { $0.id == introID }?.content.plain == "An introduction from Source.")
+        check("… and leaves a deactivated one empty whatever the upstream wrote", merged.sections.first { $0.id == extraID }?.isEmptyContent == true)
+        check("the model is sent the downstream's active sections and no other",
+              FastForwardIntent.payloads(for: merged, target: down).map(\.section.id).contains(introID)
+              && !FastForwardIntent.payloads(for: merged, target: down).map(\.section.id).contains(extraID))
+        check("… and is told a section not sent is deactivated here",
+              (try? FastForwardIntent.task(content: merged, target: down))?.contains("deactivated for this journal") == true)
+        var adaptation = FastForwardIntent.Adaptation()
+        adaptation.sections[introID] = RichText(plain: "An adapted introduction.")
+        adaptation.sections[extraID] = RichText(plain: "The model wrote this anyway.")
+        _ = store.syncJournal(down.id, adaptation: adaptation, assistedBy: "harness")
+        check("an adapted sync keeps the downstream's activation", downSection(extraID)?.active == false && downSection(introID)?.active == true)
+        check("… takes the adaptation into an active section", downSection(introID)?.content.plain == "An adapted introduction.")
+        check("… and never into a deactivated one", downSection(extraID)?.isEmptyContent == true)
+        check("the upstream is untouched", upSection(extraID).active && !upSection(introID).active)
+    } else { check("a downstream journal was cut", false) }
 
     // Save from a manuscript: the template editor opens on the journal's
     // copy; saving under a changed name makes a new template, and the

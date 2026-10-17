@@ -337,9 +337,12 @@ xcodebuild -scheme ManuscriptEditor -destination 'platform=macOS' build
     entry when a cut wrote to a section, and it confused more than it
     helped), and adding a journal must never touch another journal's
     structure or export — that was the "edited template" flag on every
-    mismatched add. Deleting a section from a cut deletes it everywhere
-    only when nobody else holds content in it (`sectionUsers`); otherwise
-    it is cleared there (`clearSection`).
+    mismatched add. Clear (`clearSection`) is always offered;
+    Delete only while no other journal has the section active
+    (`journalsWithSection`), and `sectionUsers` names who still has text
+    in it. Every sync, plain or adapted, starts from `syncBaseContent`:
+    the upstream's text with THIS cut's activation — never the
+    upstream's — and `applyAdaptation` writes active sections only.
 
 46. **A cut never writes into a template; a changed name is a new
     template.** The cut's Details → Save opens the template editor with

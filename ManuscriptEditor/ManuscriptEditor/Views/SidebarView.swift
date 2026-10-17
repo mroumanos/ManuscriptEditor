@@ -378,12 +378,14 @@ struct SidebarView: View {
             notesBadge(.section(section.id))
         }
         .tag(SidebarItem.section(section.id))
-        // Reliable delete affordances (macOS swipe can be non-obvious).
-        // Delete means delete only while nobody else holds content in the
-        // section; otherwise it is cleared here and the others keep theirs.
+        // Clear is always offered: it empties this cut's copy (or Source's)
+        // and touches nobody else's.  Delete — gone everywhere — only while
+        // no other journal has the section active: the eye says what is
+        // part of a structure, and a section in another journal's structure
+        // is not this tab's to delete.
         .swipeActions(edge: .trailing) {
-            Button(role: .destructive) { remove(section) } label: {
-                Label(clears(section) ? "Clear" : "Delete", systemImage: clears(section) ? "eraser" : "trash")
+            Button(role: .destructive) { store.clearSection(id: section.id, ref: activeRef) } label: {
+                Label("Clear", systemImage: "eraser")
             }
         }
         .contextMenu {
@@ -391,12 +393,16 @@ struct SidebarView: View {
                 renameDraft = section.title
                 renamingSectionID = section.id
             }
-            let users = store.sectionUsers(section.id, excluding: activeRef)
-            if users.isEmpty {
-                Button("Delete Section", role: .destructive) { remove(section) }
+            Button("Clear Section", role: .destructive) { store.clearSection(id: section.id, ref: activeRef) }
+            let holders = store.journalsWithSection(section.id, excluding: activeRef)
+            if holders.isEmpty {
+                Button("Delete Section", role: .destructive) { delete(section) }
+                let users = store.sectionUsers(section.id, excluding: activeRef)
+                if !users.isEmpty {
+                    Text("Deletes it everywhere — \(users.joined(separator: ", ")) still \(users.count == 1 ? "has" : "have") text in it")
+                }
             } else {
-                Button("Clear Section Here", role: .destructive) { remove(section) }
-                Text("Also has content in \(users.joined(separator: ", ")) — cleared here only")
+                Text("In \(holders.joined(separator: ", "))'s structure — clear it here, or deactivate it")
             }
         }
         .alert("Rename Section", isPresented: Binding(
@@ -414,18 +420,18 @@ struct SidebarView: View {
         }
     }
 
-    /// Whether removing this section here means clearing it: someone else —
-    /// Source, or another journal's cut — still has content in it.
-    private func clears(_ section: ManuscriptSection) -> Bool {
-        !store.sectionUsers(section.id, excluding: activeRef).isEmpty
+    private func delete(_ section: ManuscriptSection) {
+        if selection == .section(section.id) { selection = .overview }
+        store.deleteSection(id: section.id)
     }
 
+    /// The list's own delete gesture: delete where that is allowed, else
+    /// clear — never nothing.
     private func remove(_ section: ManuscriptSection) {
-        if clears(section) {
-            store.clearSection(id: section.id, ref: activeRef)
+        if store.journalsWithSection(section.id, excluding: activeRef).isEmpty {
+            delete(section)
         } else {
-            if selection == .section(section.id) { selection = .overview }
-            store.deleteSection(id: section.id)
+            store.clearSection(id: section.id, ref: activeRef)
         }
     }
 

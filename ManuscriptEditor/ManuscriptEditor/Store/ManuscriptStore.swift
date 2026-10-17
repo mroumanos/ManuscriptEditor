@@ -693,9 +693,25 @@ final class ManuscriptStore {
         return own.active
     }
 
-    /// Where else a section has content — the places a delete would take it
-    /// from.  Source by name, and each journal whose cut holds something in
-    /// it; the place asked from is left out.
+    /// The other journals whose cut has this section active — part of their
+    /// structure — which is what stops a delete here: the eye says what is
+    /// part of a structure, and a section in another journal's is not this
+    /// tab's to delete.  The place asked from is left out; Source is not a
+    /// journal and has no structure.
+    func journalsWithSection(_ id: UUID, excluding ref: VersionRef) -> [String] {
+        guard let m = manuscript else { return [] }
+        let excluded = journalID(for: ref)
+        return m.journals.filter { $0.id != excluded }.compactMap { journal in
+            guard let content = latestVersion(forJournal: journal.id)?.content,
+                  let theirs = content.sections.first(where: { $0.id == id }), theirs.active
+            else { return nil }
+            return journal.name
+        }
+    }
+
+    /// Where else a section has content — what a delete would take with it.
+    /// Source by name, and each journal whose cut holds something in it;
+    /// the place asked from is left out.
     func sectionUsers(_ id: UUID, excluding ref: VersionRef) -> [String] {
         guard let m = manuscript else { return [] }
         var users: [String] = []
@@ -2619,18 +2635,7 @@ final class ManuscriptStore {
         // template's content was re-applied AFTER the adaptation here once,
         // and quietly replaced every rewritten section with its boilerplate
         // while the banner reported the rewrite.)
-        var baseContent = migrated(base?.content ?? m, into: head.content)
-        // Only this cut's active sections take the upstream's text; a
-        // deactivated one keeps its own (usually nothing) and stays
-        // deactivated — a fast-forward fills a submission, not the union.
-        for i in baseContent.sections.indices {
-            guard let own = head.content.sections.first(where: { $0.id == baseContent.sections[i].id }) else { continue }
-            baseContent.sections[i].active = own.active
-            if !own.active {
-                baseContent.sections[i].content = own.content
-                baseContent.sections[i].questions = own.questions
-            }
-        }
+        var baseContent = syncBaseContent(head: head.content, upstream: base?.content ?? m)
         if let adaptation {
             let citedBefore = Set(RefEngine.citedOrder(in: baseContent))
             applyAdaptation(adaptation, to: &baseContent)
@@ -2784,6 +2789,39 @@ final class ManuscriptStore {
     /// keeps what it has there: the boilerplate it was created with, or what
     /// was written here.  Emptiness is not content.  Everything else is the
     /// full override it always was.
+    /// Where every sync starts, plain or adapted: the upstream's content
+    /// merged into this cut's head (`migrated`), with **this cut's
+    /// activation throughout**.  A cut's active sections are its structure
+    /// and the upstream's are not: a section this cut has deactivated keeps
+    /// its own (usually empty) content and stays deactivated, whatever the
+    /// upstream holds; one this cut has activated takes the upstream's text
+    /// even if the upstream has it off.  The model, too, is sent this — so it
+    /// writes the sections of THIS submission, not the upstream's.  Matched
+    /// by id, then by title (an older cut can carry ids of its own); a
+    /// section the cut doesn't have at all is off here.
+    func syncBaseContent(head: Manuscript, upstream: Manuscript) -> Manuscript {
+        var merged = migrated(upstream, into: head)
+        let byID = Dictionary(head.sections.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let byTitle = Dictionary(head.sections.map { ($0.title.lowercased(), $0) },
+                                 uniquingKeysWith: { first, _ in first })
+        for i in merged.sections.indices {
+            let section = merged.sections[i]
+            guard section.isJournalContent, section.sectionKind != .abstract else { continue }
+            guard let own = byID[section.id] ?? byTitle[section.title.lowercased()] else {
+                merged.sections[i].active = false
+                merged.sections[i].content = RichText()
+                merged.sections[i].questions = section.questions.map { $0.map { var q = $0; q.response = RichText(); return q } }
+                continue
+            }
+            merged.sections[i].active = own.active
+            if !own.active {
+                merged.sections[i].content = own.content
+                merged.sections[i].questions = own.questions
+            }
+        }
+        return merged
+    }
+
     private func migrated(_ upstream: Manuscript, into head: Manuscript) -> Manuscript {
         var out = upstream
         let byID = Dictionary(head.sections.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
@@ -2809,6 +2847,9 @@ final class ManuscriptStore {
     private func applyAdaptation(_ adaptation: FastForwardIntent.Adaptation,
                                  to content: inout Manuscript) {
         for i in content.sections.indices {
+            // A deactivated section is not part of this submission: whatever
+            // the model returned for it — it was not sent it — stays out.
+            guard content.sections[i].active else { continue }
             let id = content.sections[i].id
             if let rich = adaptation.sections[id] {
                 content.sections[i].content = rich
@@ -2955,9 +2996,11 @@ final class ManuscriptStore {
             // The same merge the plain copy makes, so the model adapts a
             // title page that reads as the venue's boilerplate — tokens and
             // all — rather than an empty section it has to invent.
+            // With THIS cut's activation: the model is sent the sections of
+            // this submission, not the upstream's (`syncBaseContent`).
             let upstream = syncBase(forUpstream: source.upstreamJournalID)?.content ?? m
             baseContent = latestVersion(forJournal: journalID)
-                .map { migrated(upstream, into: $0.content) } ?? upstream
+                .map { syncBaseContent(head: $0.content, upstream: upstream) } ?? upstream
             target = journal
         } else {
             baseContent = latestVersion(forJournal: journalID)?.content ?? m
