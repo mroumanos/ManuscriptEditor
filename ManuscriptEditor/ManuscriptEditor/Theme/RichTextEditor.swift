@@ -319,37 +319,8 @@ private struct FormatBar: View {
     var formatItem: SidebarItem? = nil
     var versionRef: VersionRef = .source
 
-    /// The gear's popover, open.
-    @State private var showingSettings = false
-
     var body: some View {
-        HStack(spacing: 0) {
-            ScrollView(.horizontal, showsIndicators: false) {
-                buttons
-                    .padding(.leading, EditorLayout.leftInset)   // align with the text column
-                    .padding(.trailing, 10)
-                    .padding(.vertical, 5)
-            }
-            if let formatItem {
-                // The journal's say about this component — its structure
-                // entry and how it prints — where the writing happens.
-                Divider().frame(height: 18)
-                button("gearshape", "This component in the journal: required, type, prompt, AI context, default content — and how it prints") {
-                    showingSettings = true
-                }
-                .padding(.horizontal, 8)
-                .popover(isPresented: $showingSettings, arrowEdge: .bottom) {
-                    PaneSettingsPopover(item: formatItem, ref: versionRef)
-                }
-            }
-        }
-        .frame(height: 36)                                // pin height; a horizontal
-                                                          // ScrollView otherwise grows
-                                                          // vertically and overlaps the editor
-        .background(.bar)
-    }
-
-    private var buttons: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 4) {
                 button("bold", "Bold") { controller.toggleBold() }
                 button("italic", "Italic") { controller.toggleItalic() }
@@ -402,8 +373,17 @@ private struct FormatBar: View {
                 // a global reading preference (Settings → Editor), and the
                 // EXPORT typeface belongs to the component's settings gear.
                 // Keeping them on the writing toolbar conflated the two and
-                // made every pane look different from its neighbour.
+                // made every pane look different from its neighbour.  The
+                // gear for those is in the pane header (`PaneSettingsButton`).
             }
+            .padding(.leading, EditorLayout.leftInset)   // align with the text column
+            .padding(.trailing, 10)
+            .padding(.vertical, 5)
+        }
+        .frame(height: 36)                                // pin height; a horizontal
+                                                          // ScrollView otherwise grows
+                                                          // vertically and overlaps the editor
+        .background(.bar)
     }
 
     private func button(_ symbol: String, _ help: String, _ action: @escaping () -> Void) -> some View {

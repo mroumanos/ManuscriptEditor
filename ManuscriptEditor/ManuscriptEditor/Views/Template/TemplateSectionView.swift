@@ -21,10 +21,11 @@
 // expressed.  A citation or a figure reference would point at one paper's
 // bibliography and be wrong in every other, so the picker doesn't offer them.
 //
-// Export formatting is NOT here.  It lives in the template's Export pane, in
-// the same outline card a manuscript uses, because a format on one screen and
-// an outline on another is two places to learn and two places to fall out of
-// step.
+// How the section prints is behind the gear, top right — the same popup a
+// manuscript section's gear opens, bound to this template's export item for
+// the section (and mirrored into the entry's own `format`, so structure.json
+// and export.json never disagree).  The Export pane's row opens the same
+// form: one form, two ways in.
 //
 // The text itself is stored as the section's `boilerplate` — plain, because
 // that is what a manuscript receives (`RichText(plain:)`) and what the model
@@ -46,6 +47,8 @@ struct TemplateSectionView: View {
 
     /// The prose being edited, mirrored out of the template's boilerplate.
     @State private var content = RichText()
+    /// The gear's popover, open.
+    @State private var showingSettings = false
 
     private var template: JournalTemplate? { templates.template(templateID) }
     /// The abstract's row is there before its entry is (see
@@ -108,92 +111,91 @@ struct TemplateSectionView: View {
 
     // MARK: - Identity
 
-    /// One slim bar, the way a section pane's header is slim: what it is
-    /// called, what shape it is, why the venue asks for it, and the gear.
+    /// What the section is called, what shape it is, whether the venue
+    /// requires it, the prompt and the AI context — one per line, the way
+    /// the Details boxes read — and the gear, top right.
     @ViewBuilder
     private func identity(_ section: StructureSection) -> some View {
-        VStack(spacing: 6) {
-            HStack(spacing: 8) {
-                // Every entry, the abstract's included, is called what the
-                // venue calls it; the abstract's shape is fixed by its type.
-                TextField("Section title", text: Binding(
-                    get: { section.title },
-                    set: { value in edit { $0.title = value; if isAbstract { $0.type = .abstract } } }))
-                    .textFieldStyle(.roundedBorder)
-                    .frame(maxWidth: 240)
-
-                if isAbstract {
-                    Text("Abstract")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .help("The abstract field, under the name this venue gives it.")
-                } else {
-                    Picker("", selection: Binding(
-                        get: { section.type },
-                        set: { value in edit { $0.type = value } })) {
-                        ForEach(SectionKind.addable, id: \.self) { Text($0.label).tag($0) }
-                    }
-                    .labelsHidden().fixedSize()
+        HStack(alignment: .top, spacing: 12) {
+            Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 8) {
+                GridRow {
+                    label("Title")
+                    // Every entry, the abstract's included, is called what the
+                    // venue calls it; the abstract's shape is fixed by its type.
+                    TextField("Section title", text: Binding(
+                        get: { section.title },
+                        set: { value in edit { $0.title = value; if isAbstract { $0.type = .abstract } } }))
+                        .textFieldStyle(.roundedBorder)
                 }
-                Toggle("Required", isOn: Binding(
-                    get: { section.required },
-                    set: { value in edit { $0.required = value } }))
-                    .toggleStyle(.checkbox)
-                Spacer()
-                typography(section)
+                GridRow {
+                    label("Type")
+                    if isAbstract {
+                        Text("Abstract")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                            .help("The abstract field, under the name this venue gives it.")
+                    } else {
+                        Picker("", selection: Binding(
+                            get: { section.type },
+                            set: { value in edit { $0.type = value } })) {
+                            ForEach(SectionKind.addable, id: \.self) { Text($0.label).tag($0) }
+                        }
+                        .labelsHidden().fixedSize()
+                    }
+                }
+                GridRow {
+                    label("Required")
+                    Toggle("", isOn: Binding(
+                        get: { section.required },
+                        set: { value in edit { $0.required = value } }))
+                        .toggleStyle(.checkbox)
+                        .labelsHidden()
+                }
+                GridRow {
+                    label("Prompt")
+                    TextField("Shown while the section is empty; sent when adapting", text: Binding(
+                        get: { section.formatNote ?? "" },
+                        set: { value in edit { $0.formatNote = value.isEmpty ? nil : value } }))
+                        .textFieldStyle(.roundedBorder)
+                }
+                GridRow {
+                    label("AI context")
+                    TextField("Anything else the model should know (optional, sent when adapting)", text: Binding(
+                        get: { section.note ?? "" },
+                        set: { value in edit { $0.note = value.isEmpty ? nil : value } }))
+                        .textFieldStyle(.roundedBorder)
+                }
             }
-            HStack(spacing: 8) {
-                TextField("Prompt — shown while the section is empty; sent when adapting", text: Binding(
-                    get: { section.formatNote ?? "" },
-                    set: { value in edit { $0.formatNote = value.isEmpty ? nil : value } }))
-                    .textFieldStyle(.roundedBorder)
-                    .font(.caption)
-                TextField("AI context — anything else the model should know (optional, sent when adapting)", text: Binding(
-                    get: { section.note ?? "" },
-                    set: { value in edit { $0.note = value.isEmpty ? nil : value } }))
-                    .textFieldStyle(.roundedBorder)
-                    .font(.caption)
-            }
+            .frame(maxWidth: 640)
+            Spacer()
+            settings(section)
         }
         .controlSize(.small)
         .padding(.horizontal, 20)
-        .padding(.vertical, 7)
+        .padding(.vertical, 10)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(nsColor: .textBackgroundColor))
     }
 
-    /// The section's typography — family, size, spacing — where a section
-    /// pane keeps its settings: top right.  Unset, it prints in the
-    /// document's.
-    private func typography(_ section: StructureSection) -> some View {
-        let current = section.format ?? ExportDocumentFormat()
-        func set(_ mutate: (inout ExportDocumentFormat) -> Void) {
-            var format = section.format ?? ExportDocumentFormat()
-            mutate(&format)
-            edit { $0.format = format }
+    private func label(_ text: String) -> some View {
+        Text(text.uppercased())
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.tertiary)
+            .frame(width: 70, alignment: .leading)
+    }
+
+    /// The gear, where a section pane keeps its settings: top right.  The
+    /// same popup a manuscript section's gear opens, over this template's
+    /// export item for the section.
+    private func settings(_ section: StructureSection) -> some View {
+        Button { showingSettings = true } label: {
+            Image(systemName: "gearshape").foregroundStyle(.secondary)
         }
-        return Menu {
-            Picker("Font", selection: Binding(get: { current.fontFamily }, set: { v in set { $0.fontFamily = v } })) {
-                ForEach(ExportFontFamily.allCases) { Text($0.label).tag($0) }
-            }
-            Picker("Size", selection: Binding(get: { current.fontSize }, set: { v in set { $0.fontSize = v } })) {
-                ForEach([9.0, 10.0, 10.5, 11.0, 12.0, 14.0], id: \.self) { Text("\($0.formatted()) pt").tag($0) }
-            }
-            Picker("Spacing", selection: Binding(get: { current.lineSpacing }, set: { v in set { $0.lineSpacing = v } })) {
-                ForEach([1.0, 1.15, 1.5, 2.0], id: \.self) { Text("\($0.formatted())×").tag($0) }
-            }
-            if section.format != nil {
-                Divider()
-                Button("Use the document's") { edit { $0.format = nil } }
-            }
-        } label: {
-            Label(section.format.map { "\($0.fontFamily.shortLabel) \($0.fontSize.formatted()) · \($0.lineSpacing.formatted())×" } ?? "Document typography",
-                  systemImage: "textformat.size")
-                .font(.caption)
+        .buttonStyle(.borderless)
+        .help("How this section prints at this venue — typography, heading and options")
+        .popover(isPresented: $showingSettings, arrowEdge: .bottom) {
+            TemplateSectionSettings(templateID: templateID, section: section)
         }
-        .menuStyle(.borderlessButton)
-        .fixedSize()
-        .help("How this section prints at this venue — font family, size and line spacing. Kept with the section, so an outline that prints it twice cannot disagree.")
     }
 
     // MARK: - Content
@@ -317,4 +319,69 @@ struct TemplateSectionView: View {
         }
     }
 
+}
+
+// MARK: - The gear's popup
+
+/// How a template section prints: the export item for it, in this
+/// template's outline, over the same form a manuscript's gear opens
+/// (`ComponentSettingsForm`).  A write reaches every copy of the item and
+/// is mirrored into the entry's own `format`.
+struct TemplateSectionSettings: View {
+    @Environment(TemplateWorkspace.self) private var templates
+
+    let templateID: UUID
+    let section: StructureSection
+
+    private var template: JournalTemplate? { templates.template(templateID) }
+    private var outline: ExportConfig {
+        template.map { $0.export ?? TemplateWorkspace.standardOutline(for: $0) } ?? ExportConfig(documents: [])
+    }
+    /// The abstract is the outline's fixed Abstract item; every other
+    /// entry is a section item by uid.
+    private func matches(_ item: ExportItem) -> Bool {
+        section.subject == .abstract
+            ? item.type == .abstract
+            : item.type == .manuscriptSection && item.sectionID == section.uid
+    }
+    private var entry: (item: ExportItem, document: ExportDocument)? {
+        for document in outline.documents {
+            if let found = document.items.first(where: matches) { return (found, document) }
+        }
+        return nil
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("EXPORT")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.tertiary)
+            if let entry {
+                ComponentSettingsForm(
+                    item: Binding(get: { self.entry?.item ?? entry.item }, set: { write($0) }),
+                    inherited: entry.document.format,
+                    content: template.map(TemplateWorkspace.asManuscript))
+            } else {
+                Text("Not in the export outline — add it on the Export pane to set how it prints.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(14)
+        .frame(width: 380)
+    }
+
+    private func write(_ edited: ExportItem) {
+        var config = outline
+        for d in config.documents.indices {
+            for i in config.documents[d].items.indices where matches(config.documents[d].items[i]) {
+                var made = edited
+                made.id = config.documents[d].items[i].id
+                config.documents[d].items[i] = made
+            }
+        }
+        templates.setExport(config, for: templateID)
+        templates.editSection(section.uid, in: templateID) { $0.format = edited.format }
+    }
 }

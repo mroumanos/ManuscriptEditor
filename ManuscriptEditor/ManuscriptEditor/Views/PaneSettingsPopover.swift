@@ -1,7 +1,8 @@
 // PaneSettingsPopover.swift
 //
-// The gear at the end of a pane's format bar: everything a journal says
-// about THIS component, edited where the writing happens.
+// The gear in a pane's header — beside the eye, the preview and the notes,
+// on every content pane: everything a journal says about THIS component,
+// edited where the writing happens.
 //
 //   In a journal's tab, for a section   the journal's structure entry —
 //                                       required, type, the prompt shown
@@ -17,6 +18,28 @@
 // fields live.  See MasterContext/features/journal-templates.md §3.3.
 
 import SwiftUI
+
+/// The gear itself, for a pane header.  Only where the pane has an export
+/// item to set; the letter has its own document and no gear.
+struct PaneSettingsButton: View {
+    let item: SidebarItem
+    let ref: VersionRef
+
+    @State private var showing = false
+
+    var body: some View {
+        if ManuscriptStore.exportItemKey(for: item) != nil {
+            Button { showing = true } label: {
+                Image(systemName: "gearshape").foregroundStyle(.secondary)
+            }
+            .buttonStyle(.borderless)
+            .help("This component in the journal — required, type, prompt, AI context, default content — and how it prints")
+            .popover(isPresented: $showing, arrowEdge: .bottom) {
+                PaneSettingsPopover(item: item, ref: ref)
+            }
+        }
+    }
+}
 
 struct PaneSettingsPopover: View {
     @Environment(ManuscriptStore.self) private var store

@@ -48,7 +48,9 @@ struct JournalBox<Content: View>: View {
     }
 }
 
-/// Pencil → (save | discard).  Prominent: accent-colored, bordered on hover.
+/// Pencil → (save | discard).  Prominent: a heavy pencil, accent-colored,
+/// bordered; the save is a disc and the discard a bin in the same tint —
+/// discarding an edit is not a destructive act, so it is not red.
 struct EditControls: View {
     let editing: Bool
     let onEdit: () -> Void
@@ -60,8 +62,8 @@ struct EditControls: View {
     var body: some View {
         HStack(spacing: 6) {
             if editing {
-                iconButton("square.and.arrow.down", "Save", tint: .accentColor, action: onSave)
-                iconButton("trash", "Discard the changes", tint: .red, action: onDiscard)
+                iconButton("opticaldisc", "Save", tint: .accentColor, action: onSave)
+                iconButton("trash", "Discard the changes", tint: .accentColor, action: onDiscard)
             } else {
                 iconButton("pencil", "Edit", tint: .accentColor, action: onEdit)
             }
@@ -72,9 +74,9 @@ struct EditControls: View {
     private func iconButton(_ symbol: String, _ help: String, tint: Color, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: symbol)
-                .font(.body.weight(.medium))
+                .font(.system(size: 16, weight: .bold))
                 .foregroundStyle(tint)
-                .frame(width: 24, height: 22)
+                .frame(width: 28, height: 24)
         }
         .buttonStyle(.bordered)
         .help(help)

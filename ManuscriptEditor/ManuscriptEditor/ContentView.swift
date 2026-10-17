@@ -328,6 +328,7 @@ struct ContentView: View {
             //   MANUSCRIPT_EDITOR_OPEN="<project folder>|<pane>"
             //   pane: overview · summary · checks · export · section:<title>
             //         · template (the first journal's, seeded from it)
+            //         · template-section:<title>
             if let spec = ProcessInfo.processInfo.environment["MANUSCRIPT_EDITOR_OPEN"] {
                 openForHarness(spec)
             }
@@ -562,10 +563,10 @@ struct ContentView: View {
                     }
                 }
                 sectionActivationControl(item: item, ref: ref)
-                // No settings gear here any more: a component's export
-                // settings — its typography and its printed heading — are
-                // edited in the Export pane, on the row that prints it.  One
-                // place, and the one place a template can reach too.
+                // The gear: the journal's say about this component and how
+                // it prints (`PaneSettingsPopover`) — on every content pane,
+                // where the pane keeps its functions.
+                PaneSettingsButton(item: item, ref: ref)
                 SectionPreviewButton(item: item, versionRef: ref)
                 NotesButton(versionKey: ref.id, itemKey: item.notesKey)
             }
@@ -794,6 +795,13 @@ struct ContentView: View {
         case "export":  selection = .export
         case "template":
             if let id = journal.profileID { openTemplate(id, seedFrom: journal.id) }
+        case let p where p.hasPrefix("template-section:"):
+            guard let id = journal.profileID else { return }
+            openTemplate(id, seedFrom: journal.id)
+            let title = String(p.dropFirst("template-section:".count))
+            if let entry = templates.template(id)?.structure.sections.first(where: { $0.title == title }) {
+                templateSelection = .templateSection(entry.id.uuidString)
+            }
         case let p where p.hasPrefix("section:"):
             let title = String(p.dropFirst("section:".count))
             if let section = store.manuscript?.sections.first(where: { $0.title == title }) {

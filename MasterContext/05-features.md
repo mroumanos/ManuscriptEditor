@@ -571,17 +571,20 @@ propagate by explicit, individual fast-forwards.
   (`trash`) while editing (`EditControls`) — one gesture everywhere.
   Details has two boxes, **About** (name, type, publisher, country,
   description, version, last saved) and **Requirements** (link and one
-  requirement per line); Tests has **one box per test**, its result in
-  view and the test itself behind the pencil (`CheckRuleCard`), with a
-  **+** at the top that adds a test open for editing; Export's outline is
-  edited in place, document types included. There is **no Structure
-  page**: the sidebar's active sections are the structure, and the
-  **gear at the end of a section's format bar** (`PaneSettingsPopover`)
-  holds the journal's say about it — required, type, prompt (shown while
-  the section is empty), AI context, default content — and how it prints
-  (the export item's typography, heading and options, bound to the same
-  item the Export page shows). No "In <journal>" bar and no "part of a
-  submission" toggle: activation is that. The template's section window
+  requirement per line). Tests keeps its plain rows; **one pencil in the
+  verdict banner** opens every test for editing in place (`CheckRuleCard`),
+  saved or discarded with the same two icons, and a **+ bar at the bottom**
+  adds one. Export's outline is edited in place, document types included,
+  with **no per-row gear in a manuscript** (the template's Export keeps it,
+  having no panes for the fixed parts). There is **no Structure page**:
+  the sidebar's active sections are the structure, and the **gear in every
+  content pane's header**, beside the eye, preview and notes icons
+  (`PaneSettingsButton` → `PaneSettingsPopover`), holds the journal's say
+  about it — required, type, prompt (shown while the section is empty), AI
+  context, default content — and how it prints (the export item's
+  typography, heading and options, bound to the same item the Export page
+  shows). No "In <journal>" bar and no "part of a submission" toggle:
+  activation is that. The template's section window
   has the same fields plus typography; prompt, AI context and default
   content all go to the model on a fast-forward.
 - AC (implemented, Oct 2026): **Templates propagate from the shared

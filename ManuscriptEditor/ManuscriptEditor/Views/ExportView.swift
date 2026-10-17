@@ -79,6 +79,7 @@ struct ExportView: View {
                         content: store.manuscript,
                         onChange: { replace(document: $0) },
                         onDelete: { remove(documentID: document.id) },
+                        componentSettings: false,
                         attachmentURL: store.attachmentURL(for: document)
                     )
                 }
@@ -523,6 +524,10 @@ struct ExportDocumentCard: View {
     /// Off in a manuscript: an outline is edited in the template, and read
     /// (and exported) here.  The template's Export pane keeps it on.
     var editable: Bool = true
+    /// Whether a row opens the component's settings.  Off in a manuscript:
+    /// each component's gear sits on its own pane.  On in a template, which
+    /// has no panes for the fixed parts.
+    var componentSettings: Bool = true
 
     /// Item currently being dragged by its handle (drag-to-reorder).
     @State private var draggingItemID: UUID?
@@ -792,14 +797,14 @@ struct ExportDocumentCard: View {
                 // not set any of it, and a manuscript had the outline in one
                 // place and what it prints in another.
                 Button {
-                    if editable { settingsItemID = item.id }
+                    if editable && componentSettings { settingsItemID = item.id }
                 } label: {
                     HStack(spacing: 4) {
                         Text(formatSummary(item))
                             .font(.caption)
                             .foregroundStyle(Color(nsColor: .secondaryLabelColor))
                             .lineLimit(1)
-                        if editable {
+                        if editable && componentSettings {
                             Image(systemName: "gearshape")
                                 .font(.caption2)
                                 .foregroundStyle(.tertiary)
@@ -807,7 +812,9 @@ struct ExportDocumentCard: View {
                     }
                 }
                 .buttonStyle(.plain)
-                .help(editable ? "Typography, heading and this component's own options" : "How this component prints — edited in the template")
+                .help(!editable ? "How this component prints — edited in the template"
+                      : componentSettings ? "Typography, heading and this component's own options"
+                                          : "How this component prints — set from the gear on its pane")
                 .popover(isPresented: Binding(
                     get: { settingsItemID == item.id },
                     set: { if !$0 { settingsItemID = nil } }

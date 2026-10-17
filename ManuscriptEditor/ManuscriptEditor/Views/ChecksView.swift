@@ -34,11 +34,10 @@ struct ChecksView: View {
         return journals.first { $0.id == jid }
     }
 
-    /// The test being edited in place, its draft, and — when it was just
-    /// added — its id, so discarding takes it back out.
-    @State private var editingRuleID: UUID?
-    @State private var ruleDraft = CheckRule.newRule()
-    @State private var addedRuleID: UUID?
+    /// Every test open for editing, behind the banner's pencil — a draft
+    /// of the whole list, saved or discarded together.
+    @State private var editingTests = false
+    @State private var rulesDraft: [CheckRule] = []
     /// Taking the template's tests back — confirmed, because it replaces
     /// every rule here, including ones written for this cut alone.
     @State private var loadingTests = false
@@ -183,6 +182,9 @@ struct ChecksView: View {
 
     // MARK: - Checklist
 
+    /// The list, as results — and behind the banner's pencil, as the tests
+    /// themselves, every one editable in place and saved or discarded with
+    /// the two icons every box uses.  The bar at the bottom adds one.
     @ViewBuilder
     private func checklist(_ journal: Journal) -> some View {
         if let manuscript = store.manuscript(for: versionRef) {
@@ -190,23 +192,29 @@ struct ChecksView: View {
                                                figureURL: { store.figureURL(for: $0) })
             let technical = results.filter { !$0.manual }
             let manualRules = results.filter(\.manual)
-            testsHeader(journal, results: results)
-            summaryBanner(results)
-            if !technical.isEmpty {
-                sectionHeader("Technical", note: "checked automatically against the manuscript and export")
-                ForEach(technical) { result in
-                    testBox(result, journal: journal) {
+            testsHeader(journal)
+            summaryBanner(results, journal: journal)
+            if editingTests {
+                ForEach($rulesDraft) { $rule in
+                    CheckRuleCard(rule: $rule, sectionTitles: sectionTitles,
+                                  onDelete: { rulesDraft.removeAll { $0.id == rule.id } })
+                        .padding(12)
+                        .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
+                        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.separator))
+                }
+            } else {
+                if !technical.isEmpty {
+                    sectionHeader("Technical", note: "checked automatically against the manuscript and export")
+                    ForEach(technical) { result in
                         ChecklistRow(result: result,
                                      fixAction: result.fixID == "typography" && !result.passed
                                          ? { store.applyRequiredTypography(journalID: journal.id) }
                                          : nil)
                     }
                 }
-            }
-            if !manualRules.isEmpty {
-                sectionHeader("Manual", note: "tick each box once you've verified it yourself")
-                ForEach(manualRules) { result in
-                    testBox(result, journal: journal) {
+                if !manualRules.isEmpty {
+                    sectionHeader("Manual", note: "tick each box once you've verified it yourself")
+                    ForEach(manualRules) { result in
                         // Label the argument: an unlabeled trailing closure can
                         // bind to fixAction, turning checkboxes into Fix buttons.
                         ChecklistRow(result: result, onToggle: {
@@ -214,91 +222,73 @@ struct ChecksView: View {
                         })
                     }
                 }
+                if results.isEmpty {
+                    Text("No tests yet — add one below; each turns a requirement into something the app can check.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
             }
-            if results.isEmpty {
-                Text("No tests yet — add one with the + above; each turns a requirement into something the app can check.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-            }
+            addTestBar(journal)
         }
     }
 
-    // MARK: Editing in place
-
-    /// One test in its box: the result, and behind the pencil the test
-    /// itself — edited here, where it is read, and saved or discarded with
-    /// the same two icons every box uses.
-    private func testBox<Row: View>(_ result: ChecklistResult, journal: Journal,
-                                    @ViewBuilder row: @escaping () -> Row) -> some View {
-        let rule = (journal.checkRules ?? []).first { $0.id == result.id }
-        let editing = rule != nil && editingRuleID == result.id
-        return JournalBox(editing: rule == nil ? nil : editing,
-                          onEdit: { if let rule { beginEditing(rule) } },
-                          onSave: { saveEdit(journal) },
-                          onDiscard: { discardEdit(journal) }) {
-            if editing {
-                CheckRuleCard(rule: $ruleDraft, sectionTitles: sectionTitles,
-                              onDelete: { deleteEditing(journal) })
-            } else {
-                row()
-            }
-        }
-    }
+    // MARK: Editing
 
     /// Body-section titles offered when a condition targets one section.
     private var sectionTitles: [String] {
         (store.manuscript(for: versionRef)?.sections ?? []).map(\.title)
     }
 
-    private func beginEditing(_ rule: CheckRule) {
-        ruleDraft = rule
-        editingRuleID = rule.id
+    private func beginEditing(_ journal: Journal) {
+        rulesDraft = journal.checkRules ?? []
+        editingTests = true
     }
 
-    /// A new test goes straight into the journal, open for editing, so it
-    /// has a box to be edited in; discarding it takes it back out.
+    private func saveEdits(_ journal: Journal) {
+        store.updateCheckRules(rulesDraft, journalID: journal.id)
+        editingTests = false
+    }
+
+    /// A new test joins the draft, so adding one starts an edit: save
+    /// keeps it, discard drops it.
     private func addTest(_ rule: CheckRule, journal: Journal) {
-        var rules = journal.checkRules ?? []
-        rules.append(rule)
-        store.updateCheckRules(rules, journalID: journal.id)
-        addedRuleID = rule.id
-        beginEditing(rule)
+        if !editingTests { beginEditing(journal) }
+        rulesDraft.append(rule)
     }
 
-    private func saveEdit(_ journal: Journal) {
-        var rules = journal.checkRules ?? []
-        if let idx = rules.firstIndex(where: { $0.id == ruleDraft.id }) {
-            rules[idx] = ruleDraft
-        } else {
-            rules.append(ruleDraft)
+    /// The bar at the bottom of the list: a test the app measures, or one
+    /// ticked by hand.
+    private func addTestBar(_ journal: Journal) -> some View {
+        Menu {
+            Button { addTest(.newRule(), journal: journal) } label: {
+                Label("Add Test", systemImage: "plus")
+            }
+            Button { addTest(.newManual(), journal: journal) } label: {
+                Label("Add Manual Test", systemImage: "hand.tap")
+            }
+        } label: {
+            Label("Add Test", systemImage: "plus")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 10)
+                .contentShape(Rectangle())
         }
-        store.updateCheckRules(rules, journalID: journal.id)
-        editingRuleID = nil
-        addedRuleID = nil
-    }
-
-    private func discardEdit(_ journal: Journal) {
-        if let added = addedRuleID, added == editingRuleID {
-            store.updateCheckRules((journal.checkRules ?? []).filter { $0.id != added }, journalID: journal.id)
-        }
-        editingRuleID = nil
-        addedRuleID = nil
-    }
-
-    private func deleteEditing(_ journal: Journal) {
-        guard let id = editingRuleID else { return }
-        store.updateCheckRules((journal.checkRules ?? []).filter { $0.id != id }, journalID: journal.id)
-        editingRuleID = nil
-        addedRuleID = nil
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
+        .overlay(RoundedRectangle(cornerRadius: 10)
+            .strokeBorder(.separator, style: StrokeStyle(lineWidth: 1, dash: [4])))
+        .help("Add a test — measured by the app, or ticked by hand")
+        .padding(.top, 8)
     }
 
     /// The heading the pane is really about.
     ///
     /// "Tests", not "Checks": each one is a test of a requirement stated in
     /// Details, and the whole list is how a cut proves it can be submitted.
-    /// Each test is edited in its own box; this row only adds one.
     @ViewBuilder
-    private func testsHeader(_ journal: Journal, results: [ChecklistResult]) -> some View {
+    private func testsHeader(_ journal: Journal) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             if store.partDiffersFromTemplate(.checks, journal: journal) {
                 Image(systemName: "pencil.circle.fill")
@@ -309,24 +299,6 @@ struct ChecksView: View {
                 .font(.caption)
                 .foregroundStyle(.tertiary)
             Spacer()
-            Menu {
-                Button { addTest(.newRule(), journal: journal) } label: {
-                    Label("Add Test", systemImage: "plus")
-                }
-                Button { addTest(.newManual(), journal: journal) } label: {
-                    Label("Add Manual Test", systemImage: "hand.tap")
-                }
-            } label: {
-                Image(systemName: "plus")
-                    .font(.body.weight(.medium))
-                    .foregroundStyle(Color.accentColor)
-                    .frame(width: 24, height: 22)
-            }
-            .menuStyle(.borderlessButton)
-            .menuIndicator(.hidden)
-            .fixedSize()
-            .controlSize(.small)
-            .help("Add a test — measured by the app, or ticked by hand")
         }
         .padding(.top, 12)
     }
@@ -352,7 +324,9 @@ struct ChecksView: View {
         .padding(.top, 8)
     }
 
-    private func summaryBanner(_ results: [ChecklistResult]) -> some View {
+    /// The verdict — and, on its right, the pencil that opens every test
+    /// for editing, which becomes save and discard while they are.
+    private func summaryBanner(_ results: [ChecklistResult], journal: Journal) -> some View {
         let passed  = results.filter(\.passed).count
         let total   = results.count
         let allPass = total > 0 && passed == total
@@ -372,6 +346,10 @@ struct ChecksView: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
+            EditControls(editing: editingTests,
+                         onEdit: { beginEditing(journal) },
+                         onSave: { saveEdits(journal) },
+                         onDiscard: { editingTests = false })
         }
         .padding(14)
         .background(color.opacity(0.1), in: RoundedRectangle(cornerRadius: 10))

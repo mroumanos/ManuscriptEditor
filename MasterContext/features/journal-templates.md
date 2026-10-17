@@ -283,7 +283,8 @@ the journal and gives the structure an entry for it; grey means deactivated
 and nothing else. The journal's say about a section — required, type, the
 prompt shown while it is empty, the AI context, the default content — and how
 it prints (the export item's typography, heading and options) sit behind the
-**gear at the end of the section's format bar** (`PaneSettingsPopover`), where
+**gear in the pane's header**, beside the eye, preview and notes
+(`PaneSettingsButton` → `PaneSettingsPopover`), on every content pane — where
 the writing happens.
 
 **What a cut may change is its own copy, and that is a lot**: its summary, its
