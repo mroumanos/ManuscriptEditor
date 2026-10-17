@@ -183,8 +183,9 @@ struct ChecksView: View {
     // MARK: - Checklist
 
     /// The list, as results — and behind the banner's pencil, as the tests
-    /// themselves: the list the template editor shows (`CheckRulesList`),
-    /// saved or discarded with the two icons every box uses.
+    /// themselves: the list the template editor shows (`CheckRulesList`,
+    /// its Add Test bar included), saved or discarded with the two icons
+    /// every box uses.  Nothing is added outside that mode.
     @ViewBuilder
     private func checklist(_ journal: Journal) -> some View {
         if let manuscript = store.manuscript(for: versionRef) {
@@ -218,13 +219,10 @@ struct ChecksView: View {
                     }
                 }
                 if results.isEmpty {
-                    Text("No tests yet — add one below; each turns a requirement into something the app can check.")
+                    Text("No tests yet — the pencil above opens the list, where each one turns a requirement into something the app can check.")
                         .font(.callout)
                         .foregroundStyle(.secondary)
                 }
-                // The same bar the list ends with: adding starts an edit.
-                AddTestBar { addTest($0, journal: journal) }
-                    .padding(.top, 8)
             }
         }
     }
@@ -244,13 +242,6 @@ struct ChecksView: View {
     private func saveEdits(_ journal: Journal) {
         store.updateCheckRules(rulesDraft, journalID: journal.id)
         editingTests = false
-    }
-
-    /// A new test joins the draft, so adding one starts an edit: save
-    /// keeps it, discard drops it.
-    private func addTest(_ rule: CheckRule, journal: Journal) {
-        if !editingTests { beginEditing(journal) }
-        rulesDraft.append(rule)
     }
 
     /// The heading the pane is really about.

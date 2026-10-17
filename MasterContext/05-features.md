@@ -577,8 +577,8 @@ propagate by explicit, individual fast-forwards.
   (`CheckRulesList`: a card per test with its trash, an **Active**
   checkbox that keeps a test but stops running it, and a **+ Add Test**
   bar offering a conditional or a manual test), saved or discarded with
-  the same two icons; the same bar under the plain rows starts an edit
-  with the new test. Export's outline is edited in place, document types
+  the same two icons; outside that mode the rows are read-only and no
+  Add Test bar shows. Export's outline is edited in place, document types
   included, and **each row's gear is the only place a component's
   typography, heading and options are set** — a section can print in two
   documents, and only the row says which copy. There is **no Structure page**:
