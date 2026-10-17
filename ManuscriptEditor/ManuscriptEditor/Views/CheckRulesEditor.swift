@@ -1,59 +1,22 @@
 // CheckRulesEditor.swift
 //
-// The checks editor — deliberately behind a button in the Tests pane, so
-// the people who never want to think about rules never see it, and the
-// people refining a journal's tests get the full vocabulary:
+// Editing a test — the full vocabulary:
 //
 //   <rule name>   [all of | any of]
 //     LENGTH (words) of Abstract  ≤  250
 //     EXISTS Discussion
 //
-// The list itself is `CheckRulesList`, because the same rules are written in
-// two places now: against a manuscript's journal (here, as a sheet) and
-// against a template being edited in its own tab.  One editor, two owners —
-// the alternative was two editors drifting apart, with the template's half
-// quietly missing whatever was added to the manuscript's.
+// One card per test (`CheckRuleCard`), because the same rules are written
+// in two places: a manuscript's Tests page edits each test in place behind
+// its pencil, and a template's Tests pane lists them all (`CheckRulesList`).
+// One card, two owners — the alternative was two editors drifting apart,
+// with the template's half quietly missing whatever was added to the
+// manuscript's.
 //
 // Every condition names a scope, which is what lets a failing rule color that
 // pane in the sidebar.
 
 import SwiftUI
-
-struct CheckRulesEditor: View {
-    @Environment(ManuscriptStore.self) private var store
-
-    let journal: Journal
-    @Binding var isPresented: Bool
-
-    @State private var rules: [CheckRule] = []
-
-    /// Body-section titles offered when a condition targets one section.
-    private var sectionTitles: [String] {
-        (store.manuscript?.sections ?? []).map(\.title)
-    }
-
-    var body: some View {
-        VStack(spacing: 0) {
-            HStack {
-                Text("Tests for \(journal.displayName)")
-                    .font(.headline)
-                Spacer()
-                Button("Done") {
-                    store.updateCheckRules(rules, journalID: journal.id)
-                    isPresented = false
-                }
-                .keyboardShortcut(.defaultAction)
-            }
-            .padding(12)
-            Divider()
-
-            CheckRulesList(rules: $rules, sectionTitles: sectionTitles,
-                           footnote: "Saved with this manuscript, alongside its summary.")
-        }
-        .frame(width: 640, height: 520)
-        .onAppear { rules = journal.checkRules ?? [] }
-    }
-}
 
 // MARK: - CheckRulesList
 
@@ -99,7 +62,11 @@ struct CheckRulesList: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 12) {
                         ForEach($rules) { $rule in
-                            ruleCard($rule)
+                            CheckRuleCard(rule: $rule, sectionTitles: sectionTitles,
+                                          onDelete: { rules.removeAll { $0.id == rule.id } })
+                                .padding(12)
+                                .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
+                                .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.separator))
                         }
                     }
                     .padding(14)
@@ -132,24 +99,36 @@ struct CheckRulesList: View {
         }
     }
 
-    // MARK: rule card
+}
 
-    @ViewBuilder
-    private func ruleCard(_ rule: Binding<CheckRule>) -> some View {
+// MARK: - CheckRuleCard
+
+/// One test, editable: its name, how its conditions combine, each
+/// condition, and the guidance shown when it fails.  No frame of its own —
+/// the owner draws the box (a template's list, a manuscript's test box).
+struct CheckRuleCard: View {
+
+    @Binding var rule: CheckRule
+    /// Section titles a condition can be scoped to.
+    var sectionTitles: [String] = []
+    /// Offered as "Delete Test" when set.
+    var onDelete: (() -> Void)? = nil
+
+    var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
                 Toggle("", isOn: Binding(
-                    get: { rule.wrappedValue.isEnabled },
-                    set: { rule.wrappedValue.enabled = $0 ? nil : false }
+                    get: { rule.isEnabled },
+                    set: { rule.enabled = $0 ? nil : false }
                 ))
                 .toggleStyle(.checkbox)
                 .labelsHidden()
-                .help("Include this rule in the checklist")
+                .help("Include this test in the checklist")
 
-                TextField("Rule name (optional)", text: rule.name)
+                TextField("Test name (optional)", text: $rule.name)
                     .textFieldStyle(.roundedBorder)
 
-                Picker("", selection: rule.combinator) {
+                Picker("", selection: $rule.combinator) {
                     ForEach(CheckRule.Combinator.allCases, id: \.self) { c in
                         Text(c.label).tag(c)
                     }
@@ -157,55 +136,49 @@ struct CheckRulesList: View {
                 .labelsHidden()
                 .fixedSize()
                 .help("Whether every condition must pass, or just one")
-
-                Button(role: .destructive) {
-                    rules.removeAll { $0.id == rule.wrappedValue.id }
-                } label: {
-                    Image(systemName: "trash")
-                }
-                .buttonStyle(.borderless)
-                .help("Delete this rule")
             }
 
-            if rule.wrappedValue.isManual {
+            if rule.isManual {
                 Label("Manual — ticked by hand in the checklist", systemImage: "hand.tap")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {
-                ForEach(rule.conditions) { $condition in
-                    conditionRow($condition, in: rule)
+                ForEach($rule.conditions) { $condition in
+                    conditionRow($condition)
                 }
             }
 
             HStack {
-                if !rule.wrappedValue.isManual {
+                if !rule.isManual {
                     Button {
-                        rule.wrappedValue.conditions.append(CheckCondition())
+                        rule.conditions.append(CheckCondition())
                     } label: {
                         Label("Add Condition", systemImage: "plus.circle")
                             .font(.caption)
                     }
                     .buttonStyle(.borderless)
                 }
+                if let onDelete {
+                    Button("Delete Test", role: .destructive, action: onDelete)
+                        .buttonStyle(.borderless)
+                        .font(.caption)
+                        .help("Remove this test")
+                }
                 Spacer()
                 TextField("Guidance shown when it fails (optional)", text: Binding(
-                    get: { rule.wrappedValue.note ?? "" },
-                    set: { rule.wrappedValue.note = $0.isEmpty ? nil : $0 }
+                    get: { rule.note ?? "" },
+                    set: { rule.note = $0.isEmpty ? nil : $0 }
                 ))
                 .textFieldStyle(.roundedBorder)
                 .font(.caption)
                 .frame(maxWidth: 320)
             }
         }
-        .padding(12)
-        .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
-        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.separator))
-        .opacity(rule.wrappedValue.isEnabled ? 1 : 0.55)
+        .opacity(rule.isEnabled ? 1 : 0.55)
     }
 
     @ViewBuilder
-    private func conditionRow(_ condition: Binding<CheckCondition>,
-                              in rule: Binding<CheckRule>) -> some View {
+    private func conditionRow(_ condition: Binding<CheckCondition>) -> some View {
         HStack(spacing: 6) {
             Picker("", selection: condition.metric) {
                 ForEach(CheckMetric.allCases, id: \.self) { m in
@@ -253,12 +226,12 @@ struct CheckRulesList: View {
 
             Spacer()
             Button {
-                rule.wrappedValue.conditions.removeAll { $0.id == condition.wrappedValue.id }
+                rule.conditions.removeAll { $0.id == condition.wrappedValue.id }
             } label: {
                 Image(systemName: "minus.circle")
             }
             .buttonStyle(.borderless)
-            .disabled(rule.wrappedValue.conditions.count <= 1)
+            .disabled(rule.conditions.count <= 1)
             .help("Remove this condition")
         }
         .controlSize(.small)

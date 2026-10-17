@@ -153,13 +153,13 @@ translucent band over an editor lets the editor's own chrome — the gutter rule
 the bottom of the window. The rule belongs to the editor and starts where the
 editor starts.
 
-Its sidebar is the four parts plus an overview, and nothing else:
+Its sidebar is the same three pages a cut has, and its content:
 
 ```
-Template   Overview      title · type · description
-                         Save · Save as New… · Discard Changes · Delete
-Journal    Summary       the venue's instructions, distilled
-           Structure     which sections a submission here has
+Template   Details       Local: Save · Load   Remote: Save · Load   Delete
+                         About (name · type · publisher · country ·
+                         description · version · last saved · branched from)
+                         Requirements (link · one requirement per line)
            Tests         one per requirement
            Export        the outline, and how every part is set
 Content    Title · Authors · Keywords · Figures · Tables ·
@@ -193,9 +193,13 @@ sidebar stays the manuscript's, because that is what the window is. What says
 "template" is the tab, the pane headers, and the colour.
 
 No lineage, no versions, no backend settings: a template is not a manuscript
-and should not pretend to be one. **Overview** is the template's identity —
-title, type, free-text description (which is the summary's `description:`
-bullets, not a second field to disagree with them) — and what you can do to it.
+and should not pretend to be one. **Details** is where a save goes and what
+the template is: the **About** box — name, type, publisher, country, a
+free-text description (which is the requirements' `description:` bullets,
+not a second field to disagree with them), version, last saved, ancestor —
+and the **Requirements** box, the link and one requirement per line. There
+is no Structure pane (Oct 2026): the sections below the rule are the
+structure.
 
 **No pass rate here.** A template has no content to measure, and a percentage
 with nothing behind it is a number people would trust. The rate belongs to a
@@ -259,17 +263,28 @@ are identity now (`RequirementsDoc.publisher` / `.country`, ignored by the
 fingerprint like the name), edited in the template's Overview; Settings →
 Journals only reads.
 
-### 3.3 The same four parts, in the manuscript too
+### 3.3 The same pages, in the manuscript too
 
-Summary · Structure · Tests · Export are **sidebar sections for a journal cut
-as well**, not rows in a card inside Checks. Each is this manuscript's own copy
-and editable as such, each names the template it follows and links to it
-(**Manage …** opens that template's tab), and each offers **Load**, which takes
-the template's copy of that part.
+Details · Tests · Export are **sidebar sections for a journal cut as well**,
+not rows in a card inside Checks. Each is this manuscript's own copy, edited
+in place — grey boxes, a prominent pencil that becomes save / discard
+(`JournalBox`, `EditControls`) — under one header: the journal's icon, name,
+type, the instructions link and one warning icon. Details alone carries
+**Save** and **Load**. Load takes the template's copy of the whole
+configuration. **Save opens the template editor with this manuscript's copy
+as the draft** — the cut never writes into a template directly (see *Where a
+template is edited* below); it carries its copy to the one place a template
+is saved, and from there to disk and to the shared repository.
 
-There is no Save: a cut cannot write back into a template, per *Where a
-template is edited* below. Adding a whole journal to the library as a template
-of its own is still one button, in Tests.
+The structure has no page in either place (Oct 2026). **A cut's active
+sections are its structure**: adding a journal deactivates, in that cut, the
+sections its template doesn't name; activating one (the eye) makes it part of
+the journal and gives the structure an entry for it; grey means deactivated
+and nothing else. The journal's say about a section — required, type, the
+prompt shown while it is empty, the AI context, the default content — and how
+it prints (the export item's typography, heading and options) sit behind the
+**gear at the end of the section's format bar** (`PaneSettingsPopover`), where
+the writing happens.
 
 **What a cut may change is its own copy, and that is a lot**: its summary, its
 tests, its export outline and formatting, and which sections it has. None of
@@ -329,7 +344,8 @@ finished paper, and a withdrawn one would leave a journal with no rules at all.
 |---|---|
 | **Edit a template, don't save** | Held in memory. Nothing on disk changes, and nothing a manuscript uses changes. |
 | **Overwrite** | Same GUID, **next version**, new `updatedAt`, and a fresh **checksum for every part** — all three written into `requirements.json`. Re-saving an untouched template does *not* take a version; nobody else's copy should look stale because you pressed Save. |
-| **Save as a new template** | New GUID, version 1, lineage pointing back at what it came from. |
+| **Save under a changed name or type** | A **new** template: new GUID, version 1, lineage pointing back at what it came from; no overwrite warning, because nothing is overwritten, and the tab becomes the new template's. There is no rename. |
+| **Save a draft a manuscript brought** | The journal whose Details → Save opened the editor takes the saved copy; if the save made a new template, the journal's link moves to it (`linkToTemplate`) — said in the dialog, because it is the one effect you cannot see. |
 
 Because each part's checksum is recorded, a manuscript can say **which part**
 drifted — Summary, Structure, Tests or Export — using only the copy it carries.
@@ -337,12 +353,16 @@ The pane marks exactly those parts, and says nothing about the ones that match.
 
 ### Where a template is edited
 
-**In the template, not in a manuscript.** A cut's Summary · Structure · Tests ·
-Export are *its own copy*; they can be read there and **Load**ed from the
-template, but not saved back. Editing a template from inside a manuscript made
-every template change also a decision about somebody's paper, and left "which
-manuscript is the good one" a real question. The pane says where editing
-happens and links to it.
+**In the template editor, not in a manuscript.** A cut's Details · Tests ·
+Export are *its own copy*: edited in place, **Load**ed from the template, and
+never written back from the page. **Save** on the cut's Details opens the
+template editor seeded with that copy (`TemplateWorkspace.open(_:seedFrom:
+export:)`); the save is made there, under the template's rules — unique name
+and type, a version, checksums — and goes back to the journal that brought
+it. Editing a template from inside a manuscript made every template change
+also a decision about somebody's paper, and left "which manuscript is the
+good one" a real question; carrying the copy to the editor keeps the edits
+and keeps the decision in one place.
 
 ### 3.7 Sharing: a template travels with the manuscript, and has a shared home
 
@@ -359,7 +379,7 @@ GitHub, shipped with every release (`TemplatePublishing`, Oct 2026).
 - **The check.** A journal's copy is compared against the published one by
   slug (the folder a name and type derive — which is why a name and type are
   unique in a library), then by GUID, then part by part. The outcome is one
-  warning icon beside the template's name on Summary, Structure, Tests and
+  warning icon beside the template's name on Details, Tests and
   Export, and on the template's own panes: *not published*, *differs:
   Tests, Export*, or *a different template is published under this name*. A
   check that cannot reach GitHub says nothing — no warning beats a false
@@ -374,7 +394,7 @@ GitHub, shipped with every release (`TemplatePublishing`, Oct 2026).
   corrected on `main` reaches every install without a new build. An edited
   library copy is kept (the icon says it differs); offline, the library copy
   is used at once. Remote Load records the published checksum too.
-- **Remote Save = a pull request, never a merge.** The template's Overview
+- **Remote Save = a pull request, never a merge.** The template's Details
   has the rows a manuscript's has — **Local: Save | Load**, **Remote: Save |
   Load** — with a picker for which of the app's GitHub accounts a proposal
   goes out under. Remote Save writes the template's files to a branch
@@ -384,11 +404,11 @@ GitHub, shipped with every release (`TemplatePublishing`, Oct 2026).
   (same GUID only — a different template under the name must be renamed
   first). Remote Save needs the draft saved locally first: a proposal sends
   what your library holds.
-- **One row on every part page.** Summary, Structure, Tests and Export share
-  the same template row: name — type, the instructions link, the warning
-  icon, and **Manage** (the template's tab), **Add** (a copy, "<name> -
-  copy", opened for editing — a template of your own that starts from this
-  one) and **Load** (this part, from the template).
+- **One header on every page.** Details, Tests and Export share the
+  journal's header — icon, name, type, the instructions link, the warning
+  icon — and Details carries **Save** (the template editor, seeded with
+  this copy) and **Load** (the template's copy, whole). No Copy: a template
+  of your own is a save under a new name.
 
 ### 3.8 What it cost, and where it lives
 
@@ -407,17 +427,20 @@ Built in the order it was planned, and the plan held:
 3. **Migration.** Nothing to migrate: `boilerplate` reads `sample`, derived
    section ids are stable, and the fingerprint ignores both new id fields, so
    no existing template's checksum moved.
-4. **The Checks card unwound** into `JournalSummaryView` and
-   `JournalStructureView`, sidebar sections beside Tests and Export.
+4. **The Checks card unwound** into `JournalSummaryView` (Details), a
+   sidebar section beside Tests and Export.
 
 | Where | What |
 |---|---|
-| `Store/TemplateWorkspace.swift` | open drafts, dirty/edited-parts, save · save-as-new · revert · delete |
+| `Store/TemplateWorkspace.swift` | open drafts (seeded from the library, or from a journal's copy), dirty/edited-parts, save · save-as-new · revert · delete |
 | `Views/Template/TemplateEditor.swift` | the sidebar, the router, the pane header |
-| `Views/Template/TemplateOverviewView.swift` | identity, the three actions, sharing |
-| `Views/Template/TemplatePartEditors.swift` | Summary · Structure · Tests · Export |
+| `Views/Template/TemplateDetailsView.swift` | Save and Load rows, About, Requirements |
+| `Views/Template/TemplatePartEditors.swift` | Tests · Export |
 | `Views/Template/TemplateSectionView.swift` | one of the venue's sections |
-| `Views/JournalPartViews.swift` | the same parts, as a cut holds them |
+| `Views/JournalPartViews.swift` | the header and Details, as a cut holds them |
+| `Views/PaneSettingsPopover.swift` | the gear on a section's format bar: the journal's fields and the export item |
+| `Views/CheckRulesEditor.swift` | `CheckRuleCard`, one test editable, and the template's list of them |
+| `Theme/JournalBox.swift` | the box and the pencil → save / discard standard |
 | `Theme/TemplateStyle.swift` | the colour that says "not your paper", and the pane width |
 | `Views/ComponentFormatViews.swift` | one component's export settings, over a binding |
 

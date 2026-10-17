@@ -27,8 +27,6 @@ struct SectionEditorView: View {
 
     /// Local copy of the section's prose content.
     @State private var content = RichText()
-    /// The journal's settings for this section, open.
-    @State private var showingJournalSettings = false
 
     /// The journal this pane belongs to, if it is a journal's tab.
     private var journal: Journal? { store.paneJournal(for: versionRef) }
@@ -61,32 +59,6 @@ struct SectionEditorView: View {
                            ?? "Start writing your \(section.title.lowercased())…",
                        versionRef: versionRef,
                        formatItem: .section(section.id))
-                // In a journal's tab, the journal's say about this section
-                // sits where a pane keeps its settings: top right.
-                .safeAreaInset(edge: .top, spacing: 0) {
-                    if let journal {
-                        HStack {
-                            Spacer()
-                            Button {
-                                showingJournalSettings = true
-                            } label: {
-                                let inJournal = entry(for: section) != nil
-                                Label(inJournal ? "In \(journal.name)" : "Not in \(journal.name)",
-                                      systemImage: inJournal ? "checkmark.circle" : "circle.dashed")
-                                    .font(.caption)
-                                    .foregroundStyle(inJournal ? Color.secondary : Color.orange)
-                            }
-                            .buttonStyle(.borderless)
-                            .help("Whether this section is part of a submission at \(journal.name), and the venue's say about it: required, type, prompt, AI context, default content")
-                            .popover(isPresented: $showingJournalSettings, arrowEdge: .bottom) {
-                                JournalSectionSettings(journal: journal, section: section)
-                            }
-                        }
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 4)
-                        .background(.bar)
-                    }
-                }
                 .onChange(of: content) { _, new in
                     guard var s = self.section else { return }
                     s.content = new
@@ -147,10 +119,10 @@ struct SectionEditorView: View {
 
 // MARK: - The journal's say about a section
 
-/// Edited from the section itself, in a journal's tab: whether the section
-/// is part of a submission here, whether it is required, its type, the
-/// prompt shown while it is empty, the AI context, and the default content
-/// — the journal's own structure entry, so the Structure page needs no
+/// Edited from the section's gear, in a journal's tab: whether the section
+/// is required, its type, the prompt shown while it is empty, the AI
+/// context, and the default content — the journal's own structure entry
+/// (made when the section is activated here), so no Structure page needs
 /// page of its own.
 struct JournalSectionSettings: View {
     @Environment(ManuscriptStore.self) private var store
@@ -165,19 +137,9 @@ struct JournalSectionSettings: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Toggle("Part of a submission at \(journal.name)", isOn: Binding(
-                get: { entry != nil },
-                set: { on in
-                    var edited = structure
-                    if on, entry == nil {
-                        var made = StructureSection(title: section.title)
-                        made.type = section.sectionKind == .questions ? .questions : .text
-                        edited.sections.append(made)
-                    } else if !on, let entry {
-                        edited.sections.removeAll { $0.uid == entry.uid }
-                    }
-                    store.updateStructure(edited, journalID: journal.id)
-                }))
+            Text("\(journal.name.uppercased()) — THIS SECTION")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.tertiary)
             if let entry {
                 Toggle("Required", isOn: field(\.required, entry))
                 Picker("Type", selection: Binding(
@@ -203,11 +165,14 @@ struct JournalSectionSettings: View {
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
                     .fixedSize(horizontal: false, vertical: true)
+            } else {
+                Text("Deactivated here — not part of a submission at \(journal.name). Activate it (the eye in the sidebar) to make it one.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .controlSize(.small)
-        .padding(14)
-        .frame(width: 360)
     }
 
     private func field(_ keyPath: WritableKeyPath<StructureSection, Bool>, _ entry: StructureSection) -> Binding<Bool> {

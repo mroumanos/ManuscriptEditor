@@ -29,12 +29,8 @@ import SwiftUI
 struct JournalPartHeader: View {
     @Environment(ManuscriptStore.self) private var store
     @Environment(AppStore.self) private var appStore
-    @Environment(TemplateWorkspace.self) private var templates
-
     let journal: Journal
     let part: ProfilePart
-    /// Kept for call sites; a header says nothing but the journal.
-    var subtitle: String = ""
     /// Set when this part differs from the template it came from.
     var edited: Bool = false
     /// Off when the header sits inside a pane that pads its own content
@@ -77,16 +73,11 @@ struct JournalPartHeader: View {
     }
 
     var body: some View {
-        // The same row on Summary, Tests and Export, the way the versions
-        // section shows a journal: its icon, its name, its type, and the
-        // link and warning icons.  Summary alone carries the three actions.
-        HStack(spacing: 10) {
-            Image(systemName: icon)
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .frame(width: 28, height: 28)
-                .background(Circle().fill(Color(NSColor.windowBackgroundColor)))
-                .overlay(Circle().strokeBorder(.primary.opacity(0.35), lineWidth: 1))
+        // The same row on Details, Tests and Export, the way the versions
+        // section names a journal: icon, name, type, the link and warning
+        // icons.  Details alone carries Save and Load.
+        HStack(spacing: 8) {
+            Image(systemName: icon).font(.headline).foregroundStyle(.primary)
             Text(journal.name).font(.headline)
             typeButton
             if let url = instructionsURL {
@@ -103,25 +94,16 @@ struct JournalPartHeader: View {
             if part == .requirements {
                 Spacer()
                 if let template {
-                    Button("Manage") {
+                    // Save takes this manuscript's copy to the template
+                    // editor — the only way to disk, and from there to the
+                    // cloud.  Load takes disk's copy back.
+                    Button("Save") {
                         NotificationCenter.default.post(name: .manageTemplate, object: nil,
-                                                        userInfo: ["template": template.id])
+                                                        userInfo: ["template": template.id, "journal": journal.id])
                     }
-                    .help("Edit the original — “\(template.displayName)”, in its own tab")
+                    .help("Open the template editor with this manuscript's copy of “\(template.displayName)”, to save it to disk or propose it")
                     Button("Load") { loading = true }
-                        .help("Load the original: replace this journal's summary, structure, tests and export with the template's copy from your library")
-                    Button("Copy") {
-                        // A fork: a copy of the template, this journal pointed
-                        // at it, opened for editing — a version of your own.
-                        if let made = templates.openCopy(of: template.id) {
-                            _ = store.linkToTemplate(made, journalID: journal.id)
-                            NotificationCenter.default.post(name: .manageTemplate, object: nil,
-                                                            userInfo: ["template": made])
-                        } else {
-                            store.showBanner(.error, "Couldn't copy “\(template.displayName)”.")
-                        }
-                    }
-                    .help("Fork: a copy of the template as a new version, named “\(JournalProfileLibrary.shared.copyName(for: template))”, with this journal following it")
+                        .help("Replace this journal's details, structure, tests and export with the template's copy from disk")
                 } else {
                     Text("Not linked to a template")
                         .font(.caption)
@@ -140,12 +122,12 @@ struct JournalPartHeader: View {
                 store.exportDiffers(from: published, journal: journal)
             })
         }
-        .confirmationDialog("Replace this journal's configuration with its template's?",
+        .confirmationDialog("Replace this journal's configuration with the template's copy on disk?",
                             isPresented: $loading, titleVisibility: .visible) {
             Button("Load", role: .destructive) { _ = store.adoptLibraryProfile(journalID: journal.id) }
             Button("Cancel", role: .cancel) { }
         } message: {
-            Text("The summary, structure, tests and export outline are replaced with “\(template?.displayName ?? "the template")”'s. Nothing you have written in the manuscript changes, and ⌘Z undoes it.")
+            Text("The details, structure, tests and export outline are replaced with “\(template?.displayName ?? "the template")”'s as your library holds it. Nothing you have written in the manuscript changes, and ⌘Z undoes it.")
         }
     }
 
@@ -189,209 +171,175 @@ struct JournalPartHeader: View {
     }
 }
 
-// MARK: - Summary
+// MARK: - Details
 
-/// **Summary** — the journal's own instructions, distilled, as this cut holds
-/// them.
+/// **Details** — what the journal template is (About) and what the venue
+/// asks (Requirements), as this cut holds them.  Two boxes, each edited in
+/// place behind its pencil; the header's Save takes the copy to the
+/// template editor, Load takes disk's back.
 struct JournalSummaryView: View {
     @Environment(ManuscriptStore.self) private var store
 
     var versionRef: VersionRef = .source
 
-    @State private var editing = false
+    @State private var editingAbout = false
+    @State private var aboutDraft = AboutDraft()
+    @State private var editingRequirements = false
     @State private var urlDraft = ""
     @State private var bulletDraft = ""
 
     private var journal: Journal? { store.paneJournal(for: versionRef) }
+    private var template: JournalTemplate? {
+        journal?.profileID.flatMap { JournalProfileLibrary.shared.profile(id: $0) }
+    }
+
+    struct AboutDraft {
+        var name = "", type = "", publisher = "", country = "", description = ""
+    }
 
     var body: some View {
         VStack(spacing: 0) {
             if let journal {
                 let requirements = journal.sourceRequirements ?? SourceRequirements()
-                JournalPartHeader(
-                    journal: journal, part: .requirements,
-                    subtitle: "The journal's instructions, distilled. Tests are what the app enforces of them.",
-                    edited: store.partDiffersFromTemplate(.requirements, journal: journal))
-
-                // A pencil, not a page of controls: the bullets and the link
-                // are edited in place and saved on the second click.
-                HStack(spacing: 8) {
-                    Button {
-                        if editing {
-                            var edited = requirements
-                            edited.url = urlDraft.trimmingCharacters(in: .whitespaces)
-                            edited.text = bulletDraft
-                            store.updateSourceRequirements(edited, journalID: journal.id)
-                        } else {
-                            urlDraft = requirements.url.isEmpty ? journal.submissionURL : requirements.url
-                            bulletDraft = requirements.text
-                        }
-                        editing.toggle()
-                    } label: {
-                        Image(systemName: editing ? "checkmark.circle.fill" : "pencil")
+                JournalPartHeader(journal: journal, part: .requirements,
+                                  edited: store.partDiffersFromTemplate(.requirements, journal: journal))
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 14) {
+                        about(journal)
+                        requirementsBox(journal, requirements)
                     }
-                    .buttonStyle(.borderless)
-                    .help(editing ? "Save" : "Edit the summary")
-                    if editing { Button("Cancel") { editing = false }.buttonStyle(.borderless) }
-                    Spacer()
-                }
-                .controlSize(.small)
-                .padding(.horizontal, 20)
-                .padding(.horizontal, 20)
-
-                if editing {
-                    VStack(alignment: .leading, spacing: 8) {
-                        TextField("Link to the journal's author instructions", text: $urlDraft)
-                            .textFieldStyle(.roundedBorder)
-                            .font(.caption)
-                        PlainTextEditor(text: $bulletDraft)
-                            .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(.separator))
-                        Text("One requirement per line. Start each with a category — description: / limits: / components: / format: / extra: — to keep the summary readable.")
-                            .font(.caption2)
-                            .foregroundStyle(.tertiary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
+                    .frame(maxWidth: 760, alignment: .leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(20)
-                } else {
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 10) {
-                            if requirements.bullets.isEmpty {
-                                Text("No summary yet — Edit to paste this journal's instructions, one per line, or Load the template's.")
-                                    .font(.callout)
-                                    .foregroundStyle(.tertiary)
-                            }
-                            ForEach(Array(SourceRequirements.grouped(requirements.bullets)
-                                .enumerated()), id: \.offset) { _, group in
-                                VStack(alignment: .leading, spacing: 5) {
-                                    Text((group.category ?? "other").uppercased())
-                                        .font(.caption2.weight(.semibold))
-                                        .foregroundStyle(.tertiary)
-                                    ForEach(Array(group.items.enumerated()), id: \.offset) { _, item in
-                                        HStack(alignment: .firstTextBaseline, spacing: 8) {
-                                            Text("•").foregroundStyle(.tertiary)
-                                            Text(item)
-                                                .textSelection(.enabled)
-                                                .fixedSize(horizontal: false, vertical: true)
-                                        }
-                                    }
-                                }
-                                .padding(.top, 4)
-                            }
-                        }
-                        .frame(maxWidth: 760, alignment: .leading)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(20)
-                    }
                 }
             } else {
                 JournalPartPlaceholder(part: .requirements)
             }
         }
     }
-}
 
-// MARK: - Structure
+    // MARK: About
 
-/// **Structure** — which sections a submission at this venue has, as this cut
-/// holds them.
-///
-/// No `required` column: every section here is one the venue wants, and a
-/// section you don't want is one you delete.  What a cut adds for itself is
-/// added the ordinary way, from the sidebar — it simply isn't part of the
-/// template.
-struct JournalStructureView: View {
-    @Environment(ManuscriptStore.self) private var store
+    private func about(_ journal: Journal) -> some View {
+        JournalBox(title: "About", editing: editingAbout,
+                   onEdit: {
+                       aboutDraft = AboutDraft(name: journal.templateName ?? journal.name,
+                                               type: journal.articleType ?? "",
+                                               publisher: journal.publisher, country: journal.country ?? "",
+                                               description: journal.profile.summaryDescription)
+                       editingAbout = true
+                   },
+                   onSave: {
+                       var edited = journal
+                       let name = aboutDraft.name.trimmingCharacters(in: .whitespaces)
+                       // The template's name, not the cut's: a cut keeps the
+                       // name it was given ("BMJ test 1") whatever it follows.
+                       if !name.isEmpty { edited.templateName = name }
+                       let type = aboutDraft.type.trimmingCharacters(in: .whitespaces)
+                       edited.articleType = type.isEmpty ? nil : type
+                       edited.publisher = aboutDraft.publisher.trimmingCharacters(in: .whitespaces)
+                       let country = aboutDraft.country.trimmingCharacters(in: .whitespaces)
+                       edited.country = country.isEmpty ? nil : country
+                       store.updateJournal(edited)
+                       var requirements = journal.sourceRequirements ?? SourceRequirements()
+                       var profile = journal.profile
+                       profile.summaryDescription = aboutDraft.description
+                       requirements.bullets = profile.requirements.bullets
+                       store.updateSourceRequirements(requirements, journalID: journal.id)
+                       editingAbout = false
+                   },
+                   onDiscard: { editingAbout = false }) {
+            if editingAbout {
+                Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 8) {
+                    GridRow { label("Name");        TextField("", text: $aboutDraft.name).textFieldStyle(.roundedBorder) }
+                    GridRow { label("Type");        TextField("Research Article, Research Brief…", text: $aboutDraft.type).textFieldStyle(.roundedBorder) }
+                    GridRow { label("Publisher");   TextField("", text: $aboutDraft.publisher).textFieldStyle(.roundedBorder) }
+                    GridRow { label("Country");     TextField("", text: $aboutDraft.country).textFieldStyle(.roundedBorder) }
+                    GridRow(alignment: .top) { label("Description"); TextField("What this format is for", text: $aboutDraft.description, axis: .vertical).textFieldStyle(.roundedBorder).lineLimit(2...6) }
+                }
+                .controlSize(.small)
+            } else {
+                Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 6) {
+                    GridRow { label("Name");        Text(journal.templateName ?? journal.name) }
+                    GridRow { label("Type");        Text(journal.articleType ?? "—").foregroundStyle(journal.articleType == nil ? .tertiary : .primary) }
+                    GridRow { label("Publisher");   Text(journal.publisher.isEmpty ? "—" : journal.publisher) }
+                    GridRow { label("Country");     Text(journal.country ?? "—") }
+                    GridRow(alignment: .top) { label("Description"); Text(journal.profile.summaryDescription.isEmpty ? "—" : journal.profile.summaryDescription).fixedSize(horizontal: false, vertical: true) }
+                    GridRow { label("Version");     Text(template.map { "v\($0.version)" } ?? "—").monospacedDigit() }
+                    GridRow { label("Last saved");  Text(template?.updatedAt?.formatted(date: .abbreviated, time: .shortened) ?? "never") }
+                }
+                .font(.callout)
+            }
+        }
+    }
 
-    var versionRef: VersionRef = .source
+    // MARK: Requirements
 
-    @State private var newTitle = ""
-
-    private var journal: Journal? { store.paneJournal(for: versionRef) }
-    private var sections: [StructureSection] { journal?.structure?.sections ?? [] }
-
-    var body: some View {
-        VStack(spacing: 0) {
-            if let journal {
-                JournalPartHeader(
-                    journal: journal, part: .structure,
-                    subtitle: "What a submission at this venue contains, as this cut holds it. A section the manuscript has that isn't named here is greyed in the sidebar and left out of the export; the components, their typography, boilerplate and AI context are edited in the template (Edit).",
-                    edited: store.partDiffersFromTemplate(.structure, journal: journal))
-
-                List {
-                    if sections.isEmpty {
-                        Text("No sections recorded — Load the template's structure, or add the ones this journal expects below.")
+    private func requirementsBox(_ journal: Journal, _ requirements: SourceRequirements) -> some View {
+        JournalBox(title: "Requirements", editing: editingRequirements,
+                   onEdit: {
+                       urlDraft = requirements.url.isEmpty ? journal.submissionURL : requirements.url
+                       bulletDraft = requirements.text
+                       editingRequirements = true
+                   },
+                   onSave: {
+                       var edited = requirements
+                       edited.url = urlDraft.trimmingCharacters(in: .whitespaces)
+                       edited.text = bulletDraft
+                       store.updateSourceRequirements(edited, journalID: journal.id)
+                       editingRequirements = false
+                   },
+                   onDiscard: { editingRequirements = false }) {
+            if editingRequirements {
+                VStack(alignment: .leading, spacing: 8) {
+                    TextField("Link to the journal's author instructions", text: $urlDraft)
+                        .textFieldStyle(.roundedBorder)
+                    PlainTextEditor(text: $bulletDraft)
+                        .frame(minHeight: 220)
+                    Text("One requirement per line. A `category:` prefix (description, limits, components, format, extra) groups it.")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+            } else {
+                VStack(alignment: .leading, spacing: 10) {
+                    let link = requirements.url.isEmpty ? journal.submissionURL : requirements.url
+                    if !link.isEmpty, let url = URL(string: link) {
+                        Link(destination: url) {
+                            Label("Author instructions", systemImage: "arrow.up.right.square").font(.caption)
+                        }
+                    }
+                    if requirements.bullets.isEmpty {
+                        Text("No requirements recorded.")
                             .font(.callout)
                             .foregroundStyle(.tertiary)
-                            .listRowSeparator(.hidden)
                     }
-                    ForEach(sections) { section in
-                        row(journal, section)
-                            .listRowSeparator(.hidden)
-                            .listRowInsets(EdgeInsets(top: 4, leading: 20, bottom: 4, trailing: 20))
+                    ForEach(Array(SourceRequirements.grouped(requirements.bullets).enumerated()), id: \.offset) { _, group in
+                        VStack(alignment: .leading, spacing: 5) {
+                            Text((group.category ?? "other").uppercased())
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(.tertiary)
+                            ForEach(Array(group.items.enumerated()), id: \.offset) { _, item in
+                                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                                    Text("•").foregroundStyle(.tertiary)
+                                    Text(item)
+                                        .textSelection(.enabled)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                            }
+                        }
+                        .padding(.top, 4)
                     }
-                    Text("Title, authors, abstract, keywords, figures, tables and bibliography come with every manuscript, so they aren't listed here.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .listRowSeparator(.hidden)
-                        .listRowInsets(EdgeInsets(top: 8, leading: 20, bottom: 8, trailing: 20))
                 }
-                .listStyle(.plain)
-                .scrollContentBackground(.hidden)
-            } else {
-                JournalPartPlaceholder(part: .structure)
+                .font(.callout)
             }
         }
     }
 
-    private func row(_ journal: Journal, _ section: StructureSection) -> some View {
-        HStack(spacing: 8) {
-            Image(systemName: "line.3.horizontal")
-                .foregroundStyle(.tertiary).font(.caption)
-                .help("Drag to reorder")
-            Image(systemName: section.type.systemImage)
-                .foregroundStyle(.tertiary).font(.caption).frame(width: 18)
-            Text(section.displayTitle)
-            if let boilerplate = section.boilerplate, !boilerplate.isEmpty {
-                Text("has content")
-                    .font(.caption2)
-                    .padding(.horizontal, 5).padding(.vertical, 1)
-                    .background(Color.secondary.opacity(0.12), in: Capsule())
-                    .foregroundStyle(.secondary)
-                    .help("\(boilerplate)\n\nThe venue's default content for this section — edited in the template.")
-            }
-            if let questions = section.questions, !questions.isEmpty {
-                Text("\(questions.count) question\(questions.count == 1 ? "" : "s")")
-                    .font(.caption2).foregroundStyle(.tertiary)
-            }
-            Spacer()
-            Button(role: .destructive) {
-                var edited = sections
-                edited.removeAll { $0.id == section.id }
-                store.updateStructure(rebuilt(journal, sections: edited), journalID: journal.id)
-            } label: { Image(systemName: "trash") }
-                .buttonStyle(.borderless)
-                .help("Removes it from this journal's structure. The section itself, and anything written in it, stays.")
-        }
-        .controlSize(.small)
-        .padding(8)
-        .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
-    }
-
-    /// A structure with these sections, keeping the formats the journal
-    /// already carries.
-    private func rebuilt(_ journal: Journal, sections: [StructureSection]) -> JournalStructure {
-        JournalStructure(sections: sections,
-                         coreFormats: journal.structure?.coreFormats,
-                         documentFormat: journal.structure?.documentFormat)
-    }
-
-    private func add(_ journal: Journal) {
-        let title = newTitle.trimmingCharacters(in: .whitespaces)
-        guard !title.isEmpty, !sections.contains(where: { $0.key == title.lowercased() }) else { return }
-        store.updateStructure(rebuilt(journal, sections: sections + [StructureSection(title: title)]),
-                              journalID: journal.id)
-        newTitle = ""
+    private func label(_ text: String) -> some View {
+        Text(text.uppercased())
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.tertiary)
+            .frame(width: 90, alignment: .leading)
     }
 }
 

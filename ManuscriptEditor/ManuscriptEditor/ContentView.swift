@@ -35,13 +35,15 @@ enum SidebarItem: Hashable {
     case data
     case versions
 
-    // ── The four parts of a journal's configuration ─────────────────────────
-    // Summary · Structure · Tests · Export, in that order, whether you are
-    // looking at a venue's template or at your cut of it.  `checks` keeps its
-    // name because it is the checks FILE (and its notes key), and reads as
+    // ── A journal's configuration ───────────────────────────────────────────
+    // Details · Tests · Export, in that order, whether you are looking at a
+    // venue's template or at your cut of it.  The structure has no page: a
+    // cut's active sections ARE its structure, edited from the sidebar and
+    // each section's gear.  `summary` keeps its name for the Details page
+    // (its notes key); `checks` because it is the checks FILE, read as
     // "Tests" everywhere a person sees it — the same split `ProfilePart` has.
     case summary
-    case structure
+    case structure   // legacy selection only; routes to Details
     case checks
     case export
 
@@ -320,6 +322,15 @@ struct ContentView: View {
             // checks, and structure before any manuscript opens.
             JournalProfileLibrary.shared.load()
             SigningService.debugProbe()   // container-side keyring trace
+            // A verification harness may open a project and land on a pane
+            // at launch (scripts/harness/screenshot.sh) — nothing a person
+            // does, and nothing without the variable:
+            //   MANUSCRIPT_EDITOR_OPEN="<project folder>|<pane>"
+            //   pane: overview · summary · checks · export · section:<title>
+            //         · template (the first journal's, seeded from it)
+            if let spec = ProcessInfo.processInfo.environment["MANUSCRIPT_EDITOR_OPEN"] {
+                openForHarness(spec)
+            }
         }
         // A removed journal must not leave a dangling tab selection.
         .onChange(of: allTabs) { _, tabs in
@@ -344,7 +355,8 @@ struct ContentView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .manageTemplate)) { note in
             guard let id = note.userInfo?["template"] as? UUID else { return }
-            openTemplate(id, pane: (note.userInfo?["pane"] as? String).flatMap(ProfilePart.init(rawValue:)))
+            openTemplate(id, pane: (note.userInfo?["pane"] as? String).flatMap(ProfilePart.init(rawValue:)),
+                         seedFrom: note.userInfo?["journal"] as? UUID)
         }
         .onReceive(NotificationCenter.default.publisher(for: .newManuscript)) { _ in
             if store.manuscript == nil { createInAppData() } else { pendingNew = .file }
@@ -685,8 +697,7 @@ struct ContentView: View {
         case .tables:            TablesView(versionRef: ref)
         case .bibliography:      BibliographyView(versionRef: ref)
         case .checks:            ChecksView(versionRef: ref)
-        case .summary:           JournalSummaryView(versionRef: ref)
-        case .structure:         JournalStructureView(versionRef: ref)
+        case .summary, .structure: JournalSummaryView(versionRef: ref)
         case .versions:          VersionsView(versionRef: ref)
         case .export:            ExportView(versionRef: ref)
         default:                 EmptyView()
@@ -735,20 +746,25 @@ struct ContentView: View {
         }
     }
 
-    /// Opens a template in its own tab and goes there.
-    func openTemplate(_ id: UUID, pane: ProfilePart? = nil) {
-        guard templates.open(id) else {
+    /// Opens a template in its own tab and goes there.  With a journal, the
+    /// draft is that journal's copy of the template — a manuscript's Save.
+    func openTemplate(_ id: UUID, pane: ProfilePart? = nil, seedFrom journalID: UUID? = nil) {
+        let opened: Bool
+        if let journalID, let journal = store.manuscript?.journals.first(where: { $0.id == journalID }) {
+            opened = templates.open(id, seedFrom: journal, export: store.templateExport(for: journal))
+        } else {
+            opened = templates.open(id)
+        }
+        guard opened else {
             store.showBanner(.error, "That template is no longer in your library.")
             return
         }
         tabMode = .active
         activeTab = .template(id)
         switch pane {
-        case .requirements: templateSelection = .summary
-        case .structure:    templateSelection = .structure
         case .checks:       templateSelection = .checks
         case .export:       templateSelection = .export
-        case nil:           templateSelection = .templateOverview
+        case .requirements, .structure, nil: templateSelection = .templateOverview
         }
     }
 
@@ -757,6 +773,34 @@ struct ContentView: View {
         tabMode   = .active
         activeTab = .source
         compareTabs = [.source]
+    }
+
+    /// Opens the project folder in place and goes to the pane, in the first
+    /// journal's tab.  See the `MANUSCRIPT_EDITOR_OPEN` note in `onAppear`.
+    private func openForHarness(_ spec: String) {
+        let parts = spec.split(separator: "|", maxSplits: 1).map(String.init)
+        guard let folder = parts.first, !folder.isEmpty else { return }
+        if let error = store.openLocal(folder: URL(fileURLWithPath: folder, isDirectory: true)) {
+            store.showBanner(.error, error)
+            return
+        }
+        resetWorkspace()
+        let pane = parts.count > 1 ? parts[1] : "overview"
+        guard let journal = store.manuscript?.journals.first else { return }
+        activeTab = .journal(journal.id)
+        switch pane {
+        case "summary": selection = .summary
+        case "checks":  selection = .checks
+        case "export":  selection = .export
+        case "template":
+            if let id = journal.profileID { openTemplate(id, seedFrom: journal.id) }
+        case let p where p.hasPrefix("section:"):
+            let title = String(p.dropFirst("section:".count))
+            if let section = store.manuscript?.sections.first(where: { $0.title == title }) {
+                selection = .section(section.id)
+            }
+        default: selection = .overview
+        }
     }
 }
 
@@ -855,8 +899,7 @@ struct DetailRouter: View {
         case .overview, .none:      OverviewView()
         case .log:                  LogView()
         case .checks:               ChecksView()
-        case .summary:              JournalSummaryView()
-        case .structure:            JournalStructureView()
+        case .summary, .structure:  JournalSummaryView()
         // Template items are routed by `TemplateDetailRouter`; they never
         // reach here, because they are only selectable in a template tab.
         case .templateOverview,

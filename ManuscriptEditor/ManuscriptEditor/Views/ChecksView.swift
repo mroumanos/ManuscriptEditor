@@ -34,7 +34,11 @@ struct ChecksView: View {
         return journals.first { $0.id == jid }
     }
 
-    @State private var editingRules = false
+    /// The test being edited in place, its draft, and — when it was just
+    /// added — its id, so discarding takes it back out.
+    @State private var editingRuleID: UUID?
+    @State private var ruleDraft = CheckRule.newRule()
+    @State private var addedRuleID: UUID?
     /// Taking the template's tests back — confirmed, because it replaces
     /// every rule here, including ones written for this cut alone.
     @State private var loadingTests = false
@@ -52,7 +56,6 @@ struct ChecksView: View {
                 } else if let journal = paneJournal {
                     JournalPartHeader(
                         journal: journal, part: .checks,
-                        subtitle: "What the app enforces of the journal's instructions — automatic tests and the ones you tick by hand.",
                         edited: store.partDiffersFromTemplate(.checks, journal: journal),
                         padded: false)
                     if linkedTemplate == nil { header(journal) }
@@ -63,11 +66,6 @@ struct ChecksView: View {
             }
             .padding(20)
             .frame(maxWidth: .infinity, alignment: .topLeading)
-        }
-        .sheet(isPresented: $editingRules) {
-            if let journal = paneJournal {
-                CheckRulesEditor(journal: journal, isPresented: $editingRules)
-            }
         }
         .confirmationDialog("Replace this journal's tests with the template's?",
                             isPresented: $loadingTests, titleVisibility: .visible) {
@@ -197,50 +195,108 @@ struct ChecksView: View {
             if !technical.isEmpty {
                 sectionHeader("Technical", note: "checked automatically against the manuscript and export")
                 ForEach(technical) { result in
-                    HStack(alignment: .top, spacing: 6) {
+                    testBox(result, journal: journal) {
                         ChecklistRow(result: result,
                                      fixAction: result.fixID == "typography" && !result.passed
                                          ? { store.applyRequiredTypography(journalID: journal.id) }
                                          : nil)
-                        editPencil
                     }
                 }
             }
             if !manualRules.isEmpty {
                 sectionHeader("Manual", note: "tick each box once you've verified it yourself")
                 ForEach(manualRules) { result in
-                    HStack(alignment: .top, spacing: 6) {
+                    testBox(result, journal: journal) {
                         // Label the argument: an unlabeled trailing closure can
                         // bind to fixAction, turning checkboxes into Fix buttons.
                         ChecklistRow(result: result, onToggle: {
                             store.toggleManualCheck(journalID: journal.id, rule: result.rule)
                         })
-                        editPencil
                     }
                 }
             }
             if results.isEmpty {
-                Text("This journal has no tests yet — Edit Tests… turns its requirements into ones the app can check.")
+                Text("No tests yet — add one with the + above; each turns a requirement into something the app can check.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
         }
     }
 
-    /// The pencil every test carries: the tests are edited here, in the
-    /// same editor.
-    private var editPencil: some View {
-        Button { editingRules = true } label: { Image(systemName: "pencil").font(.caption) }
-            .buttonStyle(.borderless)
-            .foregroundStyle(.tertiary)
-            .help("Edit this test")
+    // MARK: Editing in place
+
+    /// One test in its box: the result, and behind the pencil the test
+    /// itself — edited here, where it is read, and saved or discarded with
+    /// the same two icons every box uses.
+    private func testBox<Row: View>(_ result: ChecklistResult, journal: Journal,
+                                    @ViewBuilder row: @escaping () -> Row) -> some View {
+        let rule = (journal.checkRules ?? []).first { $0.id == result.id }
+        let editing = rule != nil && editingRuleID == result.id
+        return JournalBox(editing: rule == nil ? nil : editing,
+                          onEdit: { if let rule { beginEditing(rule) } },
+                          onSave: { saveEdit(journal) },
+                          onDiscard: { discardEdit(journal) }) {
+            if editing {
+                CheckRuleCard(rule: $ruleDraft, sectionTitles: sectionTitles,
+                              onDelete: { deleteEditing(journal) })
+            } else {
+                row()
+            }
+        }
+    }
+
+    /// Body-section titles offered when a condition targets one section.
+    private var sectionTitles: [String] {
+        (store.manuscript(for: versionRef)?.sections ?? []).map(\.title)
+    }
+
+    private func beginEditing(_ rule: CheckRule) {
+        ruleDraft = rule
+        editingRuleID = rule.id
+    }
+
+    /// A new test goes straight into the journal, open for editing, so it
+    /// has a box to be edited in; discarding it takes it back out.
+    private func addTest(_ rule: CheckRule, journal: Journal) {
+        var rules = journal.checkRules ?? []
+        rules.append(rule)
+        store.updateCheckRules(rules, journalID: journal.id)
+        addedRuleID = rule.id
+        beginEditing(rule)
+    }
+
+    private func saveEdit(_ journal: Journal) {
+        var rules = journal.checkRules ?? []
+        if let idx = rules.firstIndex(where: { $0.id == ruleDraft.id }) {
+            rules[idx] = ruleDraft
+        } else {
+            rules.append(ruleDraft)
+        }
+        store.updateCheckRules(rules, journalID: journal.id)
+        editingRuleID = nil
+        addedRuleID = nil
+    }
+
+    private func discardEdit(_ journal: Journal) {
+        if let added = addedRuleID, added == editingRuleID {
+            store.updateCheckRules((journal.checkRules ?? []).filter { $0.id != added }, journalID: journal.id)
+        }
+        editingRuleID = nil
+        addedRuleID = nil
+    }
+
+    private func deleteEditing(_ journal: Journal) {
+        guard let id = editingRuleID else { return }
+        store.updateCheckRules((journal.checkRules ?? []).filter { $0.id != id }, journalID: journal.id)
+        editingRuleID = nil
+        addedRuleID = nil
     }
 
     /// The heading the pane is really about.
     ///
-    /// "Tests", not "Checks": each one is a test of a requirement stated in the
-    /// Summary or the Content above, and the whole list is how a cut proves
-    /// it can be submitted.  The editor is the same popup as before.
+    /// "Tests", not "Checks": each one is a test of a requirement stated in
+    /// Details, and the whole list is how a cut proves it can be submitted.
+    /// Each test is edited in its own box; this row only adds one.
     @ViewBuilder
     private func testsHeader(_ journal: Journal, results: [ChecklistResult]) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -253,10 +309,24 @@ struct ChecksView: View {
                 .font(.caption)
                 .foregroundStyle(.tertiary)
             Spacer()
-            Button { editingRules = true } label: { Image(systemName: "pencil") }
-                .buttonStyle(.borderless)
-                .controlSize(.small)
-                .help("Add or edit tests")
+            Menu {
+                Button { addTest(.newRule(), journal: journal) } label: {
+                    Label("Add Test", systemImage: "plus")
+                }
+                Button { addTest(.newManual(), journal: journal) } label: {
+                    Label("Add Manual Test", systemImage: "hand.tap")
+                }
+            } label: {
+                Image(systemName: "plus")
+                    .font(.body.weight(.medium))
+                    .foregroundStyle(Color.accentColor)
+                    .frame(width: 24, height: 22)
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .controlSize(.small)
+            .help("Add a test — measured by the app, or ticked by hand")
         }
         .padding(.top, 12)
     }
@@ -373,10 +443,10 @@ struct ChecklistRow: View {
     }
 }
 
-// The Summary and Structure editors used to live here as sheets behind an
-// "Open…" button.  They are panes now — `JournalSummaryView` and
-// `JournalStructureView` — reached from the sidebar like everything else a
-// journal has.
+// The Summary editor used to live here as a sheet behind an "Open…" button.
+// It is the Details page now (`JournalSummaryView`), reached from the sidebar
+// like everything else a journal has; the structure is the sidebar's
+// activated sections, each with a gear.
 
 // MARK: - SaveProfileToLibrarySheet
 

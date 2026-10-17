@@ -82,7 +82,7 @@ enum ProfilePart: String, Codable, CaseIterable, Sendable, Identifiable {
     /// instructions, and the tests that decide whether a cut satisfies them.
     var label: String {
         switch self {
-        case .requirements: return "Summary"
+        case .requirements: return "Details"
         case .checks:       return "Tests"
         // "Structure", not "Content".  Calling it Content was a mistake to fix
         // rather than defend: the content lives in the template's sections,

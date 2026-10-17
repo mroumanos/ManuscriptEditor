@@ -325,18 +325,44 @@ xcodebuild -scheme ManuscriptEditor -destination 'platform=macOS' build
     in manuscript.json, because `ManuscriptSection.type` is its legacy
     section type.
 
-43. **A journal's structure is edited in the template; the manuscript's
-    sections are the union.** Nothing joins a structure automatically (an
-    earlier version added an entry when a cut wrote to a section, and it
-    confused more than it helped). `ExportConfig.standard` prints only
-    sections the structure names, `FastForwardIntent.payloads` sends only
-    those, `syncJournal` migrates the upstream's text only into those, and
-    `SidebarView` greys the rest for the journal(s) in view. Adding a
-    journal must never touch another journal's structure or export — that
-    was the "edited template" flag on every mismatched add. Deleting a
-    section from a cut deletes it everywhere only when nobody else holds
-    content in it (`sectionUsers`); otherwise it is cleared there
-    (`clearSection`).
+43. **A cut's active sections are its structure; the manuscript's sections
+    are the union.** `templatedContent` deactivates, in a new cut, every
+    section its template doesn't name; `setSectionActive(true)` and
+    `addSection(ref:)` from a journal's tab give the structure an entry
+    (`ensureStructureEntry`); `addSection` from Source leaves the section
+    deactivated in every cut. `ExportConfig.standard`,
+    `FastForwardIntent.payloads` and `syncJournal` follow `active` alone,
+    and `SidebarView` greys deactivated sections and nothing else. Nothing
+    joins a structure by being written to (an earlier version added an
+    entry when a cut wrote to a section, and it confused more than it
+    helped), and adding a journal must never touch another journal's
+    structure or export — that was the "edited template" flag on every
+    mismatched add. Deleting a section from a cut deletes it everywhere
+    only when nobody else holds content in it (`sectionUsers`); otherwise
+    it is cleared there (`clearSection`).
+
+46. **A cut never writes into a template; a changed name is a new
+    template.** The cut's Details → Save opens the template editor with
+    the journal's copy as the draft (`TemplateWorkspace.open(_:seedFrom:
+    export:)`, the journal in `seededJournal`); `templateExport(for:)`
+    points the cut's outline at the structure's uids on the way in. Save
+    with the stored name and type overwrites (and the journal adopts the
+    saved copy); with either changed, `savesAsNew` makes a new template
+    (`saveAsNew` replaces the tab) and the seeded journal is re-pointed
+    with `linkToTemplate` — the dialog must say so, because a moved link is
+    invisible. The library's name-and-type uniqueness still gates both.
+
+47. **Looking at the app is a harness too.** `scripts/harness/screenshot.sh
+    <out dir> [pane …]` builds a scratch project against a bundle-seeded
+    scratch library, launches the app once per pane with the harness-only
+    hook `MANUSCRIPT_EDITOR_OPEN="<folder>|<pane>"` (`ContentView.
+    openForHarness`; panes `overview · summary · checks · export ·
+    section:<title> · template`, the journal panes in the first journal's
+    tab), captures the window by id (`screencapture -l<id>`, never the
+    desktop), and forgets the project from the app's defaults afterwards.
+    There is no accessibility scripting on this machine, so one launch per
+    pane is the only way onto a page; a harness never opens a person's
+    manuscript.
 
 44. **`checksum.txt` is the app's checksum, so only the app writes it.**
     `JournalProfile.write(to:)` writes it beside the four files, and

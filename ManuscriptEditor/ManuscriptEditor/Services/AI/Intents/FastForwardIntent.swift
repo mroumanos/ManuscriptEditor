@@ -119,15 +119,10 @@ struct FastForwardIntent: AIIntent {
         let entries = Dictionary((target?.structure?.journalEntries ?? []).map { ($0.key, $0) },
                                  uniquingKeysWith: { first, _ in first })
         // Journal content only: core content is the author's, never adapted.
-        // And only what the venue's structure names: the manuscript's other
-        // sections are not part of a submission there, and are left empty
-        // rather than filled — the model never sees them.
-        let structured = !entries.isEmpty
+        // And active only: the cut's active sections are its structure, and
+        // a deactivated one is not part of a submission there — the model
+        // never sees it.
         return sections.filter { $0.active && $0.isJournalContent }
-            .filter { section in
-                guard structured, section.sectionKind != .abstract else { return true }
-                return entries[section.title.lowercased()] != nil
-            }
             .sorted { $0.order < $1.order }.map { section in
             // The abstract pairs with the venue's "Abstract" entry by kind.
             let entry = section.sectionKind == .abstract

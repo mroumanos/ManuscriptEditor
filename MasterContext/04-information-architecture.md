@@ -37,16 +37,19 @@ template is answered on the part's own page — an orange pencil beside its
 name, only when the copy actually differs, next to the template it names and
 the Load that takes the template's copy back. (A template tab's rows do mark
 unsaved edits; that is a different question.)
-- Summary  ← **comparable**: the venue's instructions, distilled, as this cut
-             holds them; Edit, and Load from the template
-- (Structure has no page of its own since Oct 2026: the sidebar's sections are
-  the structure, and each section's settings — part of this journal, required,
-  type, prompt, AI context, default content — sit top right of the section.)
-- Structure (former) ← **comparable**: which sections a submission here has; add,
-             reorder, remove, and Load from the template
+- Details  ← **comparable**: the template (About) and the venue's
+             instructions (Requirements) as this cut holds them, each box
+             edited behind its pencil; **Save** (to the template editor, with
+             this copy) and **Load** (from the template). Called Summary until
+             Oct 2026.
+- (Structure has no page of its own since Oct 2026: the sidebar's **active**
+  sections are the structure, and the gear at the end of a section's format
+  bar holds the journal's say about it — required, type, prompt, AI context,
+  default content — and how it prints.)
 - Tests    ← **comparable**: one live pane per tab, each checking its own
-             tab's journal; hosts Edit Tests…, Load, Manage <template>, and
-             Add to Template Library (Source shows an explanatory state)
+             tab's journal; one box per test, edited in place, **+** adds one;
+             Add to Template Library / Link when unlinked (Source shows an
+             explanatory state)
 - Export   ← **comparable**: one pane per tab — that journal's export outline
              editor + package build + Save to Journal Library…
 - Versions (N)   ← **comparable**: one pane per tab — that journal's
@@ -132,14 +135,15 @@ Tab identity is the **journal**, always resolving to its current working head.
     tabs render side-by-side, split evenly by default. The last included tab
     can't be removed (falls back to Source).
 - **A template tab is the one exception to all of this.** Opened by hand
-  (Manage Template) and closed by hand (an **✕** on the chip), drawn in the
+  (Settings → Journals → Manage Template, or a journal's Details → Save,
+  which seeds it with that journal's copy) and closed by hand (an **✕** on the chip), drawn in the
   template colour rather than the app accent, and carrying a dot while it has
   unsaved edits. Selecting it swaps the whole left column for the template's
   own sidebar, disables Active | Compare, and renders one pane — a venue's
   rules have nothing to be compared against. See
   [features/journal-templates.md](features/journal-templates.md) §3.2.
 - **Side-by-side for comparable items.** Comparable = the **Content** items
-  **plus Summary, Structure, Tests, Versions, and Export**. When a comparable item is selected AND
+  **plus Details, Tests, Versions, and Export**. When a comparable item is selected AND
   ≥1 tab is open, the detail splits into one pane per open journal. For the
   remaining manuscript-level items (Overview/Data/Log) the tabs are
   irrelevant and a single pane renders against Source.
@@ -172,9 +176,9 @@ Tab identity is the **journal**, always resolving to its current working head.
 | Save (Local) ⌘S / Save (Remote) ⇧⌘S | **File menu** + the **Overview** summary buttons (loading an existing remote = New Manuscript (Remote)… — no separate Load command) |
 | Add journals (from → to); sync between journals; lineage tree | **Manuscript → Overview** (Journals & Lineage card) |
 | Stamp Version / Roll Back; per-journal version table | **Journal → Versions** pane (per tab) |
-| A cut's summary / structure / tests; add to the template library | **Journal → Summary · Structure · Tests** panes (per tab) |
-| **Editing a journal template itself** | its **own tab** — Manage Template, from Settings → Journals or any journal pane's "Manage …" link |
-| Import / export a template as one file; contribute one upstream | **Settings → Journals → Import…**; the template tab's **Overview** |
+| A cut's details / tests / export; a section's journal fields | **Journal → Details · Tests · Export** panes (per tab); the **gear** on a section's format bar |
+| **Editing a journal template itself** | its **own tab** — Settings → Journals → Manage Template, or a journal's **Details → Save** (seeded with that manuscript's copy) |
+| Import a template; save one locally or propose it upstream | **Settings → Journals → Import…**; the template tab's **Details** (Local / Remote: Save · Load) |
 | Notes & feedback on content | notes button in pane headers (signed) |
 | Import CSV/images; SQL; charts | **Data** sidebar item |
 | New (app data) ⌘N / Open (Local)… ⌘O in-place / Open (Remote)… clone / Export Project zip ⌘E | **File menu** (all warn about unsynced work first) |

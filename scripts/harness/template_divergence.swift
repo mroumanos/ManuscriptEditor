@@ -111,33 +111,64 @@ func check(_ label: String, _ ok: Bool, _ detail: String = "") {
     var renamed = copy!; renamed.name = "Harness Journal"
     check("saving a copy under the original's name is refused", !library.save(renamed))
 
-    // The manuscript's sections are the union across journals; this journal's
-    // structure is its own, edited in the template — nothing joins it on its own.
-    guard let extraID = store.addSection(type: .custom, title: "Extra Notes", kind: .text),
-          let head = store.latestVersion(forJournal: journal.id) else {
-        check("a section outside the structure was added", false); return
-    }
+    // A cut's active sections are its structure.  A section added from
+    // Source is active there (the union) and deactivated in the cut — not
+    // part of the journal; activating it in the cut makes it one, and gives
+    // the structure an entry for it.
+    guard let head = store.latestVersion(forJournal: journal.id) else { check("the cut has a version", false); return }
     func journalNow() -> Journal { store.manuscript!.journals.first { $0.id == journal.id }! }
     func cutSection(_ id: UUID) -> ManuscriptSection { store.manuscript(for: .version(head.id))!.sections.first { $0.id == id }! }
-    check("a manuscript section the structure doesn't name is not part of the journal",
-          !store.sectionBelongs(cutSection(extraID), to: journalNow()))
-    check("one the structure names is", store.sectionBelongs(store.manuscript!.sections.first { $0.title == "Introduction" }!, to: journalNow()))
-    check("the export prints only what the structure names",
-          !store.exportConfig(forJournal: journal.id).documents.flatMap(\.items).contains { $0.sectionID == extraID })
-    check("the model is not sent it", !FastForwardIntent.payloads(for: store.manuscript(for: .version(head.id))!, target: journalNow())
+    // The standard outline: a stored outline is the author's and keeps its
+    // own list (export ⊆ structure — an active section may be left out).
+    func exported(_ id: UUID) -> Bool {
+        ExportConfig.standard(content: store.manuscript(for: .version(head.id))!, journal: journalNow())
+            .documents.flatMap(\.items).contains { $0.sectionID == id }
+    }
+    guard let extraID = store.addSection(type: .custom, title: "Extra Notes", kind: .text) else {
+        check("a section was added from Source", false); return
+    }
+    let introID = store.manuscript!.sections.first { $0.title == "Introduction" }!.id
+    check("a section added from Source is active in Source", store.manuscript!.sections.first { $0.id == extraID }?.active == true)
+    check("… and deactivated in the cut — not part of the journal",
+          !cutSection(extraID).active && !store.sectionBelongs(cutSection(extraID), to: journalNow()))
+    check("one the template names is active there, and part of it",
+          cutSection(introID).active && store.sectionBelongs(cutSection(introID), to: journalNow()))
+    check("the export prints only the cut's active sections", !exported(extraID) && exported(introID))
+    check("the model is not sent a deactivated one", !FastForwardIntent.payloads(for: store.manuscript(for: .version(head.id))!, target: journalNow())
           .contains { $0.section.id == extraID })
     check("… and is told what a submission contains",
           (try? FastForwardIntent.task(content: store.manuscript(for: .version(head.id))!, target: journalNow()))?
               .contains("The sections sent below are the ones a submission here contains") == true)
-    var written = cutSection(extraID); written.content = RichText(plain: "Something this cut says.")
-    store.updateSection(written, ref: .version(head.id))
-    check("writing to it leaves the structure alone — the template is where it is edited",
-          !store.sectionBelongs(cutSection(extraID), to: journalNow()))
-    check("… and the export still leaves it out",
-          !store.exportConfig(forJournal: journal.id).documents.flatMap(\.items).contains { $0.sectionID == extraID })
+    store.setSectionActive(true, id: extraID, ref: .version(head.id))
+    check("activating it in the cut makes it part of the journal", store.sectionBelongs(cutSection(extraID), to: journalNow()))
+    check("… gives the structure an entry for it", journalNow().structure?.sections.contains { $0.key == "extra notes" } == true)
+    check("… and the export prints it", exported(extraID))
+    store.setSectionActive(false, id: extraID, ref: .version(head.id))
+    check("deactivating takes it out of the export again", !exported(extraID))
+    check("… the entry stays — the text and the fields are kept", journalNow().structure?.sections.contains { $0.key == "extra notes" } == true)
+    guard let ownID = store.addSection(type: .custom, title: "Policy Notes", kind: .text, ref: .version(head.id)) else {
+        check("a section was added from the cut", false); return
+    }
+    check("a section added from the cut is active there", cutSection(ownID).active)
+    check("… with a structure entry", journalNow().structure?.sections.contains { $0.key == "policy notes" } == true)
+    check("… and active in Source, the union", store.manuscript!.sections.first { $0.id == ownID }?.active == true)
+
+    // A fresh cut from a template deactivates the sections it doesn't name.
+    var second = template; second.id = UUID(); second.name = "JAMA again"
+    if let other = store.addJournalCut(template: second, fromJournalID: nil, viewConfigID: nil),
+       let otherHead = store.latestVersion(forJournal: other.id) {
+        let cut = store.manuscript(for: .version(otherHead.id))!
+        check("a new cut deactivates a section its template doesn't name", cut.sections.first { $0.id == extraID }?.active == false
+              && cut.sections.first { $0.id == ownID }?.active == false)
+        check("… and keeps the ones it names", cut.sections.first { $0.id == introID }?.active == true)
+        check("… without touching the first journal's structure", journalNow().structure?.sections.contains { $0.key == "policy notes" } == true)
+    } else { check("a second journal was cut", false) }
 
     // Delete, or clear: deleting from a cut deletes everywhere only while
     // nobody else holds content in the section.
+    var written = cutSection(extraID); written.content = RichText(plain: "Something this cut says.")
+    store.updateSection(written, ref: .version(head.id))
+    check("writing into a deactivated section does not activate it", !cutSection(extraID).active)
     check("nobody else holds content in it → a delete would delete", store.sectionUsers(extraID, excluding: .version(head.id)).isEmpty)
     var inSource = store.manuscript!.sections.first { $0.id == extraID }!; inSource.content = RichText(plain: "Source's own words.")
     store.updateSection(inSource, ref: .source)
@@ -149,15 +180,16 @@ func check(_ label: String, _ ok: Bool, _ detail: String = "") {
     check("the section still exists everywhere", store.manuscript!.sections.contains { $0.id == extraID })
 
     // A fast-forward fills a submission: the upstream's text reaches only
-    // the sections the venue's structure names.
+    // the cut's active sections, and a deactivated one stays deactivated.
     var intro = store.manuscript!.sections.first { $0.title == "Introduction" }!; intro.content = RichText(plain: "An introduction from Source.")
     store.updateSection(intro, ref: .source)
     _ = store.stampSource()     // a sync reads the upstream as last stamped
     _ = store.syncJournal(journal.id)
     let synced = store.manuscript(for: .version(store.latestVersion(forJournal: journal.id)!.id))!
-    check("a sync migrates Source's text into a section the structure names",
+    check("a sync migrates Source's text into an active section",
           synced.sections.first { $0.title == "Introduction" }?.content.plain == "An introduction from Source.")
-    check("… and not into one it doesn't", synced.sections.first { $0.id == extraID }?.isEmptyContent == true)
+    check("… and not into a deactivated one", synced.sections.first { $0.id == extraID }?.isEmptyContent == true)
+    check("… which stays deactivated", synced.sections.first { $0.id == extraID }?.active == false)
 
     // Adding a journal takes the published copy when it has moved on and the
     // library's copy is untouched; an edited copy stays the user's.
@@ -205,6 +237,30 @@ func check(_ label: String, _ ok: Bool, _ detail: String = "") {
     changed.partChecksums = legacy
     changed.migrateChecksums()
     check("a real change is not mistaken for a rename", changed.partChecksums?["checks"] == legacy["checks"])
+
+    // Save from a manuscript: the template editor opens on the journal's
+    // copy; saving under a changed name makes a new template, and the
+    // journal follows it.
+    let workspace = TemplateWorkspace()
+    let carrier = journalNow()
+    check("the draft is seeded from the journal", workspace.open(source.id, seedFrom: carrier, export: store.templateExport(for: carrier)))
+    check("… and holds the journal's edits", workspace.template(source.id)?.requirements.bullets.contains { $0.contains("700 words") } == true
+          && workspace.template(source.id)?.checks.contains { $0.name == "A rule of this cut's own" } == true)
+    check("… reading as edited in those parts", workspace.editedParts(source.id).isSuperset(of: [.requirements, .checks]))
+    check("… remembering the journal", workspace.seededJournal[source.id] == journal.id)
+    check("under the same name it saves in place", !workspace.savesAsNew(source.id))
+    workspace.edit(source.id) { $0.name = "Harness Research Letter" }
+    check("under a changed name it saves as new", workspace.savesAsNew(source.id))
+    guard let newID = workspace.saveAsNew(source.id) else { check("saved as a new template", false); return }
+    let made2 = library.profile(id: newID)
+    check("the new template has its own identity at version 1, branched from the original",
+          newID != source.id && made2?.version == 1 && made2?.lineage.first == source.id)
+    check("… carrying the journal's edits", made2?.requirements.bullets.contains { $0.contains("700 words") } == true)
+    check("the original is as the library held it", library.profile(id: source.id)?.checksum == source.checksum)
+    check("the tab is the new template's", workspace.openIDs == [newID] && !workspace.isOpen(source.id))
+    check("… still remembering the journal", workspace.seededJournal[newID] == journal.id)
+    check("the journal is re-pointed", store.linkToTemplate(newID, journalID: journal.id) && journalNow().profileID == newID)
+    check("… and matches its new template", store.libraryStatus(for: journalNow()) == .matches, "\(store.libraryStatus(for: journalNow()))")
 
     print(failures == 0 ? "ALL PASS" : "\(failures) FAILURE(S)")
     exit(failures == 0 ? 0 : 1)

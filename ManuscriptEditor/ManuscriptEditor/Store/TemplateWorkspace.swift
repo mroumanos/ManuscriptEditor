@@ -36,6 +36,11 @@ final class TemplateWorkspace {
     /// when it opens and never written back on its own.
     private(set) var drafts: [UUID: JournalTemplate] = [:]
 
+    /// The manuscript journal a draft was seeded from, when it was: the
+    /// journal whose Save brought you here, and the one a save goes back
+    /// to (re-pointed, if the save made a new template).
+    private(set) var seededJournal: [UUID: UUID] = [:]
+
     private var library: JournalProfileLibrary { .shared }
 
     // MARK: - Opening and closing
@@ -54,9 +59,46 @@ final class TemplateWorkspace {
         return true
     }
 
+    /// Opens a template with THIS journal's copy of it as the draft — what
+    /// a manuscript's Save means: the edits made in the manuscript, carried
+    /// here to be saved to disk (and from here, proposed).  The draft keeps
+    /// the library's version and dates, so what you are about to overwrite
+    /// is on screen; everything else is the journal's.
+    ///
+    /// Already open: the draft is replaced.  Pressing Save in the manuscript
+    /// says "what I have there", not "what I left here".
+    @discardableResult
+    func open(_ id: UUID, seedFrom journal: Journal, export: ExportConfig?) -> Bool {
+        guard let stored = library.profile(id: id) else { return false }
+        var draft = journal.profile
+        draft.id = id
+        draft.version = stored.version
+        draft.updatedAt = stored.updatedAt
+        draft.publishedChecksum = stored.publishedChecksum
+        draft.lineage = stored.lineage
+        draft.origin = .library
+        draft.originURL = stored.originURL
+        draft.publisher = journal.publisher.isEmpty ? stored.publisher : journal.publisher
+        draft.country = journal.country ?? stored.country
+        // The cut's outline, pointed at the template's sections; one that
+        // equals the standard outline is stored as nothing (see setExport).
+        if let export {
+            let baseline = TemplateWorkspace.standardOutline(for: draft)
+            draft.export = ProfileFingerprint.of(TemplateWorkspace.repaired(export, for: draft))
+                == ProfileFingerprint.of(baseline) ? nil : export
+        } else {
+            draft.export = nil
+        }
+        drafts[id] = draft
+        seededJournal[id] = journal.id
+        if !openIDs.contains(id) { openIDs.append(id) }
+        return true
+    }
+
     func close(_ id: UUID) {
         openIDs.removeAll { $0 == id }
         drafts[id] = nil
+        seededJournal[id] = nil
     }
 
     func isOpen(_ id: UUID) -> Bool { drafts[id] != nil }
@@ -220,6 +262,17 @@ final class TemplateWorkspace {
         return library.holder(ofName: draft.name, articleType: draft.articleType, excluding: id)
     }
 
+    /// Whether Save would make a NEW template: the name or type moved away
+    /// from the library's copy.  A template is filed by name and type, so a
+    /// different name is a different template — saving under one creates
+    /// it (its own identity, version 1, branched from this one) and leaves
+    /// the original exactly as the library holds it.  There is no rename:
+    /// save under the new name, then delete the old.
+    func savesAsNew(_ id: UUID) -> Bool {
+        guard let draft = drafts[id], let stored = library.profile(id: id) else { return false }
+        return draft.name != stored.name || draft.articleType != stored.articleType
+    }
+
     /// Which parts differ from the library's copy — what the sidebar marks.
     func editedParts(_ id: UUID) -> Set<ProfilePart> {
         guard let draft = drafts[id], let stored = library.profile(id: id) else { return [] }
@@ -240,14 +293,17 @@ final class TemplateWorkspace {
     }
 
     /// Save as a new template: new GUID, version 1, lineage back to this one.
-    /// The new template is opened in place of nothing — the original stays
-    /// open, unchanged on disk, with its edits still in memory.
+    /// The new template takes this one's tab — the draft was it, under a new
+    /// name — and the original is left as the library holds it.
     @discardableResult
-    func saveAsNew(_ id: UUID, named name: String) -> UUID? {
+    func saveAsNew(_ id: UUID) -> UUID? {
         guard let draft = drafts[id] else { return nil }
-        guard let made = library.clone(draft, named: name) else { return nil }
+        guard let made = library.clone(draft, named: draft.name) else { return nil }
         drafts[made.id] = made
-        if !openIDs.contains(made.id) { openIDs.append(made.id) }
+        if let at = openIDs.firstIndex(of: id) { openIDs[at] = made.id } else { openIDs.append(made.id) }
+        seededJournal[made.id] = seededJournal[id]
+        drafts[id] = nil
+        seededJournal[id] = nil
         return made.id
     }
 
@@ -261,19 +317,6 @@ final class TemplateWorkspace {
     func delete(_ id: UUID) {
         library.remove(id: id)
         close(id)
-    }
-
-    /// A copy of a library template — "<name> - copy" — saved and opened, so
-    /// Add from any journal page starts you editing a template of your own
-    /// rather than the one every other manuscript follows.
-    @discardableResult
-    func openCopy(of id: UUID) -> UUID? {
-        guard let source = template(id),
-              let made = library.clone(source, named: library.copyName(for: source))
-        else { return nil }
-        drafts[made.id] = made
-        if !openIDs.contains(made.id) { openIDs.append(made.id) }
-        return made.id
     }
 
     // MARK: - Creating

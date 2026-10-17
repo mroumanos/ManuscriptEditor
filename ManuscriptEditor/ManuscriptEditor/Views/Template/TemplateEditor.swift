@@ -27,7 +27,7 @@
 //               REFERENCEABLE — `[[title]]`, `[[authors.names]]` — which is
 //               how a venue's layout is expressed.
 //
-// Nothing here is written until Overview's Save; see `TemplateWorkspace`.
+// Nothing here is written until Details' Save; see `TemplateWorkspace`.
 //
 // See MasterContext/features/journal-templates.md §3.
 
@@ -55,16 +55,11 @@ struct TemplateSidebarView: View {
 
     var body: some View {
         List(selection: $selection) {
+            // The same pages, in the same order, as a journal cut's — that
+            // symmetry is the point: one object, two places to meet it.  The
+            // structure has no page here either: it is the sections below.
             Section("Template") {
-                Label("Overview", systemImage: "info.circle")
-                    .tag(SidebarItem.templateOverview)
-            }
-
-            // The same four parts, in the same order, as a journal cut's —
-            // that symmetry is the point: one object, two places to meet it.
-            Section("Journal") {
-                partRow(.requirements, SidebarItem.summary, "doc.text")
-                partRow(.structure, SidebarItem.structure, "list.bullet.indent")
+                partRow(.requirements, SidebarItem.templateOverview, "doc.text")
                 partRow(.checks, SidebarItem.checks, "checklist")
                 partRow(.export, SidebarItem.export, "square.and.arrow.up")
             }
@@ -123,7 +118,7 @@ struct TemplateSidebarView: View {
                         Circle()
                             .fill(TemplateStyle.accent(scheme))
                             .frame(width: 6, height: 6)
-                            .help("This template has unsaved changes — save it from its Overview.")
+                            .help("This template has unsaved changes — save it from Details.")
                             .padding(.trailing, 8)
                     }
                 }
@@ -280,7 +275,7 @@ struct TemplateSidebarView: View {
     }
 
     private func delete(_ section: StructureSection) {
-        if selection == .templateSection(section.id.uuidString) { selection = .structure }
+        if selection == .templateSection(section.id.uuidString) { selection = .templateOverview }
         templates.edit(templateID) { template in
             template.structure.sections.removeAll { $0.id == section.id }
         }
@@ -305,17 +300,15 @@ struct TemplateDetailRouter: View {
                 )
             } else {
                 switch selection {
-                case .templateOverview, .none: TemplateOverviewView(templateID: templateID)
-                case .summary:                 TemplateSummaryView(templateID: templateID)
-                case .structure:               TemplateStructureView(templateID: templateID,
-                                                                     selection: $selection)
+                case .templateOverview, .summary, .structure, .none:
+                    TemplateDetailsView(templateID: templateID)
                 case .checks:                  TemplateTestsView(templateID: templateID)
                 case .export:                  TemplateExportView(templateID: templateID)
                 case .templateSection(let key):
                     TemplateSectionView(templateID: templateID, sectionKey: key)
                 default:
                     // A manuscript pane selected before the tab switched.
-                    TemplateOverviewView(templateID: templateID)
+                    TemplateDetailsView(templateID: templateID)
                 }
             }
         }
@@ -386,7 +379,7 @@ struct TemplatePaneHeader: View {
                 Label("Unsaved", systemImage: "circle.fill")
                     .font(.caption2)
                     .foregroundStyle(TemplateStyle.accent(scheme))
-                    .help("Held in memory. Save it from Overview to change the template itself.")
+                    .help("Held in memory. Save it from Details to change the template itself.")
             }
         }
         // Left-justified like the tabs above it.  It used to be inset past

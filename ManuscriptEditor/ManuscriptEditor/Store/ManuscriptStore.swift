@@ -500,9 +500,18 @@ final class ManuscriptStore {
     /// Adds a section to Source **and every version** (so it exists for every
     /// journal), with a unique title.  Returns the new section id.
     @discardableResult
+    /// `ref` is the tab the section was added from.  A cut's active sections
+    /// are its structure, so a new text or questions section is active in
+    /// Source (the union) and in that cut — which gains a structure entry
+    /// for it — and starts **deactivated** in every other journal's cut:
+    /// adding a section to one journal must not make it part of the others.
+    /// The abstract and the letter are everyone's and stay active everywhere.
     func addSection(type: SectionType = .custom, title: String? = nil,
-                    kind: SectionKind = .text, undoable: Bool = true) -> UUID? {
+                    kind: SectionKind = .text, undoable: Bool = true,
+                    ref: VersionRef = .source) -> UUID? {
         guard manuscript != nil else { return nil }
+        let ownJournal = journalID(for: ref)
+        let perJournal = kind == .text || kind == .questions
         let fallback: String
         switch kind {
         case .questions: fallback = "Submission Questions"
@@ -514,9 +523,9 @@ final class ManuscriptStore {
         let id = UUID()
         // A question series starts with ONE empty question, so the pane opens
         // on something to fill in rather than on an empty state.
-        func fresh(_ order: Int) -> ManuscriptSection {
+        func fresh(_ order: Int, active: Bool = true) -> ManuscriptSection {
             ManuscriptSection(id: id, type: type, title: uniqueTitle, content: RichText(),
-                              order: order, active: true,
+                              order: order, active: active,
                               kind: kind == .text ? nil : kind,
                               questions: kind == .questions ? [QuestionEntry(order: 0)] : nil,
                               letter: kind == .letter ? LetterDetails() : nil)
@@ -525,9 +534,13 @@ final class ManuscriptStore {
             m.sections.append(fresh(m.sections.count))
             for v in m.versions.indices {
                 var content = m.versions[v].content
-                content.sections.append(fresh(content.sections.count))
+                let active = !perJournal || m.versions[v].journalID == ownJournal
+                content.sections.append(fresh(content.sections.count, active: active))
                 m.versions[v].content = content
             }
+        }
+        if perJournal, let ownJournal, let section = manuscript?.sections.first(where: { $0.id == id }) {
+            ensureStructureEntry(for: section, journalID: ownJournal)
         }
         return id
     }
@@ -620,7 +633,38 @@ final class ManuscriptStore {
     /// is uneditable and excluded from Checks and Export, but its content is
     /// **preserved** so reactivating restores the text — Checks/Export filter on
     /// the `active` flag, never on emptiness, so nothing leaks while it's off.
+    /// Activating a section in a journal's cut makes it part of the journal;
+    /// the journal's structure gains an entry for it (its gear's fields —
+    /// required, type, prompt, AI context, default content — live there).
     func setSectionActive(_ active: Bool, id: UUID, ref: VersionRef) {
+        if active, let journalID = journalID(for: ref),
+           let section = manuscript?.sections.first(where: { $0.id == id }) {
+            ensureStructureEntry(for: section, journalID: journalID)
+        }
+        setSectionActiveOnly(active, id: id, ref: ref)
+    }
+
+    /// Gives a journal's structure an entry for a section that is part of
+    /// its cut and has none yet — the entry the section's gear edits.  Not
+    /// undoable on its own: it rides on the activation or add that caused it.
+    private func ensureStructureEntry(for section: ManuscriptSection, journalID: UUID) {
+        guard section.isJournalContent, section.sectionKind != .abstract,
+              let journal = manuscript?.journals.first(where: { $0.id == journalID }),
+              !(journal.structure?.journalEntries ?? []).contains(where: { $0.key == section.title.lowercased() })
+        else { return }
+        var structure = journal.structure ?? JournalStructure()
+        var made = StructureSection(title: section.title)
+        made.required = false
+        made.type = section.sectionKind == .questions ? .questions : .text
+        structure.sections.append(made)
+        touch(undoable: false) { m in
+            guard let idx = m.journals.firstIndex(where: { $0.id == journalID }) else { return }
+            m.journals[idx].structure = structure
+        }
+        writeProfile(journalID: journalID)
+    }
+
+    private func setSectionActiveOnly(_ active: Bool, id: UUID, ref: VersionRef) {
         touch(ref, undoAction: active ? "Activate Section" : "Deactivate Section") { m in
             if let i = m.sections.firstIndex(where: { $0.id == id }) {
                 m.sections[i].active = active
@@ -637,16 +681,16 @@ final class ManuscriptStore {
 
     // MARK: - A journal's structure and the manuscript's sections
 
-    /// Whether a manuscript section is part of a submission at this journal
-    /// — named in its structure.  The manuscript's sections are the union
-    /// across its journals; each journal's structure is only its own.  A
-    /// journal without a structure takes every section.
+    /// Whether a manuscript section is part of a submission at this journal:
+    /// active in its cut.  The manuscript's sections are the union across
+    /// its journals; a journal's structure is the sections active in its
+    /// cut — deactivated is the default for one its template doesn't name.
     func sectionBelongs(_ section: ManuscriptSection, to journal: Journal) -> Bool {
-        guard section.isJournalContent, section.sectionKind != .abstract,
-              let structure = journal.structure, !structure.journalEntries.isEmpty else { return true }
-        return structure.journalEntries.contains { $0.key == section.title.lowercased() }
+        guard section.isJournalContent, section.sectionKind != .abstract else { return true }
+        guard let content = latestVersion(forJournal: journal.id)?.content,
+              let own = content.sections.first(where: { $0.id == section.id }) else { return section.active }
+        return own.active
     }
-
 
     /// Where else a section has content — the places a delete would take it
     /// from.  Source by name, and each journal whose cut holds something in
@@ -1192,6 +1236,33 @@ final class ManuscriptStore {
         return true
     }
 
+    /// The other direction: this cut's outline as its template would hold
+    /// it, every section item pointed at the structure entry of the same
+    /// title.  A section the structure doesn't name has no place in the
+    /// template, so its item is dropped — the standard outline adds the
+    /// template's own back when the outline is read there.
+    func templateExport(for journal: Journal) -> ExportConfig? {
+        guard let config = journal.exportConfig,
+              let content = latestVersion(forJournal: journal.id)?.content ?? manuscript
+        else { return nil }
+        let titleByID = Dictionary(content.sections.map { ($0.id, $0.title.lowercased()) },
+                                   uniquingKeysWith: { first, _ in first })
+        let uidByKey = Dictionary((journal.structure?.sections ?? []).map { ($0.key, $0.uid) },
+                                  uniquingKeysWith: { first, _ in first })
+        var out = normalizedOutline(config, content: content)
+        for d in out.documents.indices {
+            out.documents[d].items = out.documents[d].items.compactMap { item in
+                guard item.type == .manuscriptSection else { return item }
+                guard let id = item.sectionID, let key = titleByID[id], let uid = uidByKey[key]
+                else { return nil }
+                var mapped = item
+                mapped.sectionID = uid
+                return mapped
+            }
+        }
+        return out
+    }
+
     private func remappedExport(_ config: ExportConfig, template: JournalTemplate,
                                 content: Manuscript) -> ExportConfig {
         let repaired = TemplateWorkspace.repaired(config, for: template)
@@ -1318,11 +1389,19 @@ final class ManuscriptStore {
                                uniquingKeysWith: { first, _ in first })
         var out = content
         // The abstract pairs with the venue's "Abstract" entry by kind, so a
-        // renamed abstract still finds it; everything else by title.
+        // renamed abstract still finds it; everything else by title.  A
+        // section the venue doesn't name starts deactivated here: the cut's
+        // active sections are its structure.
+        let named = !byKey.isEmpty
         out.sections = content.sections.map { section in
-            Self.templated(section, entry: section.sectionKind == .abstract
-                           ? journal.structure?.abstractEntry
-                           : byKey[section.title.lowercased()])
+            let entry = section.sectionKind == .abstract
+                ? journal.structure?.abstractEntry
+                : byKey[section.title.lowercased()]
+            var made = Self.templated(section, entry: entry)
+            if named, section.isJournalContent, section.sectionKind != .abstract, entry == nil {
+                made.active = false
+            }
+            return made
         }
         return out
     }
@@ -2540,16 +2619,15 @@ final class ManuscriptStore {
         // and quietly replaced every rewritten section with its boilerplate
         // while the banner reported the rewrite.)
         var baseContent = migrated(base?.content ?? m, into: head.content)
-        // Only what the venue's structure names takes the upstream's text; a
-        // section outside it keeps this cut's own (usually nothing) — a
-        // fast-forward fills a submission, not the union of the journals.
-        if let journal = m.journals.first(where: { $0.id == journalID }),
-           !(journal.structure?.journalEntries.isEmpty ?? true) {
-            for i in baseContent.sections.indices where !sectionBelongs(baseContent.sections[i], to: journal) {
-                if let own = head.content.sections.first(where: { $0.id == baseContent.sections[i].id }) {
-                    baseContent.sections[i].content = own.content
-                    baseContent.sections[i].questions = own.questions
-                }
+        // Only this cut's active sections take the upstream's text; a
+        // deactivated one keeps its own (usually nothing) and stays
+        // deactivated — a fast-forward fills a submission, not the union.
+        for i in baseContent.sections.indices {
+            guard let own = head.content.sections.first(where: { $0.id == baseContent.sections[i].id }) else { continue }
+            baseContent.sections[i].active = own.active
+            if !own.active {
+                baseContent.sections[i].content = own.content
+                baseContent.sections[i].questions = own.questions
             }
         }
         if let adaptation {

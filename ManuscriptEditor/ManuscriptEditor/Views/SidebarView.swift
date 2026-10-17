@@ -153,7 +153,7 @@ struct SidebarView: View {
     @ViewBuilder
     private var journalSection: some View {
         Section("Journal") {
-            row(SidebarItem.summary, "Summary", "doc.text")
+            row(SidebarItem.summary, "Details", "doc.text")
             row(SidebarItem.checks, checksTitle, "checklist")
             row(SidebarItem.export, "Export", "square.and.arrow.up")
             row(SidebarItem.versions, "Versions (\(versionCount))", "arrow.triangle.branch")
@@ -334,7 +334,9 @@ struct SidebarView: View {
             // at submission.
             ForEach(store.addableSectionKinds, id: \.self) { kind in
                 Button {
-                    if let id = store.addSection(kind: kind) { selection = .section(id) }
+                    // Added from this tab: active here and in Source, deactivated
+                    // in the other journals' cuts.
+                    if let id = store.addSection(kind: kind, ref: activeRef) { selection = .section(id) }
                 } label: {
                     Label(kind.label, systemImage: kind.systemImage)
                 }
@@ -350,33 +352,28 @@ struct SidebarView: View {
 
     // MARK: - Row helpers
 
-    /// The journals in view — the compared panes', else the active tab's.
-    private var journalsInView: [Journal] {
-        let refs = comparedRefs.isEmpty ? [activeRef] : comparedRefs
-        return refs.compactMap { store.paneJournal(for: $0) }
-    }
-
     private func sectionRow(_ section: ManuscriptSection) -> some View {
         // Activation is PER JOURNAL, so it reads from the active tab's copy
         // rather than from Source's.
-        let isActive = active?.sections.first { $0.id == section.id }?.active ?? section.active
-        // A section none of the journals in view names is greyed, still
-        // selectable: writing to it, or exporting it, makes it theirs.
-        let journals = journalsInView
-        let belongs = journals.isEmpty || journals.contains { store.sectionBelongs(section, to: $0) }
-        let outsiders = journals.filter { !store.sectionBelongs(section, to: $0) }.map(\.name)
+        // Grey means deactivated, nothing else.  In Compare, deactivated in
+        // every pane in view; a section a journal's template doesn't name
+        // starts deactivated there, so the greyed rows read as "not part of
+        // this submission".
+        let refs = comparedRefs.isEmpty ? [activeRef] : comparedRefs
+        let isActive = refs.contains { ref in
+            store.manuscript(for: ref)?.sections.first { $0.id == section.id }?.active ?? section.active
+        }
         return HStack {
             Label(section.title, systemImage: section.sectionKind == .text
                                               ? section.type.systemImage
                                               : section.sectionKind.systemImage)
-                .foregroundStyle(isActive && belongs ? .primary : .tertiary)
-                .help(belongs ? "" : "Not part of \(outsiders.joined(separator: ", "))'s structure — writing to it here, or adding it to the export, makes it part of this journal")
+                .foregroundStyle(isActive ? .primary : .tertiary)
             Spacer()
             if !isActive {
                 Image(systemName: "eye.slash")
                     .foregroundStyle(.orange)
                     .font(.caption)
-                    .help("Deactivated in this journal — its text is kept")
+                    .help("Deactivated in this journal — not part of its submission; its text is kept")
             }
             notesBadge(.section(section.id))
         }

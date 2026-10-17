@@ -185,33 +185,12 @@ struct ExportView: View {
                 // and it was the one part you could not load.
                 JournalPartHeader(
                     journal: journal, part: .export,
-                    subtitle: "Each journal has its own export outline: the documents in its submission package, what goes into each (with page breaks), and each document's format and file type.",
                     edited: store.partDiffersFromTemplate(.export, journal: journal),
                     padded: false)
-            } else {
-                Text("Export").font(.title2.weight(.semibold))
-                Text("Each journal has its own export outline: the documents in its submission package, what goes into each (with page breaks), and each document's format and file type.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
             }
 
-            HStack(spacing: 10) {
-                // The pane IS its tab's journal — no picker to re-litigate it.
-                Label(journalName, systemImage: journalID == nil ? "doc.text" : "building.columns")
-                    .font(.headline)
-
-                // Saving lives in the journal's profile pane (Checks), which
-                // now carries the export outline as part of the profile — two
-                // saves into two different libraries were why a journal saved
-                // here never appeared when adding one.
-                if let content = exportContent, journalID != nil,
-                   let head = store.latestVersion(forJournal: journalID) {
-                    Text("Exports v\(store.journalOrdinal(of: head)) · \(content.updatedAt.formatted(date: .abbreviated, time: .shortened))")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
+            if journalID == nil {
+                Label(journalName, systemImage: "doc.text").font(.headline)
             }
         }
         .frame(maxWidth: 640, alignment: .leading)

@@ -536,40 +536,54 @@ propagate by explicit, individual fast-forwards.
   registration and permission requirements as manual tests. The profiles
   are generated from per-journal specs (`scripts/corpus/`); the template
   lists group a venue's formats under its name.
-- AC (implemented, Oct 2026): **A journal's structure is its own; the
-  manuscript's sections are the union.** Adding a journal adds the sections
-  its structure names and nothing to any other journal's structure. In a
-  journal's tab (and in Compare, across the compared journals) a section no
-  structure in view names is **greyed, still selectable**. Nothing joins a
-  structure on its own: the components are edited in the template
-  (writing into a greyed section leaves it greyed and unexported). The
-  **standard export prints only what the structure names** (export ⊆
-  structure; a structure section may be left out of the export); a
-  **fast-forward fills only the sections the structure names** — the
-  upstream's text is not migrated into a section outside it, and the
-  assisted adaptation is sent only those, and told so. Bundled profiles
-  name only the sections a venue's page names.
+- AC (implemented, Oct 2026): **A cut's active sections are its structure;
+  the manuscript's sections are the union.** Adding a journal adds the
+  sections its template names and **deactivates, in that cut, the sections
+  it doesn't** — and touches no other journal. Grey in the sidebar means
+  deactivated, nothing else (in Compare, deactivated in every pane in
+  view). **Activating a section (the eye) makes it part of the journal** and
+  gives the journal's structure an entry for it, the one its gear edits;
+  deactivating keeps the entry and the text. A section added from a
+  journal's tab is active there and in Source, deactivated in the other
+  cuts; one added from Source starts deactivated in every cut. The
+  **standard export prints the cut's active sections** (export ⊆
+  structure; an active section may still be left out of the export); a
+  **fast-forward fills only the active sections** — a deactivated one
+  stays deactivated and empty, and the assisted adaptation is sent only the
+  active ones, and told so. Bundled profiles name only the sections a
+  venue's page names.
 - AC (implemented, Oct 2026): **Delete or clear.** Deleting a section from
   a journal's tab deletes it everywhere only when no other place holds
   content in it; otherwise the action is **Clear** — the section is
   emptied in this cut (or in Source) and every other copy is left alone,
   and the menu names who still uses it.
-- AC (implemented, Oct 2026): **One header, three pages, one place for the
-  template actions.** Summary, Tests and Export in a journal's tab wear
-  the same one-line header the versions section gives a journal — icon,
-  name, the article type as a button, the link and warning icons — with
-  no page title and no subtext. Summary alone carries **Manage** (edit the
-  original template in its tab), **Load** (replace this journal's whole
-  configuration with the library's copy) and **Copy** (fork: a copy of the
-  template as a new version, this journal following it). Each page is
-  edited in place behind a pencil: the summary's bullets and link; every
-  test (and an add/edit pencil at the top); the export outline, document
-  types included. There is **no Structure page**: the sidebar's sections
-  are the structure, and a section's settings in a journal's tab — part of
-  this journal, required, type, prompt (shown while the section is empty),
-  AI context, default content — sit top right of the section window. The
-  template's section window has the same fields plus typography; prompt,
-  AI context and default content all go to the model on a fast-forward.
+- AC (implemented, Oct 2026): **One header, three pages, boxes edited in
+  place.** Details, Tests and Export in a journal's tab wear the same
+  one-line header the versions section gives a journal — the journal's
+  icon, name, the article type as a button, the link and warning icons —
+  with no page title and no subtext. Details alone carries **Save** (opens
+  the template editor with *this manuscript's copy* of the template as the
+  draft — the only way to disk, and from there to the shared repository)
+  and **Load** (replace this journal's whole configuration with the
+  library's copy). Content sits in grey rounded boxes (`JournalBox`); a
+  box that can be edited carries a prominent accent **pencil** top right,
+  which becomes **save** (`square.and.arrow.down`) and **discard**
+  (`trash`) while editing (`EditControls`) — one gesture everywhere.
+  Details has two boxes, **About** (name, type, publisher, country,
+  description, version, last saved) and **Requirements** (link and one
+  requirement per line); Tests has **one box per test**, its result in
+  view and the test itself behind the pencil (`CheckRuleCard`), with a
+  **+** at the top that adds a test open for editing; Export's outline is
+  edited in place, document types included. There is **no Structure
+  page**: the sidebar's active sections are the structure, and the
+  **gear at the end of a section's format bar** (`PaneSettingsPopover`)
+  holds the journal's say about it — required, type, prompt (shown while
+  the section is empty), AI context, default content — and how it prints
+  (the export item's typography, heading and options, bound to the same
+  item the Export page shows). No "In <journal>" bar and no "part of a
+  submission" toggle: activation is that. The template's section window
+  has the same fields plus typography; prompt, AI context and default
+  content all go to the model on a fast-forward.
 - AC (implemented, Oct 2026): **Templates propagate from the shared
   repository.** Every profile folder carries `checksum.txt`; Add Journal
   fetches it, and when it differs from an untouched library copy
@@ -579,12 +593,12 @@ propagate by explicit, individual fast-forwards.
   `export.json` (generated from the network's page groups; the standard
   outline stamped for hand-written profiles). `scripts/corpus/stamp.sh`
   writes both; the corpus harness fails on a stale checksum.
-- AC (implemented, Oct 2026): **Template management.** Summary, Structure,
-  Tests and Export show the same template row — name — type, instructions
-  link, one warning icon, **Manage** / **Add** (a "<name> - copy" opened
-  for editing) / **Load**. A template's **name and type are unique** in a
-  library (Save refuses a taken one and says who holds it). The template's
-  Overview has **Local: Save | Load** and **Remote: Save | Load** with a
+- AC (implemented, Oct 2026): **Template management.** Details, Tests and
+  Export show the same header — the journal, its type, the instructions
+  link, one warning icon; Details carries **Save** / **Load**. A template's
+  **name and type are unique** in a library (Save refuses a taken one and
+  says who holds it). The template's
+  Details has **Local: Save | Load** and **Remote: Save | Load** with a
   GitHub-account picker: Remote Save proposes the template to the shared
   repository as a **pull request** (branch, or fork when the account can't
   push) — never a merge; Remote Load takes the published copy. The
@@ -905,22 +919,25 @@ A template is an editable object in its own tab rather than something captured
 from a manuscript. Design and rationale:
 [features/journal-templates.md §3](features/journal-templates.md).
 
-- AC: **Manage Template** — from Settings → Journals or any journal pane's
-  "Manage …" link — opens the template in a **tab of its own**, in the template
+- AC: **Manage Template** — from Settings → Journals, or a journal's
+  **Details → Save**, which opens the editor on *this manuscript's copy* of
+  the template (Oct 2026) — opens the template in a **tab of its own**, in the template
   colour (`TemplateStyle`, teal: the app accent is blue, Assist is violet,
   "edited" is orange), carrying a close button and a dot while it has unsaved
   edits. Selecting it swaps the left column for the template's own sidebar,
   disables Active | Compare, and renders one pane.
-- AC: Its sidebar is **Overview**, then Summary · Structure · Tests · Export,
-  then **Content laid out exactly as a manuscript's is** — the fixed parts in
+- AC: Its sidebar is **Details · Tests · Export** (Oct 2026: Overview and
+  Summary merged into Details; the Structure pane is gone — the sections
+  below are the structure), then **Content laid out exactly as a manuscript's is** — the fixed parts in
   their usual order (listed, greyed, inactive), the soft rule, then the
   venue's own sections (a letter among them, when the venue has one) and Add
   Section. The fixed parts stay referenceable: `[[title]]`,
   `[[authors.names]]`, `[[authors.institutes]]` resolve against whatever
   manuscript adopts the template. The window's own chrome is untouched — the
   title above the sidebar stays the manuscript's.
-- AC: A template's section — and its **Summary** — is edited in **the ordinary
-  editor** (`RichEditor`), so "/" opens the same reference picker. In a
+- AC: A template's section is edited in **the ordinary
+  editor** (`RichEditor`), so "/" opens the same reference picker (its
+  requirements are plain lines in a Details box). In a
   template it offers the part tokens and nothing else, Zotero included: a
   citation or a figure reference would point at one paper's bibliography and
   be wrong in every other.
@@ -983,8 +1000,8 @@ from a manuscript. Design and rationale:
   lists it under Body Sections, never under Components.
 - AC: Structure rows and a question series' questions **drag to reorder**.
 - AC: Settings → Journals is read-only through and through: no Open buttons on
-  the four parts (Manage Template opens the whole thing) and nothing to set —
-  publisher and country are the template's own, edited in its Overview.
+  the parts (Manage Template opens the whole thing) and nothing to set —
+  publisher and country are the template's own, edited in its Details.
 - AC: The editor's gutter rule is clipped to the editor. AppKit views don't
   clip subviews, and the ruler's hairline was painted from the tab bar to the
   bottom of the window (gotcha 25); pane headers are left-justified with the
@@ -995,16 +1012,26 @@ from a manuscript. Design and rationale:
   is how selecting Summary once pushed the sidebar off the window and left it
   looking empty (gotcha 24).
 - AC: **Edits live in memory** (`TemplateWorkspace`). Nothing on disk changes,
-  and nothing any manuscript uses changes, until Overview's **Save** — which
-  keeps the GUID, takes the next version and rewrites every part's checksum;
-  **Save as New…** takes a new GUID at version 1 with lineage back to this one;
-  **Discard Changes** restores the library's copy; **Delete** removes it, and
-  manuscripts already using it keep their own copy. Each is confirmed and names
-  what it does.
-- AC: Overview is the template's identity — name, type, and a description that
-  IS the summary's `description:` bullets, not a second field to disagree with
-  them — plus its version, when it was last saved, its identity, its ancestor,
-  and which of the four parts have been edited.
+  and nothing any manuscript uses changes, until Details' **Local: Save** —
+  which keeps the GUID, takes the next version and rewrites every part's
+  checksum. **With the name or type changed, Save makes a new template
+  instead** (Oct 2026): its own GUID at version 1 with lineage back to this
+  one, no overwrite warning because nothing is overwritten, and the tab
+  becomes the new template's; there is no rename (save under the new name,
+  delete the old). **Local: Load** restores the library's copy; **Delete**
+  removes it, and manuscripts already using it keep their own copy. A draft
+  that a manuscript's **Details → Save** brought here is *seeded from that
+  journal's copy* (`TemplateWorkspace.open(_:seedFrom:export:)`, the
+  journal remembered in `seededJournal`): saving gives the journal the
+  saved copy, and a save under a changed name **moves the journal's link to
+  the new template** (`linkToTemplate`) — the one effect you cannot see,
+  so the dialog says it. Each action is confirmed and names what it does.
+- AC: Details' **About** box is the template's identity — name, type,
+  publisher, country, and a description that IS the requirements'
+  `description:` bullets, not a second field to disagree with them — plus
+  its version, when it was last saved and its ancestor; its
+  **Requirements** box is the link and one requirement per line. No
+  "travels with the manuscript" or "used by" prose.
 - AC: **No pass rate in a template's Tests.** There is no content to measure;
   the rate belongs to a cut, where the sidebar carries it — *Tests (86%)*.
 - AC: **The editor shows one base format** (Sep 2026): the editing face,
@@ -1104,20 +1131,20 @@ from a manuscript. Design and rationale:
   delete-and-add. Written as `id`, which the fingerprint strips, and derived
   from the title when a file has none — so no existing template's checksum
   moved and every install agrees about which section is which.
-- AC: **Summary · Structure · Tests · Export are sidebar sections for a cut
-  too**, replacing the card inside Checks. Each is this manuscript's own copy
-  and editable as such; each page marks itself with an orange pencil **only
-  when its copy differs from the template's** — the sidebar rows carry no
-  marker (Sep 2026) — each names that template and links to it, and each
+- AC: **Details · Tests · Export are sidebar sections for a cut too**,
+  replacing the card inside Checks (Summary and Structure until Oct 2026).
+  Each is this manuscript's own copy and editable as such; each page marks
+  itself with a warning icon **only when its copy differs from the
+  template's** — the sidebar rows carry no marker (Sep 2026) — and Details
   offers **Load**. "Differs" asks what you changed and nothing else:
-  Structure compares the stored copy the Structure pane edits (not a capture
+  Structure compares the stored copy the section gears edit (not a capture
   of the cut's sections, which lit the marker on every journal), and Export
   compares the outline as the cut would print it against the template's
   remapped onto the cut's sections, both normalized the same way, so
-  remapped ids and the pane's page-break anchors never count. None offers
-  Save: a cut cannot write back into a template
-  (see *Where a template is edited*). Adding a whole journal to the library is
-  still one deliberate button.
+  remapped ids and the pane's page-break anchors never count. A cut never
+  writes into a template directly: Details' **Save** takes its copy to the
+  template editor, where the save is made (see *Where a template is
+  edited*).
 - AC: **Sharing is that a template travels with the manuscript.** The
   single-file export and the pull-request path were built and then removed —
   a feature nobody can explain is worse than one that isn't there. The
@@ -1192,9 +1219,10 @@ from a manuscript. Design and rationale:
   — joined as **rich text**, so every citation and token on both sides
   survives. (It joined plain strings until Sep 2026, and one Append flattened
   every citation in Source: gotcha 30.)
-- AC: Each part has **Open · Load** — Save was removed when templates became
-  editable objects — and the header names the template it follows, linking to
-  it (**Manage …**), or offers to link one when it isn't linked. **Export
+- AC: Each page is edited in place and Details has **Save · Load** — Save
+  goes through the template editor, seeded with this copy — and the header
+  names the template it follows (Tests offers to link one when it isn't
+  linked). **Export
   included** (Sep 2026): the cut's Export pane wears the same header, and Load
   takes the template's outline remapped onto the cut's sections
   (`loadTemplatePart(.export)` → `adoptTemplateExport`).
