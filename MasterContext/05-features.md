@@ -584,9 +584,11 @@ propagate by explicit, individual fast-forwards.
   context, default content — and how it prints (the export item's
   typography, heading and options, bound to the same item the Export page
   shows). No "In <journal>" bar and no "part of a submission" toggle:
-  activation is that. The template's section window
-  has the same fields plus typography; prompt, AI context and default
-  content all go to the model on a fast-forward.
+  activation is that. The template's section window has the same fields,
+  one per line, and the same gear and popup over the template's own
+  export item (`TemplateSectionSettings`, mirrored into the entry's
+  `format`); prompt, AI context and default content all go to the model
+  on a fast-forward.
 - AC (implemented, Oct 2026): **Templates propagate from the shared
   repository.** Every profile folder carries `checksum.txt`; Add Journal
   fetches it, and when it differs from an untouched library copy
