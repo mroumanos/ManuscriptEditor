@@ -373,8 +373,8 @@ private struct FormatBar: View {
                 // a global reading preference (Settings → Editor), and the
                 // EXPORT typeface belongs to the component's settings gear.
                 // Keeping them on the writing toolbar conflated the two and
-                // made every pane look different from its neighbour.  The
-                // gear for those is in the pane header (`PaneSettingsButton`).
+                // made every pane look different from its neighbour.  Those
+                // are set on the Export page's row, and nowhere else.
             }
             .padding(.leading, EditorLayout.leftInset)   // align with the text column
             .padding(.trailing, 10)

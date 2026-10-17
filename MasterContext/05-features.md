@@ -567,8 +567,9 @@ propagate by explicit, individual fast-forwards.
   and **Load** (replace this journal's whole configuration with the
   library's copy). Content sits in grey rounded boxes (`JournalBox`); a
   box that can be edited carries a prominent accent **pencil** top right,
-  which becomes **save** (`square.and.arrow.down`) and **discard**
-  (`trash`) while editing (`EditControls`) — one gesture everywhere.
+  which becomes **save** (a floppy disk, `FloppyIcon`, drawn because SF
+  Symbols has none) and **discard** (`trash`, not red) while editing
+  (`EditControls`) — one gesture everywhere.
   Details has two boxes, **About** (name, type, publisher, country,
   description, version, last saved) and **Requirements** (link and one
   requirement per line). Tests keeps its plain rows; **one pencil in the
@@ -581,11 +582,10 @@ propagate by explicit, individual fast-forwards.
   included, and **each row's gear is the only place a component's
   typography, heading and options are set** — a section can print in two
   documents, and only the row says which copy. There is **no Structure page**:
-  the sidebar's active sections are the structure, and a section's **gear in its pane header**, in a
-  journal's tab beside the eye, preview and notes icons
-  (`PaneSettingsButton`), holds the journal's say about it — required,
-  type, prompt (shown while the section is empty), AI context, default
-  content — and nothing about how it prints. No "In <journal>" bar and no "part of a submission" toggle:
+  the sidebar's active sections are the structure, and a section's journal fields — required, type,
+  prompt (shown while the section is empty), AI context, default content
+  — are edited in the template editor's section view, which Details →
+  Save seeds with this cut's copy. No content pane carries a gear. No "In <journal>" bar and no "part of a submission" toggle:
   activation is that. The template's section window has the same fields,
   one per line, and no gear — its typography is set on the template's
   Export pane; prompt, AI context and default content all go to the model

@@ -563,9 +563,11 @@ struct ContentView: View {
                     }
                 }
                 sectionActivationControl(item: item, ref: ref)
-                // The gear: the journal's say about this section — not how
-                // it prints, which is the Export row's (`PaneSettingsButton`).
-                PaneSettingsButton(item: item, ref: ref)
+                // No settings gear here.  How a component prints is the
+                // Export row's (a section can print in two documents, and
+                // only the row says which copy); a section's journal fields
+                // are the template editor's, which Details → Save seeds with
+                // this cut's copy.
                 SectionPreviewButton(item: item, versionRef: ref)
                 NotesButton(versionKey: ref.id, itemKey: item.notesKey)
             }

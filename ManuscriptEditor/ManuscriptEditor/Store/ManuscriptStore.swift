@@ -645,8 +645,9 @@ final class ManuscriptStore {
     }
 
     /// Gives a journal's structure an entry for a section that is part of
-    /// its cut and has none yet — the entry the section's gear edits.  Not
-    /// undoable on its own: it rides on the activation or add that caused it.
+    /// its cut and has none yet — the entry the template editor's section
+    /// view edits.  Not undoable on its own: it rides on the activation or
+    /// add that caused it.
     private func ensureStructureEntry(for section: ManuscriptSection, journalID: UUID) {
         guard section.isJournalContent, section.sectionKind != .abstract,
               let journal = manuscript?.journals.first(where: { $0.id == journalID }),

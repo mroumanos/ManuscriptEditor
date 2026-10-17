@@ -267,8 +267,8 @@ Journals only reads.
 
 Details · Tests · Export are **sidebar sections for a journal cut as well**,
 not rows in a card inside Checks. Each is this manuscript's own copy, edited
-in place — grey boxes, a prominent pencil that becomes save / discard
-(`JournalBox`, `EditControls`) — under one header: the journal's icon, name,
+in place — grey boxes, a prominent pencil that becomes save (a floppy
+disk) / discard (`JournalBox`, `EditControls`) — under one header: the journal's icon, name,
 type, the instructions link and one warning icon. Details alone carries
 **Save** and **Load**. Load takes the template's copy of the whole
 configuration. **Save opens the template editor with this manuscript's copy
@@ -281,9 +281,9 @@ sections are its structure**: adding a journal deactivates, in that cut, the
 sections its template doesn't name; activating one (the eye) makes it part of
 the journal and gives the structure an entry for it; grey means deactivated
 and nothing else. The journal's say about a section — required, type, the
-prompt shown while it is empty, the AI context, the default content — sits
-behind the **gear in the section's pane header**, beside the eye, preview and
-notes (`PaneSettingsButton`), where the writing happens. How a component
+prompt shown while it is empty, the AI context, the default content — is
+edited in the template editor's section view, which Details → Save seeds
+with this cut's copy; no content pane carries a gear. How a component
 prints is set on the Export page's row and nowhere else: a section can print
 in two documents, and only the row says which copy.
 
@@ -439,7 +439,6 @@ Built in the order it was planned, and the plan held:
 | `Views/Template/TemplatePartEditors.swift` | Tests · Export |
 | `Views/Template/TemplateSectionView.swift` | one of the venue's sections |
 | `Views/JournalPartViews.swift` | the header and Details, as a cut holds them |
-| `Views/PaneSettingsPopover.swift` | the gear on a section's format bar: the journal's fields and the export item |
 | `Views/CheckRulesEditor.swift` | `CheckRuleCard`, one test editable, and the template's list of them |
 | `Theme/JournalBox.swift` | the box and the pencil → save / discard standard |
 | `Theme/TemplateStyle.swift` | the colour that says "not your paper", and the pane width |

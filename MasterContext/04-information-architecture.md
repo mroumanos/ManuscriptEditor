@@ -43,9 +43,9 @@ unsaved edits; that is a different question.)
              this copy) and **Load** (from the template). Called Summary until
              Oct 2026.
 - (Structure has no page of its own since Oct 2026: the sidebar's **active**
-  sections are the structure, and a section's gear in its pane header, beside the
-  eye, preview and notes, holds the journal's say about it — required, type,
-  prompt, AI context, default content. How it prints is set on Export.)
+  sections are the structure, and a section's journal fields — required, type, prompt,
+  AI context, default content — are the template editor's, reached by
+  Details → Save; how it prints is set on Export.)
 - Tests    ← **comparable**: one live pane per tab, each checking its own
              tab's journal; the banner's pencil opens the template editor's
              list of tests in place, a **+ Add Test** bar adds one;
@@ -177,7 +177,7 @@ Tab identity is the **journal**, always resolving to its current working head.
 | Save (Local) ⌘S / Save (Remote) ⇧⌘S | **File menu** + the **Overview** summary buttons (loading an existing remote = New Manuscript (Remote)… — no separate Load command) |
 | Add journals (from → to); sync between journals; lineage tree | **Manuscript → Overview** (Journals & Lineage card) |
 | Stamp Version / Roll Back; per-journal version table | **Journal → Versions** pane (per tab) |
-| A cut's details / tests / export; a section's journal fields; a component's typography | **Journal → Details · Tests · Export** panes (per tab); a section's **gear** in its pane header; the Export row's gear |
+| A cut's details / tests / export; a section's journal fields; a component's typography | **Journal → Details · Tests · Export** panes (per tab); the template editor's section view (via Details → Save); the Export row's gear |
 | **Editing a journal template itself** | its **own tab** — Settings → Journals → Manage Template, or a journal's **Details → Save** (seeded with that manuscript's copy) |
 | Import a template; save one locally or propose it upstream | **Settings → Journals → Import…**; the template tab's **Details** (Local / Remote: Save · Load) |
 | Notes & feedback on content | notes button in pane headers (signed) |
