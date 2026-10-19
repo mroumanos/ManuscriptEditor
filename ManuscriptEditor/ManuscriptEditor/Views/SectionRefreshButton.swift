@@ -24,6 +24,8 @@ struct SectionRefreshButton: View {
     @State private var showing = false
     /// What was typed over the default; empty means the default runs.
     @State private var instruction = ""
+    /// The pointer is over the button: the glyph breathes.
+    @State private var hovering = false
 
     /// The journal and section this refresh is for — an active section in
     /// a journal's tab, with Assist on.  Elsewhere there is no button.
@@ -53,10 +55,14 @@ struct SectionRefreshButton: View {
             } label: {
                 Image(systemName: "arrow.clockwise")
                     .font(.system(size: 13, weight: .medium))
+                    // Breathes under the pointer — the same vocabulary as
+                    // the ✦ toggle's pulse while a request is out.
+                    .symbolEffect(.breathe, options: .repeating, isActive: hovering && !busy)
                     .frame(width: 26, height: 22)
                     .assistAffordance(active: true, busy: busy)
             }
             .buttonStyle(.plain)
+            .onHover { hovering = $0 }
             .disabled(busy)
             .help("Smart refresh — rewrite this section for \(target.journal.name) from its template, tests and requirements")
             .popover(isPresented: $showing, arrowEdge: .bottom) {
