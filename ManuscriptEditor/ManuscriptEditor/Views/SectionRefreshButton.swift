@@ -3,11 +3,12 @@
 // The pane's smart refresh: one section, rewritten to its journal's
 // template, tests and requirements from what it already holds.
 //
-// It wears the assist treatment (the sparkles, the violet) because it is
+// A circular arrow in the assist treatment (the violet), because it is
 // the fast-forward's request scoped to one section — and it shows only
 // while Assist is on, in a journal's tab, on an active section.  Pressing
-// it runs nothing: it drops down the instruction the model will get,
-// editable, one line saying what Run replaces, and Run.
+// it runs nothing: it drops down the instruction the model will get — the
+// default in grey, replaced by whatever you type, and used as it stands
+// when you type nothing — one line saying what Run replaces, and Run.
 //
 // See MasterContext/features/ai-assist.md §7.3.
 
@@ -21,6 +22,7 @@ struct SectionRefreshButton: View {
     let ref: VersionRef
 
     @State private var showing = false
+    /// What was typed over the default; empty means the default runs.
     @State private var instruction = ""
 
     /// The journal and section this refresh is for — an active section in
@@ -42,14 +44,14 @@ struct SectionRefreshButton: View {
     var body: some View {
         if let target {
             let busy = store.isAssisting(target.section.id)
+            let fallback = FastForwardIntent.refreshInstruction(section: target.section, journal: target.journal)
             if let run = store.assistRun(target.section.id) {
                 AssistRunIndicator(run: run, timeout: AIRequestService.longRunTimeout)
             }
             Button {
-                instruction = FastForwardIntent.refreshInstruction(section: target.section, journal: target.journal)
                 showing = true
             } label: {
-                Image(systemName: AssistStyle.symbol)
+                Image(systemName: "arrow.clockwise")
                     .font(.system(size: 13, weight: .medium))
                     .frame(width: 26, height: 22)
                     .assistAffordance(active: true, busy: busy)
@@ -62,10 +64,22 @@ struct SectionRefreshButton: View {
                     Text("SMART REFRESH — \(target.section.title.uppercased()) AT \(target.journal.name.uppercased())")
                         .font(.caption2.weight(.semibold))
                         .foregroundStyle(.tertiary)
-                    TextEditor(text: $instruction)
-                        .font(.body)
-                        .frame(height: 110)
-                        .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(.separator))
+                    // The default reads in grey until something is typed over
+                    // it — computed, not state, so it is there the first time.
+                    ZStack(alignment: .topLeading) {
+                        TextEditor(text: $instruction)
+                            .font(.body)
+                        if instruction.isEmpty {
+                            Text(fallback)
+                                .font(.body)
+                                .foregroundStyle(.tertiary)
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 1)
+                                .allowsHitTesting(false)
+                        }
+                    }
+                    .frame(height: 110)
+                    .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(.separator))
                     Text("Run replaces this section's text. ⌘Z restores it.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -73,7 +87,8 @@ struct SectionRefreshButton: View {
                         Spacer()
                         Button("Run") {
                             showing = false
-                            let text = instruction
+                            let typed = instruction.trimmingCharacters(in: .whitespacesAndNewlines)
+                            let text = typed.isEmpty ? fallback : instruction
                             Task {
                                 await store.assistRefreshSection(target.section.id, ref: ref,
                                                                  instruction: text, appStore: appStore)
@@ -81,7 +96,6 @@ struct SectionRefreshButton: View {
                         }
                         .buttonStyle(.borderedProminent)
                         .keyboardShortcut(.defaultAction)
-                        .disabled(instruction.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     }
                 }
                 .padding(14)

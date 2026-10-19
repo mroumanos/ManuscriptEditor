@@ -154,8 +154,8 @@ Tab identity is the **journal**, always resolving to its current working head.
   bring up Tests side-by-side exactly like Abstract.
 - **Synced navigation.** One shared sidebar selection: click "Methods" and every
   open pane shows Methods; click "Introduction" and they all switch together.
-- **Pane headers are slim** — word count, the smart refresh ✦ (Assist on, a
-  journal's tab), per-journal section activation (eye), preview and notes,
+- **Pane headers are slim** — word count, the smart refresh (a circular
+  arrow; Assist on, a journal's tab), per-journal section activation (eye), preview and notes,
   aligned past the editor gutter. The selected item's name is NOT
   repeated per pane (the sidebar selection already names it; the former colored
   title capsule is gone). Which journal a pane shows is carried by the tab

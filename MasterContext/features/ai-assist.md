@@ -624,12 +624,14 @@ worse than a frontier one.
 
 ### 7.3 `journal.refreshSection` — the pane's smart refresh (Oct 2026)
 
-The fast-forward's request, scoped to **one section**: a ✦ button in a
-section pane's header — only while Assist is on, in a journal's tab, on an
-active section — drops down the **instruction** the model will get
-(`FastForwardIntent.refreshInstruction`, editable: "Rewrite the … section
-for … to its template, its tests and the journal's requirements, keeping the
-content already here…"), one line saying what Run replaces, and **Run**. The
+The fast-forward's request, scoped to **one section**: a circular-arrow
+button in the assist treatment, in a section pane's header — only while
+Assist is on, in a journal's tab, on an active section — drops down the
+**instruction** the model will get (`FastForwardIntent.refreshInstruction`:
+"Rewrite the … section for … to its template, its tests and the journal's
+requirements, keeping the content already here…"), shown in grey until
+something is typed over it and used as it stands when nothing is; one line
+saying what Run replaces; and **Run**, always enabled. The
 request (`ManuscriptStore.assistRefreshSection`) sends the journal's profile
 and checks exactly as a fast-forward does, the one section's text with its
 template, format and notes, and the same rules and reply shape

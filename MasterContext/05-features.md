@@ -563,10 +563,12 @@ propagate by explicit, individual fast-forwards.
   the rest are deactivated here, and nothing the model returns for a
   deactivated section is written (`syncBaseContent`, `applyAdaptation`).
 - AC (implemented, Oct 2026): **Smart refresh.** A section pane in a
-  journal's tab carries a ✦ button while Assist is on (the assist
-  treatment, `SectionRefreshButton`). It drops down the instruction the
-  model will get, pre-filled and editable, one line saying Run replaces the
-  section's text (⌘Z restores it), and **Run**. The request is the
+  journal's tab carries a circular-arrow button in the assist treatment
+  while Assist is on (`SectionRefreshButton`). It drops down the
+  instruction the model will get — the default in grey, replaced by what
+  you type, used as it stands when you type nothing — one line saying Run
+  replaces the section's text (⌘Z restores it), and **Run**, always
+  enabled. The request is the
   fast-forward's scoped to that section — the journal's requirements,
   structure and checks, the section's template, format and notes, and what
   it already holds — written back in place as one undoable edit and logged
