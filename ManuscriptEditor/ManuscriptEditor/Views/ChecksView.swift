@@ -75,7 +75,7 @@ struct ChecksView: View {
             }
             Button("Cancel", role: .cancel) { }
         } message: {
-            Text("Takes “\(linkedTemplate?.displayName ?? "the template")”'s tests, including losing any you wrote here. Nothing you have written in the manuscript changes, and ⌘Z undoes it.")
+            Text("Replaces the tests here with “\(linkedTemplate?.displayName ?? "the template")”'s. ⌘Z undoes it.")
         }
         .confirmationDialog("Replace this journal's configuration with its template's?",
                             isPresented: $adoptingLibrary, titleVisibility: .visible) {
@@ -84,7 +84,7 @@ struct ChecksView: View {
             }
             Button("Cancel", role: .cancel) { }
         } message: {
-            Text("The summary, structure, tests and export outline are replaced. Nothing you have written is touched, and ⌘Z undoes it.")
+            Text("Replaces the details, structure, tests and export. Your text is untouched; ⌘Z undoes it.")
         }
         .sheet(isPresented: $linkingTemplate) {
             if let journal = paneJournal {

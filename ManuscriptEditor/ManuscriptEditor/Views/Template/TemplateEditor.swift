@@ -200,7 +200,7 @@ struct TemplateSidebarView: View {
                 Button("Rename") { rename(section) }
                 Button("Cancel", role: .cancel) { renamingKey = nil }
             } message: {
-                Text("Renames it in this template. Manuscripts that already have a section by the old name keep it — the template's sections are matched by name.")
+                Text("Renames it here. Manuscripts keep a section by the old name.")
             }
     }
 

@@ -58,6 +58,24 @@ struct FastForwardIntent: AIIntent {
         writes: "The target journal's sections and submission answers, stamped as a new version",
         reversal: "The previous content is stamped into version history first")
 
+    /// The same request, one section at a time: the pane's smart refresh.
+    static let refreshDescriptor = AIIntentDescriptor(
+        id: "journal.refreshSection",
+        title: "Smart refresh a section",
+        summary: "Rewrites one section of a journal's cut to the journal's template, tests and requirements, from what the section already holds.",
+        sends: ["Enabled context rows",
+                "The manuscript's references, figures and tables, keyed (R1…, F1…, T1…) with each reference's text",
+                "The one section's text, citing by key, with the venue's template, format and notes for it",
+                "The journal's requirements, structure and checks, each with its current measurement",
+                "The instruction shown in the pane — as edited before Run"],
+        writes: "That one section, in place",
+        reversal: "⌘Z restores the previous text")
+
+    /// What the pane's refresh asks before you edit it.
+    static func refreshInstruction(section: ManuscriptSection, journal: Journal) -> String {
+        "Rewrite the “\(section.title)” section for \(journal.name): to its template (the section's format, notes and boilerplate), its tests and the journal's requirements, keeping the content already here — every claim, number and citation. Return the whole section."
+    }
+
     // MARK: - Errors
 
     enum FastForwardError: LocalizedError {
@@ -81,10 +99,12 @@ struct FastForwardIntent: AIIntent {
     /// structured abstract at one venue is a paragraph at another, and a
     /// fast-forward that left it out could never satisfy the abstract checks
     /// it was sent), all citing by the same legend.
-    static func payloads(for content: Manuscript, target: Journal? = nil) -> [Payload] {
+    static func payloads(for content: Manuscript, target: Journal? = nil,
+                         only sectionID: UUID? = nil) -> [Payload] {
         let legend = AIRefMarkers.Legend(
             content: content, citationStyle: target?.requirements.citationStyle.cslID ?? "apa")
-        return payloads(content.sections, target: target, legend: legend)
+        return payloads(content.sections.filter { sectionID == nil || $0.id == sectionID },
+                        target: target, legend: legend)
     }
 
     /// One section as it goes out, and everything needed to put it back.
@@ -161,8 +181,13 @@ struct FastForwardIntent: AIIntent {
     /// Builds the task half of the prompt.  Context is prepended by
     /// `AIRequestService.prompt(context:task:)`, which is the only thing that
     /// reads the checkboxes.
-    static func task(content: Manuscript, target: Journal) throws -> String {
-        let payloads = payloads(for: content, target: target)
+    /// With `only`, one section — the pane's smart refresh — under the
+    /// `instruction` the person saw and may have edited, in place of the
+    /// fast-forward's opening line; the rules, the profile, the checks and
+    /// the reply's shape are the same.
+    static func task(content: Manuscript, target: Journal,
+                     only sectionID: UUID? = nil, instruction: String? = nil) throws -> String {
+        let payloads = payloads(for: content, target: target, only: sectionID)
         guard !payloads.isEmpty else { throw FastForwardError.nothingToAdapt }
 
         var sectionJSON: [[String: Any]] = []
@@ -206,16 +231,24 @@ struct FastForwardIntent: AIIntent {
             ?? payloads.first?.questions.first?.prepared.legend
         let legendText = legend.map { $0.isEmpty ? "" : $0.promptText } ?? ""
 
+        let opening = instruction?.trimmingCharacters(in: .whitespacesAndNewlines)
+            ?? "Adapt this manuscript for submission to \"\(target.displayName)\"."
+        let scope = sectionID == nil
+            ? "The sections sent below are the ones a submission here contains — "
+              + "the journal's active sections, which are its structure. Write those "
+              + "and only those. A section of the manuscript that is not sent is "
+              + "deactivated for this journal: do not write it, do not fold its "
+              + "content in, and do not return it."
+            : "Only one section is sent below — one section of a submission that "
+              + "otherwise stays as it is. Rewrite it from what it holds, to the "
+              + "journal's rules, and return it alone, under its id."
+
         return """
-        Adapt this manuscript for submission to "\(target.displayName)".
+        \(opening)
 
         \(profileText(for: target))
 
-        The sections sent below are the ones a submission here contains — \
-        the journal's active sections, which are its structure. Write those \
-        and only those. A section of the manuscript that is not sent is \
-        deactivated for this journal: do not write it, do not fold its \
-        content in, and do not return it.
+        \(scope)
 
         \(checkText(content: content, target: target))
 
@@ -264,7 +297,10 @@ struct FastForwardIntent: AIIntent {
         `[[…]]` tokens as they stand, and fill in where it calls for the \
         manuscript's own content — its "format" says how it must be written \
         and its "notes" are the venue's context for it: read them before \
-        writing a word of it, and follow them. Return the whole section in \
+        writing a word of it, and follow them. Where the template's layout \
+        and the "format" disagree — headings against "no headings", say — \
+        the template wins: it is the venue's layout, written out. Return \
+        the whole section in \
         that format, with the manuscript's material in place of the \
         boilerplate's placeholders and nothing of the placeholder wording \
         left. A section whose "text" is empty and that has a template is \

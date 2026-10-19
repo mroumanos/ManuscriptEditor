@@ -122,12 +122,12 @@ struct JournalPartHeader: View {
                 store.exportDiffers(from: published, journal: journal)
             })
         }
-        .confirmationDialog("Replace this journal's configuration with the template's copy on disk?",
+        .confirmationDialog("Load “\(template?.displayName ?? "the template")”?",
                             isPresented: $loading, titleVisibility: .visible) {
             Button("Load", role: .destructive) { _ = store.adoptLibraryProfile(journalID: journal.id) }
             Button("Cancel", role: .cancel) { }
         } message: {
-            Text("The details, structure, tests and export outline are replaced with “\(template?.displayName ?? "the template")”'s as your library holds it. Nothing you have written in the manuscript changes, and ⌘Z undoes it.")
+            Text("Replaces this journal's details, structure, tests and export. Your text is untouched; ⌘Z undoes it.")
         }
     }
 

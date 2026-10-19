@@ -104,14 +104,14 @@ struct TemplateDetailsView: View {
             Button("Open Pull Request") { propose() }
             Button("Cancel", role: .cancel) { }
         } message: {
-            Text("Writes this template's files to a branch under \(account?.displayName ?? "the account") — in the repository if that account may push to it, in a fork of it otherwise — and opens a pull request for review. Nothing is merged by this.")
+            Text("Opens a pull request under \(account?.displayName ?? "the account"). Nothing is merged.")
         }
         .confirmationDialog("Replace this draft with the published “\(template?.displayName ?? "")”?",
                             isPresented: $confirmingLoadRemote, titleVisibility: .visible) {
             Button("Load", role: .destructive) { loadRemote() }
             Button("Cancel", role: .cancel) { }
         } message: {
-            Text("Takes the shared repository's copy of every part into this draft. Save it afterwards to keep it in your library.")
+            Text("Replaces this draft with the published copy. Save to keep it.")
         }
         .confirmationDialog(saveTitle, isPresented: $confirmingSave, titleVisibility: .visible) {
             Button("Save") { saveOverwriting() }
@@ -131,14 +131,14 @@ struct TemplateDetailsView: View {
             Button("Discard", role: .destructive) { templates.revert(templateID) }
             Button("Cancel", role: .cancel) { }
         } message: {
-            Text("Everything goes back to the template as your library holds it. This cannot be undone with ⌘Z — a template lives outside any manuscript.")
+            Text("Restores your library's copy. ⌘Z can't undo this.")
         }
         .confirmationDialog("Delete “\(template?.displayName ?? "")” from your library?",
                             isPresented: $confirmingDelete, titleVisibility: .visible) {
             Button("Delete", role: .destructive) { templates.delete(templateID) }
             Button("Cancel", role: .cancel) { }
         } message: {
-            Text("Manuscripts already using it keep their own copy — they'll show as edited, with nothing to compare against.")
+            Text("Manuscripts using it keep their own copy.")
         }
     }
 
@@ -426,20 +426,19 @@ struct TemplateDetailsView: View {
     private var saveMessage: String {
         let parts = ProfilePart.displayOrder.filter(editedParts.contains).map(\.label)
         let changed = parts.isEmpty ? "Nothing has changed" : "Changes: \(parts.joined(separator: ", "))"
-        var text = "\(changed). The template keeps its identity and becomes version \((stored?.version ?? 1) + (isDirty ? 1 : 0)), with a fresh checksum for every part."
+        var text = "\(changed). Becomes v\((stored?.version ?? 1) + (isDirty ? 1 : 0))."
         if let journal = seededJournal {
-            text += " \(journal.name) in this manuscript takes this copy."
+            text += " \(journal.name) takes this copy."
         }
-        text += " Other manuscripts following it keep their own copy until they Load this one."
         return text
     }
 
     private var saveAsNewMessage: String {
         let name = template?.displayName ?? ""
         let from = stored?.displayName ?? "the original"
-        var text = "The name or type changed, so this is saved as a new template — its own identity at version 1, branched from “\(from)”, which stays exactly as your library holds it."
+        var text = "The name or type changed: this becomes a new template, v1, branched from “\(from)”. “\(from)” is unchanged."
         if let journal = seededJournal {
-            text += " \(journal.name) in this manuscript came here with its copy, so its link moves to the new template: it follows “\(name)” from now on, and a later Load there takes “\(name)”'s copy, not “\(from)”'s."
+            text += " \(journal.name) follows “\(name)” from now on."
         }
         return text
     }

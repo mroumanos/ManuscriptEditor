@@ -622,6 +622,30 @@ worse than a frontier one.
 
 ---
 
+### 7.3 `journal.refreshSection` — the pane's smart refresh (Oct 2026)
+
+The fast-forward's request, scoped to **one section**: a ✦ button in a
+section pane's header — only while Assist is on, in a journal's tab, on an
+active section — drops down the **instruction** the model will get
+(`FastForwardIntent.refreshInstruction`, editable: "Rewrite the … section
+for … to its template, its tests and the journal's requirements, keeping the
+content already here…"), one line saying what Run replaces, and **Run**. The
+request (`ManuscriptStore.assistRefreshSection`) sends the journal's profile
+and checks exactly as a fast-forward does, the one section's text with its
+template, format and notes, and the same rules and reply shape
+(`FastForwardIntent.task(content:target:only:instruction:)`); the reply is
+parsed by the same `adaptation(from:sent:context:)`. It is written **in
+place as one undoable edit** (⌘Z), not stamped as a version, and logged
+under its own intent id. No repair round: a refused section shows its
+problem in the banner and the log, and nothing is written.
+
+**Precedence in rule 5 (Oct 2026):** where a section's template layout and
+its format note disagree — headings against "narrative, no headings" — the
+template wins. The Health Affairs Scholar abstract case: the entry's prompt
+said narrative, the boilerplate laid out Objectives / Methods / Results /
+Conclusions, and the model obeyed the prompt. Both still go; the rule now
+says which is the layout.
+
 ## 8. Sequencing
 
 | Step | Deliverable | Why here |

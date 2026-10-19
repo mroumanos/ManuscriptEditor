@@ -44,6 +44,6 @@ protocol AIIntent {
 /// this file exists to make obvious.
 enum AIIntentRegistry {
     static var all: [AIIntentDescriptor] {
-        [FastForwardIntent.descriptor]
+        [FastForwardIntent.descriptor, FastForwardIntent.refreshDescriptor]
     }
 }

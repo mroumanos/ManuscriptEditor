@@ -3193,6 +3193,109 @@ final class ManuscriptStore {
         }
     }
 
+    /// The pane's smart refresh: one section of this pane's content,
+    /// rewritten to its journal's template, tests and requirements from what
+    /// it already holds, under the instruction the person saw (and may have
+    /// edited).  The fast-forward's request scoped to one section — the same
+    /// rules, the same reply shape, the same log — but written in place as
+    /// one undoable edit rather than stamped as a version: ⌘Z restores the
+    /// text.
+    func assistRefreshSection(_ sectionID: UUID, ref: VersionRef, instruction: String,
+                              appStore: AppStore) async {
+        guard let destination = aiDestination(appStore: appStore) else {
+            showBanner(.error, "Pick a model in Overview → Settings → AI first.")
+            return
+        }
+        guard let journal = paneJournal(for: ref), let content = manuscript(for: ref),
+              let section = content.sections.first(where: { $0.id == sectionID }), section.active
+        else {
+            showBanner(.error, "Smart refresh needs an active section in a journal's tab.")
+            return
+        }
+        let started = Date()
+        let bundle = aiContextBundle(includeSectionText: false)
+        let summary = "Refresh \(section.title) for \(journal.name)"
+        let entryID = UUID()
+        assistRuns[sectionID] = AssistRun(startedAt: started)
+        defer { assistRuns[sectionID] = nil }
+
+        var prompt = ""
+        do {
+            let sent = FastForwardIntent.payloads(for: content, target: journal, only: sectionID)
+            prompt = AIRequestService.prompt(
+                context: bundle,
+                task: try FastForwardIntent.task(content: content, target: journal,
+                                                 only: sectionID, instruction: instruction))
+            let result = try await AIRequestService.send(
+                prompt: prompt, to: destination, sessionID: entryID,
+                onProgress: { [weak self] progress in
+                    Task { @MainActor in self?.assistRuns[sectionID]?.progress = progress }
+                })
+            let adaptation = try FastForwardIntent.adaptation(
+                from: result.text, sent: sent, context: RefEngine.context(for: content))
+            guard !adaptation.isEmpty else {
+                throw FastForwardIntent.FastForwardError.unreadable(
+                    "the section came back with a citation or field missing (\(adaptation.refused.joined(separator: ", ")))")
+            }
+            let after: String
+            if let rich = adaptation.sections[sectionID] {
+                after = rich.plain
+            } else {
+                after = section.orderedQuestions
+                    .compactMap { adaptation.answers[sectionID]?[$0.id]?.plain }
+                    .joined(separator: "\n\n")
+            }
+            let change = AIPromptLogChange.measure(title: section.title, before: section.plainText, after: after)
+            // One undoable edit on this pane's content.
+            touch(ref, undoAction: "Smart Refresh") { m in
+                guard let i = m.sections.firstIndex(where: { $0.id == sectionID }) else { return }
+                if let rich = adaptation.sections[sectionID] { m.sections[i].content = rich }
+                if let answers = adaptation.answers[sectionID] {
+                    for q in (m.sections[i].questions ?? []).indices {
+                        if let rich = answers[m.sections[i].questions![q].id] {
+                            m.sections[i].questions![q].response = rich
+                        }
+                    }
+                }
+            }
+            record(AIPromptLogEntry(
+                id: entryID,
+                intentID: FastForwardIntent.refreshDescriptor.id,
+                summary: summary,
+                connectorLabel: destination.label,
+                model: result.model,
+                startedAt: started,
+                duration: result.duration,
+                outcome: .applied,
+                detail: "Rewritten in place; ⌘Z restores the previous text.",
+                contextTitles: bundle.pieces.map(\.title),
+                excludedContextTitles: bundle.excludedTitles,
+                promptCharacters: prompt.count,
+                responseCharacters: result.text.count,
+                changes: [change],
+                sessionID: result.sessionID),
+                prompt: prompt, response: result.text)
+            showBanner(.success, "\(summary) — rewritten by \(result.model). ⌘Z restores the previous text.")
+        } catch {
+            record(AIPromptLogEntry(
+                id: entryID,
+                intentID: FastForwardIntent.refreshDescriptor.id,
+                summary: summary,
+                connectorLabel: destination.label,
+                model: destination.requestedModel,
+                startedAt: started,
+                duration: Date().timeIntervalSince(started),
+                outcome: .failed,
+                detail: error.localizedDescription,
+                contextTitles: bundle.pieces.map(\.title),
+                excludedContextTitles: bundle.excludedTitles,
+                promptCharacters: prompt.count,
+                sessionID: entryID.uuidString.lowercased()),
+                prompt: prompt, response: "")
+            showBanner(.error, "\(summary) failed: \(error.localizedDescription)")
+        }
+    }
+
     /// The checks the target still fails after an assisted write.
     ///
     /// The point of sending the checks with their numbers is that the result

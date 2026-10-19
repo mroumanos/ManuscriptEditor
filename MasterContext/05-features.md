@@ -562,6 +562,18 @@ propagate by explicit, individual fast-forwards.
   only the cut's active sections, the model is sent only those and told
   the rest are deactivated here, and nothing the model returns for a
   deactivated section is written (`syncBaseContent`, `applyAdaptation`).
+- AC (implemented, Oct 2026): **Smart refresh.** A section pane in a
+  journal's tab carries a ✦ button while Assist is on (the assist
+  treatment, `SectionRefreshButton`). It drops down the instruction the
+  model will get, pre-filled and editable, one line saying Run replaces the
+  section's text (⌘Z restores it), and **Run**. The request is the
+  fast-forward's scoped to that section — the journal's requirements,
+  structure and checks, the section's template, format and notes, and what
+  it already holds — written back in place as one undoable edit and logged
+  as `journal.refreshSection`. Where a section's template layout and its
+  format note disagree, the prompt now says the template wins.
+- AC (implemented, Oct 2026): **Confirmations are one or two sentences**:
+  what changes, and whether ⌘Z undoes it.
 - AC (implemented, Oct 2026): **One header, three pages, boxes edited in
   place.** Details, Tests and Export in a journal's tab wear the same
   one-line header the versions section gives a journal — the journal's

@@ -285,6 +285,16 @@ func check(_ label: String, _ ok: Bool, _ detail: String = "") {
         check("… takes the adaptation into an active section", downSection(introID)?.content.plain == "An adapted introduction.")
         check("… and never into a deactivated one", downSection(extraID)?.isEmptyContent == true)
         check("the upstream is untouched", upSection(extraID).active && !upSection(introID).active)
+        // The pane's smart refresh: one section, under the instruction shown.
+        let refreshed = store.manuscript(for: .version(store.latestVersion(forJournal: down.id)!.id))!
+        let instruction = FastForwardIntent.refreshInstruction(section: downSection(introID)!, journal: down)
+        if let task = try? FastForwardIntent.task(content: refreshed, target: down, only: introID, instruction: instruction) {
+            check("a smart refresh opens with the instruction shown", task.hasPrefix(instruction))
+            check("… sends that one section and no other", task.components(separatedBy: "\"kind\":\"prose\"").count == 2
+                  && task.contains("\"title\":\"Introduction\"") && task.contains("Only one section is sent"))
+            check("… and the template's layout outranks the format note", task.contains("the template wins"))
+        } else { check("a smart refresh task is built", false) }
+        check("a fast-forward still opens as before", (try? FastForwardIntent.task(content: refreshed, target: down))?.hasPrefix("Adapt this manuscript") == true)
     } else { check("a downstream journal was cut", false) }
 
     // Save from a manuscript: the template editor opens on the journal's

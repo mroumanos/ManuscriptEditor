@@ -562,6 +562,8 @@ struct ContentView: View {
                         store.applyRequiredTypography(journalID: jid)
                     }
                 }
+                // Smart refresh — only with Assist on, in a journal's tab.
+                SectionRefreshButton(item: item, ref: ref)
                 sectionActivationControl(item: item, ref: ref)
                 // No settings gear here.  How a component prints is the
                 // Export row's (a section can print in two documents, and
