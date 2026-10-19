@@ -96,7 +96,7 @@ step "Commit, tag, push, GitHub release"
 git add -A
 git commit -m "Release $VERSION (build $NEW_BUILD)
 
-Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 git tag "v$VERSION"
 git push origin main "v$VERSION"
 gh release create "v$VERSION" "$DMG" --title "Manuscript Editor $VERSION" --notes-file "$NOTES"
