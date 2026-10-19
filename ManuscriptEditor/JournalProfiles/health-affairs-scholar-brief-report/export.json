@@ -7,11 +7,10 @@
           "columns" : 1,
           "items" : [
             {
+              "settings" : {
+                "showTitle" : false
+              },
               "title" : "Title Page",
-              "type" : "component"
-            },
-            {
-              "title" : "Authors",
               "type" : "component"
             }
           ],
@@ -43,6 +42,30 @@
           "items" : [
             {
               "title" : "Acknowledgments and Funding",
+              "type" : "component"
+            },
+            {
+              "title" : "Introduction",
+              "type" : "component"
+            },
+            {
+              "title" : "Data and Methods",
+              "type" : "component"
+            },
+            {
+              "title" : "Discussion",
+              "type" : "component"
+            },
+            {
+              "title" : "Results",
+              "type" : "component"
+            },
+            {
+              "title" : "Conclusion",
+              "type" : "component"
+            },
+            {
+              "title" : "Additional",
               "type" : "component"
             }
           ]
