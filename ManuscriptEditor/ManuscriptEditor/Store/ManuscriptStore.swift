@@ -3253,11 +3253,10 @@ final class ManuscriptStore {
         let started = Date()
         let bundle = aiContextBundle(includeSectionText: false)
         let summary = "Refresh \(section.title) for \(journal.name)"
-        // The instruction as typed (or the default), on the log entry
-        // itself: it is the first line of the saved prompt too, but that is
-        // a long document to open to find one sentence.
+        // The instruction as typed (or the default), on the log entry as a
+        // field of its own: it is the first line of the saved prompt too,
+        // but that is a long document to open to find one sentence.
         let asked = instruction.trimmingCharacters(in: .whitespacesAndNewlines)
-        let askedLine = "Asked: “\(asked.count > 240 ? String(asked.prefix(240)) + "…" : asked)”"
         let entryID = UUID()
         assistRuns[sectionID] = AssistRun(startedAt: started)
         defer { assistRuns[sectionID] = nil }
@@ -3310,13 +3309,14 @@ final class ManuscriptStore {
                 startedAt: started,
                 duration: result.duration,
                 outcome: .applied,
-                detail: "\(askedLine) Rewritten in place; ⌘Z restores the previous text.",
+                detail: "Rewritten in place; ⌘Z restores the previous text.",
                 contextTitles: bundle.pieces.map(\.title),
                 excludedContextTitles: bundle.excludedTitles,
                 promptCharacters: prompt.count,
                 responseCharacters: result.text.count,
                 changes: [change],
-                sessionID: result.sessionID),
+                sessionID: result.sessionID,
+                instruction: asked),
                 prompt: prompt, response: result.text)
             showBanner(.success, "\(summary) — rewritten by \(result.model). ⌘Z restores the previous text.")
         } catch {
@@ -3329,11 +3329,12 @@ final class ManuscriptStore {
                 startedAt: started,
                 duration: Date().timeIntervalSince(started),
                 outcome: .failed,
-                detail: "\(askedLine) \(error.localizedDescription)",
+                detail: error.localizedDescription,
                 contextTitles: bundle.pieces.map(\.title),
                 excludedContextTitles: bundle.excludedTitles,
                 promptCharacters: prompt.count,
-                sessionID: entryID.uuidString.lowercased()),
+                sessionID: entryID.uuidString.lowercased(),
+                instruction: asked),
                 prompt: prompt, response: "")
             showBanner(.error, "\(summary) failed: \(error.localizedDescription)")
         }

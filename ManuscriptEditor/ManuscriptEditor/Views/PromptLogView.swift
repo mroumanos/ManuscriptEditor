@@ -104,6 +104,22 @@ struct PromptLogView: View {
             }
             .buttonStyle(.plain)
 
+            // What was asked, apart from what was sent with it (the context
+            // rows, in the block below) and from what came of it (next line).
+            if let asked = entry.instruction, !asked.isEmpty {
+                HStack(alignment: .top, spacing: 6) {
+                    Text("Asked")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.tertiary)
+                        .frame(width: 56, alignment: .leading)
+                    Text("“\(asked)”")
+                        .font(.caption)
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.leading, 22)
+            }
+
             if let detail = entry.detail, !detail.isEmpty {
                 Text(detail)
                     .font(.caption)
@@ -155,7 +171,7 @@ struct PromptLogView: View {
     private func detailBlock(_ entry: AIPromptLogEntry) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             if !entry.contextTitles.isEmpty {
-                labelled("Sent", entry.contextTitles.joined(separator: ", "))
+                labelled("Context", entry.contextTitles.joined(separator: ", "))
             }
             if !entry.excludedContextTitles.isEmpty {
                 labelled("Withheld", entry.excludedContextTitles.joined(separator: ", "))

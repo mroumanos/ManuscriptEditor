@@ -116,6 +116,11 @@ struct AIPromptLogEntry: Identifiable, Codable, Sendable, Equatable {
     /// run sits at a path the app can compute and open.  That matters most
     /// when a run fails, which is when someone wants the tool's own log.
     var sessionID: String? = nil
+    /// What the person asked, as typed — the smart refresh's instruction.
+    /// Its own field, apart from the context that went with it and from
+    /// the outcome: "what did I ask" and "what did it do" are different
+    /// questions.  nil for a request with no typed instruction.
+    var instruction: String? = nil
 
     /// Tolerant decoding: the log ships with the manuscript and outlives any
     /// one version of the app.
@@ -136,6 +141,7 @@ struct AIPromptLogEntry: Identifiable, Codable, Sendable, Equatable {
         responseCharacters = try c.decodeIfPresent(Int.self, forKey: .responseCharacters) ?? 0
         changes = try c.decodeIfPresent([AIPromptLogChange].self, forKey: .changes) ?? []
         sessionID = try c.decodeIfPresent(String.self, forKey: .sessionID)
+        instruction = try c.decodeIfPresent(String.self, forKey: .instruction)
     }
 
     init(id: UUID = UUID(), intentID: String, summary: String,
@@ -143,7 +149,8 @@ struct AIPromptLogEntry: Identifiable, Codable, Sendable, Equatable {
          startedAt: Date, duration: TimeInterval, outcome: Outcome, detail: String? = nil,
          contextTitles: [String] = [], excludedContextTitles: [String] = [],
          promptCharacters: Int = 0, responseCharacters: Int = 0,
-         changes: [AIPromptLogChange] = [], sessionID: String? = nil) {
+         changes: [AIPromptLogChange] = [], sessionID: String? = nil,
+         instruction: String? = nil) {
         self.id = id
         self.intentID = intentID
         self.summary = summary
@@ -159,5 +166,6 @@ struct AIPromptLogEntry: Identifiable, Codable, Sendable, Equatable {
         self.responseCharacters = responseCharacters
         self.changes = changes
         self.sessionID = sessionID
+        self.instruction = instruction
     }
 }

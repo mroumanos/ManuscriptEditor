@@ -638,9 +638,11 @@ template, format and notes, and the same rules and reply shape
 (`FastForwardIntent.task(content:target:only:instruction:)`); the reply is
 parsed by the same `adaptation(from:sent:context:)`. It is written **in
 place as one undoable edit** (⌘Z), not stamped as a version, and logged
-under its own intent id — the entry's detail line starts with the
-instruction as sent ("Asked: …"), and the saved prompt carries it as the
-first line under `# Task`. No repair round: a refused section shows its
+under its own intent id. **The instruction is its own field on the log
+entry** (`AIPromptLogEntry.instruction`), shown on the row as "Asked",
+apart from the context rows that went with it ("Sent", in the expanded
+block) and from the outcome line; the saved prompt carries it as the first
+line under `# Task`, after the `# Context` half. No repair round: a refused section shows its
 problem in the banner and the log, and nothing is written.
 
 **Precedence in rule 5 (Oct 2026):** where a section's template layout and
