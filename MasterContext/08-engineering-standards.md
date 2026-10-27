@@ -405,7 +405,14 @@ xcodebuild -scheme ManuscriptEditor -destination 'platform=macOS' build
     differ, and skips its own write-back when they match.  Without it, a
     smart refresh wrote 353 words into the cut, the pane kept showing the
     old 171, and the next keystroke wrote those back.  `LetterSectionView`
-    had this from the start; copy its pattern for any new pane.
+    had this from the start; copy its pattern for any new pane.  **And the
+    write-back is guarded by the section the copy was loaded for**
+    (`loadedFor` / `draftFor`): the pane is reused across sections, and its
+    editor branch is absent while a deactivated section shows, so the last
+    section's text sat in the local copy and was written into whichever
+    section was activated or opened next — that is how four AJPH sections
+    became one Discussion.  The section switch is observed on the pane
+    itself, never only on the editor branch.
 
 44. **`checksum.txt` is the app's checksum, so only the app writes it.**
     `JournalProfile.write(to:)` writes it beside the four files, and

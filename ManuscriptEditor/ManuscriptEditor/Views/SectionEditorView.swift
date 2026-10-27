@@ -27,6 +27,13 @@ struct SectionEditorView: View {
 
     /// Local copy of the section's prose content.
     @State private var content = RichText()
+    /// Which section `content` was loaded for.  The pane is reused across
+    /// sections, and its editor branch is absent while a section is
+    /// deactivated — so without this, the last section's text sat in
+    /// `content` and was written into whichever section was activated or
+    /// opened next.  A write goes through only when the copy is that
+    /// section's.
+    @State private var loadedFor: UUID?
 
     /// The journal this pane belongs to, if it is a journal's tab.
     private var journal: Journal? { store.paneJournal(for: versionRef) }
@@ -53,37 +60,42 @@ struct SectionEditorView: View {
     }
 
     var body: some View {
-        if let section, section.active {
-            RichEditor(value: $content,
-                       placeholder: entry(for: section)?.formatNote.flatMap { $0.isEmpty ? nil : $0 }
-                           ?? "Start writing your \(section.title.lowercased())…",
-                       versionRef: versionRef,
-                       formatItem: .section(section.id))
-                .onChange(of: content) { _, new in
-                    guard var s = self.section, s.content != new else { return }
-                    s.content = new
-                    store.updateSection(s, ref: versionRef)
-                }
-                .onAppear { loadSection(section) }
-                .onChange(of: sectionID) { _, _ in
-                    if let s = self.section { loadSection(s) }
-                }
-                // The cut changed under the pane — a smart refresh, a sync
-                // into this head, ⌘Z — so the local copy follows it.  The
-                // pane kept its own copy of the old text through a refresh
-                // once, showed it, and wrote it back over the new text at
-                // the next keystroke.
-                .onChange(of: self.section?.content) { _, new in
-                    if let new, new != content { content = new }
-                }
-        } else if let section {
-            // Section exists here but is deactivated for this journal.
-            DeactivatedSectionState(title: section.title)
-        } else {
-            // Not present in this version (e.g. an older cut predating the section).
-            notIncludedState
+        Group {
+            if let section, section.active {
+                RichEditor(value: $content,
+                           placeholder: entry(for: section)?.formatNote.flatMap { $0.isEmpty ? nil : $0 }
+                               ?? "Start writing your \(section.title.lowercased())…",
+                           versionRef: versionRef,
+                           formatItem: .section(section.id))
+                    .onChange(of: content) { _, new in
+                        // Only this section's own copy may be written back.
+                        guard var s = self.section, loadedFor == s.id, s.content != new else { return }
+                        s.content = new
+                        store.updateSection(s, ref: versionRef)
+                    }
+                    .onAppear { loadSection(section) }
+            } else if let section {
+                // Section exists here but is deactivated for this journal.
+                DeactivatedSectionState(title: section.title)
+            } else {
+                // Not present in this version (e.g. an older cut predating the section).
+                notIncludedState
+            }
+        }
+        // On the pane itself, not the editor branch: a section switch while
+        // a deactivated one shows must still move the copy along.
+        .onChange(of: sectionID) { _, _ in
+            if let s = self.section { loadSection(s) } else { loadedFor = nil }
+        }
+        // The cut changed under the pane — a smart refresh, a sync into this
+        // head, ⌘Z — so the local copy follows it.  The pane kept its own
+        // copy of the old text through a refresh once, showed it, and wrote
+        // it back over the new text at the next keystroke.
+        .onChange(of: self.section?.content) { _, new in
+            if let new, let s = self.section, loadedFor == s.id, new != content { content = new }
         }
     }
+
 
     private var notIncludedState: some View {
         VStack(spacing: 10) {
@@ -104,6 +116,7 @@ struct SectionEditorView: View {
     /// Called on first appear and when navigating between sections.
     private func loadSection(_ section: ManuscriptSection) {
         content = section.content
+        loadedFor = section.id
     }
 }
 

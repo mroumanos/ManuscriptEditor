@@ -25,6 +25,9 @@ struct QuestionSeriesView: View {
     /// Local copy of the response being edited, so typing doesn't round-trip
     /// through the store on every keystroke.
     @State private var draftResponse = RichText()
+    /// Which question the draft was loaded for — a write goes through only
+    /// when the draft is that question's (see `SectionEditorView.loadedFor`).
+    @State private var draftFor: UUID?
     @State private var draftPrompt = ""
     @State private var draftLimit = ""
     @State private var draftUnit: QuestionEntry.LimitUnit = .words
@@ -234,7 +237,7 @@ struct QuestionSeriesView: View {
                            versionRef: versionRef,
                            formatItem: .section(sectionID))
                     .onChange(of: draftResponse) { _, new in
-                        guard question.response != new else { return }
+                        guard draftFor == question.id, question.response != new else { return }
                         var edited = question
                         edited.response = new
                         store.updateQuestion(edited, sectionID: sectionID, ref: versionRef)
@@ -272,11 +275,13 @@ struct QuestionSeriesView: View {
     private func loadDraft() {
         guard let question = selected else {
             draftPrompt = ""; draftLimit = ""; draftUnit = .words; draftResponse = RichText()
+            draftFor = nil
             return
         }
         draftPrompt = question.prompt
         draftLimit = question.wordLimit.map(String.init) ?? ""
         draftUnit = question.unit
         draftResponse = question.response
+        draftFor = question.id
     }
 }
