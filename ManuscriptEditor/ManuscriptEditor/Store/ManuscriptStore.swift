@@ -96,10 +96,20 @@ final class ManuscriptStore {
 
     // MARK: - Lifecycle
 
+    init() {
+        // A quit must not lose the last half second of typing.
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.willTerminateNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.flushPendingSave() }
+        }
+    }
+
     func loadMostRecent() {
         guard let idString = UserDefaults.standard.string(forKey: "lastOpenedManuscriptID"),
               let id = UUID(uuidString: idString)
         else { return }
+        flushPendingSave()
         resetUndoHistory()
         manuscript = persistence.load(id: id).map(normalized)
         if let m = manuscript {
@@ -112,6 +122,7 @@ final class ManuscriptStore {
     /// also guarantees you never trash the project you're working in.
     func closeToWelcome() {
         trySave()
+        flushPendingSave()
         resetUndoHistory()
         manuscript = nil
         UserDefaults.standard.removeObject(forKey: "lastOpenedManuscriptID")
@@ -119,6 +130,7 @@ final class ManuscriptStore {
 
     /// Creates a new manuscript in the default App Support location.
     func createNew() {
+        flushPendingSave()
         resetUndoHistory()
         manuscript = Manuscript.new()
         if let m = manuscript { persistence.markOpened(id: m.id) }
@@ -136,6 +148,7 @@ final class ManuscriptStore {
         ) {
             m.folderBookmark = bookmark
         }
+        flushPendingSave()
         resetUndoHistory()
         manuscript = m
         persistence.setCustomFolder(folderURL, for: m.id)
@@ -143,6 +156,7 @@ final class ManuscriptStore {
     }
 
     func open(id: UUID) {
+        flushPendingSave()
         resetUndoHistory()
         manuscript = persistence.load(id: id).map(normalized)
         if let m = manuscript {
@@ -172,7 +186,8 @@ final class ManuscriptStore {
             }
             _ = folder.startAccessingSecurityScopedResource()
             persistence.setCustomFolder(folder, for: decoded.id)
-            resetUndoHistory()
+            flushPendingSave()
+        resetUndoHistory()
             manuscript = normalized(decoded)
             persistence.markOpened(id: decoded.id)
             trySave()
@@ -334,6 +349,8 @@ final class ManuscriptStore {
     // MARK: - Persistence
 
     func trySave() {
+        saveTask?.cancel()
+        saveTask = nil
         guard let m = manuscript else { return }
         do {
             try persistence.save(m)
@@ -768,10 +785,21 @@ final class ManuscriptStore {
     /// The drag offsets arrive relative to the *sorted* sidebar list, so the move
     /// is applied to the canonically sorted array (never the raw array, whose
     /// physical order can diverge in legacy files).
+    /// `source` and `destination` are offsets into the sidebar's list — the
+    /// journal sections past the rule, in order — not into every section:
+    /// the letter has a fixed row above the rule and keeps its slot.  (Moved
+    /// on the full list, the offsets landed one off wherever the letter sat,
+    /// and the neighbours moved instead of the row that was dragged.)  The
+    /// order is one order: every journal's cut takes it, by section id.
     func moveSections(from source: IndexSet, to destination: Int) {
         touch { m in
             var sorted = self.normalizedSections(m.sections)
-            sorted.move(fromOffsets: source, toOffset: destination)
+            var listed = sorted.filter(\.isJournalContent)
+            listed.move(fromOffsets: source, toOffset: destination)
+            var moved = listed.makeIterator()
+            for i in sorted.indices where sorted[i].isJournalContent {
+                if let next = moved.next() { sorted[i] = next }
+            }
             for i in sorted.indices { sorted[i].order = i }
             m.sections = sorted
             let orderByID = Dictionary(uniqueKeysWithValues: sorted.map { ($0.id, $0.order) })
@@ -1493,6 +1521,15 @@ final class ManuscriptStore {
         let folder = dir
             .appendingPathComponent("journals", isDirectory: true)
             .appendingPathComponent(journal.profileSlug, isDirectory: true)
+        // Every save writes every journal's rules; unchanged ones are not
+        // rewritten — five files per journal per keystroke was most of a
+        // save.
+        let checksum = journal.profile.checksum
+        if let last = writtenProfiles[journalID], last.0 == checksum, last.1 == folder.path,
+           FileManager.default.fileExists(atPath: folder.appendingPathComponent("requirements.json").path) {
+            return folder
+        }
+        defer { writtenProfiles[journalID] = (checksum, folder.path) }
         var profile = journal.profile
         profile.updatedAt = Date()
         profile.partChecksums = Dictionary(uniqueKeysWithValues:
@@ -3928,6 +3965,7 @@ final class ManuscriptStore {
     /// unsaved in-memory state.
     func reloadFromDisk() {
         guard let id = manuscript?.id else { return }
+        flushPendingSave()
         resetUndoHistory()
         manuscript = persistence.load(id: id).map(normalized)
         showBanner(.success, "Reloaded from the local manuscript.json.")
@@ -4227,6 +4265,7 @@ final class ManuscriptStore {
         m.settings.activeBackendID = accountID
         m.settings.remoteRepository = repository
         m.settings.remoteBranch = branch?.isEmpty == false ? branch : nil
+        flushPendingSave()
         resetUndoHistory()
         manuscript = m
         persistence.markOpened(id: m.id)
@@ -4407,8 +4446,42 @@ final class ManuscriptStore {
         }
         m.updatedAt = Date()
         manuscript = m
-        trySave()
+        scheduleSave()
         if undoable { registerUndo(before, name: undoAction) }
+    }
+
+    /// What `writeProfile` last wrote for each journal — the rules'
+    /// checksum and the folder — so an unchanged profile is not rewritten.
+    private var writtenProfiles: [UUID: (String, String)] = [:]
+
+    // MARK: - Saving, coalesced
+
+    /// Edits save half a second after the last one, not on each keystroke.
+    /// A save re-encodes the whole manuscript and writes it, and every
+    /// journal's rules with it — so a letterhead logo of a couple of
+    /// megabytes made every keystroke a multi-megabyte disk write.  An
+    /// explicit save, a close, a switch of manuscript and quitting flush at
+    /// once (`flushPendingSave`); nothing is lost but the last half second
+    /// in a crash.
+    private var saveTask: Task<Void, Never>?
+
+    private func scheduleSave() {
+        saveTask?.cancel()
+        saveTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(500))
+            guard !Task.isCancelled else { return }
+            self?.saveTask = nil
+            self?.trySave()
+        }
+    }
+
+    /// Writes a pending edit now.  Called before the manuscript is replaced
+    /// and when the app quits.
+    func flushPendingSave() {
+        guard saveTask != nil else { return }
+        saveTask?.cancel()
+        saveTask = nil
+        trySave()
     }
 
     /// Attempts to resolve a security-scoped bookmark stored on the manuscript

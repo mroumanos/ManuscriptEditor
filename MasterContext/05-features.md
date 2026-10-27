@@ -576,6 +576,20 @@ propagate by explicit, individual fast-forwards.
   format note disagree, the prompt now says the template wins.
 - AC (implemented, Oct 2026): **Confirmations are one or two sentences**:
   what changes, and whether ⌘Z undoes it.
+- AC (implemented, Oct 2026): **One order of sections.** Dragging a row in
+  the sidebar moves that row (the offsets are into the list past the rule;
+  the letter keeps its slot above it), and every journal's cut takes the
+  new order by section id — journals differ only in which sections are
+  active. A deactivated **question series** shows the same "off for this
+  journal" page a text section does.
+- AC (implemented, Oct 2026): **Editing stays responsive with images in
+  the letter.** Decoded images are cached by their bytes and a vector is
+  rasterized once (`ImageDataCache`): a letterhead SVG wrapping a raster
+  cost ~100 ms per render, on every keystroke, and now ~1.5 ms. An SVG
+  over 512 KB is stored as a 1000 px PNG. Edits save on a half-second
+  debounce rather than on every keystroke (explicit saves, closing,
+  switching and quitting flush at once), and a journal's profile files are
+  rewritten only when its rules changed.
 - AC (implemented, Oct 2026): **One header, three pages, boxes edited in
   place.** Details, Tests and Export in a journal's tab wear the same
   one-line header the versions section gives a journal — the journal's

@@ -101,7 +101,7 @@ struct LetterSectionView: View {
                 }
 
                 Section("Signature") {
-                    if let data = details.signatureImageData, let image = NSImage(data: data) {
+                    if let data = details.signatureImageData, let image = ImageDataCache.image(for: data) {
                         HStack(spacing: 12) {
                             Image(nsImage: image)
                                 .resizable()
@@ -232,7 +232,7 @@ private struct HeaderSlotEditor: View {
 
             switch mode {
             case .image:
-                if let data = slot.imageData, let image = NSImage(data: data) {
+                if let data = slot.imageData, let image = ImageDataCache.image(for: data) {
                     Image(nsImage: image)
                         .resizable()
                         .scaledToFit()
@@ -281,17 +281,19 @@ private struct HeaderSlotEditor: View {
         }
     }
 
-    /// Picks an image file and stores it in the slot.  SVGs keep their raw
-    /// vector bytes (they scale cleanly in previews and exports); raster
-    /// images are downscaled — logos embed in manuscript.json, so large
-    /// photos are capped at 1000 px.
+    /// Picks an image file and stores it in the slot.  A small SVG keeps
+    /// its raw vector bytes (they scale cleanly in previews and exports);
+    /// a large one — usually a raster wrapped in SVG — and every raster
+    /// image are downscaled to a PNG.  Logos embed in manuscript.json and
+    /// are saved with every edit, so they stay small.
     private func chooseImage() {
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [.png, .jpeg, .tiff, .heic, .svg]
         panel.allowsMultipleSelection = false
         guard panel.runModal() == .OK, let url = panel.url else { return }
+        let vectorLimit = 512 * 1024
         if url.pathExtension.lowercased() == "svg",
-           let data = try? Data(contentsOf: url), NSImage(data: data) != nil {
+           let data = try? Data(contentsOf: url), data.count <= vectorLimit, NSImage(data: data) != nil {
             slot.setImage(data)
         } else if let image = NSImage(contentsOf: url) {
             slot.setImage(image.pngData(maxDimension: 1000))

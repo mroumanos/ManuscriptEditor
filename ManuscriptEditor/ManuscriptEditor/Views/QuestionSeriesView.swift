@@ -43,6 +43,15 @@ struct QuestionSeriesView: View {
     private var selected: QuestionEntry? { questions.first { $0.id == selectedID } }
 
     var body: some View {
+        if let section, !section.active {
+            // Off in this journal: the same page a text section shows.
+            DeactivatedSectionState(title: section.title)
+        } else {
+            series
+        }
+    }
+
+    private var series: some View {
         HSplitView {
             list
                 .frame(minWidth: 260, idealWidth: 300, maxWidth: 420)

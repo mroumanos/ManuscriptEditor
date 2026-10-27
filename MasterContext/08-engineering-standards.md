@@ -367,6 +367,22 @@ xcodebuild -scheme ManuscriptEditor -destination 'platform=macOS' build
     pane is the only way onto a page; a harness never opens a person's
     manuscript.
 
+48. **A List's move offsets are into the list it shows.** The sidebar lists
+    the journal sections past the rule; the letter has a fixed row above
+    it. `moveSections` moves the listed sections and writes the result
+    back into the full order (the letter keeps its slot), then every
+    version takes the order by section id. Moving the full array by the
+    list's offsets was the "the neighbours moved, not my row" bug.
+
+49. **Never decode an image in `body`, and never save on every keystroke.**
+    `ImageDataCache.image(for:)` decodes once per bytes and rasterizes a
+    vector once (an SVG-backed NSImage re-rasterizes on every draw: ~100 ms
+    for a logo wrapping a raster). `touch` schedules a save half a second
+    after the last edit; `flushPendingSave` runs before a manuscript is
+    replaced and at quit — a harness that reads the folder after an edit
+    calls it first. `writeProfile` skips a journal whose rules' checksum it
+    already wrote.
+
 44. **`checksum.txt` is the app's checksum, so only the app writes it.**
     `JournalProfile.write(to:)` writes it beside the four files, and
     `scripts/corpus/stamp.sh` (Swift, against the Debug build) writes it

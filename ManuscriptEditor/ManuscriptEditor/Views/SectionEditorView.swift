@@ -70,28 +70,11 @@ struct SectionEditorView: View {
                 }
         } else if let section {
             // Section exists here but is deactivated for this journal.
-            deactivatedState(title: section.title)
+            DeactivatedSectionState(title: section.title)
         } else {
             // Not present in this version (e.g. an older cut predating the section).
             notIncludedState
         }
-    }
-
-    /// Shown when the section is deactivated for this version: empty and uneditable.
-    private func deactivatedState(title: String) -> some View {
-        VStack(spacing: 12) {
-            Image(systemName: "moon.zzz")
-                .font(.system(size: 40, weight: .thin))
-                .foregroundStyle(.tertiary)
-            Text("“\(title)” is off for this journal")
-                .font(.title3.weight(.semibold))
-            Text("Deactivated sections are excluded from Checks and Export.\nYour text is kept — use the eye toggle above to bring it back.")
-                .font(.callout)
-                .multilineTextAlignment(.center)
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(nsColor: .textBackgroundColor))
     }
 
     private var notIncludedState: some View {
@@ -113,5 +96,30 @@ struct SectionEditorView: View {
     /// Called on first appear and when navigating between sections.
     private func loadSection(_ section: ManuscriptSection) {
         content = section.content
+    }
+}
+
+// MARK: - Deactivated
+
+/// What a pane shows when its section is deactivated in this journal:
+/// nothing to edit, and the way back.  The same page for a text box and
+/// a question series.
+struct DeactivatedSectionState: View {
+    let title: String
+
+    var body: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "moon.zzz")
+                .font(.system(size: 40, weight: .thin))
+                .foregroundStyle(.tertiary)
+            Text("“\(title)” is off for this journal")
+                .font(.title3.weight(.semibold))
+            Text("Deactivated sections are excluded from Checks and Export.\nYour text is kept — use the eye toggle above to bring it back.")
+                .font(.callout)
+                .multilineTextAlignment(.center)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(nsColor: .textBackgroundColor))
     }
 }

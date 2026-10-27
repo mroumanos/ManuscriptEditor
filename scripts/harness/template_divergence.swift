@@ -73,6 +73,7 @@ func check(_ label: String, _ ok: Bool, _ detail: String = "") {
     }
 
     // The edits are in the manuscript folder — what travels, locally and in the remote.
+    store.flushPendingSave()   // edits save on a debounce; a reader flushes first
     let folder = root.appendingPathComponent("journals").appendingPathComponent(edited.profileSlug)
     let carried = JournalProfile.read(from: folder, origin: .manuscript)
     check("the manuscript folder holds the journal's copy", carried != nil, folder.path)
@@ -296,6 +297,24 @@ func check(_ label: String, _ ok: Bool, _ detail: String = "") {
         } else { check("a smart refresh task is built", false) }
         check("a fast-forward still opens as before", (try? FastForwardIntent.task(content: refreshed, target: down))?.hasPrefix("Adapt this manuscript") == true)
     } else { check("a downstream journal was cut", false) }
+
+    // Dragging a row moves that row: the offsets are into the sidebar's list
+    // (journal sections past the rule), with the letter above it untouched,
+    // and every cut takes the order.
+    _ = store.ensureLetterSection()
+    let listedBefore = store.manuscript!.journalSections.sorted { $0.order < $1.order }.map(\.title)
+    if let from = listedBefore.firstIndex(of: "Extra Notes") {
+        store.moveSections(from: IndexSet(integer: from), to: 0)
+        let listedAfter = store.manuscript!.journalSections.sorted { $0.order < $1.order }.map(\.title)
+        check("the dragged row is the one that moved", listedAfter.first == "Extra Notes"
+              && listedAfter.dropFirst().elementsEqual(listedBefore.filter { $0 != "Extra Notes" }))
+        check("the letter keeps its slot", store.manuscript!.letterSection.map { l in
+            store.manuscript!.sections.sorted { $0.order < $1.order }.firstIndex { $0.id == l.id }
+        } == store.manuscript!.sections.sorted { $0.order < $1.order }.firstIndex { $0.isCore })
+        let cutOrder = store.manuscript(for: .version(store.latestVersion(forJournal: journal.id)!.id))!
+            .journalSections.sorted { $0.order < $1.order }.map(\.title)
+        check("every journal's cut takes the order", cutOrder == listedAfter)
+    } else { check("the moved section is listed", false) }
 
     // Save from a manuscript: the template editor opens on the journal's
     // copy; saving under a changed name makes a new template, and the
