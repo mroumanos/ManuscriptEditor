@@ -60,13 +60,21 @@ struct SectionEditorView: View {
                        versionRef: versionRef,
                        formatItem: .section(section.id))
                 .onChange(of: content) { _, new in
-                    guard var s = self.section else { return }
+                    guard var s = self.section, s.content != new else { return }
                     s.content = new
                     store.updateSection(s, ref: versionRef)
                 }
                 .onAppear { loadSection(section) }
                 .onChange(of: sectionID) { _, _ in
                     if let s = self.section { loadSection(s) }
+                }
+                // The cut changed under the pane — a smart refresh, a sync
+                // into this head, ⌘Z — so the local copy follows it.  The
+                // pane kept its own copy of the old text through a refresh
+                // once, showed it, and wrote it back over the new text at
+                // the next keystroke.
+                .onChange(of: self.section?.content) { _, new in
+                    if let new, new != content { content = new }
                 }
         } else if let section {
             // Section exists here but is deactivated for this journal.

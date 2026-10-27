@@ -573,7 +573,12 @@ propagate by explicit, individual fast-forwards.
   structure and checks, the section's template, format and notes, and what
   it already holds — written back in place as one undoable edit and logged
   as `journal.refreshSection`. Where a section's template layout and its
-  format note disagree, the prompt now says the template wins.
+  format note disagree, the prompt now says the template wins. **A pane
+  follows the cut:** the section, abstract and question panes keep a local
+  copy for typing, and reload it when the cut's text changes under them —
+  a smart refresh, a sync into the same head, ⌘Z — instead of showing the
+  old text and writing it back at the next keystroke, which is where the
+  first refreshed Introduction went.
 - AC (implemented, Oct 2026): **Confirmations are one or two sentences**:
   what changes, and whether ⌘Z undoes it.
 - AC (implemented, Oct 2026): **One order of sections.** Dragging a row in

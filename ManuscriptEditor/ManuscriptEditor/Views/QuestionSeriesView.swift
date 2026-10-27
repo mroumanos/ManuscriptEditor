@@ -234,9 +234,15 @@ struct QuestionSeriesView: View {
                            versionRef: versionRef,
                            formatItem: .section(sectionID))
                     .onChange(of: draftResponse) { _, new in
+                        guard question.response != new else { return }
                         var edited = question
                         edited.response = new
                         store.updateQuestion(edited, sectionID: sectionID, ref: versionRef)
+                    }
+                    // The answer changed under the pane (a smart refresh, a
+                    // sync, ⌘Z): the draft follows it.
+                    .onChange(of: selected?.response) { _, new in
+                        if let new, new != draftResponse { draftResponse = new }
                     }
             }
         } else if questions.isEmpty {

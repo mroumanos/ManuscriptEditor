@@ -23,10 +23,18 @@ struct AbstractView: View {
     var body: some View {
         RichEditor(value: $abstract, placeholder: placeholder, versionRef: versionRef,
                    formatItem: .abstract)
-            .onChange(of: abstract) { _, new in store.updateAbstract(new, ref: versionRef) }
+            .onChange(of: abstract) { _, new in
+                guard store.manuscript(for: versionRef)?.abstract != new else { return }
+                store.updateAbstract(new, ref: versionRef)
+            }
             .onAppear { abstract = store.manuscript(for: versionRef)?.abstract ?? RichText() }
             .onChange(of: store.manuscript?.id) { _, _ in
                 abstract = store.manuscript(for: versionRef)?.abstract ?? RichText()
+            }
+            // The cut changed under the pane (a smart refresh, a sync, ⌘Z):
+            // the local copy follows it rather than writing the old text back.
+            .onChange(of: store.manuscript(for: versionRef)?.abstract) { _, new in
+                if let new, new != abstract { abstract = new }
             }
     }
 }

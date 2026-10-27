@@ -398,6 +398,15 @@ xcodebuild -scheme ManuscriptEditor -destination 'platform=macOS' build
     conformances infer nonisolated on their own; a new custom one must say
     `nonisolated`, or the background save stops compiling.
 
+51. **A pane that keeps a local copy reloads it on an external change.**
+    `SectionEditorView`, `AbstractView` and `QuestionSeriesView` hold the
+    text in `@State` so typing does not round-trip the store; each has an
+    `onChange` on the store's copy that reloads the local one when they
+    differ, and skips its own write-back when they match.  Without it, a
+    smart refresh wrote 353 words into the cut, the pane kept showing the
+    old 171, and the next keystroke wrote those back.  `LetterSectionView`
+    had this from the start; copy its pattern for any new pane.
+
 44. **`checksum.txt` is the app's checksum, so only the app writes it.**
     `JournalProfile.write(to:)` writes it beside the four files, and
     `scripts/corpus/stamp.sh` (Swift, against the Debug build) writes it
