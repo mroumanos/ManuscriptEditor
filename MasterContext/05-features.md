@@ -582,11 +582,15 @@ propagate by explicit, individual fast-forwards.
   new order by section id — journals differ only in which sections are
   active. A deactivated **question series** shows the same "off for this
   journal" page a text section does.
-- AC (implemented, Oct 2026): **Editing stays responsive with images in
-  the letter.** Decoded images are cached by their bytes and a vector is
-  rasterized once (`ImageDataCache`): a letterhead SVG wrapping a raster
-  cost ~100 ms per render, on every keystroke, and now ~1.5 ms. An SVG
-  over 512 KB is stored as a 1000 px PNG. Edits save on a half-second
+- AC (implemented, Oct 2026): **Editing stays responsive with images.**
+  Figure files are decoded once per file (path, modification date, size),
+  a vector rasterized once at 2400 px, and each cropped / grayscale result
+  kept per setting (`FigureImageCache`): a thumbnail cost ~18 ms (vector)
+  to ~130 ms (an SVG wrapping a raster) on every render and a crop commit
+  ~150 ms; both now draw a cached bitmap. The original file stays the
+  export's source; no derived PNG is written. Letterhead and signature
+  images are cached by their bytes the same way (`ImageDataCache`); an
+  SVG over 512 KB there is stored as a 1000 px PNG. Edits save on a half-second
   debounce rather than on every keystroke (explicit saves, closing,
   switching and quitting flush at once), and a journal's profile files are
   rewritten only when its rules changed.

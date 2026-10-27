@@ -377,7 +377,10 @@ xcodebuild -scheme ManuscriptEditor -destination 'platform=macOS' build
 49. **Never decode an image in `body`, and never save on every keystroke.**
     `ImageDataCache.image(for:)` decodes once per bytes and rasterizes a
     vector once (an SVG-backed NSImage re-rasterizes on every draw: ~100 ms
-    for a logo wrapping a raster). `touch` schedules a save half a second
+    for a logo wrapping a raster); `FigureImageCache` does the same per
+    figure file, and keeps each processed (crop, grayscale) result, so a
+    thumbnail or a crop drag never runs `FigureImaging.processed` twice
+    for the same settings. `touch` schedules a save half a second
     after the last edit; `flushPendingSave` runs before a manuscript is
     replaced and at quit — a harness that reads the folder after an edit
     calls it first. `writeProfile` skips a journal whose rules' checksum it

@@ -627,7 +627,7 @@ struct ImageAssetDetail: View {
             Divider()
 
             if let url = store.dataImageURL(for: asset),
-               let image = NSImage(contentsOf: url) {
+               let image = FigureImageCache.bitmap(for: url) {   // decoded once, not per render
                 ScrollView {
                     Image(nsImage: image)
                         .resizable()

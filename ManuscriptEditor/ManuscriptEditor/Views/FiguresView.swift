@@ -200,10 +200,11 @@ struct FigureThumbnail: View {
                 ZStack {
                     RoundedRectangle(cornerRadius: 6).fill(.secondary.opacity(0.1)).frame(height: 90)
                     if let url = store.figureURL(for: figure),
-                       let image = NSImage(contentsOf: url) {
-                        // Thumbnails show the cropped/B&W result (what will export).
-                        Image(nsImage: FigureImaging.processed(image, crop: figure.crop, scalePercent: nil,
-                                                               monochrome: figure.monochrome))
+                       let image = FigureImageCache.processed(for: url, crop: figure.crop,
+                                                              monochrome: figure.monochrome) {
+                        // Thumbnails show the cropped/B&W result (what will
+                        // export) — decoded and processed once, not per render.
+                        Image(nsImage: image)
                             .resizable()
                             .scaledToFill()
                             .frame(height: 90)
@@ -503,14 +504,15 @@ struct FigureEditor: View {
                 }
             }
         } else if let url = store.figureURL(for: draft),
-           let image = NSImage(contentsOf: url) {
+           let image = draft.monochrome == true
+               ? FigureImageCache.processed(for: url, crop: nil, monochrome: true)
+               : FigureImageCache.bitmap(for: url) {
             VStack(spacing: 4) {
                 // The crop frame adjusts over the B&W-rendered image when that
-                // option is on, so the preview is what exports.
+                // option is on, so the preview is what exports — a cached
+                // bitmap, so a drag costs a draw and nothing else.
                 CropAdjustView(
-                    image: draft.monochrome == true
-                        ? FigureImaging.processed(image, crop: nil, scalePercent: nil, monochrome: true)
-                        : image,
+                    image: image,
                     crop: Binding(
                         get: { draft.crop },
                         set: { draft.crop = $0 }
