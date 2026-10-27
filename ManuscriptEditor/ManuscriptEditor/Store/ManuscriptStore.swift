@@ -3253,6 +3253,11 @@ final class ManuscriptStore {
         let started = Date()
         let bundle = aiContextBundle(includeSectionText: false)
         let summary = "Refresh \(section.title) for \(journal.name)"
+        // The instruction as typed (or the default), on the log entry
+        // itself: it is the first line of the saved prompt too, but that is
+        // a long document to open to find one sentence.
+        let asked = instruction.trimmingCharacters(in: .whitespacesAndNewlines)
+        let askedLine = "Asked: “\(asked.count > 240 ? String(asked.prefix(240)) + "…" : asked)”"
         let entryID = UUID()
         assistRuns[sectionID] = AssistRun(startedAt: started)
         defer { assistRuns[sectionID] = nil }
@@ -3305,7 +3310,7 @@ final class ManuscriptStore {
                 startedAt: started,
                 duration: result.duration,
                 outcome: .applied,
-                detail: "Rewritten in place; ⌘Z restores the previous text.",
+                detail: "\(askedLine) Rewritten in place; ⌘Z restores the previous text.",
                 contextTitles: bundle.pieces.map(\.title),
                 excludedContextTitles: bundle.excludedTitles,
                 promptCharacters: prompt.count,
@@ -3324,7 +3329,7 @@ final class ManuscriptStore {
                 startedAt: started,
                 duration: Date().timeIntervalSince(started),
                 outcome: .failed,
-                detail: error.localizedDescription,
+                detail: "\(askedLine) \(error.localizedDescription)",
                 contextTitles: bundle.pieces.map(\.title),
                 excludedContextTitles: bundle.excludedTitles,
                 promptCharacters: prompt.count,
