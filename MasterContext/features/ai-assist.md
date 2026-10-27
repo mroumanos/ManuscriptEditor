@@ -639,10 +639,13 @@ template, format and notes, and the same rules and reply shape
 parsed by the same `adaptation(from:sent:context:)`. It is written **in
 place as one undoable edit** (⌘Z), not stamped as a version, and logged
 under its own intent id. **The instruction is its own field on the log
-entry** (`AIPromptLogEntry.instruction`), shown on the row as "Asked",
-apart from the context rows that went with it ("Sent", in the expanded
-block) and from the outcome line; the saved prompt carries it as the first
-line under `# Task`, after the `# Context` half. No repair round: a refused section shows its
+entry** (`AIPromptLogEntry.instruction`): the collapsed row shows it,
+capped, under the model line. The expanded block reads line by line —
+Intent; Sent and Returned timestamps; then **Context**, **Content**,
+**Instruction** and **Output**, each with a Review button and its size in
+characters, and the tool's **Log**. The saved prompt stays one text,
+exactly as sent; `PromptParts.of` splits it for display at the `# Task`
+and `SECTIONS (JSON)` markers. No repair round: a refused section shows its
 problem in the banner and the log, and nothing is written.
 
 **Precedence in rule 5 (Oct 2026):** where a section's template layout and

@@ -27,8 +27,14 @@ struct PromptLogView: View {
     /// One case per log a row can show, carrying the entry so two expanded
     /// rows can't fight over one flag.
     enum OpenLog: Hashable {
-        case prompt(UUID), response(UUID), session(UUID)
+        case context(UUID), content(UUID), instruction(UUID), output(UUID), session(UUID)
     }
+
+    /// The opened row's prompt, in its parts.
+    private var parts: PromptParts { PromptParts.of(payload?.prompt ?? "") }
+
+    /// The instruction on the collapsed row, capped.
+    private static let collapsedInstructionLength = 180
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -104,20 +110,16 @@ struct PromptLogView: View {
             }
             .buttonStyle(.plain)
 
-            // What was asked, apart from what was sent with it (the context
-            // rows, in the block below) and from what came of it (next line).
+            // Under the model line: what was asked, as typed, capped — the
+            // whole of it is a line in the expanded block.
             if let asked = entry.instruction, !asked.isEmpty {
-                HStack(alignment: .top, spacing: 6) {
-                    Text("Asked")
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(.tertiary)
-                        .frame(width: 56, alignment: .leading)
-                    Text("“\(asked)”")
-                        .font(.caption)
-                        .textSelection(.enabled)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                .padding(.leading, 22)
+                let capped = asked.count > Self.collapsedInstructionLength
+                    ? String(asked.prefix(Self.collapsedInstructionLength)) + "…" : asked
+                Text("“\(capped)”")
+                    .font(.caption)
+                    .foregroundStyle(.primary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.leading, 22)
             }
 
             if let detail = entry.detail, !detail.isEmpty {
@@ -167,45 +169,53 @@ struct PromptLogView: View {
         .help("green: unchanged · yellow: edited · purple: rewritten")
     }
 
+    /// The expanded block, one line per thing: the intent, when it went
+    /// out and came back, then each part of the exchange with a button to
+    /// read it and its size — context, content, instruction, output — and
+    /// the tool's own log.
     @ViewBuilder
     private func detailBlock(_ entry: AIPromptLogEntry) -> some View {
+        let parts = self.parts
         VStack(alignment: .leading, spacing: 6) {
-            if !entry.contextTitles.isEmpty {
-                labelled("Context", entry.contextTitles.joined(separator: ", "))
-            }
-            if !entry.excludedContextTitles.isEmpty {
-                labelled("Withheld", entry.excludedContextTitles.joined(separator: ", "))
-            }
-            labelled("Size", "\(entry.promptCharacters) characters out, \(entry.responseCharacters) back")
             labelled("Intent", entry.intentID)
+            labelled("Sent", Self.stamp(entry.startedAt))
+            labelled("Returned", Self.stamp(entry.startedAt.addingTimeInterval(entry.duration)))
 
-            // Everything this run left behind, each in its own window rather
-            // than crammed into the row: what was asked, what came back, and
-            // what the tool itself recorded while producing it.
-            HStack(alignment: .top, spacing: 10) {
-                Text("Logs")
+            partRow("Context", text: parts.context, tag: .context(entry.id),
+                    note: entry.contextTitles.isEmpty ? nil
+                          : entry.contextTitles.joined(separator: ", ")
+                            + (entry.excludedContextTitles.isEmpty ? ""
+                               : " · withheld: \(entry.excludedContextTitles.joined(separator: ", "))")) {
+                LogTextPopover(title: "Context",
+                               subtitle: "What the app put first: how it works, this manuscript, the rows you enabled",
+                               text: parts.context)
+            }
+            partRow("Content", text: parts.content, tag: .content(entry.id), note: nil) {
+                LogTextPopover(title: "Content",
+                               subtitle: "The manuscript text that went with it, as the model received it",
+                               text: parts.content)
+            }
+            partRow("Instruction", text: parts.instruction, tag: .instruction(entry.id), note: nil) {
+                LogTextPopover(title: "Instruction",
+                               subtitle: "What the model was told to do: the opening line as typed, the journal's rules, the checks, the reply's shape",
+                               text: parts.instruction)
+            }
+            partRow("Output", text: payload?.response ?? "", tag: .output(entry.id), note: nil) {
+                LogTextPopover(title: "Output",
+                               subtitle: entry.outcome == .failed
+                                   ? "What came back before it failed"
+                                   : "The model's raw reply, before it was parsed",
+                               text: payload?.response ?? "")
+            }
+
+            HStack(alignment: .top, spacing: 6) {
+                Text("Log")
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(.tertiary)
-                    .frame(width: 56, alignment: .leading)
-
-                logButton("Prompt", systemImage: "text.alignleft", tag: .prompt(entry.id)) {
-                    LogTextPopover(title: "Prompt",
-                                   subtitle: "Exactly what was sent, context first",
-                                   text: payload?.prompt ?? "")
-                }
-
-                logButton("Output", systemImage: "text.quote", tag: .response(entry.id)) {
-                    LogTextPopover(title: "Output",
-                                   subtitle: entry.outcome == .failed
-                                       ? "What came back before it failed"
-                                       : "The model's raw reply, before it was parsed",
-                                   text: payload?.response ?? "")
-                }
-
+                    .frame(width: 72, alignment: .leading)
                 if let session = entry.sessionID,
                    let url = AIConnectorRunner.transcriptURL(for: session) {
-                    logButton("Session log", systemImage: "list.bullet.rectangle",
-                              tag: .session(entry.id)) {
+                    logButton("Review", systemImage: "list.bullet.rectangle", tag: .session(entry.id)) {
                         SessionTranscriptView(url: url)
                     }
                     Button {
@@ -219,13 +229,45 @@ struct PromptLogView: View {
                     Text("session \(session.prefix(8)) — the tool kept no transcript")
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
+                } else {
+                    Text("none").font(.caption2).foregroundStyle(.tertiary)
                 }
                 Spacer()
             }
-            .padding(.top, 2)
         }
         .padding(.leading, 22)
         .padding(.top, 2)
+    }
+
+    /// One part of the exchange: its name, a button that opens it, and its
+    /// size — then a note (the context's row titles) when there is one.
+    private func partRow<Content: View>(_ label: String, text: String, tag: OpenLog, note: String?,
+                                        @ViewBuilder popover: @escaping () -> Content) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Text(label)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.tertiary)
+                .frame(width: 72, alignment: .leading)
+            if text.isEmpty {
+                Text("none").font(.caption2).foregroundStyle(.tertiary)
+            } else {
+                logButton("Review", systemImage: "text.alignleft", tag: tag, content: popover)
+                Text("(\(text.count.formatted()) characters)")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            if let note {
+                Text(note)
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(1)
+            }
+            Spacer()
+        }
+    }
+
+    private static func stamp(_ date: Date) -> String {
+        date.formatted(.dateTime.month(.abbreviated).day().year().hour().minute().second())
     }
 
     /// A link that opens one log in a popover.
@@ -250,7 +292,7 @@ struct PromptLogView: View {
             Text(label)
                 .font(.caption2.weight(.semibold))
                 .foregroundStyle(.tertiary)
-                .frame(width: 56, alignment: .leading)
+                .frame(width: 72, alignment: .leading)
             Text(value)
                 .font(.caption2)
                 .foregroundStyle(.secondary)

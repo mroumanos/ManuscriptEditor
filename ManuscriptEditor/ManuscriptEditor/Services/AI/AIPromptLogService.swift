@@ -86,3 +86,39 @@ struct AIPromptLogService: Sendable {
             .appendingPathComponent("\(id.uuidString.lowercased()).txt")
     }
 }
+
+// MARK: - The prompt, in its parts
+
+/// A saved prompt is one text — exactly what was sent — but it reads as
+/// three things: the **context** the app put first (`# Context`), the
+/// **instruction** (everything under `# Task` but the content: the opening
+/// line as typed or as the intent wrote it, the journal's profile, the
+/// checks, the rules, the reply's shape), and the **content** — the
+/// manuscript text that went with it, the `SECTIONS (JSON)` block.  The
+/// log shows each on its own line, with its size; this is the split.
+struct PromptParts {
+    var context = ""
+    var instruction = ""
+    var content = ""
+
+    nonisolated static func of(_ prompt: String) -> PromptParts {
+        var parts = PromptParts()
+        var task = prompt
+        if let taskRange = prompt.range(of: "\n# Task\n") {
+            var context = String(prompt[..<taskRange.lowerBound])
+            if let header = context.range(of: "# Context\n") { context.removeSubrange(context.startIndex..<header.upperBound) }
+            parts.context = context.trimmingCharacters(in: .whitespacesAndNewlines)
+            task = String(prompt[taskRange.upperBound...])
+        }
+        if let open = task.range(of: "SECTIONS (JSON):\n"),
+           let close = task.range(of: "\nReply with JSON only", range: open.upperBound..<task.endIndex) {
+            parts.content = String(task[open.upperBound..<close.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+            var rest = task
+            rest.removeSubrange(open.lowerBound..<close.upperBound)
+            parts.instruction = rest.trimmingCharacters(in: .whitespacesAndNewlines)
+        } else {
+            parts.instruction = task.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return parts
+    }
+}
