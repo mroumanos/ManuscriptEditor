@@ -85,7 +85,7 @@ struct LetterHeaderSlot: Codable, Sendable, Equatable {
 
     private enum CodingKeys: String, CodingKey { case content, imageData, text }
 
-    init(from decoder: Decoder) throws {
+    nonisolated init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         let image = try c.decodeIfPresent(Data.self, forKey: .imageData)
         let rich = try c.decodeIfPresent(RichText.self, forKey: .content)
@@ -93,7 +93,7 @@ struct LetterHeaderSlot: Codable, Sendable, Equatable {
         self.init(content: rich, imageData: image)
     }
 
-    func encode(to encoder: Encoder) throws {
+    nonisolated func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(content, forKey: .content)
         try c.encodeIfPresent(imageData, forKey: .imageData)
@@ -186,7 +186,7 @@ struct LetterToEditor: Codable, Sendable, Equatable {
         self.signatureImageData = signatureImageData
     }
 
-    init(from decoder: Decoder) throws {
+    nonisolated init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         headerLeft   = try c.decodeIfPresent(LetterHeaderSlot.self, forKey: .headerLeft) ?? .init()
         headerCenter = try c.decodeIfPresent(LetterHeaderSlot.self, forKey: .headerCenter) ?? .init()
@@ -202,7 +202,7 @@ struct LetterToEditor: Codable, Sendable, Equatable {
         }
     }
 
-    func encode(to encoder: Encoder) throws {
+    nonisolated func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(headerLeft, forKey: .headerLeft)
         try c.encode(headerCenter, forKey: .headerCenter)

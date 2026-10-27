@@ -35,7 +35,7 @@ struct ExportConfig: Codable, Sendable, Equatable {
     /// carrying the byline settings the Title item held.  A config that HAS
     /// one somewhere is left alone: a Title without one is a Title without
     /// a byline, on purpose.
-    init(from decoder: Decoder) throws {
+    nonisolated init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         documents = try c.decodeIfPresent([ExportDocument].self, forKey: .documents) ?? []
         guard !documents.flatMap(\.items).contains(where: { $0.type == .authors }) else { return }
@@ -155,7 +155,7 @@ struct ExportDocument: Codable, Identifiable, Sendable, Equatable {
         self.attachmentOriginalName = attachmentOriginalName
     }
 
-    init(from decoder: Decoder) throws {
+    nonisolated init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
         name = try c.decodeIfPresent(String.self, forKey: .name) ?? "Document"
@@ -196,7 +196,7 @@ struct ExportDocumentFormat: Codable, Sendable, Equatable {
     /// Every field decodes if present: a format saved before a setting
     /// existed must still open, and this is where new page furniture keeps
     /// landing.
-    init(from decoder: Decoder) throws {
+    nonisolated init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         fontFamily = try c.decodeIfPresent(ExportFontFamily.self, forKey: .fontFamily) ?? .times
         fontSize = try c.decodeIfPresent(Double.self, forKey: .fontSize) ?? 12
@@ -366,7 +366,7 @@ struct ExportItem: Codable, Identifiable, Sendable, Equatable {
         self.id = id; self.type = type; self.sectionID = sectionID
     }
 
-    init(from decoder: Decoder) throws {
+    nonisolated init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
         type = try c.decodeIfPresent(ItemType.self, forKey: .type) ?? c.decode(ItemType.self, forKey: .kind)
@@ -391,7 +391,7 @@ struct ExportItem: Codable, Identifiable, Sendable, Equatable {
         headerFormat = try c.decodeIfPresent(ExportDocumentFormat.self, forKey: .headerFormat)
     }
 
-    func encode(to encoder: Encoder) throws {
+    nonisolated func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(id, forKey: .id)
         try c.encode(type, forKey: .type)

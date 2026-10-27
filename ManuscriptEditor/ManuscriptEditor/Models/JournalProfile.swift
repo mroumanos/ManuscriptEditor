@@ -188,7 +188,7 @@ struct SourceRequirements: Codable, Sendable, Equatable {
 
     /// Files written before requirements were bulleted carry a `summary`
     /// paragraph; split it into bullets so nothing is lost.
-    init(from decoder: Decoder) throws {
+    nonisolated init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         url = try c.decodeIfPresent(String.self, forKey: .url) ?? ""
         editedAt = try c.decodeIfPresent(Date.self, forKey: .editedAt)
@@ -204,7 +204,7 @@ struct SourceRequirements: Codable, Sendable, Equatable {
         }
     }
 
-    func encode(to encoder: Encoder) throws {
+    nonisolated func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(url, forKey: .url)
         try c.encode(bullets, forKey: .bullets)
@@ -236,7 +236,7 @@ struct TemplateQuestion: Codable, Sendable, Equatable {
         self.boilerplate = boilerplate
     }
 
-    init(from decoder: Decoder) throws {
+    nonisolated init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         prompt = try c.decode(String.self, forKey: .prompt)
         wordLimit = try c.decodeIfPresent(Int.self, forKey: .wordLimit)
@@ -245,7 +245,7 @@ struct TemplateQuestion: Codable, Sendable, Equatable {
             ?? c.decodeIfPresent(String.self, forKey: .sample)
     }
 
-    func encode(to encoder: Encoder) throws {
+    nonisolated func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(prompt, forKey: .prompt)
         try c.encodeIfPresent(wordLimit, forKey: .wordLimit)
@@ -390,7 +390,7 @@ struct StructureSection: Codable, Sendable, Equatable, Identifiable {
         self.formatNote = formatNote
     }
 
-    init(from decoder: Decoder) throws {
+    nonisolated init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         title = try c.decode(String.self, forKey: .title)
         uid = try c.decodeIfPresent(UUID.self, forKey: .id)
@@ -417,7 +417,7 @@ struct StructureSection: Codable, Sendable, Equatable, Identifiable {
 
     /// `isFixedPart` is deliberately absent: it is a read-time concern, and
     /// encoding it would change every profile's fingerprint.
-    func encode(to encoder: Encoder) throws {
+    nonisolated func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(uid, forKey: .id)
         try c.encode(title, forKey: .title)
@@ -463,7 +463,7 @@ struct JournalStructure: Codable, Sendable, Equatable {
         self.documentFormat = documentFormat
     }
 
-    init(from decoder: Decoder) throws {
+    nonisolated init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         sections = StructureSection.uniqued(StructureSection.configurable(
             try c.decodeIfPresent([StructureSection].self, forKey: .sections) ?? []))
@@ -545,7 +545,7 @@ struct RequirementsDoc: Codable, Sendable, Equatable {
 
     /// Tolerates the single-parent `derivedFrom` written by the first cut of
     /// profile lineage.
-    init(from decoder: Decoder) throws {
+    nonisolated init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(UUID.self, forKey: .id)
         journal = try c.decode(String.self, forKey: .journal)
@@ -568,7 +568,7 @@ struct RequirementsDoc: Codable, Sendable, Equatable {
         publishedChecksum = try c.decodeIfPresent(String.self, forKey: .publishedChecksum)
     }
 
-    func encode(to encoder: Encoder) throws {
+    nonisolated func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(id, forKey: .id)
         try c.encode(journal, forKey: .journal)
@@ -598,7 +598,7 @@ struct ChecksDoc: Codable, Sendable, Equatable {
 
     init(checks: [CheckRule]) { self.checks = checks }
 
-    init(from decoder: Decoder) throws {
+    nonisolated init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         checks = try c.decodeIfPresent([CheckRule].self, forKey: .checks) ?? []
     }
@@ -627,7 +627,7 @@ struct StructureDoc: Codable, Sendable, Equatable {
         self.sections = sections; self.coreFormats = coreFormats; self.documentFormat = documentFormat
     }
 
-    init(from decoder: Decoder) throws {
+    nonisolated init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         sections = StructureSection.uniqued(try c.decodeIfPresent([StructureSection].self, forKey: .sections) ?? [])
         coreFormats = try c.decodeIfPresent([String: ExportDocumentFormat].self, forKey: .coreFormats)

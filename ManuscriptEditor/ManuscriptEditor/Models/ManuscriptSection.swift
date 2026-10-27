@@ -137,7 +137,7 @@ struct ManuscriptSection: Codable, Identifiable, Sendable {
         case id, type, title, content, order, active, kind, questions, letter
     }
 
-    init(from decoder: Decoder) throws {
+    nonisolated init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id      = try c.decode(UUID.self,        forKey: .id)
         type    = try c.decode(SectionType.self, forKey: .type)

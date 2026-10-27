@@ -381,10 +381,22 @@ xcodebuild -scheme ManuscriptEditor -destination 'platform=macOS' build
     figure file, and keeps each processed (crop, grayscale) result, so a
     thumbnail or a crop drag never runs `FigureImaging.processed` twice
     for the same settings. `touch` schedules a save half a second
-    after the last edit; `flushPendingSave` runs before a manuscript is
-    replaced and at quit — a harness that reads the folder after an edit
-    calls it first. `writeProfile` skips a journal whose rules' checksum it
-    already wrote.
+    after the last edit, and the save encodes and writes a snapshot on a
+    serial background queue; `trySave` / `flushPendingSave` drain that
+    queue first, so writes land in order — they run before a manuscript is
+    replaced and at quit, and a harness that reads the folder after an
+    edit calls `flushPendingSave` first. `writeProfile` skips a journal
+    whose rules' checksum it already wrote.
+
+50. **Custom Codable witnesses in the models are `nonisolated`.** The
+    module's default isolation is MainActor, so a hand-written
+    `init(from:)` or `encode(to:)` makes that type's conformance
+    main-actor-isolated, and every type containing it inherits that — the
+    whole `Manuscript` could then only be encoded on the main thread (the
+    compiler warns "main actor-isolated conformance … cannot be used in
+    nonisolated context", an error in Swift 6 mode). Synthesized
+    conformances infer nonisolated on their own; a new custom one must say
+    `nonisolated`, or the background save stops compiling.
 
 44. **`checksum.txt` is the app's checksum, so only the app writes it.**
     `JournalProfile.write(to:)` writes it beside the four files, and

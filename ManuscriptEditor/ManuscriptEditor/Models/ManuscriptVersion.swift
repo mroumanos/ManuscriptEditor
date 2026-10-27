@@ -146,7 +146,7 @@ struct ManuscriptVersion: Codable, Identifiable, Sendable {
              sourceStamp, stampedByKey, stampSignature, stampedByType, stampedBySource
     }
 
-    init(from decoder: Decoder) throws {
+    nonisolated init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id                 = try c.decode(UUID.self, forKey: .id)
         label              = try c.decode(String.self, forKey: .label)

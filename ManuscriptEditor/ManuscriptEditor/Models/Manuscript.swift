@@ -21,7 +21,7 @@ import Foundation
 /// - `Codable`      — can be encoded to / decoded from JSON automatically.
 /// - `Identifiable` — has a stable `id` so SwiftUI lists can track rows across updates.
 /// - `Sendable`     — safe to pass between Swift concurrency contexts (async/await, actors).
-struct Manuscript: Codable, Identifiable, Sendable {
+struct Manuscript: nonisolated Codable, Identifiable, Sendable {
 
     // MARK: - Identity & metadata
 
@@ -262,7 +262,7 @@ struct Manuscript: Codable, Identifiable, Sendable {
     // Swift's synthesised Decodable would crash on those files; this custom version
     // uses `decodeIfPresent` so missing keys are treated as empty arrays.
 
-    init(from decoder: Decoder) throws {
+    nonisolated init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id            = try c.decode(UUID.self,                  forKey: .id)
         title         = try c.decode(String.self,                forKey: .title)

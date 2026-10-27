@@ -250,7 +250,7 @@ enum SectionRef: Codable, Hashable, Sendable {
         case type, id
     }
 
-    init(from decoder: Decoder) throws {
+    nonisolated init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         if let type = try? c.decode(SectionType.self, forKey: .type) {
             self = .byType(type)
@@ -260,7 +260,7 @@ enum SectionRef: Codable, Hashable, Sendable {
         }
     }
 
-    func encode(to encoder: Encoder) throws {
+    nonisolated func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
         switch self {
         case .byType(let type): try c.encode(type, forKey: .type)

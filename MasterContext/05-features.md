@@ -591,8 +591,12 @@ propagate by explicit, individual fast-forwards.
   export's source; no derived PNG is written. Letterhead and signature
   images are cached by their bytes the same way (`ImageDataCache`); an
   SVG over 512 KB there is stored as a 1000 px PNG. Edits save on a half-second
-  debounce rather than on every keystroke (explicit saves, closing,
-  switching and quitting flush at once), and a journal's profile files are
+  debounce rather than on every keystroke, and **the save encodes and
+  writes off the main thread** — a long-lived manuscript is a 10 MB file
+  (every version carries the full content) and ~70 ms to encode, which on
+  the main thread was a hitch at every keystroke and then wherever the
+  debounce landed, scrolling included. Explicit saves, closing, switching
+  and quitting flush at once, in order; a journal's profile files are
   rewritten only when its rules changed.
 - AC (implemented, Oct 2026): **One header, three pages, boxes edited in
   place.** Details, Tests and Export in a journal's tab wear the same

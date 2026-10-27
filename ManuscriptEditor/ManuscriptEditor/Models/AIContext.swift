@@ -108,7 +108,7 @@ struct AIContextEntry: Identifiable, Codable, Sendable, Equatable {
         case id, kind, title, isEnabled, body, fileName, updatedAt
     }
 
-    init(from decoder: Decoder) throws {
+    nonisolated init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         kind = try c.decodeIfPresent(AIContextKind.self, forKey: .kind) ?? .freeText
         id = try c.decodeIfPresent(UUID.self, forKey: .id) ?? kind.builtInID ?? UUID()

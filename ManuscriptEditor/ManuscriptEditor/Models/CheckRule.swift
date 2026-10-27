@@ -147,14 +147,14 @@ struct CheckScope: Codable, Hashable, Sendable {
     /// Written as `type`; `kind` is what a file said until Oct 2026.
     private enum CodingKeys: String, CodingKey { case type, kind, name }
 
-    init(from decoder: Decoder) throws {
+    nonisolated init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         type = try c.decodeIfPresent(ScopeType.self, forKey: .type)
             ?? c.decode(ScopeType.self, forKey: .kind)
         name = try c.decodeIfPresent(String.self, forKey: .name)
     }
 
-    func encode(to encoder: Encoder) throws {
+    nonisolated func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(type, forKey: .type)
         try c.encodeIfPresent(name, forKey: .name)
@@ -201,7 +201,7 @@ struct CheckCondition: Codable, Identifiable, Sendable, Equatable {
         self.comparator = comparator; self.number = number; self.text = text
     }
 
-    init(from decoder: Decoder) throws {
+    nonisolated init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         let storedID = try c.decodeIfPresent(UUID.self, forKey: .id)
         id = storedID ?? UUID()
@@ -225,7 +225,7 @@ struct CheckCondition: Codable, Identifiable, Sendable, Equatable {
         }
     }
 
-    func encode(to encoder: Encoder) throws {
+    nonisolated func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
         if encoder.userInfo[.profileFile] as? Bool != true { try c.encode(id, forKey: .id) }
         try c.encode(metric, forKey: .metric)
@@ -320,7 +320,7 @@ struct CheckRule: Codable, Identifiable, Sendable, Equatable {
         self.note = note; self.manual = manual
     }
 
-    init(from decoder: Decoder) throws {
+    nonisolated init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         let storedID = try c.decodeIfPresent(UUID.self, forKey: .id)
         id = storedID ?? UUID()
@@ -341,7 +341,7 @@ struct CheckRule: Codable, Identifiable, Sendable, Equatable {
         }
     }
 
-    func encode(to encoder: Encoder) throws {
+    nonisolated func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
         // A template's file is read by name and derives the same ids every
         // time; a manuscript keeps them.

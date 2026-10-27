@@ -119,7 +119,7 @@ struct AIPromptLogEntry: Identifiable, Codable, Sendable, Equatable {
 
     /// Tolerant decoding: the log ships with the manuscript and outlives any
     /// one version of the app.
-    init(from decoder: Decoder) throws {
+    nonisolated init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
         intentID = try c.decodeIfPresent(String.self, forKey: .intentID) ?? "unknown"

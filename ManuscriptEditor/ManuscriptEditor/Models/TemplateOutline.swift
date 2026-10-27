@@ -264,7 +264,7 @@ indirect enum JSONValue: Codable, Equatable, Sendable {
     }
     var object: [String: Any]? { if case .object(let o) = self { return o.mapValues(\.any) }; return nil }
 
-    init(from decoder: Decoder) throws {
+    nonisolated init(from decoder: Decoder) throws {
         let c = try decoder.singleValueContainer()
         if c.decodeNil() { self = .null }
         else if let b = try? c.decode(Bool.self) { self = .bool(b) }
@@ -274,7 +274,7 @@ indirect enum JSONValue: Codable, Equatable, Sendable {
         else { self = .object(try c.decode([String: JSONValue].self)) }
     }
 
-    func encode(to encoder: Encoder) throws {
+    nonisolated func encode(to encoder: Encoder) throws {
         var c = encoder.singleValueContainer()
         switch self {
         case .object(let o): try c.encode(o)

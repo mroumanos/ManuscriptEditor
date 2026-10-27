@@ -235,7 +235,7 @@ struct AIConnector: Identifiable, Codable, Sendable, Equatable {
         case lastTestedAt, lastTestSucceeded, lastTestMessage, effort
     }
 
-    init(from decoder: Decoder) throws {
+    nonisolated init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
         kind = try c.decodeIfPresent(AIConnectorKind.self, forKey: .kind) ?? .claudeCLI

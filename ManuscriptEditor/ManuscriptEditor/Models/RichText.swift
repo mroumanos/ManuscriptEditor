@@ -69,7 +69,7 @@ struct RichText: Codable, Sendable, Equatable {
 
     private enum CodingKeys: String, CodingKey { case plain, rtf, refs }
 
-    init(from decoder: Decoder) throws {
+    nonisolated init(from decoder: Decoder) throws {
         // Legacy: the whole field was a plain JSON string — unstyled, so it
         // cannot contain reference tokens ([] rather than "unknown").
         if let single = try? decoder.singleValueContainer(),
@@ -85,7 +85,7 @@ struct RichText: Codable, Sendable, Equatable {
         self.refs = try? c.decodeIfPresent([RefOccurrence].self, forKey: .refs)
     }
 
-    func encode(to encoder: Encoder) throws {
+    nonisolated func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(plain, forKey: .plain)
         try c.encodeIfPresent(rtf, forKey: .rtf)

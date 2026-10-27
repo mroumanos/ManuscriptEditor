@@ -352,6 +352,7 @@ final class ManuscriptStore {
         saveTask?.cancel()
         saveTask = nil
         guard let m = manuscript else { return }
+        saveQueue.sync { }   // an earlier snapshot still writing lands first
         do {
             try persistence.save(m)
             // The journals' own rules are part of the manuscript when they
@@ -4456,14 +4457,20 @@ final class ManuscriptStore {
 
     // MARK: - Saving, coalesced
 
-    /// Edits save half a second after the last one, not on each keystroke.
-    /// A save re-encodes the whole manuscript and writes it, and every
-    /// journal's rules with it — so a letterhead logo of a couple of
-    /// megabytes made every keystroke a multi-megabyte disk write.  An
-    /// explicit save, a close, a switch of manuscript and quitting flush at
-    /// once (`flushPendingSave`); nothing is lost but the last half second
-    /// in a crash.
+    /// Edits save half a second after the last one, not on each keystroke,
+    /// and the save runs off the main thread.  A save re-encodes the whole
+    /// manuscript — every version carries the full content, so a long-lived
+    /// manuscript is a 10 MB file and ~70 ms to encode — and on the main
+    /// thread that was a hitch on every keystroke, then (debounced)
+    /// wherever the half second landed, scrolling included.  The value is a
+    /// snapshot, so a serial background queue encodes and writes it; the
+    /// journals' rules are written on the main thread, which skips any that
+    /// have not changed.  An explicit save, a close, a switch of manuscript
+    /// and quitting flush at once (`flushPendingSave`), waiting for whatever
+    /// the queue holds so writes land in order; nothing is lost but the last
+    /// half second in a crash.
     private var saveTask: Task<Void, Never>?
+    private let saveQueue = DispatchQueue(label: "ManuscriptEditor.save", qos: .utility)
 
     private func scheduleSave() {
         saveTask?.cancel()
@@ -4471,8 +4478,22 @@ final class ManuscriptStore {
             try? await Task.sleep(for: .milliseconds(500))
             guard !Task.isCancelled else { return }
             self?.saveTask = nil
-            self?.trySave()
+            self?.saveInBackground()
         }
+    }
+
+    private func saveInBackground() {
+        guard let snapshot = manuscript else { return }
+        let persistence = self.persistence
+        saveQueue.async { [weak self] in
+            let outcome: String?
+            do { try persistence.save(snapshot); outcome = nil } catch { outcome = error.localizedDescription }
+            Task { @MainActor in
+                guard let self else { return }
+                if let outcome { self.saveError = outcome } else { self.lastSaved = Date(); self.saveError = nil }
+            }
+        }
+        writeTravelingProfiles()
     }
 
     /// Writes a pending edit now.  Called before the manuscript is replaced
